@@ -111,6 +111,188 @@ void Client::CalcBonuses()
 
 	if (GetMaxXTargets() != 5 + aabonuses.extra_xtargets)
 		SetMaxXTargets(5 + aabonuses.extra_xtargets);
+	
+	int melee_mod = 0;
+	int regen_mod = 0;
+	int dodge_mod = 0;
+	int melee_crit_mod = 0;
+	int spelldmg_mod = 0;
+	int healamt_mod = 0;
+	int mana_regen_mod = 0;
+	int endur_regen_mod = 0;
+	
+	switch (GetClass()) {
+		case 1: // Warrior
+			melee_mod = RuleI(Character, Warrior_MeleeMod);
+			regen_mod = RuleI(Character, Warrior_RegenMod);
+			dodge_mod = RuleI(Character, Warrior_DodgeMod);
+			melee_crit_mod = RuleI(Character, Warrior_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Warrior_SpellDMGMod);
+			healamt_mod = RuleI(Character, Warrior_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Warrior_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Warrior_EndurRegenMod);
+			break;
+		case 2: // Cleric
+			melee_mod = RuleI(Character, Cleric_MeleeMod);
+			regen_mod = RuleI(Character, Cleric_RegenMod);
+			dodge_mod = RuleI(Character, Cleric_DodgeMod);
+			melee_crit_mod = RuleI(Character, Cleric_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Cleric_SpellDMGMod);
+			healamt_mod = RuleI(Character, Cleric_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Cleric_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Cleric_EndurRegenMod);
+			break;
+		case 3: // Paladin
+			melee_mod = RuleI(Character, Paladin_MeleeMod);
+			regen_mod = RuleI(Character, Paladin_RegenMod);
+			dodge_mod = RuleI(Character, Paladin_DodgeMod);
+			melee_crit_mod = RuleI(Character, Paladin_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Paladin_SpellDMGMod);
+			healamt_mod = RuleI(Character, Paladin_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Paladin_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Paladin_EndurRegenMod);
+			break;
+		case 4: // Ranger
+			melee_mod = RuleI(Character, Ranger_MeleeMod);
+			regen_mod = RuleI(Character, Ranger_RegenMod);
+			dodge_mod = RuleI(Character, Ranger_DodgeMod);
+			melee_crit_mod = RuleI(Character, Ranger_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Ranger_SpellDMGMod);
+			healamt_mod = RuleI(Character, Ranger_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Ranger_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Ranger_EndurRegenMod);
+			break;
+		case 5: // Shadowknight
+			melee_mod = RuleI(Character, Shadowknight_MeleeMod);
+			regen_mod = RuleI(Character, Shadowknight_RegenMod);
+			dodge_mod = RuleI(Character, Shadowknight_DodgeMod);
+			melee_crit_mod = RuleI(Character, Shadowknight_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Shadowknight_SpellDMGMod);
+			healamt_mod = RuleI(Character, Shadowknight_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Shadowknight_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Shadowknight_EndurRegenMod);
+			break;
+		case 6: // Druid
+			melee_mod = RuleI(Character, Druid_MeleeMod);
+			regen_mod = RuleI(Character, Druid_RegenMod);
+			dodge_mod = RuleI(Character, Druid_DodgeMod);
+			melee_crit_mod = RuleI(Character, Druid_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Druid_SpellDMGMod);
+			healamt_mod = RuleI(Character, Druid_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Druid_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Druid_EndurRegenMod);
+			break;
+		case 7: // Monk
+			melee_mod = RuleI(Character, Monk_MeleeMod);
+			regen_mod = RuleI(Character, Monk_RegenMod);
+			dodge_mod = RuleI(Character, Monk_DodgeMod);
+			melee_crit_mod = RuleI(Character, Monk_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Monk_SpellDMGMod);
+			healamt_mod = RuleI(Character, Monk_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Monk_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Monk_EndurRegenMod);
+			break;
+		case 8: // Bard
+			melee_mod = RuleI(Character, Bard_MeleeMod);
+			regen_mod = RuleI(Character, Bard_RegenMod);
+			dodge_mod = RuleI(Character, Bard_DodgeMod);
+			melee_crit_mod = RuleI(Character, Bard_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Bard_SpellDMGMod);
+			healamt_mod = RuleI(Character, Bard_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Bard_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Bard_EndurRegenMod);
+			break;
+		case 9: // Rogue
+			melee_mod = RuleI(Character, Rogue_MeleeMod);
+			regen_mod = RuleI(Character, Rogue_RegenMod);
+			dodge_mod = RuleI(Character, Rogue_DodgeMod);
+			melee_crit_mod = RuleI(Character, Rogue_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Rogue_SpellDMGMod);
+			healamt_mod = RuleI(Character, Rogue_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Rogue_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Rogue_EndurRegenMod);
+			break;
+		case 10: // Shaman
+			melee_mod = RuleI(Character, Shaman_MeleeMod);
+			regen_mod = RuleI(Character, Shaman_RegenMod);
+			dodge_mod = RuleI(Character, Shaman_DodgeMod);
+			melee_crit_mod = RuleI(Character, Shaman_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Shaman_SpellDMGMod);
+			healamt_mod = RuleI(Character, Shaman_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Shaman_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Shaman_EndurRegenMod);
+			break;
+		case 11: // Necromancer
+			melee_mod = RuleI(Character, Necromancer_MeleeMod);
+			regen_mod = RuleI(Character, Necromancer_RegenMod);
+			dodge_mod = RuleI(Character, Necromancer_DodgeMod);
+			melee_crit_mod = RuleI(Character, Necromancer_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Necromancer_SpellDMGMod);
+			healamt_mod = RuleI(Character, Necromancer_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Necromancer_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Necromancer_EndurRegenMod);
+			break;
+		case 12: // Wizard
+			melee_mod = RuleI(Character, Wizard_MeleeMod);
+			regen_mod = RuleI(Character, Wizard_RegenMod);
+			dodge_mod = RuleI(Character, Wizard_DodgeMod);
+			melee_crit_mod = RuleI(Character, Wizard_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Wizard_SpellDMGMod);
+			healamt_mod = RuleI(Character, Wizard_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Wizard_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Wizard_EndurRegenMod);
+			break;
+		case 13: // Magician
+			melee_mod = RuleI(Character, Magician_MeleeMod);
+			regen_mod = RuleI(Character, Magician_RegenMod);
+			dodge_mod = RuleI(Character, Magician_DodgeMod);
+			melee_crit_mod = RuleI(Character, Magician_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Magician_SpellDMGMod);
+			healamt_mod = RuleI(Character, Magician_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Magician_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Magician_EndurRegenMod);
+			break;
+		case 14: // Enchanter
+			melee_mod = RuleI(Character, Enchanter_MeleeMod);
+			regen_mod = RuleI(Character, Enchanter_RegenMod);
+			dodge_mod = RuleI(Character, Enchanter_DodgeMod);
+			melee_crit_mod = RuleI(Character, Enchanter_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Enchanter_SpellDMGMod);
+			healamt_mod = RuleI(Character, Enchanter_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Enchanter_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Enchanter_EndurRegenMod);
+			break;
+		case 15: // Beastlord
+			melee_mod = RuleI(Character, Beastlord_MeleeMod);
+			regen_mod = RuleI(Character, Beastlord_RegenMod);
+			dodge_mod = RuleI(Character, Beastlord_DodgeMod);
+			melee_crit_mod = RuleI(Character, Beastlord_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Beastlord_SpellDMGMod);
+			healamt_mod = RuleI(Character, Beastlord_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Beastlord_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Beastlord_EndurRegenMod);
+			break;
+		case 16: // Berserker
+			melee_mod = RuleI(Character, Berserker_MeleeMod);
+			regen_mod = RuleI(Character, Berserker_RegenMod);
+			dodge_mod = RuleI(Character, Berserker_DodgeMod);
+			melee_crit_mod = RuleI(Character, Berserker_MeleeCritMod);
+			spelldmg_mod = RuleI(Character, Berserker_SpellDMGMod);
+			healamt_mod = RuleI(Character, Berserker_HealAMTMod);
+			mana_regen_mod = RuleI(Character, Berserker_ManaRegenMod);
+			endur_regen_mod = RuleI(Character, Berserker_EndurRegenMod);
+			break;
+	}
+	
+	spellbonuses.DamageModifier[HIGHEST_SKILL + 1] += (GetSTR() * melee_mod) / 100;
+	spellbonuses.MinDamageModifier[HIGHEST_SKILL + 1] += (GetSTR() * melee_mod) / 100;
+	spellbonuses.HPRegen += (GetSTA() * regen_mod) / 100;
+	spellbonuses.DodgeChance += (GetAGI() * dodge_mod) / 100;
+	spellbonuses.CriticalHitChance[HIGHEST_SKILL+1] += (GetDEX() * melee_crit_mod) / 100;
+	itembonuses.SpellDmg += (GetINT() * spelldmg_mod) / 100;
+	itembonuses.HealAmt += (GetWIS() * healamt_mod) / 100;
+	spellbonuses.ManaRegen += (GetCHA() * mana_regen_mod) / 100;
+	spellbonuses.EnduranceRegen += (GetCHA() * endur_regen_mod) / 100;
 }
 
 int Client::CalcRecommendedLevelBonus(uint8 level, uint8 reclevel, int basestat)
