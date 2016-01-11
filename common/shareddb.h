@@ -52,6 +52,11 @@ class SharedDatabase : public Database
 		void	LoadCharacterInspectMessage(uint32 character_id, InspectMessage_Struct* message);
 		void	SaveCharacterInspectMessage(uint32 character_id, const InspectMessage_Struct* message);
 		bool	GetCommandSettings(std::map<std::string, std::pair<uint8, std::vector<std::string>>> &command_settings);
+
+#ifdef BOTS
+		bool	GetBotCommandSettings(std::map<std::string, std::pair<uint8, std::vector<std::string>>> &bot_command_settings);
+#endif
+
 		uint32	GetTotalTimeEntitledOnAccount(uint32 AccountID);
 
 		/*

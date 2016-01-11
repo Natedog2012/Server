@@ -110,7 +110,7 @@ public:
 		BotRoleRaidHealer
 	};
 
-	enum EqExpansions {
+	enum EqExpansions { // expansions are off..EQ should be '0'
 		ExpansionNone,
 		ExpansionEQ,
 		ExpansionRoK,
@@ -156,8 +156,10 @@ public:
 
 	// Class Methods
 	bool IsValidRaceClassCombo();
+	static bool IsValidRaceClassCombo(uint16 r, uint8 c);
 	bool IsValidName();
-	static bool IsBotNameAvailable(char *botName, std::string* errorMessage);
+	static bool IsValidName(std::string& name);
+	static bool IsBotNameAvailable(const char *botName, std::string* errorMessage);
 	bool DeleteBot(std::string* errorMessage);
 	void Spawn(Client* botCharacterOwner, std::string* errorMessage);
 	virtual void SetLevel(uint8 in_level, bool command = false);
@@ -352,7 +354,6 @@ public:
 	static uint32 GetBotIDByBotName(std::string botName);
 	static Bot* LoadBot(uint32 botID, std::string* errorMessage);
 	static std::list<BotsAvailableList> GetBotList(uint32 botOwnerCharacterID, std::string* errorMessage);
-	static void ProcessBotCommands(Client *c, const Seperator *sep);
 	static std::list<SpawnedBotsList> ListSpawnedBots(uint32 characterID, std::string* errorMessage);
 	static uint32 SpawnedBotCount(uint32 botOwnerCharacterID, std::string* errorMessage);
 	static uint32 CreatedBotCount(uint32 botOwnerCharacterID, std::string* errorMessage);
@@ -549,17 +550,33 @@ public:
 	void SetNumHealRotationMembers( uint8 numMembers ) { _numHealRotationMembers = numMembers; }
 	void SetBardUseOutOfCombatSongs(bool useOutOfCombatSongs) { _bardUseOutOfCombatSongs = useOutOfCombatSongs;}
 	void SetShowHelm(bool showhelm) { _showhelm = showhelm; }
+	void SetBeardColor(uint8 value) { beardcolor = value; }
+	void SetBeard(uint8 value) { beard = value; }
+	void SetEyeColor1(uint8 value) { eyecolor1 = value; }
+	void SetEyeColor2(uint8 value) { eyecolor2 = value; }
+	void SetLuclinFace(uint8 value) { luclinface = value; }
+	void SetHairColor(uint8 value) { haircolor = value; }
+	void SetHairStyle(uint8 value) { hairstyle = value; }
+	void SetDrakkinDetails(uint32 value) { drakkin_details = value; }
+	void SetDrakkinHeritage(uint32 value) { drakkin_heritage = value; }
+	void SetDrakkinTattoo(uint32 value) { drakkin_tattoo = value; }
+	bool DyeArmor(int16 slot_id, uint32 rgb, bool all_flag = false, bool save_flag = true);
 
 	std::string CreateSayLink(Client* botOwner, const char* message, const char* name);
 
 	// Class Destructors
 	virtual ~Bot();
 
+	// Publicized protected/private functions
+	virtual void BotRangedAttack(Mob* other); // protected
+	uint32 GetBotItemsCount(std::string* errorMessage); // private
+	void BotRemoveEquipItem(int slot); // private
+	void RemoveBotItemBySlot(uint32 slotID, std::string* errorMessage); // private
+
 protected:
 	virtual void PetAIProcess();
 	static NPCType FillNPCTypeStruct(uint32 botSpellsID, std::string botName, std::string botLastName, uint8 botLevel, uint16 botRace, uint8 botClass, uint8 gender, float size, uint32 face, uint32 hairStyle, uint32 hairColor, uint32 eyeColor, uint32 eyeColor2, uint32 beardColor, uint32 beard, uint32 drakkinHeritage, uint32 drakkinTattoo, uint32 drakkinDetails, int32 hp, int32 mana, int32 mr, int32 cr, int32 dr, int32 fr, int32 pr, int32 corrup, int32 ac, uint32 str, uint32 sta, uint32 dex, uint32 agi, uint32 _int, uint32 wis, uint32 cha, uint32 attack);
 	virtual void BotMeditate(bool isSitting);
-	virtual void BotRangedAttack(Mob* other);
 	virtual bool CheckBotDoubleAttack(bool Triple = false);
 	virtual int32 GetBotFocusEffect(BotfocusType bottype, uint16 spell_id);
 	virtual int32 CalcBotFocusEffect(BotfocusType bottype, uint16 focus_id, uint16 spell_id, bool best_focus=false);
@@ -656,12 +673,9 @@ private:
 
 	// Private "Inventory" Methods
 	void GetBotItems(std::string* errorMessage, Inventory &inv);
-	void BotRemoveEquipItem(int slot);
 	void BotAddEquipItem(int slot, uint32 id);
 	uint32 GetBotItemBySlot(uint32 slotID);
-	void RemoveBotItemBySlot(uint32 slotID, std::string* errorMessage);
 	void SetBotItemInSlot(uint32 slotID, uint32 itemID, const ItemInst* inst, std::string* errorMessage);
-	uint32 GetBotItemsCount(std::string* errorMessage);
 	uint32 GetTotalPlayTime();
 	void SaveBuffs();	// Saves existing buffs to the database to persist zoning and camping
 	void LoadBuffs();	// Retrieves saved buffs from the database on spawning

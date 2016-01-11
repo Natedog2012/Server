@@ -52,6 +52,9 @@
 #include "zone.h"
 #include "queryserv.h"
 #include "command.h"
+#ifdef BOTS
+#include "bot_command.h"
+#endif
 #include "zone_config.h"
 #include "titles.h"
 #include "guild_mgr.h"
@@ -307,6 +310,14 @@ int main(int argc, char** argv) {
 		Log.Out(Logs::General, Logs::Error, "Command loading FAILED");
 	else
 		Log.Out(Logs::General, Logs::Zone_Server, "%d commands loaded", retval);
+#ifdef BOTS
+	Log.Out(Logs::General, Logs::Zone_Server, "Loading bot commands");
+	int botretval = bot_command_init();
+	if (botretval<0)
+		Log.Out(Logs::General, Logs::Error, "Bot command loading FAILED");
+	else
+		Log.Out(Logs::General, Logs::Zone_Server, "%d bot commands loaded", botretval);
+#endif
 
 	//rules:
 	{
@@ -524,6 +535,9 @@ int main(int argc, char** argv) {
 	worldserver.Disconnect();
 	safe_delete(taskmanager);
 	command_deinit();
+#ifdef BOTS
+	bot_command_deinit();
+#endif
 	safe_delete(parse);
 	Log.Out(Logs::General, Logs::Zone_Server, "Proper zone shutdown complete.");
 	Log.CloseFileLogs();

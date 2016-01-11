@@ -8,6 +8,7 @@ SET(zone_sources
 	beacon.cpp
 	bonuses.cpp
 	bot.cpp
+	bot_command.cpp
 	botspellsai.cpp
 	client.cpp
 	client_mods.cpp
@@ -131,6 +132,7 @@ SET(zone_headers
 	basic_functions.h
 	beacon.h
 	bot.h
+	bot_command.h
 	bot_structs.h
 	client.h
 	client_packet.h

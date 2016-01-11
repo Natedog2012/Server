@@ -1357,6 +1357,33 @@ bool SharedDatabase::GetCommandSettings(std::map<std::string, std::pair<uint8, s
     return true;
 }
 
+#ifdef BOTS
+bool SharedDatabase::GetBotCommandSettings(std::map<std::string, std::pair<uint8, std::vector<std::string>>> &bot_command_settings)
+{
+	bot_command_settings.clear();
+
+	std::string query = "SELECT `bot_command`, `access`, `aliases` FROM `bot_command_settings`";
+	auto results = QueryDatabase(query);
+	if (!results.Success())
+		return false;
+
+	for (auto row = results.begin(); row != results.end(); ++row) {
+		bot_command_settings[row[0]].first = atoi(row[1]);
+		if (row[2][0] == 0)
+			continue;
+
+		std::vector<std::string> aliases = SplitString(row[2], '|');
+		for (std::vector<std::string>::iterator iter = aliases.begin(); iter != aliases.end(); ++iter) {
+			if (iter->empty())
+				continue;
+			bot_command_settings[row[0]].second.push_back(*iter);
+		}
+	}
+
+	return true;
+}
+#endif
+
 bool SharedDatabase::LoadSkillCaps(const std::string &prefix) {
 	skill_caps_mmf.reset(nullptr);
 
