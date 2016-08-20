@@ -7,6 +7,7 @@
 #include "../common/faction.h"
 #include "../common/eqemu_logsys.h"
 #include "aa_ability.h"
+#include "event_codes.h"
 
 class Client;
 class Corpse;
@@ -91,7 +92,7 @@ struct DBnpcspellseffects_Struct {
 };
 
 struct DBTradeskillRecipe_Struct {
-	SkillUseTypes tradeskill;
+	EQEmu::skills::SkillType tradeskill;
 	int16 skill_needed;
 	uint16 trivial;
 	bool nofail;
@@ -124,8 +125,8 @@ struct PetInfo {
 	uint32	HP;
 	uint32	Mana;
 	float	size;
-	SpellBuff_Struct	Buffs[BUFF_COUNT];
-	uint32	Items[EmuConstants::EQUIPMENT_SIZE];
+	SpellBuff_Struct	Buffs[PET_BUFF_COUNT];
+	uint32	Items[EQEmu::legacy::EQUIPMENT_SIZE];
 	char	Name[64];
 };
 
@@ -276,7 +277,7 @@ public:
 	bool	LoadCharacterLeadershipAA(uint32 character_id, PlayerProfile_Struct* pp);
 
 	/* Character Data Saves  */
-	bool	SaveCharacterBindPoint(uint32 character_id, uint32 zone_id, uint32 instance_id, const glm::vec4& position, uint8 is_home);
+	bool	SaveCharacterBindPoint(uint32 character_id, const BindStruct &bind, uint32 bind_num);
 	bool	SaveCharacterCurrency(uint32 character_id, PlayerProfile_Struct* pp);
 	bool	SaveCharacterData(uint32 character_id, uint32 account_id, PlayerProfile_Struct* pp, ExtendedProfile_Struct* m_epp);
 	bool	SaveCharacterAA(uint32 character_id, uint32 aa_id, uint32 current_level, uint32 charges);
@@ -290,6 +291,7 @@ public:
 	bool	SaveCharacterBandolier(uint32 character_id, uint8 bandolier_id, uint8 bandolier_slot, uint32 item_id, uint32 icon, const char* bandolier_name);
 	bool	SaveCharacterPotionBelt(uint32 character_id, uint8 potion_id, uint32 item_id, uint32 icon);
 	bool	SaveCharacterLeadershipAA(uint32 character_id, PlayerProfile_Struct* pp);
+	bool	SaveCharacterInventorySnapshot(uint32 character_id);
 
 	/* Character Data Deletes   */
 	bool	DeleteCharacterSpell(uint32 character_id, uint32 spell_id, uint32 slot_id);
@@ -357,6 +359,7 @@ public:
 	bool		LoadSpawnGroups(const char* zone_name, uint16 version, SpawnGroupList* spawn_group_list);
 	bool		LoadSpawnGroupsByID(int spawngroupid, SpawnGroupList* spawn_group_list);
 	bool		PopulateZoneSpawnList(uint32 zoneid, LinkedList<Spawn2*> &spawn2_list, int16 version, uint32 repopdelay = 0);
+	bool		PopulateZoneSpawnListClose(uint32 zoneid, LinkedList<Spawn2*> &spawn2_list, int16 version, const glm::vec4& client_position, uint32 repop_distance);
 	Spawn2*		LoadSpawn2(LinkedList<Spawn2*> &spawn2_list, uint32 spawn2id, uint32 timeleft);
 	bool		CreateSpawn2(Client *c, uint32 spawngroup, const char* zone, const glm::vec4& position, uint32 respawn, uint32 variance, uint16 condition, int16 cond_value);
 	void		UpdateRespawnTime(uint32 id, uint16 instance_id,uint32 timeleft);
@@ -476,6 +479,10 @@ public:
 	/* Alternate Currency   */
 	void LoadAltCurrencyValues(uint32 char_id, std::map<uint32, uint32> &currency);
 	void UpdateAltCurrencyValue(uint32 char_id, uint32 currency_id, uint32 value);
+
+	/* Saylinks   */
+	uint32 LoadSaylinkID(const char* saylink_text, bool auto_insert = true);
+	uint32 SaveSaylinkID(const char* saylink_text);
 
 	/*
 		* Misc stuff.

@@ -11,7 +11,9 @@ class Lua_ItemInst;
 
 namespace luabind {
 	struct scope;
-	class object;
+	namespace adl {
+		class object;
+	}
 }
 
 luabind::scope lua_register_mob();
@@ -40,6 +42,8 @@ public:
 	void SetLevel(int level, bool command);
 	void SendWearChange(int material_slot);
 	bool IsMoving();
+	bool IsFeared();
+	bool IsBlind();
 	void GotoBind();
 	void Gate();
 	bool Attack(Lua_Mob other);
@@ -215,8 +219,8 @@ public:
 	bool GetInvul();
 	void SetExtraHaste(int haste);
 	int GetHaste();
-	int GetMonkHandToHandDamage();
-	int GetMonkHandToHandDelay();
+	int GetHandToHandDamage();
+	int GetHandToHandDelay();
 	void Mesmerize();
 	bool IsMezzed();
 	bool IsEnraged();
@@ -356,6 +360,26 @@ public:
 	int CanBuffStack(int spell_id, int caster_level);
 	int CanBuffStack(int spell_id, int caster_level, bool fail_if_overwrite);
 	void SetPseudoRoot(bool in);
+	uint8 SeeInvisible();
+	bool SeeInvisibleUndead();
+	bool SeeHide();
+	bool SeeImprovedHide();
+	uint8 GetNimbusEffect1();
+	uint8 GetNimbusEffect2();
+	uint8 GetNimbusEffect3();
+	bool IsTargetable();
+	bool HasShieldEquiped();
+	bool HasTwoHandBluntEquiped();
+	bool HasTwoHanderEquipped();
+	uint32 GetHerosForgeModel(uint8 material_slot);
+	uint32 IsEliteMaterialItem(uint8 material_slot);
+	float GetBaseSize();
+	bool HasOwner();
+	bool IsPet();
+	bool HasPet();
+	bool IsSilenced();
+	bool IsAmnesiad();
+	int32 GetMeleeMitigation();
 };
 
 #endif

@@ -264,7 +264,7 @@ void Mob::MakePoweredPet(uint16 spell_id, const char* pettype, int16 petpower,
 	}
 
 	//we copy the npc_type data because we need to edit it a bit
-	NPCType *npc_type = new NPCType;
+	auto npc_type = new NPCType;
 	memcpy(npc_type, base, sizeof(NPCType));
 
 	// If pet power is set to -1 in the DB, use stat scaling
@@ -283,7 +283,7 @@ void Mob::MakePoweredPet(uint16 spell_id, const char* pettype, int16 petpower,
 			npc_type->level += 1 + ((int)act_power / 25) > npc_type->level + RuleR(Pets, PetPowerLevelCap) ? RuleR(Pets, PetPowerLevelCap) : 1 + ((int)act_power / 25); // gains an additional level for every 25 pet power
 			npc_type->min_dmg = (npc_type->min_dmg * (1 + (scale_power / 2)));
 			npc_type->max_dmg = (npc_type->max_dmg * (1 + (scale_power / 2)));
-			npc_type->size = npc_type->size * (1 + (scale_power / 2)) > npc_type->size * 3 ? npc_type->size * 3 : (1 + (scale_power / 2));
+			npc_type->size = npc_type->size * (1 + (scale_power / 2)) > npc_type->size * 3 ? npc_type->size * 3 : npc_type-> size * (1 + (scale_power / 2));
 		}
 		record.petpower = act_power;
 	}
@@ -383,6 +383,7 @@ void Mob::MakePoweredPet(uint16 spell_id, const char* pettype, int16 petpower,
 									"ORDER BY RAND() LIMIT 1", zone->GetShortName());
 		auto results = database.QueryDatabase(query);
 		if (!results.Success()) {
+			safe_delete(npc_type);
 			return;
 		}
 
@@ -411,18 +412,18 @@ void Mob::MakePoweredPet(uint16 spell_id, const char* pettype, int16 petpower,
 	}
 
 	//this takes ownership of the npc_type data
-	Pet *npc = new Pet(npc_type, this, (PetType)record.petcontrol, spell_id, record.petpower);
+	auto npc = new Pet(npc_type, this, (PetType)record.petcontrol, spell_id, record.petpower);
 
 	// Now that we have an actual object to interact with, load
 	// the base items for the pet. These are always loaded
 	// so that a rank 1 suspend minion does not kill things
 	// like the special back items some focused pets may receive.
-	uint32 petinv[EmuConstants::EQUIPMENT_SIZE];
+	uint32 petinv[EQEmu::legacy::EQUIPMENT_SIZE];
 	memset(petinv, 0, sizeof(petinv));
-	const Item_Struct *item = 0;
+	const EQEmu::ItemBase *item = 0;
 
 	if (database.GetBasePetItems(record.equipmentset, petinv)) {
-		for (int i = 0; i<EmuConstants::EQUIPMENT_SIZE; i++)
+		for (int i = 0; i < EQEmu::legacy::EQUIPMENT_SIZE; i++)
 			if (petinv[i]) {
 				item = database.GetItem(petinv[i]);
 				npc->AddLootDrop(item, &npc->itemlist, 0, 1, 127, true, true);
@@ -475,7 +476,7 @@ void Pet::SetTarget(Mob *mob)
 		return;
 
 	auto owner = GetOwner();
-	if (owner && owner->IsClient() && owner->CastToClient()->GetClientVersionBit() & BIT_UFAndLater) {
+	if (owner && owner->IsClient() && owner->CastToClient()->ClientVersionBit() & EQEmu::versions::bit_UFAndLater) {
 		auto app = new EQApplicationPacket(OP_PetHoTT, sizeof(ClientTarget_Struct));
 		auto ct = (ClientTarget_Struct *)app->pBuffer;
 		ct->new_target = mob ? mob->GetID() : 0;
@@ -572,16 +573,16 @@ void NPC::GetPetState(SpellBuff_Struct *pet_buffs, uint32 *items, char *name) {
 	strn0cpy(name, GetName(), 64);
 
 	//save their items, we only care about what they are actually wearing
-	memcpy(items, equipment, sizeof(uint32)*EmuConstants::EQUIPMENT_SIZE);
+	memcpy(items, equipment, sizeof(uint32) * EQEmu::legacy::EQUIPMENT_SIZE);
 
 	//save their buffs.
 	for (int i=0; i < GetPetMaxTotalSlots(); i++) {
 		if (buffs[i].spellid != SPELL_UNKNOWN) {
 			pet_buffs[i].spellid = buffs[i].spellid;
-			pet_buffs[i].slotid = i+1;
+			pet_buffs[i].effect_type = i+1;
 			pet_buffs[i].duration = buffs[i].ticsremaining;
 			pet_buffs[i].level = buffs[i].casterlevel;
-			pet_buffs[i].effect = 10;
+			pet_buffs[i].bard_modifier = 10;
 			pet_buffs[i].counters = buffs[i].counters;
 			pet_buffs[i].bard_modifier = buffs[i].instrument_mod;
 		}
@@ -589,7 +590,7 @@ void NPC::GetPetState(SpellBuff_Struct *pet_buffs, uint32 *items, char *name) {
 			pet_buffs[i].spellid = SPELL_UNKNOWN;
 			pet_buffs[i].duration = 0;
 			pet_buffs[i].level = 0;
-			pet_buffs[i].effect = 0;
+			pet_buffs[i].bard_modifier = 10;
 			pet_buffs[i].counters = 0;
 		}
 	}
@@ -622,10 +623,10 @@ void NPC::SetPetState(SpellBuff_Struct *pet_buffs, uint32 *items) {
 		else {
 			buffs[i].spellid = SPELL_UNKNOWN;
 			pet_buffs[i].spellid = 0xFFFFFFFF;
-			pet_buffs[i].slotid = 0;
+			pet_buffs[i].effect_type = 0;
 			pet_buffs[i].level = 0;
 			pet_buffs[i].duration = 0;
-			pet_buffs[i].effect = 0;
+			pet_buffs[i].bard_modifier = 0;
 		}
 	}
 	for (int j1=0; j1 < GetPetMaxTotalSlots(); j1++) {
@@ -647,10 +648,10 @@ void NPC::SetPetState(SpellBuff_Struct *pet_buffs, uint32 *items) {
 					case SE_Illusion:
 						buffs[j1].spellid = SPELL_UNKNOWN;
 						pet_buffs[j1].spellid = SPELLBOOK_UNKNOWN;
-						pet_buffs[j1].slotid = 0;
+						pet_buffs[j1].effect_type = 0;
 						pet_buffs[j1].level = 0;
 						pet_buffs[j1].duration = 0;
-						pet_buffs[j1].effect = 0;
+						pet_buffs[j1].bard_modifier = 0;
 						x1 = EFFECT_COUNT;
 						break;
 					// We can't send appearance packets yet, put down at CompleteConnect
@@ -660,15 +661,15 @@ void NPC::SetPetState(SpellBuff_Struct *pet_buffs, uint32 *items) {
 	}
 
 	//restore their equipment...
-	for (i = 0; i < EmuConstants::EQUIPMENT_SIZE; i++) {
+	for (i = 0; i < EQEmu::legacy::EQUIPMENT_SIZE; i++) {
 		if(items[i] == 0)
 			continue;
 
-		const Item_Struct* item2 = database.GetItem(items[i]);
+		const EQEmu::ItemBase* item2 = database.GetItem(items[i]);
 		if (item2 && item2->NoDrop != 0) {
 			//dont bother saving item charges for now, NPCs never use them
 			//and nobody should be able to get them off the corpse..?
-			AddLootDrop(item2, &itemlist, 0, 1, 127, true, true);
+			AddLootDrop(item2, &itemlist, 0, 1, 255, true, true);
 		}
 	}
 }
@@ -722,7 +723,7 @@ bool ZoneDatabase::GetBasePetItems(int32 equipmentset, uint32 *items) {
 			{
 				slot = atoi(row[0]);
 
-				if (slot >= EmuConstants::EQUIPMENT_SIZE)
+				if (slot >= EQEmu::legacy::EQUIPMENT_SIZE)
 					continue;
 
 				if (items[slot] == 0)
@@ -737,3 +738,10 @@ bool ZoneDatabase::GetBasePetItems(int32 equipmentset, uint32 *items) {
 	return true;
 }
 
+bool Pet::CheckSpellLevelRestriction(uint16 spell_id)
+{
+	auto owner = GetOwner();
+	if (owner)
+		return owner->CheckSpellLevelRestriction(spell_id);
+	return true;
+}

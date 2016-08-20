@@ -232,27 +232,27 @@ void Lua_Client::SetBindPoint() {
 
 void Lua_Client::SetBindPoint(int to_zone) {
 	Lua_Safe_Call_Void();
-	self->SetBindPoint(to_zone);
+	self->SetBindPoint(0, to_zone);
 }
 
 void Lua_Client::SetBindPoint(int to_zone, int to_instance) {
 	Lua_Safe_Call_Void();
-	self->SetBindPoint(to_zone, to_instance);
+	self->SetBindPoint(0, to_zone, to_instance);
 }
 
 void Lua_Client::SetBindPoint(int to_zone, int to_instance, float new_x) {
 	Lua_Safe_Call_Void();
-	self->SetBindPoint(to_zone, to_instance, glm::vec3(new_x,0.0f,0.0f));
+	self->SetBindPoint(0, to_zone, to_instance, glm::vec3(new_x,0.0f,0.0f));
 }
 
 void Lua_Client::SetBindPoint(int to_zone, int to_instance, float new_x, float new_y) {
 	Lua_Safe_Call_Void();
-	self->SetBindPoint(to_zone, to_instance, glm::vec3(new_x, new_y, 0.0f));
+	self->SetBindPoint(0, to_zone, to_instance, glm::vec3(new_x, new_y, 0.0f));
 }
 
 void Lua_Client::SetBindPoint(int to_zone, int to_instance, float new_x, float new_y, float new_z) {
 	Lua_Safe_Call_Void();
-	self->SetBindPoint(to_zone, to_instance, glm::vec3(new_x, new_y, new_z));
+	self->SetBindPoint(0, to_zone, to_instance, glm::vec3(new_x, new_y, new_z));
 }
 
 float Lua_Client::GetBindX() {
@@ -432,27 +432,27 @@ void Lua_Client::IncreaseLanguageSkill(int skill_id, int value) {
 
 int Lua_Client::GetRawSkill(int skill_id) {
 	Lua_Safe_Call_Int();
-	return self->GetRawSkill(static_cast<SkillUseTypes>(skill_id));
+	return self->GetRawSkill(static_cast<EQEmu::skills::SkillType>(skill_id));
 }
 
 bool Lua_Client::HasSkill(int skill_id) {
 	Lua_Safe_Call_Bool();
-	return self->HasSkill(static_cast<SkillUseTypes>(skill_id));
+	return self->HasSkill(static_cast<EQEmu::skills::SkillType>(skill_id));
 }
 
 bool Lua_Client::CanHaveSkill(int skill_id) {
 	Lua_Safe_Call_Bool();
-	return self->CanHaveSkill(static_cast<SkillUseTypes>(skill_id));
+	return self->CanHaveSkill(static_cast<EQEmu::skills::SkillType>(skill_id));
 }
 
 void Lua_Client::SetSkill(int skill_id, int value) {
 	Lua_Safe_Call_Void();
-	self->SetSkill(static_cast<SkillUseTypes>(skill_id), value);
+	self->SetSkill(static_cast<EQEmu::skills::SkillType>(skill_id), value);
 }
 
 void Lua_Client::AddSkill(int skill_id, int value) {
 	Lua_Safe_Call_Void();
-	self->AddSkill(static_cast<SkillUseTypes>(skill_id), value);
+	self->AddSkill(static_cast<EQEmu::skills::SkillType>(skill_id), value);
 }
 
 void Lua_Client::CheckSpecializeIncrease(int spell_id) {
@@ -462,12 +462,12 @@ void Lua_Client::CheckSpecializeIncrease(int spell_id) {
 
 void Lua_Client::CheckIncreaseSkill(int skill_id, Lua_Mob target) {
 	Lua_Safe_Call_Void();
-	self->CheckIncreaseSkill(static_cast<SkillUseTypes>(skill_id), target);
+	self->CheckIncreaseSkill(static_cast<EQEmu::skills::SkillType>(skill_id), target);
 }
 
 void Lua_Client::CheckIncreaseSkill(int skill_id, Lua_Mob target, int chance_mod) {
 	Lua_Safe_Call_Void();
-	self->CheckIncreaseSkill(static_cast<SkillUseTypes>(skill_id), target, chance_mod);
+	self->CheckIncreaseSkill(static_cast<EQEmu::skills::SkillType>(skill_id), target, chance_mod);
 }
 
 void Lua_Client::SetLanguageSkill(int language, int value) {
@@ -477,7 +477,7 @@ void Lua_Client::SetLanguageSkill(int language, int value) {
 
 int Lua_Client::MaxSkill(int skill_id) {
 	Lua_Safe_Call_Int();
-	return self->MaxSkill(static_cast<SkillUseTypes>(skill_id));
+	return self->MaxSkill(static_cast<EQEmu::skills::SkillType>(skill_id));
 }
 
 bool Lua_Client::IsMedding() {
@@ -530,6 +530,11 @@ void Lua_Client::UnmemSpell(int slot, bool update_client) {
 	self->UnmemSpell(slot, update_client);
 }
 
+void Lua_Client::UnmemSpellBySpellID(int32 spell_id) {
+	Lua_Safe_Call_Void();
+	self->UnmemSpellBySpellID(spell_id);
+}
+
 void Lua_Client::UnmemSpellAll() {
 	Lua_Safe_Call_Void();
 	self->UnmemSpellAll();
@@ -573,6 +578,16 @@ void Lua_Client::UnscribeSpellAll(bool update_client) {
 void Lua_Client::TrainDisc(int itemid) {
 	Lua_Safe_Call_Void();
 	self->TrainDiscipline(itemid);
+}
+
+void Lua_Client::TrainDiscBySpellID(int32 spell_id) {
+	Lua_Safe_Call_Void();
+	self->TrainDiscBySpellID(spell_id);
+}
+
+int Lua_Client::GetDiscSlotBySpellID(int32 spell_id) {
+	Lua_Safe_Call_Int();
+	return self->GetDiscSlotBySpellID(spell_id);
 }
 
 void Lua_Client::UntrainDisc(int slot) {
@@ -839,12 +854,12 @@ void Lua_Client::SetAATitle(const char *title) {
 
 int Lua_Client::GetClientVersion() {
 	Lua_Safe_Call_Int();
-	return static_cast<unsigned int>(self->GetClientVersion());
+	return static_cast<unsigned int>(self->ClientVersion());
 }
 
 uint32 Lua_Client::GetClientVersionBit() {
 	Lua_Safe_Call_Int();
-	return self->GetClientVersionBit();
+	return self->ClientVersionBit();
 }
 
 void Lua_Client::SetTitleSuffix(const char *text) {
@@ -1034,12 +1049,12 @@ void Lua_Client::IncrementAA(int aa) {
 
 bool Lua_Client::GrantAlternateAdvancementAbility(int aa_id, int points) {
 	Lua_Safe_Call_Bool();
-	self->GrantAlternateAdvancementAbility(aa_id, points);
+	return self->GrantAlternateAdvancementAbility(aa_id, points);
 }
 
 bool Lua_Client::GrantAlternateAdvancementAbility(int aa_id, int points, bool ignore_cost) {
 	Lua_Safe_Call_Bool();
-	self->GrantAlternateAdvancementAbility(aa_id, points, ignore_cost);
+	return self->GrantAlternateAdvancementAbility(aa_id, points, ignore_cost);
 }
 
 void Lua_Client::MarkSingleCompassLoc(float in_x, float in_y, float in_z) {
@@ -1050,6 +1065,11 @@ void Lua_Client::MarkSingleCompassLoc(float in_x, float in_y, float in_z) {
 void Lua_Client::MarkSingleCompassLoc(float in_x, float in_y, float in_z, int count) {
 	Lua_Safe_Call_Void();
 	self->MarkSingleCompassLoc(in_x, in_y, in_z, count);
+}
+
+void Lua_Client::ClearCompassMark() {
+	Lua_Safe_Call_Void();
+	self->MarkSingleCompassLoc(0,0,0,0);
 }
 
 int Lua_Client::GetNextAvailableSpellBookSlot() {
@@ -1426,6 +1446,7 @@ luabind::scope lua_register_client() {
 		.def("MemSpell", (void(Lua_Client::*)(int,int,bool))&Lua_Client::MemSpell)
 		.def("UnmemSpell", (void(Lua_Client::*)(int))&Lua_Client::UnmemSpell)
 		.def("UnmemSpell", (void(Lua_Client::*)(int,bool))&Lua_Client::UnmemSpell)
+		.def("UnmemSpellBySpellID", (void(Lua_Client::*)(int32))&Lua_Client::UnmemSpellBySpellID)
 		.def("UnmemSpellAll", (void(Lua_Client::*)(void))&Lua_Client::UnmemSpellAll)
 		.def("UnmemSpellAll", (void(Lua_Client::*)(bool))&Lua_Client::UnmemSpellAll)
 		.def("ScribeSpell", (void(Lua_Client::*)(int,int))&Lua_Client::ScribeSpell)
@@ -1435,6 +1456,8 @@ luabind::scope lua_register_client() {
 		.def("UnscribeSpellAll", (void(Lua_Client::*)(void))&Lua_Client::UnscribeSpellAll)
 		.def("UnscribeSpellAll", (void(Lua_Client::*)(bool))&Lua_Client::UnscribeSpellAll)
 		.def("TrainDisc", (void(Lua_Client::*)(int))&Lua_Client::TrainDisc)
+		.def("TrainDiscBySpellID", (void(Lua_Client::*)(int32))&Lua_Client::TrainDiscBySpellID)
+		.def("GetDiscSlotBySpellID", (int(Lua_Client::*)(int32))&Lua_Client::GetDiscSlotBySpellID)
 		.def("UntrainDisc", (void(Lua_Client::*)(int))&Lua_Client::UntrainDisc)
 		.def("UntrainDisc", (void(Lua_Client::*)(int,bool))&Lua_Client::UntrainDisc)
 		.def("UntrainDiscAll", (void(Lua_Client::*)(void))&Lua_Client::UntrainDiscAll)
@@ -1530,6 +1553,7 @@ luabind::scope lua_register_client() {
 		.def("GrantAlternateAdvancementAbility", (bool(Lua_Client::*)(int, int, bool))&Lua_Client::GrantAlternateAdvancementAbility)
 		.def("MarkSingleCompassLoc", (void(Lua_Client::*)(float,float,float))&Lua_Client::MarkSingleCompassLoc)
 		.def("MarkSingleCompassLoc", (void(Lua_Client::*)(float,float,float,int))&Lua_Client::MarkSingleCompassLoc)
+		.def("ClearCompassMark",(void(Lua_Client::*)(void))&Lua_Client::ClearCompassMark)
 		.def("GetNextAvailableSpellBookSlot", (int(Lua_Client::*)(void))&Lua_Client::GetNextAvailableSpellBookSlot)
 		.def("GetNextAvailableSpellBookSlot", (int(Lua_Client::*)(int))&Lua_Client::GetNextAvailableSpellBookSlot)
 		.def("FindSpellBookSlotBySpellID", (int(Lua_Client::*)(int))&Lua_Client::FindSpellBookSlotBySpellID)

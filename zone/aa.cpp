@@ -1,5 +1,5 @@
 /*	EQEMu: Everquest Server Emulator
-Copyright (C) 2001-2004 EQEMu Development Team (http://eqemulator.net)
+Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.net)
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@ Copyright (C) 2001-2004 EQEMu Development Team (http://eqemulator.net)
 #include "../common/races.h"
 #include "../common/spdat.h"
 #include "../common/string_util.h"
-#include "../common/deity.h"
 #include "aa.h"
 #include "client.h"
 #include "corpse.h"
@@ -121,7 +120,7 @@ void Mob::TemporaryPets(uint16 spell_id, Mob *targ, const char *name_override, u
 			npca->SetFollowID(GetID());
 
 		if(!npca->GetSwarmInfo()){
-			AA_SwarmPetInfo* nSI = new AA_SwarmPetInfo;
+			auto nSI = new AA_SwarmPetInfo;
 			npca->SetSwarmInfo(nSI);
 			npca->GetSwarmInfo()->duration = new Timer(pet_duration*1000);
 		}
@@ -218,7 +217,7 @@ void Mob::TypesTemporaryPets(uint32 typesid, Mob *targ, const char *name_overrid
 			npca->SetFollowID(GetID());
 
 		if(!npca->GetSwarmInfo()){
-			AA_SwarmPetInfo* nSI = new AA_SwarmPetInfo;
+			auto nSI = new AA_SwarmPetInfo;
 			npca->SetSwarmInfo(nSI);
 			npca->GetSwarmInfo()->duration = new Timer(pet_duration*1000);
 		}
@@ -261,7 +260,7 @@ void Mob::WakeTheDead(uint16 spell_id, Mob *target, uint32 duration)
 
 	//assuming we have pets in our table; we take the first pet as a base type.
 	const NPCType *base_type = database.LoadNPCTypesData(500);
-	NPCType *make_npc = new NPCType;
+	auto make_npc = new NPCType;
 	memcpy(make_npc, base_type, sizeof(NPCType));
 
 	//combat stats
@@ -398,10 +397,10 @@ void Mob::WakeTheDead(uint16 spell_id, Mob *target, uint32 duration)
 	make_npc->d_melee_texture1 = 0;
 	make_npc->d_melee_texture2 = 0;
 
-	NPC* npca = new NPC(make_npc, 0, GetPosition(), FlyMode3);
+	auto npca = new NPC(make_npc, 0, GetPosition(), FlyMode3);
 
 	if(!npca->GetSwarmInfo()){
-		AA_SwarmPetInfo* nSI = new AA_SwarmPetInfo;
+		auto nSI = new AA_SwarmPetInfo;
 		npca->SetSwarmInfo(nSI);
 		npca->GetSwarmInfo()->duration = new Timer(duration*1000);
 	}
@@ -419,13 +418,13 @@ void Mob::WakeTheDead(uint16 spell_id, Mob *target, uint32 duration)
 
 	//gear stuff, need to make sure there's
 	//no situation where this stuff can be duped
-	for(int x = EmuConstants::EQUIPMENT_BEGIN; x <= EmuConstants::EQUIPMENT_END; x++) // (< 21) added MainAmmo
+	for (int x = EQEmu::legacy::EQUIPMENT_BEGIN; x <= EQEmu::legacy::EQUIPMENT_END; x++) // (< 21) added MainAmmo
 	{
 		uint32 sitem = 0;
 		sitem = CorpseToUse->GetWornItem(x);
 		if(sitem){
-			const Item_Struct * itm = database.GetItem(sitem);
-			npca->AddLootDrop(itm, &npca->itemlist, 1, 1, 127, true, true);
+			const EQEmu::ItemBase * itm = database.GetItem(sitem);
+			npca->AddLootDrop(itm, &npca->itemlist, 1, 1, 255, true, true);
 		}
 	}
 
@@ -472,13 +471,13 @@ void Client::ResetAA() {
 
 	database.DeleteCharacterLeadershipAAs(CharacterID());
 	// undefined for these clients
-	if (GetClientVersionBit() & BIT_TitaniumAndEarlier)
+	if (ClientVersionBit() & EQEmu::versions::bit_TitaniumAndEarlier)
 		Kick();
 }
 
 void Client::SendClearAA()
 {
-	EQApplicationPacket *outapp = new EQApplicationPacket(OP_ClearLeadershipAbilities, 0);
+	auto outapp = new EQApplicationPacket(OP_ClearLeadershipAbilities, 0);
 	FastQueuePacket(&outapp);
 	outapp = new EQApplicationPacket(OP_ClearAA, 0);
 	FastQueuePacket(&outapp);
@@ -734,7 +733,7 @@ void Client::InspectBuffs(Client* Inspector, int Rank)
 	if (!Inspector || Rank == 0)
 		return;
 
-	EQApplicationPacket *outapp = new EQApplicationPacket(OP_InspectBuffs, sizeof(InspectBuffs_Struct));
+	auto outapp = new EQApplicationPacket(OP_InspectBuffs, sizeof(InspectBuffs_Struct));
 	InspectBuffs_Struct *ib = (InspectBuffs_Struct *)outapp->pBuffer;
 
 	uint32 buff_count = GetMaxTotalSlots();
@@ -848,7 +847,7 @@ void Client::SendAlternateAdvancementRank(int aa_id, int level) {
 	}
 
 	int size = sizeof(AARankInfo_Struct) + (sizeof(AARankEffect_Struct) * rank->effects.size()) + (sizeof(AARankPrereq_Struct) * rank->prereqs.size());
-	EQApplicationPacket *outapp = new EQApplicationPacket(OP_SendAATable, size);
+	auto outapp = new EQApplicationPacket(OP_SendAATable, size);
 	AARankInfo_Struct *aai = (AARankInfo_Struct*)outapp->pBuffer;
 
 	aai->id = rank->id;
@@ -868,7 +867,7 @@ void Client::SendAlternateAdvancementRank(int aa_id, int level) {
 	aai->max_level = ability->GetMaxLevel(this);
 	aai->prev_id = rank->prev_id;
 
-	if(rank->next && !CanUseAlternateAdvancementRank(rank->next) || ability->charges > 0) {
+	if((rank->next && !CanUseAlternateAdvancementRank(rank->next)) || ability->charges > 0) {
 		aai->next_id = -1;
 	} else {
 		aai->next_id = rank->next_id;
@@ -899,7 +898,7 @@ void Client::SendAlternateAdvancementRank(int aa_id, int level) {
 }
 
 void Client::SendAlternateAdvancementStats() {
-	EQApplicationPacket* outapp = new EQApplicationPacket(OP_AAExpUpdate, sizeof(AltAdvStats_Struct));
+	auto outapp = new EQApplicationPacket(OP_AAExpUpdate, sizeof(AltAdvStats_Struct));
 	AltAdvStats_Struct *aps = (AltAdvStats_Struct *)outapp->pBuffer;
 	aps->experience = (uint32)(((float)330.0f * (float)m_pp.expAA) / (float)max_AAXP);
 	aps->unspent = m_pp.aapoints;
@@ -909,7 +908,7 @@ void Client::SendAlternateAdvancementStats() {
 }
 
 void Client::SendAlternateAdvancementPoints() {
-	EQApplicationPacket* outapp = new EQApplicationPacket(OP_RespondAA, sizeof(AATable_Struct));
+	auto outapp = new EQApplicationPacket(OP_RespondAA, sizeof(AATable_Struct));
 	AATable_Struct* aa2 = (AATable_Struct *)outapp->pBuffer;
 
 	int i = 0;
@@ -934,7 +933,7 @@ void Client::SendAlternateAdvancementPoints() {
 }
 
 void Client::SendAlternateAdvancementTimer(int ability, int begin, int end) {
-	EQApplicationPacket* outapp = new EQApplicationPacket(OP_AAAction, sizeof(UseAA_Struct));
+	auto outapp = new EQApplicationPacket(OP_AAAction, sizeof(UseAA_Struct));
 	UseAA_Struct* uaaout = (UseAA_Struct*)outapp->pBuffer;
 	uaaout->ability = ability;
 	uaaout->begin = begin;
@@ -946,7 +945,7 @@ void Client::SendAlternateAdvancementTimer(int ability, int begin, int end) {
 //sends all AA timers.
 void Client::SendAlternateAdvancementTimers() {
 	//we dont use SendAATimer because theres no reason to allocate the EQApplicationPacket every time
-	EQApplicationPacket* outapp = new EQApplicationPacket(OP_AAAction, sizeof(UseAA_Struct));
+	auto outapp = new EQApplicationPacket(OP_AAAction, sizeof(UseAA_Struct));
 	UseAA_Struct* uaaout = (UseAA_Struct*)outapp->pBuffer;
 
 	PTimerList::iterator c, e;
@@ -975,7 +974,7 @@ void Client::ResetAlternateAdvancementTimer(int ability) {
 }
 
 void Client::ResetAlternateAdvancementTimers() {
-	EQApplicationPacket* outapp = new EQApplicationPacket(OP_AAAction, sizeof(UseAA_Struct));
+	auto outapp = new EQApplicationPacket(OP_AAAction, sizeof(UseAA_Struct));
 	UseAA_Struct* uaaout = (UseAA_Struct*)outapp->pBuffer;
 
 	PTimerList::iterator c, e;
@@ -1142,7 +1141,7 @@ void Client::ActivateAlternateAdvancementAbility(int rank_id, int target_id) {
 	}
 
 	//make sure it is not a passive
-	if(rank->effects.size() > 0) {
+	if(!rank->effects.empty()) {
 		return;
 	}
 
@@ -1180,14 +1179,16 @@ void Client::ActivateAlternateAdvancementAbility(int rank_id, int target_id) {
 		cooldown = 0;
 	}
 
+	if (!IsCastWhileInvis(rank->spell))
+		CommonBreakInvisible();
 	// Bards can cast instant cast AAs while they are casting another song
 	if(spells[rank->spell].cast_time == 0 && GetClass() == BARD && IsBardSong(casting_spell_id)) {
-		if(!SpellFinished(rank->spell, entity_list.GetMob(target_id), ALTERNATE_ABILITY_SPELL_SLOT, spells[rank->spell].mana, -1, spells[rank->spell].ResistDiff, false)) {
+		if(!SpellFinished(rank->spell, entity_list.GetMob(target_id), EQEmu::CastingSlot::AltAbility, spells[rank->spell].mana, -1, spells[rank->spell].ResistDiff, false)) {
 			return;
 		}
 		ExpendAlternateAdvancementCharge(ability->id);
 	} else {
-		if(!CastSpell(rank->spell, target_id, ALTERNATE_ABILITY_SPELL_SLOT, -1, -1, 0, -1, rank->spell_type + pTimerAAStart, cooldown, nullptr, rank->id)) {
+		if(!CastSpell(rank->spell, target_id, EQEmu::CastingSlot::AltAbility, -1, -1, 0, -1, rank->spell_type + pTimerAAStart, cooldown, nullptr, rank->id)) {
 			return;
 		}
 	}
@@ -1238,6 +1239,10 @@ void Mob::ExpendAlternateAdvancementCharge(uint32 aa_id) {
 						if(r) {
 							CastToClient()->GetEPP().expended_aa += r->cost;
 						}
+					}
+					if (IsClient()) {
+						auto c = CastToClient();
+						c->RemoveExpendedAA(ability->first_rank_id);
 					}
 					aa_ranks.erase(iter.first);
 				}
@@ -1412,29 +1417,29 @@ bool Mob::CanUseAlternateAdvancementRank(AA::Rank *rank) {
 	//the one titanium hack i will allow
 	//just to make sure we dont crash the client with newer aas
 	//we'll exclude any expendable ones
-	if(IsClient() && CastToClient()->GetClientVersionBit() & BIT_TitaniumAndEarlier) {
+	if(IsClient() && CastToClient()->ClientVersionBit() & EQEmu::versions::bit_TitaniumAndEarlier) {
 		if(ability->charges > 0) {
 			return false;
 		}
 	}
 
 	if(IsClient()) {
-		if(!(CastToClient()->GetPP().expansions & (1 << rank->expansion))) {
+		if(rank->expansion && !(CastToClient()->GetPP().expansions & (1 << (rank->expansion - 1)))) {
 			return false;
 		}
 	} else {
-		if(!(RuleI(World, ExpansionSettings) & (1 << rank->expansion))) {
+		if(rank->expansion && !(RuleI(World, ExpansionSettings) & (1 << (rank->expansion - 1)))) {
 			return false;
 		}
 	}
 
-	auto race = GetArrayRace(GetBaseRace());
+	auto race = GetPlayerRaceValue(GetBaseRace());
 	race = race > 16 ? 1 : race;
 	if(!(ability->races & (1 << (race - 1)))) {
 		return false;
 	}
 
-	auto deity = ConvertDeityToBitDeity((DeityTypes)GetDeity());
+	auto deity = GetDeityBit();
 	if(!(ability->deities & deity)) {
 		return false;
 	}
@@ -1593,7 +1598,7 @@ bool ZoneDatabase::LoadAlternateAdvancementAbilities(std::unordered_map<int, std
 	auto results = QueryDatabase(query);
 	if(results.Success()) {
 		for(auto row = results.begin(); row != results.end(); ++row) {
-			AA::Ability *ability = new AA::Ability;
+			auto ability = new AA::Ability;
 			ability->id = atoi(row[0]);
 			ability->name = row[1];
 			ability->category = atoi(row[2]);
@@ -1625,7 +1630,7 @@ bool ZoneDatabase::LoadAlternateAdvancementAbilities(std::unordered_map<int, std
 	results = QueryDatabase(query);
 	if(results.Success()) {
 		for(auto row = results.begin(); row != results.end(); ++row) {
-			AA::Rank *rank = new AA::Rank;
+			auto rank = new AA::Rank;
 			rank->id = atoi(row[0]);
 			rank->upper_hotkey_sid = atoi(row[1]);
 			rank->lower_hotkey_sid = atoi(row[2]);

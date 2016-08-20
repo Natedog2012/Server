@@ -46,7 +46,7 @@ void ZoneDatabase::ZDBInitVars() {
 ZoneDatabase::~ZoneDatabase() {
 	unsigned int x;
 	if (npc_spells_cache) {
-		for (x=0; x<=npc_spells_maxid; x++) {
+		for (x = 0; x <= npc_spells_maxid; x++) {
 			safe_delete_array(npc_spells_cache[x]);
 		}
 		safe_delete_array(npc_spells_cache);
@@ -54,7 +54,7 @@ ZoneDatabase::~ZoneDatabase() {
 	safe_delete_array(npc_spells_loadtried);
 
 	if (npc_spellseffects_cache) {
-		for (x=0; x<=npc_spellseffects_maxid; x++) {
+		for (x = 0; x <= npc_spellseffects_maxid; x++) {
 			safe_delete_array(npc_spellseffects_cache[x]);
 		}
 		safe_delete_array(npc_spellseffects_cache);
@@ -62,7 +62,7 @@ ZoneDatabase::~ZoneDatabase() {
 	safe_delete_array(npc_spellseffects_loadtried);
 
 	if (faction_array != nullptr) {
-		for (x=0; x <= max_faction; x++) {
+		for (x = 0; x <= max_faction; x++) {
 			if (faction_array[x] != 0)
 				safe_delete(faction_array[x]);
 		}
@@ -315,8 +315,8 @@ bool ZoneDatabase::logevents(const char* accountname,uint32 accountid,uint8 stat
 
 	uint32 len = strlen(description);
 	uint32 len2 = strlen(target);
-	char* descriptiontext = new char[2*len+1];
-	char* targetarr = new char[2*len2+1];
+	auto descriptiontext = new char[2 * len + 1];
+	auto targetarr = new char[2 * len2 + 1];
 	memset(descriptiontext, 0, 2*len+1);
 	memset(targetarr, 0, 2*len2+1);
 	DoEscapeString(descriptiontext, description, len);
@@ -382,7 +382,7 @@ void ZoneDatabase::UpdateBug(BugStruct* bug) {
 void ZoneDatabase::UpdateBug(PetitionBug_Struct* bug){
 
 	uint32 len = strlen(bug->text);
-	char* bugtext = new char[2*len+1];
+	auto bugtext = new char[2 * len + 1];
 	memset(bugtext, 0, 2*len+1);
 	DoEscapeString(bugtext, bug->text, len);
 
@@ -487,7 +487,7 @@ void ZoneDatabase::LoadWorldContainer(uint32 parentid, ItemInst* container)
         uint8 index = (uint8)atoi(row[0]);
         uint32 item_id = (uint32)atoi(row[1]);
         int8 charges = (int8)atoi(row[2]);
-        uint32 aug[EmuConstants::ITEM_COMMON_SIZE];
+		uint32 aug[EQEmu::legacy::ITEM_COMMON_SIZE];
         aug[0] = (uint32)atoi(row[3]);
         aug[1] = (uint32)atoi(row[4]);
         aug[2] = (uint32)atoi(row[5]);
@@ -496,8 +496,8 @@ void ZoneDatabase::LoadWorldContainer(uint32 parentid, ItemInst* container)
 		aug[5] = (uint32)atoi(row[8]);
 
         ItemInst* inst = database.CreateItem(item_id, charges);
-        if (inst && inst->GetItem()->ItemClass == ItemClassCommon) {
-            for(int i = AUG_BEGIN; i < EmuConstants::ITEM_COMMON_SIZE; i++)
+		if (inst && inst->GetItem()->IsClassCommon()) {
+			for (int i = AUG_INDEX_BEGIN; i < EQEmu::legacy::ITEM_COMMON_SIZE; i++)
                 if (aug[i])
                     inst->PutAugment(&database, i, aug[i]);
             // Put item inside world container
@@ -520,17 +520,17 @@ void ZoneDatabase::SaveWorldContainer(uint32 zone_id, uint32 parent_id, const It
 	DeleteWorldContainer(parent_id,zone_id);
 
 	// Save all 10 items, if they exist
-	for (uint8 index = SUB_BEGIN; index < EmuConstants::ITEM_CONTAINER_SIZE; index++) {
+	for (uint8 index = SUB_INDEX_BEGIN; index < EQEmu::legacy::ITEM_CONTAINER_SIZE; index++) {
 
 		ItemInst* inst = container->GetItem(index);
 		if (!inst)
             continue;
 
         uint32 item_id = inst->GetItem()->ID;
-		uint32 augslot[EmuConstants::ITEM_COMMON_SIZE] = { NO_ITEM, NO_ITEM, NO_ITEM, NO_ITEM, NO_ITEM, NO_ITEM };
+		uint32 augslot[EQEmu::legacy::ITEM_COMMON_SIZE] = { NO_ITEM, NO_ITEM, NO_ITEM, NO_ITEM, NO_ITEM, NO_ITEM };
 
-        if (inst->IsType(ItemClassCommon)) {
-            for(int i = AUG_BEGIN; i < EmuConstants::ITEM_COMMON_SIZE; i++) {
+		if (inst->IsType(EQEmu::item::ItemClassCommon)) {
+			for (int i = AUG_INDEX_BEGIN; i < EQEmu::legacy::ITEM_COMMON_SIZE; i++) {
                 ItemInst *auginst=inst->GetAugment(i);
                 augslot[i]=(auginst && auginst->GetItem()) ? auginst->GetItem()->ID : 0;
             }
@@ -562,7 +562,7 @@ void ZoneDatabase::DeleteWorldContainer(uint32 parent_id, uint32 zone_id)
 
 Trader_Struct* ZoneDatabase::LoadTraderItem(uint32 char_id)
 {
-	Trader_Struct* loadti = new Trader_Struct;
+	auto loadti = new Trader_Struct;
 	memset(loadti,0,sizeof(Trader_Struct));
 
 	std::string query = StringFormat("SELECT * FROM trader WHERE char_id = %i ORDER BY slot_id LIMIT 80", char_id);
@@ -587,7 +587,7 @@ Trader_Struct* ZoneDatabase::LoadTraderItem(uint32 char_id)
 
 TraderCharges_Struct* ZoneDatabase::LoadTraderItemWithCharges(uint32 char_id)
 {
-	TraderCharges_Struct* loadti = new TraderCharges_Struct;
+	auto loadti = new TraderCharges_Struct;
 	memset(loadti,0,sizeof(TraderCharges_Struct));
 
 	std::string query = StringFormat("SELECT * FROM trader WHERE char_id=%i ORDER BY slot_id LIMIT 80", char_id);
@@ -629,7 +629,7 @@ ItemInst* ZoneDatabase::LoadSingleTraderItem(uint32 CharID, int SerialNumber) {
 	int Charges = atoi(row[3]);
 	int Cost = atoi(row[4]);
 
-    const Item_Struct *item = database.GetItem(ItemID);
+	const EQEmu::ItemBase *item = database.GetItem(ItemID);
 
 	if(!item) {
 		Log.Out(Logs::Detail, Logs::Trading, "Unable to create item\n");
@@ -684,7 +684,7 @@ void ZoneDatabase::UpdateTraderItemPrice(int CharID, uint32 ItemID, uint32 Charg
 
 	Log.Out(Logs::Detail, Logs::Trading, "ZoneDatabase::UpdateTraderPrice(%i, %i, %i, %i)", CharID, ItemID, Charges, NewPrice);
 
-	const Item_Struct *item = database.GetItem(ItemID);
+	const EQEmu::ItemBase *item = database.GetItem(ItemID);
 
 	if(!item)
 		return;
@@ -887,7 +887,8 @@ bool ZoneDatabase::LoadCharacterData(uint32 character_id, PlayerProfile_Struct* 
 		"RestTimer,                 "
 		"`e_aa_effects`,			"
 		"`e_percent_to_aa`,			"
-		"`e_expended_aa_spent`		"
+		"`e_expended_aa_spent`,		"
+		"`e_last_invsnapshot`		"
 		"FROM                       "
 		"character_data             "
 		"WHERE `id` = %i         ", character_id);
@@ -983,7 +984,9 @@ bool ZoneDatabase::LoadCharacterData(uint32 character_id, PlayerProfile_Struct* 
 		pp->RestTimer = atoi(row[r]); r++;										 // "RestTimer,                 "
 		m_epp->aa_effects = atoi(row[r]); r++;									 // "`e_aa_effects`,			"
 		m_epp->perAA = atoi(row[r]); r++;										 // "`e_percent_to_aa`,			"
-		m_epp->expended_aa = atoi(row[r]); r++;									 // "`e_expended_aa_spent`		"
+		m_epp->expended_aa = atoi(row[r]); r++;									 // "`e_expended_aa_spent`,		"
+		m_epp->last_invsnapshot_time = atoi(row[r]); r++;						 // "`e_last_invsnapshot`		"
+		m_epp->next_invsnapshot_time = m_epp->last_invsnapshot_time + (RuleI(Character, InvSnapshotMinIntervalM) * 60);
 	}
 	return true;
 }
@@ -1167,10 +1170,10 @@ bool ZoneDatabase::LoadCharacterMaterialColor(uint32 character_id, PlayerProfile
 	for (auto row = results.begin(); row != results.end(); ++row) {
 		r = 0;
 		i = atoi(row[r]); /* Slot */ r++;
-		pp->item_tint[i].RGB.Blue = atoi(row[r]); r++;
-		pp->item_tint[i].RGB.Green = atoi(row[r]); r++;
-		pp->item_tint[i].RGB.Red = atoi(row[r]); r++;
-		pp->item_tint[i].RGB.UseTint = atoi(row[r]);
+		pp->item_tint.Slot[i].Blue = atoi(row[r]); r++;
+		pp->item_tint.Slot[i].Green = atoi(row[r]); r++;
+		pp->item_tint.Slot[i].Red = atoi(row[r]); r++;
+		pp->item_tint.Slot[i].UseTint = atoi(row[r]);
 	}
 	return true;
 }
@@ -1178,11 +1181,11 @@ bool ZoneDatabase::LoadCharacterMaterialColor(uint32 character_id, PlayerProfile
 bool ZoneDatabase::LoadCharacterBandolier(uint32 character_id, PlayerProfile_Struct* pp)
 {
 	std::string query = StringFormat("SELECT `bandolier_id`, `bandolier_slot`, `item_id`, `icon`, `bandolier_name` FROM `character_bandolier` WHERE `id` = %u LIMIT %u",
-		character_id, EmuConstants::BANDOLIERS_SIZE);
+		character_id, EQEmu::legacy::BANDOLIERS_SIZE);
 	auto results = database.QueryDatabase(query); int i = 0; int r = 0; int si = 0;
-	for (i = 0; i < EmuConstants::BANDOLIERS_SIZE; i++) {
+	for (i = 0; i < EQEmu::legacy::BANDOLIERS_SIZE; i++) {
 		pp->bandoliers[i].Name[0] = '\0';
-		for (int si = 0; si < EmuConstants::BANDOLIER_ITEM_COUNT; si++) {
+		for (int si = 0; si < EQEmu::legacy::BANDOLIER_ITEM_COUNT; si++) {
 			pp->bandoliers[i].Items[si].ID = 0;
 			pp->bandoliers[i].Items[si].Icon = 0;
 			pp->bandoliers[i].Items[si].Name[0] = '\0';
@@ -1194,7 +1197,7 @@ bool ZoneDatabase::LoadCharacterBandolier(uint32 character_id, PlayerProfile_Str
 		i = atoi(row[r]); /* Bandolier ID */ r++;
 		si = atoi(row[r]); /* Bandolier Slot */ r++;
 
-		const Item_Struct* item_data = database.GetItem(atoi(row[r]));
+		const EQEmu::ItemBase* item_data = database.GetItem(atoi(row[r]));
 		if (item_data) {
 			pp->bandoliers[i].Items[si].ID = item_data->ID; r++;
 			pp->bandoliers[i].Items[si].Icon = atoi(row[r]); r++; // Must use db value in case an Ornamentation is assigned
@@ -1216,7 +1219,7 @@ bool ZoneDatabase::LoadCharacterTribute(uint32 character_id, PlayerProfile_Struc
 	std::string query = StringFormat("SELECT `tier`, `tribute` FROM `character_tribute` WHERE `id` = %u", character_id);
 	auto results = database.QueryDatabase(query);
 	int i = 0;
-	for (i = 0; i < EmuConstants::TRIBUTE_SIZE; i++){
+	for (i = 0; i < EQEmu::legacy::TRIBUTE_SIZE; i++){
 		pp->tributes[i].tribute = 0xFFFFFFFF;
 		pp->tributes[i].tier = 0;
 	}
@@ -1235,10 +1238,10 @@ bool ZoneDatabase::LoadCharacterPotions(uint32 character_id, PlayerProfile_Struc
 {
 	std::string query =
 	    StringFormat("SELECT `potion_id`, `item_id`, `icon` FROM `character_potionbelt` WHERE `id` = %u LIMIT %u",
-			 character_id, EmuConstants::POTION_BELT_ITEM_COUNT);
+		character_id, EQEmu::legacy::POTION_BELT_ITEM_COUNT);
 	auto results = database.QueryDatabase(query);
 	int i = 0;
-	for (i = 0; i < EmuConstants::POTION_BELT_ITEM_COUNT; i++) {
+	for (i = 0; i < EQEmu::legacy::POTION_BELT_ITEM_COUNT; i++) {
 		pp->potionbelt.Items[i].Icon = 0;
 		pp->potionbelt.Items[i].ID = 0;
 		pp->potionbelt.Items[i].Name[0] = '\0';
@@ -1246,7 +1249,7 @@ bool ZoneDatabase::LoadCharacterPotions(uint32 character_id, PlayerProfile_Struc
 
 	for (auto row = results.begin(); row != results.end(); ++row) {
 		i = atoi(row[0]);
-		const Item_Struct *item_data = database.GetItem(atoi(row[1]));
+		const EQEmu::ItemBase *item_data = database.GetItem(atoi(row[1]));
 		if (!item_data)
 			continue;
 		pp->potionbelt.Items[i].ID = item_data->ID;
@@ -1257,30 +1260,27 @@ bool ZoneDatabase::LoadCharacterPotions(uint32 character_id, PlayerProfile_Struc
 	return true;
 }
 
-bool ZoneDatabase::LoadCharacterBindPoint(uint32 character_id, PlayerProfile_Struct* pp){
-	std::string query = StringFormat("SELECT `zone_id`, `instance_id`, `x`, `y`, `z`, `heading`, `is_home` FROM `character_bind` WHERE `id` = %u LIMIT 2", character_id);
+bool ZoneDatabase::LoadCharacterBindPoint(uint32 character_id, PlayerProfile_Struct *pp)
+{
+	std::string query = StringFormat("SELECT `slot`, `zone_id`, `instance_id`, `x`, `y`, `z`, `heading` FROM "
+					 "`character_bind` WHERE `id` = %u LIMIT 5",
+					 character_id);
 	auto results = database.QueryDatabase(query);
 
+	if (!results.RowCount()) // SHIT -- this actually isn't good
+		return true;
+
 	for (auto row = results.begin(); row != results.end(); ++row) {
-
-		/* Is home bind */
-		if (atoi(row[6]) == 1){
-			pp->binds[4].zoneId = atoi(row[0]);
-			pp->binds[4].instance_id = atoi(row[1]);
-			pp->binds[4].x = atoi(row[2]);
-			pp->binds[4].y = atoi(row[3]);
-			pp->binds[4].z = atoi(row[4]);
-			pp->binds[4].heading = atoi(row[5]);
+		int index = atoi(row[0]);
+		if (index < 0 || index > 4)
 			continue;
-		}
 
-		/* Is regular bind point */
-		pp->binds[0].zoneId = atoi(row[0]);
-		pp->binds[0].instance_id = atoi(row[1]);
-		pp->binds[0].x = atoi(row[2]);
-		pp->binds[0].y = atoi(row[3]);
-		pp->binds[0].z = atoi(row[4]);
-		pp->binds[0].heading = atoi(row[5]);
+		pp->binds[index].zoneId = atoi(row[1]);
+		pp->binds[index].instance_id = atoi(row[2]);
+		pp->binds[index].x = atoi(row[3]);
+		pp->binds[index].y = atoi(row[4]);
+		pp->binds[index].z = atoi(row[5]);
+		pp->binds[index].heading = atoi(row[6]);
 	}
 
 	return true;
@@ -1292,19 +1292,23 @@ bool ZoneDatabase::SaveCharacterLanguage(uint32 character_id, uint32 lang_id, ui
 	return true;
 }
 
-bool ZoneDatabase::SaveCharacterBindPoint(uint32 character_id, uint32 zone_id, uint32 instance_id, const glm::vec4& position, uint8 is_home){
-	if (zone_id <= 0) {
-		return false;
-	}
-
+bool ZoneDatabase::SaveCharacterBindPoint(uint32 character_id, const BindStruct &bind, uint32 bind_num)
+{
 	/* Save Home Bind Point */
-	std::string query = StringFormat("REPLACE INTO `character_bind` (id, zone_id, instance_id, x, y, z, heading, is_home)"
-		" VALUES (%u, %u, %u, %f, %f, %f, %f, %i)", character_id, zone_id, instance_id, position.x, position.y, position.z, position.w, is_home);
-	Log.Out(Logs::General, Logs::None, "ZoneDatabase::SaveCharacterBindPoint for character ID: %i zone_id: %u instance_id: %u position: %s ishome: %u", character_id, zone_id, instance_id, to_string(position).c_str(), is_home);
+	std::string query =
+	    StringFormat("REPLACE INTO `character_bind` (id, zone_id, instance_id, x, y, z, heading, slot) VALUES (%u, "
+			 "%u, %u, %f, %f, %f, %f, %i)",
+			 character_id, bind.zoneId, bind.instance_id, bind.x, bind.y, bind.z, bind.heading, bind_num);
+
+	Log.Out(Logs::General, Logs::None, "ZoneDatabase::SaveCharacterBindPoint for character ID: %i zone_id: %u "
+					   "instance_id: %u position: %f %f %f %f bind_num: %u",
+		character_id, bind.zoneId, bind.instance_id, bind.x, bind.y, bind.z, bind.heading, bind_num);
+
 	auto results = QueryDatabase(query);
-	if (!results.RowsAffected()) {
-		Log.Out(Logs::General, Logs::None, "ERROR Bind Home Save: %s. %s", results.ErrorMessage().c_str(), query.c_str());
-	}
+	if (!results.RowsAffected())
+		Log.Out(Logs::General, Logs::None, "ERROR Bind Home Save: %s. %s", results.ErrorMessage().c_str(),
+			query.c_str());
+
 	return true;
 }
 
@@ -1335,7 +1339,7 @@ bool ZoneDatabase::SaveCharacterTribute(uint32 character_id, PlayerProfile_Struc
 	std::string query = StringFormat("DELETE FROM `character_tribute` WHERE `id` = %u", character_id);
 	QueryDatabase(query);
 	/* Save Tributes only if we have values... */
-	for (int i = 0; i < EmuConstants::TRIBUTE_SIZE; i++){
+	for (int i = 0; i < EQEmu::legacy::TRIBUTE_SIZE; i++){
 		if (pp->tributes[i].tribute > 0 && pp->tributes[i].tribute != TRIBUTE_NONE){
 			std::string query = StringFormat("REPLACE INTO `character_tribute` (id, tier, tribute) VALUES (%u, %u, %u)", character_id, pp->tributes[i].tier, pp->tributes[i].tribute);
 			QueryDatabase(query);
@@ -1375,6 +1379,56 @@ bool ZoneDatabase::SaveCharacterLeadershipAA(uint32 character_id, PlayerProfile_
 	}
 	auto results = QueryDatabase(query);
 	return true;
+}
+
+bool ZoneDatabase::SaveCharacterInventorySnapshot(uint32 character_id){
+	uint32 time_index = time(nullptr);
+	std::string query = StringFormat(
+		"INSERT INTO inventory_snapshots ("
+		" time_index,"
+		" charid,"
+		" slotid,"
+		" itemid,"
+		" charges,"
+		" color,"
+		" augslot1,"
+		" augslot2,"
+		" augslot3,"
+		" augslot4,"
+		" augslot5,"
+		" augslot6,"
+		" instnodrop,"
+		" custom_data,"
+		" ornamenticon,"
+		" ornamentidfile,"
+		" ornament_hero_model"
+		")"
+		" SELECT"
+		" %u,"
+		" charid,"
+		" slotid,"
+		" itemid,"
+		" charges,"
+		" color,"
+		" augslot1,"
+		" augslot2,"
+		" augslot3,"
+		" augslot4,"
+		" augslot5,"
+		" augslot6,"
+		" instnodrop,"
+		" custom_data,"
+		" ornamenticon,"
+		" ornamentidfile,"
+		" ornament_hero_model"
+		" FROM inventory"
+		" WHERE charid = %u",
+		time_index,
+		character_id
+	);
+	auto results = database.QueryDatabase(query);
+	Log.Out(Logs::General, Logs::None, "ZoneDatabase::SaveCharacterInventorySnapshot %i (%s)", character_id, (results.Success() ? "pass" : "fail"));
+	return results.Success();
 }
 
 bool ZoneDatabase::SaveCharacterData(uint32 character_id, uint32 account_id, PlayerProfile_Struct* pp, ExtendedProfile_Struct* m_epp){
@@ -1473,7 +1527,8 @@ bool ZoneDatabase::SaveCharacterData(uint32 character_id, uint32 account_id, Pla
 		" RestTimer,				 "
 		" e_aa_effects,				 "
 		" e_percent_to_aa,			 "
-		" e_expended_aa_spent		 "
+		" e_expended_aa_spent,		 "
+		" e_last_invsnapshot		 "
 		")							 "
 		"VALUES ("
 		"%u,"  // id																" id,                        "
@@ -1568,7 +1623,8 @@ bool ZoneDatabase::SaveCharacterData(uint32 character_id, uint32 account_id, Pla
 		"%u,"  // RestTimer					  pp->RestTimer,						" RestTimer)                 "
 		"%u,"  // e_aa_effects
 		"%u,"  // e_percent_to_aa
-		"%u"   // e_expended_aa_spent
+		"%u,"  // e_expended_aa_spent
+		"%u"   // e_last_invsnapshot
 		")",
 		character_id,					  // " id,                        "
 		account_id,						  // " account_id,                "
@@ -1662,7 +1718,8 @@ bool ZoneDatabase::SaveCharacterData(uint32 character_id, uint32 account_id, Pla
 		pp->RestTimer,					  // " RestTimer)                 "
 		m_epp->aa_effects,
 		m_epp->perAA,
-		m_epp->expended_aa
+		m_epp->expended_aa,
+		m_epp->last_invsnapshot_time
 	);
 	auto results = database.QueryDatabase(query);
 	Log.Out(Logs::General, Logs::None, "ZoneDatabase::SaveCharacterData %i, done... Took %f seconds", character_id, ((float)(std::clock() - t)) / CLOCKS_PER_SEC);
@@ -2011,10 +2068,10 @@ const NPCType* ZoneDatabase::LoadNPCTypesData(uint32 npc_type_id, bool bulk_load
 
 		uint32 armor_tint_id = atoi(row[63]);
 
-		temp_npctype_data->armor_tint[0] = (atoi(row[64]) & 0xFF) << 16;
-        temp_npctype_data->armor_tint[0] |= (atoi(row[65]) & 0xFF) << 8;
-		temp_npctype_data->armor_tint[0] |= (atoi(row[66]) & 0xFF);
-		temp_npctype_data->armor_tint[0] |= (temp_npctype_data->armor_tint[0]) ? (0xFF << 24) : 0;
+		temp_npctype_data->armor_tint.Head.Color = (atoi(row[64]) & 0xFF) << 16;
+        temp_npctype_data->armor_tint.Head.Color |= (atoi(row[65]) & 0xFF) << 8;
+		temp_npctype_data->armor_tint.Head.Color |= (atoi(row[66]) & 0xFF);
+		temp_npctype_data->armor_tint.Head.Color |= (temp_npctype_data->armor_tint.Head.Color) ? (0xFF << 24) : 0;
 
 		if (armor_tint_id != 0) {
 			std::string armortint_query = StringFormat(
@@ -2035,18 +2092,18 @@ const NPCType* ZoneDatabase::LoadNPCTypesData(uint32 npc_type_id, bool bulk_load
             else {
                 auto armorTint_row = armortint_results.begin();
 
-                for (int index = EmuConstants::MATERIAL_BEGIN; index <= EmuConstants::MATERIAL_END; index++) {
-                    temp_npctype_data->armor_tint[index] = atoi(armorTint_row[index * 3]) << 16;
-					temp_npctype_data->armor_tint[index] |= atoi(armorTint_row[index * 3 + 1]) << 8;
-					temp_npctype_data->armor_tint[index] |= atoi(armorTint_row[index * 3 + 2]);
-					temp_npctype_data->armor_tint[index] |= (temp_npctype_data->armor_tint[index]) ? (0xFF << 24) : 0;
+				for (int index = EQEmu::textures::TextureBegin; index <= EQEmu::textures::LastTexture; index++) {
+                    temp_npctype_data->armor_tint.Slot[index].Color = atoi(armorTint_row[index * 3]) << 16;
+					temp_npctype_data->armor_tint.Slot[index].Color |= atoi(armorTint_row[index * 3 + 1]) << 8;
+					temp_npctype_data->armor_tint.Slot[index].Color |= atoi(armorTint_row[index * 3 + 2]);
+					temp_npctype_data->armor_tint.Slot[index].Color |= (temp_npctype_data->armor_tint.Slot[index].Color) ? (0xFF << 24) : 0;
                 }
             }
         }
 		// Try loading npc_types tint fields if armor tint is 0 or query failed to get results
 		if (armor_tint_id == 0) {
-			for (int index = MaterialChest; index < _MaterialCount; index++) {
-				temp_npctype_data->armor_tint[index] = temp_npctype_data->armor_tint[0];
+			for (int index = EQEmu::textures::TextureChest; index < EQEmu::textures::TextureCount; index++) {
+				temp_npctype_data->armor_tint.Slot[index].Color = temp_npctype_data->armor_tint.Slot[0].Color; // odd way to 'zero-out' the array...
 			}
 		}
 
@@ -2244,15 +2301,15 @@ const NPCType* ZoneDatabase::GetMercType(uint32 id, uint16 raceid, uint32 client
 			tmpNPCType->bodytype = 1;
 
 		uint32 armor_tint_id = atoi(row[36]);
-		tmpNPCType->armor_tint[0] = (atoi(row[37]) & 0xFF) << 16;
-		tmpNPCType->armor_tint[0] |= (atoi(row[38]) & 0xFF) << 8;
-		tmpNPCType->armor_tint[0] |= (atoi(row[39]) & 0xFF);
-		tmpNPCType->armor_tint[0] |= (tmpNPCType->armor_tint[0]) ? (0xFF << 24) : 0;
+		tmpNPCType->armor_tint.Slot[0].Color = (atoi(row[37]) & 0xFF) << 16;
+		tmpNPCType->armor_tint.Slot[0].Color |= (atoi(row[38]) & 0xFF) << 8;
+		tmpNPCType->armor_tint.Slot[0].Color |= (atoi(row[39]) & 0xFF);
+		tmpNPCType->armor_tint.Slot[0].Color |= (tmpNPCType->armor_tint.Slot[0].Color) ? (0xFF << 24) : 0;
 
 		if (armor_tint_id == 0)
-			for (int index = MaterialChest; index <= EmuConstants::MATERIAL_END; index++)
-				tmpNPCType->armor_tint[index] = tmpNPCType->armor_tint[0];
-		else if (tmpNPCType->armor_tint[0] == 0) {
+			for (int index = EQEmu::textures::TextureChest; index <= EQEmu::textures::LastTexture; index++)
+				tmpNPCType->armor_tint.Slot[index].Color = tmpNPCType->armor_tint.Slot[0].Color;
+		else if (tmpNPCType->armor_tint.Slot[0].Color == 0) {
 			std::string armorTint_query = StringFormat("SELECT red1h, grn1h, blu1h, "
 								   "red2c, grn2c, blu2c, "
 								   "red3a, grn3a, blu3a, "
@@ -2270,11 +2327,11 @@ const NPCType* ZoneDatabase::GetMercType(uint32 id, uint16 raceid, uint32 client
 			else {
 				auto armorTint_row = results.begin();
 
-				for (int index = EmuConstants::MATERIAL_BEGIN; index <= EmuConstants::MATERIAL_END; index++) {
-					tmpNPCType->armor_tint[index] = atoi(armorTint_row[index * 3]) << 16;
-					tmpNPCType->armor_tint[index] |= atoi(armorTint_row[index * 3 + 1]) << 8;
-					tmpNPCType->armor_tint[index] |= atoi(armorTint_row[index * 3 + 2]);
-					tmpNPCType->armor_tint[index] |= (tmpNPCType->armor_tint[index]) ? (0xFF << 24) : 0;
+				for (int index = EQEmu::textures::TextureBegin; index <= EQEmu::textures::LastTexture; index++) {
+					tmpNPCType->armor_tint.Slot[index].Color = atoi(armorTint_row[index * 3]) << 16;
+					tmpNPCType->armor_tint.Slot[index].Color |= atoi(armorTint_row[index * 3 + 1]) << 8;
+					tmpNPCType->armor_tint.Slot[index].Color |= atoi(armorTint_row[index * 3 + 2]);
+					tmpNPCType->armor_tint.Slot[index].Color |= (tmpNPCType->armor_tint.Slot[index].Color) ? (0xFF << 24) : 0;
 				}
 			}
 		} else
@@ -2627,7 +2684,7 @@ void ZoneDatabase::LoadMercEquipment(Merc *merc) {
 
     int itemCount = 0;
     for(auto row = results.begin(); row != results.end(); ++row) {
-        if (itemCount == EmuConstants::EQUIPMENT_SIZE)
+		if (itemCount == EQEmu::legacy::EQUIPMENT_SIZE)
             break;
 
         if(atoi(row[0]) == 0)
@@ -2734,7 +2791,7 @@ void ZoneDatabase::RefreshGroupFromDB(Client *client){
 	if(!group)
 		return;
 
-	EQApplicationPacket* outapp = new EQApplicationPacket(OP_GroupUpdate,sizeof(GroupUpdate2_Struct));
+	auto outapp = new EQApplicationPacket(OP_GroupUpdate, sizeof(GroupUpdate2_Struct));
 	GroupUpdate2_Struct* gu = (GroupUpdate2_Struct*)outapp->pBuffer;
 	gu->action = groupActUpdate;
 
@@ -2766,7 +2823,7 @@ void ZoneDatabase::RefreshGroupFromDB(Client *client){
 	client->QueuePacket(outapp);
 	safe_delete(outapp);
 
-	if(client->GetClientVersion() >= ClientVersion::SoD) {
+	if (client->ClientVersion() >= EQEmu::versions::ClientVersion::SoD) {
 		group->NotifyMainTank(client, 1);
 		group->NotifyPuller(client, 1);
 	}
@@ -3121,7 +3178,8 @@ void ZoneDatabase::SavePetInfo(Client *client)
 		query.clear();
 
 		// pet buffs!
-		for (int index = 0; index < RuleI(Spells, MaxTotalSlotsPET); index++) {
+		int max_slots = RuleI(Spells, MaxTotalSlotsPET);
+		for (int index = 0; index < max_slots; index++) {
 			if (petinfo->Buffs[index].spellid == SPELL_UNKNOWN || petinfo->Buffs[index].spellid == 0)
 				continue;
 			if (query.length() == 0)
@@ -3142,7 +3200,7 @@ void ZoneDatabase::SavePetInfo(Client *client)
 		query.clear();
 
 		// pet inventory!
-		for (int index = EmuConstants::EQUIPMENT_BEGIN; index <= EmuConstants::EQUIPMENT_END; index++) {
+		for (int index = EQEmu::legacy::EQUIPMENT_BEGIN; index <= EQEmu::legacy::EQUIPMENT_END; index++) {
 			if (!petinfo->Items[index])
 				continue;
 
@@ -3248,7 +3306,7 @@ void ZoneDatabase::LoadPetInfo(Client *client)
 		pi->Buffs[slot_id].spellid = spell_id;
 		pi->Buffs[slot_id].level = caster_level;
 		pi->Buffs[slot_id].player_id = caster_id;
-		pi->Buffs[slot_id].slotid = 2; // Always 2 in buffs struct for real buffs
+		pi->Buffs[slot_id].effect_type = 2; // Always 2 in buffs struct for real buffs
 
 		pi->Buffs[slot_id].duration = ticsremaining;
 		pi->Buffs[slot_id].counters = counters;
@@ -3274,7 +3332,7 @@ void ZoneDatabase::LoadPetInfo(Client *client)
 			continue;
 
 		int slot = atoi(row[1]);
-		if (slot < EmuConstants::EQUIPMENT_BEGIN || slot > EmuConstants::EQUIPMENT_END)
+		if (slot < EQEmu::legacy::EQUIPMENT_BEGIN || slot > EQEmu::legacy::EQUIPMENT_END)
 			continue;
 
 		pi->Items[slot] = atoul(row[2]);
@@ -3309,7 +3367,7 @@ bool ZoneDatabase::GetFactionData(FactionMods* fm, uint32 class_mod, uint32 race
 		char str[32];
 		sprintf(str, "r%u", race_mod);
 
-		std::map<std::string, int16>::iterator iter = faction_array[faction_id]->mods.find(str);
+		auto iter = faction_array[faction_id]->mods.find(str);
 		if(iter != faction_array[faction_id]->mods.end()) {
 			fm->race_mod = iter->second;
 		} else {
@@ -3323,7 +3381,7 @@ bool ZoneDatabase::GetFactionData(FactionMods* fm, uint32 class_mod, uint32 race
 		char str[32];
 		sprintf(str, "d%u", deity_mod);
 
-		std::map<std::string, int16>::iterator iter = faction_array[faction_id]->mods.find(str);
+		auto iter = faction_array[faction_id]->mods.find(str);
 		if(iter != faction_array[faction_id]->mods.end()) {
 			fm->deity_mod = iter->second;
 		} else {
@@ -3570,9 +3628,9 @@ uint32 ZoneDatabase::UpdateCharacterCorpse(uint32 db_id, uint32 char_id, const c
                                     dbpc->plat, dbpc->haircolor, dbpc->beardcolor, dbpc->eyecolor1,
                                     dbpc->eyecolor2, dbpc->hairstyle, dbpc->face, dbpc->beard,
                                     dbpc->drakkin_heritage, dbpc->drakkin_tattoo, dbpc->drakkin_details,
-                                    dbpc->item_tint[0].Color, dbpc->item_tint[1].Color, dbpc->item_tint[2].Color,
-                                    dbpc->item_tint[3].Color, dbpc->item_tint[4].Color, dbpc->item_tint[5].Color,
-                                    dbpc->item_tint[6].Color, dbpc->item_tint[7].Color, dbpc->item_tint[8].Color,
+                                    dbpc->item_tint.Head.Color, dbpc->item_tint.Chest.Color, dbpc->item_tint.Arms.Color,
+                                    dbpc->item_tint.Wrist.Color, dbpc->item_tint.Hands.Color, dbpc->item_tint.Legs.Color,
+                                    dbpc->item_tint.Feet.Color, dbpc->item_tint.Primary.Color, dbpc->item_tint.Secondary.Color,
                                     db_id);
 	auto results = QueryDatabase(query);
 
@@ -3663,15 +3721,15 @@ uint32 ZoneDatabase::SaveCharacterCorpse(uint32 charid, const char* charname, ui
 		dbpc->drakkin_heritage,
 		dbpc->drakkin_tattoo,
 		dbpc->drakkin_details,
-		dbpc->item_tint[0].Color,
-		dbpc->item_tint[1].Color,
-		dbpc->item_tint[2].Color,
-		dbpc->item_tint[3].Color,
-		dbpc->item_tint[4].Color,
-		dbpc->item_tint[5].Color,
-		dbpc->item_tint[6].Color,
-		dbpc->item_tint[7].Color,
-		dbpc->item_tint[8].Color
+		dbpc->item_tint.Head.Color,
+		dbpc->item_tint.Chest.Color,
+		dbpc->item_tint.Arms.Color,
+		dbpc->item_tint.Wrist.Color,
+		dbpc->item_tint.Hands.Color,
+		dbpc->item_tint.Legs.Color,
+		dbpc->item_tint.Feet.Color,
+		dbpc->item_tint.Primary.Color,
+		dbpc->item_tint.Secondary.Color
 	);
 	auto results = QueryDatabase(query);
 	uint32 last_insert_id = results.LastInsertedID();
@@ -3843,15 +3901,15 @@ bool ZoneDatabase::LoadCharacterCorpseData(uint32 corpse_id, PlayerCorpse_Struct
 		pcs->drakkin_heritage = atoul(row[i++]);			// drakkin_heritage,
 		pcs->drakkin_tattoo = atoul(row[i++]);				// drakkin_tattoo,
 		pcs->drakkin_details = atoul(row[i++]);				// drakkin_details,
-		pcs->item_tint[0].Color = atoul(row[i++]);			// wc_1,
-		pcs->item_tint[1].Color = atoul(row[i++]);			// wc_2,
-		pcs->item_tint[2].Color = atoul(row[i++]);			// wc_3,
-		pcs->item_tint[3].Color = atoul(row[i++]);			// wc_4,
-		pcs->item_tint[4].Color = atoul(row[i++]);			// wc_5,
-		pcs->item_tint[5].Color = atoul(row[i++]);			// wc_6,
-		pcs->item_tint[6].Color = atoul(row[i++]);			// wc_7,
-		pcs->item_tint[7].Color = atoul(row[i++]);			// wc_8,
-		pcs->item_tint[8].Color = atoul(row[i++]);			// wc_9
+		pcs->item_tint.Head.Color = atoul(row[i++]);		// wc_1,
+		pcs->item_tint.Chest.Color = atoul(row[i++]);		// wc_2,
+		pcs->item_tint.Arms.Color = atoul(row[i++]);		// wc_3,
+		pcs->item_tint.Wrist.Color = atoul(row[i++]);		// wc_4,
+		pcs->item_tint.Hands.Color = atoul(row[i++]);		// wc_5,
+		pcs->item_tint.Legs.Color = atoul(row[i++]);		// wc_6,
+		pcs->item_tint.Feet.Color = atoul(row[i++]);		// wc_7,
+		pcs->item_tint.Primary.Color = atoul(row[i++]);		// wc_8,
+		pcs->item_tint.Secondary.Color = atoul(row[i++]);	// wc_9
 	}
 	query = StringFormat(
 		"SELECT                       \n"
@@ -4076,4 +4134,37 @@ bool ZoneDatabase::DeleteCharacterCorpse(uint32 db_id) {
 		return true;
 
 	return false;
+}
+
+uint32 ZoneDatabase::LoadSaylinkID(const char* saylink_text, bool auto_insert)
+{
+	if (!saylink_text || saylink_text[0] == '\0')
+		return 0;
+	
+	std::string query = StringFormat("SELECT `id` FROM `saylink` WHERE `phrase` = '%s' LIMIT 1", saylink_text);
+	auto results = QueryDatabase(query);
+	if (!results.Success())
+		return 0;
+	if (!results.RowCount()) {
+		if (auto_insert)
+			return SaveSaylinkID(saylink_text);
+		else
+			return 0;
+	}
+
+	auto row = results.begin();
+	return atoi(row[0]);
+}
+
+uint32 ZoneDatabase::SaveSaylinkID(const char* saylink_text)
+{
+	if (!saylink_text || saylink_text[0] == '\0')
+		return 0;
+
+	std::string query = StringFormat("INSERT INTO `saylink` (`phrase`) VALUES ('%s')", saylink_text);
+	auto results = QueryDatabase(query);
+	if (!results.Success())
+		return 0;
+	
+	return results.LastInsertedID();
 }

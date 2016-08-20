@@ -45,7 +45,7 @@ void EntityList::CheckClientAggro(Client *around)
 			continue;
 
 		if (mob->CheckWillAggro(around) && !mob->CheckAggro(around))
-			mob->AddToHateList(around, 100);
+			mob->AddToHateList(around, 25);
 	}
 }
 
@@ -156,10 +156,21 @@ void NPC::DescribeAggro(Client *towho, Mob *mob, bool verbose) {
 		return;
 	}
 
-	if(GetINT() > RuleI(Aggro, IntAggroThreshold) && mob->GetLevelCon(GetLevel()) == CON_GREEN ) {
-		towho->Message(0, "...%s is red to me (basically)", mob->GetName(),
-		dist2, iAggroRange2);
-		return;
+	if (RuleB(Aggro, UseLevelAggro))
+	{
+		if (GetLevel() < 18 && mob->GetLevelCon(GetLevel()) == CON_GREEN && GetBodyType() != 3)
+		{
+			towho->Message(0, "...%s is red to me (basically)", mob->GetName(),	dist2, iAggroRange2);
+			return;
+		}
+	}
+	else
+	{
+		if(GetINT() > RuleI(Aggro, IntAggroThreshold) && mob->GetLevelCon(GetLevel()) == CON_GREEN ) {
+			towho->Message(0, "...%s is red to me (basically)", mob->GetName(),
+			dist2, iAggroRange2);
+			return;
+		}
 	}
 
 	if(verbose) {
@@ -321,11 +332,12 @@ bool Mob::CheckWillAggro(Mob *mob) {
 	int heroicCHA_mod = mob->itembonuses.HeroicCHA/25; // 800 Heroic CHA cap
 	if(heroicCHA_mod > THREATENLY_ARRGO_CHANCE)
 		heroicCHA_mod = THREATENLY_ARRGO_CHANCE;
-	if
+	if (RuleB(Aggro, UseLevelAggro) &&
 	(
 	//old InZone check taken care of above by !mob->CastToClient()->Connected()
 	(
-		( GetINT() <= RuleI(Aggro, IntAggroThreshold) )
+		( GetLevel() >= 18 )
+		||(GetBodyType() == 3)
 		||( mob->IsClient() && mob->CastToClient()->IsSitting() )
 		||( mob->GetLevelCon(GetLevel()) != CON_GREEN )
 
@@ -344,11 +356,45 @@ bool Mob::CheckWillAggro(Mob *mob) {
 		)
 	)
 	)
+	)
 	{
 		//FatherNiwtit: make sure we can see them. last since it is very expensive
 		if(CheckLosFN(mob)) {
 			Log.Out(Logs::Detail, Logs::Aggro, "Check aggro for %s target %s.", GetName(), mob->GetName());
 			return( mod_will_aggro(mob, this) );
+		}
+	}
+	else
+	{
+		if
+		(
+		//old InZone check taken care of above by !mob->CastToClient()->Connected()
+		(
+			( GetINT() <= RuleI(Aggro, IntAggroThreshold) )
+			||( mob->IsClient() && mob->CastToClient()->IsSitting() )
+			||( mob->GetLevelCon(GetLevel()) != CON_GREEN )
+
+		)
+		&&
+		(
+			(
+				fv == FACTION_SCOWLS
+				||
+				(mob->GetPrimaryFaction() != GetPrimaryFaction() && mob->GetPrimaryFaction() == -4 && GetOwner() == nullptr)
+				||
+				(
+					fv == FACTION_THREATENLY
+					&& zone->random.Roll(THREATENLY_ARRGO_CHANCE - heroicCHA_mod)
+				)
+			)
+		)
+		)
+		{
+			//FatherNiwtit: make sure we can see them. last since it is very expensive
+			if(CheckLosFN(mob)) {
+				Log.Out(Logs::Detail, Logs::Aggro, "Check aggro for %s target %s.", GetName(), mob->GetName());
+				return( mod_will_aggro(mob, this) );
+			}
 		}
 	}
 
@@ -431,10 +477,19 @@ void EntityList::AIYellForHelp(Mob* sender, Mob* attacker) {
 	if (sender->GetPrimaryFaction() == 0 )
 		return; // well, if we dont have a faction set, we're gonna be indiff to everybody
 
+	if (sender->HasAssistAggro())
+		return;
+
 	for (auto it = npc_list.begin(); it != npc_list.end(); ++it) {
 		NPC *mob = it->second;
 		if (!mob)
 			continue;
+
+		if (mob->CheckAggro(attacker))
+			continue;
+
+		if (sender->NPCAssistCap() >= RuleI(Combat, NPCAssistCap))
+			break;
 
 		float r = mob->GetAssistRange();
 		r = r * r;
@@ -453,7 +508,7 @@ void EntityList::AIYellForHelp(Mob* sender, Mob* attacker) {
 		{
 			//if they are in range, make sure we are not green...
 			//then jump in if they are our friend
-			if(attacker->GetLevelCon(mob->GetLevel()) != CON_GREEN)
+			if(mob->GetLevel() >= 50 || attacker->GetLevelCon(mob->GetLevel()) != CON_GREEN)
 			{
 				bool useprimfaction = false;
 				if(mob->GetPrimaryFaction() == sender->CastToNPC()->GetPrimaryFaction())
@@ -476,7 +531,8 @@ void EntityList::AIYellForHelp(Mob* sender, Mob* attacker) {
 							attacker->GetName(), DistanceSquared(mob->GetPosition(),
 							sender->GetPosition()), fabs(sender->GetZ()+mob->GetZ()));
 #endif
-						mob->AddToHateList(attacker, 1, 0, false);
+						mob->AddToHateList(attacker, 25, 0, false);
+						sender->AddAssistCap();
 					}
 				}
 			}
@@ -960,6 +1016,9 @@ bool Mob::CheckLosFN(float posX, float posY, float posZ, float mobSize) {
 //offensive spell aggro
 int32 Mob::CheckAggroAmount(uint16 spell_id, Mob *target, bool isproc)
 {
+	if (NoDetrimentalSpellAggro(spell_id))
+		return 0;
+
 	int32 AggroAmount = 0;
 	int32 nonModifiedAggro = 0;
 	uint16 slevel = GetLevel();
@@ -1115,15 +1174,13 @@ int32 Mob::CheckAggroAmount(uint16 spell_id, Mob *target, bool isproc)
 		int HateMod = RuleI(Aggro, SpellAggroMod);
 		HateMod += GetFocusEffect(focusSpellHateMod, spell_id);
 
-		//Live AA - Spell casting subtlety
-		HateMod += aabonuses.hatemod + spellbonuses.hatemod + itembonuses.hatemod;
-
 		AggroAmount = (AggroAmount * HateMod) / 100;
 	}
 
 	// initial aggro gets a bonus 100 besides for dispel or hate override
-	if (!dispel && spells[spell_id].HateAdded == 0 && !on_hatelist)
-		AggroAmount += 100;
+	// We add this 100 in AddToHateList so we need to account for the oddities here
+	if (dispel && spells[spell_id].HateAdded > 0 && !on_hatelist)
+		AggroAmount -= 100;
 
 	return AggroAmount + spells[spell_id].bonushate + nonModifiedAggro;
 }
@@ -1181,9 +1238,6 @@ int32 Mob::CheckHealAggroAmount(uint16 spell_id, Mob *target, uint32 heal_possib
 		int HateMod = RuleI(Aggro, SpellAggroMod);
 		HateMod += GetFocusEffect(focusSpellHateMod, spell_id);
 
-		//Live AA - Spell casting subtlety
-		HateMod += aabonuses.hatemod + spellbonuses.hatemod + itembonuses.hatemod;
-
 		AggroAmount = (AggroAmount * HateMod) / 100;
 	}
 
@@ -1191,26 +1245,26 @@ int32 Mob::CheckHealAggroAmount(uint16 spell_id, Mob *target, uint32 heal_possib
 }
 
 void Mob::AddFeignMemory(Client* attacker) {
-	if(feign_memory_list.empty() && AIfeignremember_timer != nullptr)
-		AIfeignremember_timer->Start(AIfeignremember_delay);
+	if(feign_memory_list.empty() && AI_feign_remember_timer != nullptr)
+		AI_feign_remember_timer->Start(AIfeignremember_delay);
 	feign_memory_list.insert(attacker->CharacterID());
 }
 
 void Mob::RemoveFromFeignMemory(Client* attacker) {
 	feign_memory_list.erase(attacker->CharacterID());
-	if(feign_memory_list.empty() && AIfeignremember_timer != nullptr)
-		AIfeignremember_timer->Disable();
+	if(feign_memory_list.empty() && AI_feign_remember_timer != nullptr)
+		AI_feign_remember_timer->Disable();
 	if(feign_memory_list.empty())
 	{
 		minLastFightingDelayMoving = RuleI(NPC, LastFightingDelayMovingMin);
 		maxLastFightingDelayMoving = RuleI(NPC, LastFightingDelayMovingMax);
-		if(AIfeignremember_timer != nullptr)
-			AIfeignremember_timer->Disable();
+		if(AI_feign_remember_timer != nullptr)
+			AI_feign_remember_timer->Disable();
 	}
 }
 
 void Mob::ClearFeignMemory() {
-	std::set<uint32>::iterator RememberedCharID = feign_memory_list.begin();
+	auto RememberedCharID = feign_memory_list.begin();
 	while (RememberedCharID != feign_memory_list.end())
 	{
 		Client* remember_client = entity_list.GetClientByCharID(*RememberedCharID);
@@ -1222,8 +1276,8 @@ void Mob::ClearFeignMemory() {
 	feign_memory_list.clear();
 	minLastFightingDelayMoving = RuleI(NPC, LastFightingDelayMovingMin);
 	maxLastFightingDelayMoving = RuleI(NPC, LastFightingDelayMovingMax);
-	if(AIfeignremember_timer != nullptr)
-		AIfeignremember_timer->Disable();
+	if(AI_feign_remember_timer != nullptr)
+		AI_feign_remember_timer->Disable();
 }
 
 bool Mob::PassCharismaCheck(Mob* caster, uint16 spell_id) {
@@ -1245,7 +1299,7 @@ bool Mob::PassCharismaCheck(Mob* caster, uint16 spell_id) {
 
 	if(IsCharmSpell(spell_id)) {
 
-		if (spells[spell_id].powerful_flag == -1) //If charm spell has this set(-1), it can not break till end of duration.
+		if (spells[spell_id].no_resist) //If charm spell has this set(-1), it can not break till end of duration.
 			return true;
 
 		//1: The mob has a default 25% chance of being allowed a resistance check against the charm.

@@ -522,7 +522,7 @@ void Client::SetEXP(uint32 set_exp, uint32 set_aaxp, bool isrezzexp) {
 	uint32 tmpxp2 = GetEXPForLevel(GetLevel());
 	// Quag: crash bug fix... Divide by zero when tmpxp1 and 2 equalled each other, most likely the error case from GetEXPForLevel() (invalid class, etc)
 	if (tmpxp1 != tmpxp2 && tmpxp1 != 0xFFFFFFFF && tmpxp2 != 0xFFFFFFFF) {
-		EQApplicationPacket* outapp = new EQApplicationPacket(OP_ExpUpdate, sizeof(ExpUpdate_Struct));
+		auto outapp = new EQApplicationPacket(OP_ExpUpdate, sizeof(ExpUpdate_Struct));
 		ExpUpdate_Struct* eu = (ExpUpdate_Struct*)outapp->pBuffer;
 		float tmpxp = (float) ( (float) set_exp-tmpxp2 ) / ( (float) tmpxp1-tmpxp2 );
 		eu->exp = (uint32)(330.0f * tmpxp);
@@ -545,7 +545,7 @@ void Client::SetLevel(uint8 set_level, bool command)
 		return;
 	}
 
-	EQApplicationPacket* outapp = new EQApplicationPacket(OP_LevelUpdate, sizeof(LevelUpdate_Struct));
+	auto outapp = new EQApplicationPacket(OP_LevelUpdate, sizeof(LevelUpdate_Struct));
 	LevelUpdate_Struct* lu = (LevelUpdate_Struct*)outapp->pBuffer;
 	lu->level = set_level;
 	if(m_pp.level2 != 0)
@@ -665,6 +665,41 @@ uint32 Client::GetEXPForLevel(uint16 check_level)
 	mod *= 1000;
 
 	uint32 finalxp = uint32(base * mod);
+
+	if(RuleB(Character,UseOldRaceExpPenalties))
+	{
+		float racemod = 1.0;
+		if(GetBaseRace() == TROLL || GetBaseRace() == IKSAR) {
+			racemod = 1.2;
+		} else if(GetBaseRace() == OGRE) {
+			racemod = 1.15;
+		} else if(GetBaseRace() == BARBARIAN) {
+			racemod = 1.05;
+		} else if(GetBaseRace() == HALFLING) {
+			racemod = 0.95;
+		}
+
+		finalxp = uint32(finalxp * racemod);
+	}
+
+	if(RuleB(Character,UseOldClassExpPenalties))
+	{
+		float classmod = 1.0;
+		if(GetClass() == PALADIN || GetClass() == SHADOWKNIGHT || GetClass() == RANGER || GetClass() == BARD) {
+			classmod = 1.4;
+		} else if(GetClass() == MONK) {
+			classmod = 1.2;
+		} else if(GetClass() == WIZARD || GetClass() == ENCHANTER || GetClass() == MAGICIAN || GetClass() == NECROMANCER) {
+			classmod = 1.1;
+		} else if(GetClass() == ROGUE) {
+			classmod = 0.91;
+		} else if(GetClass() == WARRIOR) {
+			classmod = 0.9;
+		}
+
+		finalxp = uint32(finalxp * classmod);
+	}
+
 	finalxp = mod_client_xp_for_level(finalxp, check_level);
 
 	return finalxp;
@@ -803,7 +838,7 @@ void Client::AddLeadershipEXP(uint32 group_exp, uint32 raid_exp) {
 }
 
 void Client::SendLeadershipEXPUpdate() {
-	EQApplicationPacket* outapp = new EQApplicationPacket(OP_LeadershipExpUpdate, sizeof(LeadershipExpUpdate_Struct));
+	auto outapp = new EQApplicationPacket(OP_LeadershipExpUpdate, sizeof(LeadershipExpUpdate_Struct));
 	LeadershipExpUpdate_Struct* eu = (LeadershipExpUpdate_Struct *) outapp->pBuffer;
 
 	eu->group_leadership_exp = m_pp.group_leadership_exp;
@@ -825,7 +860,7 @@ uint32 Client::GetCharMaxLevelFromQGlobal() {
 		QGlobalCache::Combine(globalMap, char_c->GetBucket(), ntype, this->CharacterID(), zone->GetZoneID());
 	}
 
-	std::list<QGlobal>::iterator iter = globalMap.begin();
+	auto iter = globalMap.begin();
 	uint32 gcount = 0;
 	while(iter != globalMap.end()) {
 		if((*iter).name.compare("CharMaxLevel") == 0){

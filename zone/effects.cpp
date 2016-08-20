@@ -73,6 +73,9 @@ int32 Mob::GetActSpellDamage(uint16 spell_id, int32 value, Mob* target) {
 		if (spell_id == SPELL_IMP_HARM_TOUCH && IsClient() && (GetAA(aaSpellCastingFury) > 0) && (GetAA(aaUnholyTouch) > 0))
 			 chance = 100;
 
+		if (spells[spell_id].override_crit_chance > 0 && chance > spells[spell_id].override_crit_chance)
+			chance = spells[spell_id].override_crit_chance;
+
 		if (zone->random.Roll(chance)) {
 			Critical = true;
 			ratio += itembonuses.SpellCritDmgIncrease + spellbonuses.SpellCritDmgIncrease + aabonuses.SpellCritDmgIncrease;
@@ -95,6 +98,7 @@ int32 Mob::GetActSpellDamage(uint16 spell_id, int32 value, Mob* target) {
 			value = value_BaseEffect*ratio/100;
 
 			value += value_BaseEffect*GetFocusEffect(focusImprovedDamage, spell_id)/100;
+			value += value_BaseEffect*GetFocusEffect(focusImprovedDamage2, spell_id)/100;
 
 			value += int(value_BaseEffect*GetFocusEffect(focusFcDamagePctCrit, spell_id)/100)*ratio/100;
 
@@ -106,8 +110,12 @@ int32 Mob::GetActSpellDamage(uint16 spell_id, int32 value, Mob* target) {
 			value -= GetFocusEffect(focusFcDamageAmtCrit, spell_id)*ratio/100;
 
 			value -= GetFocusEffect(focusFcDamageAmt, spell_id);
+			value -= GetFocusEffect(focusFcDamageAmt2, spell_id);
 
-			if(itembonuses.SpellDmg && spells[spell_id].classes[(GetClass()%16) - 1] >= GetLevel() - 5)
+			if (RuleB(Spells, IgnoreSpellDmgLvlRestriction) && !spells[spell_id].no_heal_damage_item_mod && itembonuses.SpellDmg)
+				value -= GetExtraSpellAmt(spell_id, itembonuses.SpellDmg, value)*ratio / 100;
+
+			else if(!spells[spell_id].no_heal_damage_item_mod && itembonuses.SpellDmg && spells[spell_id].classes[(GetClass() % 17) - 1] >= GetLevel() - 5)
 				value -= GetExtraSpellAmt(spell_id, itembonuses.SpellDmg, value)*ratio/100;
 
 			else if (IsNPC() && CastToNPC()->GetSpellScale())
@@ -126,6 +134,7 @@ int32 Mob::GetActSpellDamage(uint16 spell_id, int32 value, Mob* target) {
 	value = value_BaseEffect;
 
 	value += value_BaseEffect*GetFocusEffect(focusImprovedDamage, spell_id)/100;
+	value += value_BaseEffect*GetFocusEffect(focusImprovedDamage2, spell_id)/100;
 
 	value += value_BaseEffect*GetFocusEffect(focusFcDamagePctCrit, spell_id)/100;
 
@@ -137,8 +146,12 @@ int32 Mob::GetActSpellDamage(uint16 spell_id, int32 value, Mob* target) {
 	value -= GetFocusEffect(focusFcDamageAmtCrit, spell_id);
 
 	value -= GetFocusEffect(focusFcDamageAmt, spell_id);
+	value -= GetFocusEffect(focusFcDamageAmt2, spell_id);
 
-	if(itembonuses.SpellDmg && spells[spell_id].classes[(GetClass()%16) - 1] >= GetLevel() - 5)
+	if (RuleB(Spells, IgnoreSpellDmgLvlRestriction) && !spells[spell_id].no_heal_damage_item_mod && itembonuses.SpellDmg)
+		value -= GetExtraSpellAmt(spell_id, itembonuses.SpellDmg, value);
+
+	else if (!spells[spell_id].no_heal_damage_item_mod && itembonuses.SpellDmg && spells[spell_id].classes[(GetClass() % 17) - 1] >= GetLevel() - 5)
 		 value -= GetExtraSpellAmt(spell_id, itembonuses.SpellDmg, value);
 
 	if (IsNPC() && CastToNPC()->GetSpellScale())
@@ -161,7 +174,10 @@ int32 Mob::GetActDoTDamage(uint16 spell_id, int32 value, Mob* target) {
 	chance += itembonuses.CriticalDoTChance + spellbonuses.CriticalDoTChance + aabonuses.CriticalDoTChance;
 
 	if (spellbonuses.CriticalDotDecay)
-			chance += GetDecayEffectValue(spell_id, SE_CriticalDotDecay);
+		chance += GetDecayEffectValue(spell_id, SE_CriticalDotDecay);
+
+	if (spells[spell_id].override_crit_chance > 0 && chance > spells[spell_id].override_crit_chance)
+		chance = spells[spell_id].override_crit_chance;
 
 	value_BaseEffect = value + (value*GetFocusEffect(focusFcBaseEffects, spell_id)/100);
 
@@ -170,11 +186,13 @@ int32 Mob::GetActDoTDamage(uint16 spell_id, int32 value, Mob* target) {
 		ratio += itembonuses.DotCritDmgIncrease + spellbonuses.DotCritDmgIncrease + aabonuses.DotCritDmgIncrease;
 		value = value_BaseEffect*ratio/100;
 		value += int(value_BaseEffect*GetFocusEffect(focusImprovedDamage, spell_id)/100)*ratio/100;
+		value += int(value_BaseEffect*GetFocusEffect(focusImprovedDamage2, spell_id)/100)*ratio/100;
 		value += int(value_BaseEffect*GetFocusEffect(focusFcDamagePctCrit, spell_id)/100)*ratio/100;
 		value += int(value_BaseEffect*target->GetVulnerability(this, spell_id, 0)/100)*ratio/100;
 		extra_dmg = target->GetFcDamageAmtIncoming(this, spell_id) +
 					int(GetFocusEffect(focusFcDamageAmtCrit, spell_id)*ratio/100) +
-					GetFocusEffect(focusFcDamageAmt, spell_id);
+					GetFocusEffect(focusFcDamageAmt, spell_id) +
+					GetFocusEffect(focusFcDamageAmt2, spell_id);
 
 		if (extra_dmg) {
 			int duration = CalcBuffDuration(this, this, spell_id);
@@ -188,11 +206,13 @@ int32 Mob::GetActDoTDamage(uint16 spell_id, int32 value, Mob* target) {
 
 		value = value_BaseEffect;
 		value += value_BaseEffect*GetFocusEffect(focusImprovedDamage, spell_id)/100;
+		value += value_BaseEffect*GetFocusEffect(focusImprovedDamage2, spell_id)/100;
 		value += value_BaseEffect*GetFocusEffect(focusFcDamagePctCrit, spell_id)/100;
 		value += value_BaseEffect*target->GetVulnerability(this, spell_id, 0)/100;
 		extra_dmg = target->GetFcDamageAmtIncoming(this, spell_id) +
 					GetFocusEffect(focusFcDamageAmtCrit, spell_id) +
-					GetFocusEffect(focusFcDamageAmt, spell_id);
+					GetFocusEffect(focusFcDamageAmt, spell_id) +
+					GetFocusEffect(focusFcDamageAmt2, spell_id);
 
 		if (extra_dmg) {
 			int duration = CalcBuffDuration(this, this, spell_id);
@@ -211,6 +231,9 @@ int32 Mob::GetActDoTDamage(uint16 spell_id, int32 value, Mob* target) {
 
 int32 Mob::GetExtraSpellAmt(uint16 spell_id, int32 extra_spell_amt, int32 base_spell_dmg)
 {
+	if (RuleB(Spells, FlatItemExtraSpellAmt))
+		return extra_spell_amt;
+
 	int total_cast_time = 0;
 
 	if (spells[spell_id].recast_time >= spells[spell_id].recovery_time)
@@ -260,6 +283,9 @@ int32 Mob::GetActSpellHealing(uint16 spell_id, int32 value, Mob* target) {
 		if (spellbonuses.CriticalHealDecay)
 			chance += GetDecayEffectValue(spell_id, SE_CriticalHealDecay);
 
+		if (spells[spell_id].override_crit_chance > 0 && chance > spells[spell_id].override_crit_chance)
+			chance = spells[spell_id].override_crit_chance;
+
 		if(chance && (zone->random.Roll(chance))) {
 			Critical = true;
 			modifier = 2; //At present time no critical heal amount modifier SPA exists.
@@ -270,7 +296,7 @@ int32 Mob::GetActSpellHealing(uint16 spell_id, int32 value, Mob* target) {
 		value += GetFocusEffect(focusFcHealAmt, spell_id);
 		value += target->GetFocusIncoming(focusFcHealAmtIncoming, SE_FcHealAmtIncoming, this, spell_id);
 
-		if(itembonuses.HealAmt && spells[spell_id].classes[(GetClass()%16) - 1] >= GetLevel() - 5)
+		if(!spells[spell_id].no_heal_damage_item_mod && itembonuses.HealAmt && spells[spell_id].classes[(GetClass()%17) - 1] >= GetLevel() - 5)
 			value += GetExtraSpellAmt(spell_id, itembonuses.HealAmt, value) * modifier;
 
 		value += value*target->GetHealRate(spell_id, this)/100;
@@ -319,7 +345,7 @@ int32 Client::GetActSpellCost(uint16 spell_id, int32 cost)
 		cost *= 2;
 
 	// Formula = Unknown exact, based off a random percent chance up to mana cost(after focuses) of the cast spell
-	if(itembonuses.Clairvoyance && spells[spell_id].classes[(GetClass()%16) - 1] >= GetLevel() - 5)
+	if(itembonuses.Clairvoyance && spells[spell_id].classes[(GetClass()%17) - 1] >= GetLevel() - 5)
 	{
 		int16 mana_back = itembonuses.Clairvoyance * zone->random.Int(1, 100) / 100;
 		// Doesnt generate mana, so best case is a free spell
@@ -413,9 +439,6 @@ int32 Client::GetActSpellCost(uint16 spell_id, int32 cost)
 
 int32 Mob::GetActSpellDuration(uint16 spell_id, int32 duration)
 {
-	if (spells[spell_id].not_extendable)
-		return duration;
-
 	int increase = 100;
 	increase += GetFocusEffect(focusSpellDuration, spell_id);
 	int tic_inc = 0;
@@ -458,14 +481,14 @@ int32 Client::GetActSpellCasttime(uint16 spell_id, int32 casttime)
 bool Client::TrainDiscipline(uint32 itemid) {
 
 	//get the item info
-	const Item_Struct *item = database.GetItem(itemid);
+	const EQEmu::ItemBase *item = database.GetItem(itemid);
 	if(item == nullptr) {
 		Message(13, "Unable to find the tome you turned in!");
 		Log.Out(Logs::General, Logs::Error, "Unable to find turned in tome id %lu\n", (unsigned long)itemid);
 		return(false);
 	}
 
-	if(item->ItemClass != ItemClassCommon || item->ItemType != ItemTypeSpell) {
+	if (!item->IsClassCommon() || item->ItemType != EQEmu::item::ItemTypeSpell) {
 		Message(13, "Invalid item type, you cannot learn from this item.");
 		//summon them the item back...
 		SummonItem(itemid);
@@ -557,6 +580,33 @@ bool Client::TrainDiscipline(uint32 itemid) {
 	return(false);
 }
 
+void Client::TrainDiscBySpellID(int32 spell_id)
+{
+	int i;
+	for(i = 0; i < MAX_PP_DISCIPLINES; i++) {
+		if(m_pp.disciplines.values[i] == 0) {
+			m_pp.disciplines.values[i] = spell_id;
+			database.SaveCharacterDisc(this->CharacterID(), i, spell_id);
+			SendDisciplineUpdate();
+			Message(15, "You have learned a new combat ability!");
+			return;
+		}
+	}
+}
+
+int Client::GetDiscSlotBySpellID(int32 spellid)
+{
+	int i;
+
+	for(i = 0; i < MAX_PP_DISCIPLINES; i++)
+	{
+		if(m_pp.disciplines.values[i] == spellid)
+			return i;
+	}
+	
+	return -1;
+}
+
 void Client::SendDisciplineUpdate() {
 	EQApplicationPacket app(OP_DisciplineUpdate, sizeof(Disciplines_Struct));
 	Disciplines_Struct *d = (Disciplines_Struct*)app.pBuffer;
@@ -612,10 +662,7 @@ bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 		return(false);
 	}
 
-	if(GetEndurance() > spell.EndurCost) {
-		SetEndurance(GetEndurance() - spell.EndurCost);
-		TryTriggerOnValueAmount(false, false, true);
-	} else {
+	if(GetEndurance() < spell.EndurCost) {
 		Message(11, "You are too fatigued to use this skill right now.");
 		return(false);
 	}
@@ -623,17 +670,23 @@ bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 	if(spell.recast_time > 0)
 	{
 		uint32 reduced_recast = spell.recast_time / 1000;
-		reduced_recast -= GetFocusEffect(focusReduceRecastTime, spell_id);
-		if(reduced_recast <= 0){
+		auto focus = GetFocusEffect(focusReduceRecastTime, spell_id);
+		// do stupid stuff because custom servers.
+		// we really should be able to just do the -= focus but since custom servers could have shorter reuse timers
+		// we have to make sure we don't underflow the uint32 ...
+		// and yes, the focus effect can be used to increase the durations (spell 38944)
+		if (focus > reduced_recast) {
 			reduced_recast = 0;
 			if (GetPTimers().Enabled((uint32)DiscTimer))
 				GetPTimers().Clear(&database, (uint32)DiscTimer);
+		} else {
+			reduced_recast -= focus;
 		}
 
 		if (reduced_recast > 0)
-			CastSpell(spell_id, target, DISCIPLINE_SPELL_SLOT, -1, -1, 0, -1, (uint32)DiscTimer, reduced_recast);
+			CastSpell(spell_id, target, EQEmu::CastingSlot::Discipline, -1, -1, 0, -1, (uint32)DiscTimer, reduced_recast);
 		else{
-			CastSpell(spell_id, target, DISCIPLINE_SPELL_SLOT);
+			CastSpell(spell_id, target, EQEmu::CastingSlot::Discipline);
 			return true;
 		}
 
@@ -641,7 +694,7 @@ bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 	}
 	else
 	{
-		CastSpell(spell_id, target, DISCIPLINE_SPELL_SLOT);
+		CastSpell(spell_id, target, EQEmu::CastingSlot::Discipline);
 	}
 	return(true);
 }
@@ -650,7 +703,7 @@ void Client::SendDisciplineTimer(uint32 timer_id, uint32 duration)
 {
 	if (timer_id < MAX_DISCIPLINE_TIMERS)
 	{
-		EQApplicationPacket *outapp = new EQApplicationPacket(OP_DisciplineTimer, sizeof(DisciplineTimer_Struct));
+		auto outapp = new EQApplicationPacket(OP_DisciplineTimer, sizeof(DisciplineTimer_Struct));
 		DisciplineTimer_Struct *dts = (DisciplineTimer_Struct *)outapp->pBuffer;
 		dts->TimerID = timer_id;
 		dts->Duration = duration;
@@ -659,10 +712,10 @@ void Client::SendDisciplineTimer(uint32 timer_id, uint32 duration)
 	}
 }
 
-void EntityList::AETaunt(Client* taunter, float range)
+void EntityList::AETaunt(Client* taunter, float range, int32 bonus_hate)
 {
 	if (range == 0)
-		range = 100;		//arbitrary default...
+		range = 40;		//Live AE taunt range - Hardcoded.
 
 	range = range * range;
 
@@ -676,7 +729,7 @@ void EntityList::AETaunt(Client* taunter, float range)
 				&& taunter->IsAttackAllowed(them)
 				&& DistanceSquaredNoZ(taunter->GetPosition(), them->GetPosition()) <= range) {
 			if (taunter->CheckLosFN(them)) {
-				taunter->Taunt(them, true);
+				taunter->Taunt(them, true,0,true,bonus_hate);
 			}
 		}
 		++it;

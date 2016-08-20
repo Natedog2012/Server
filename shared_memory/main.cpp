@@ -47,12 +47,12 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	const EQEmuConfig *config = EQEmuConfig::get();
+	auto Config = EQEmuConfig::get();
 
 	SharedDatabase database;
 	Log.Out(Logs::General, Logs::Status, "Connecting to database...");
-	if(!database.Connect(config->DatabaseHost.c_str(), config->DatabaseUsername.c_str(),
-		config->DatabasePassword.c_str(), config->DatabaseDB.c_str(), config->DatabasePort)) {
+	if(!database.Connect(Config->DatabaseHost.c_str(), Config->DatabaseUsername.c_str(),
+		Config->DatabasePassword.c_str(), Config->DatabaseDB.c_str(), Config->DatabasePort)) {
 		Log.Out(Logs::General, Logs::Error, "Unable to connect to the database, cannot continue without a "
 			"database connection");
 		return 1;
@@ -61,6 +61,18 @@ int main(int argc, char **argv) {
 	/* Register Log System and Settings */
 	database.LoadLogSettings(Log.log_settings);
 	Log.StartFileLogs();
+
+	database.LoadVariables();
+
+	/* If we're running shared memory and hotfix has no custom name, we probably want to start from scratch... */
+	std::string db_hotfix_name;
+	if (database.GetVariable("hotfix_name", db_hotfix_name)) {
+		if (!db_hotfix_name.empty() && strcasecmp("hotfix_", db_hotfix_name.c_str()) == 0) {
+			Log.Out(Logs::General, Logs::Status, "Current hotfix in variables is the default %s, clearing out variable", db_hotfix_name.c_str());
+			std::string query = StringFormat("UPDATE `variables` SET `value`='' WHERE (`varname`='hotfix_name')");
+			database.QueryDatabase(query);
+		}
+	}
 
 	std::string hotfix_name = "";
 	bool load_all = true;
