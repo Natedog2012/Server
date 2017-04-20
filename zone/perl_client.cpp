@@ -871,6 +871,32 @@ XS(XS_Client_GetAAExp)
 	XSRETURN(1);
 }
 
+XS(XS_Client_GetAAPercent);
+XS(XS_Client_GetAAPercent)
+{
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: Client::GetAAPercent(THIS)");
+	{
+		Client* THIS;
+		uint32 RETVAL;
+		dXSTARG;
+
+		if (sv_derived_from(ST(0), "Client")) {
+			IV tmp = SvIV((SV*)SvRV(ST(0)));
+			THIS = INT2PTR(Client *,tmp);
+		}
+		else
+			Perl_croak(aTHX_ "THIS is not of type Client");
+		if(THIS == nullptr)
+			Perl_croak(aTHX_ "THIS is nullptr, avoiding crash.");
+
+		RETVAL = THIS->GetAAPercent();
+		XSprePUSH; PUSHu((UV)RETVAL);
+	}
+	XSRETURN(1);
+}
+
 XS(XS_Client_GetTotalSecondsPlayed); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Client_GetTotalSecondsPlayed)
 {
@@ -1270,16 +1296,20 @@ XS(XS_Client_MovePC)
 			THIS->MovePC(zoneID, x, y, z, heading);
 		}
 		else {
-			if (THIS->IsMerc())
-				Log.Out(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePC) attempted to process a type Merc reference");
-			else if (THIS->IsNPC())
-				Log.Out(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePC) attempted to process a type NPC reference");
+			if (THIS->IsMerc()) {
+				Log(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePC) attempted to process a type Merc reference");
+			}
+			else if (THIS->IsNPC()) {
+				Log(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePC) attempted to process a type NPC reference");
+			}
 		#ifdef BOTS
-			else if (THIS->IsBot())
-				Log.Out(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePC) attempted to process a type Bot reference");
+			else if (THIS->IsBot()) {
+				Log(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePC) attempted to process a type Bot reference");
+			}
 		#endif
-			else
-				Log.Out(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePC) attempted to process an Unknown type reference");
+			else {
+				Log(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePC) attempted to process an Unknown type reference");
+			}
 
 			Perl_croak(aTHX_ "THIS is not of type Client");
 		}
@@ -1316,16 +1346,20 @@ XS(XS_Client_MovePCInstance)
 			THIS->MovePC(zoneID, instanceID, x, y, z, heading);
 		}
 		else {
-			if (THIS->IsMerc())
-				Log.Out(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePCInstance) attempted to process a type Merc reference");
-			else if (THIS->IsNPC())
-				Log.Out(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePCInstance) attempted to process a type NPC reference");
+			if (THIS->IsMerc()) {
+				Log(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePCInstance) attempted to process a type Merc reference");
+			}
+			else if (THIS->IsNPC()) {
+				Log(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePCInstance) attempted to process a type NPC reference");
+			}
 		#ifdef BOTS
-			else if (THIS->IsBot())
-				Log.Out(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePCInstance) attempted to process a type Bot reference");
+			else if (THIS->IsBot()) {
+				Log(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePCInstance) attempted to process a type Bot reference");
+			}
 		#endif
-			else
-				Log.Out(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePCInstance) attempted to process an Unknown type reference");
+			else {
+				Log(Logs::Detail, Logs::None, "[CLIENT] Perl(XS_Client_MovePCInstance) attempted to process an Unknown type reference");
+			}
 
 			Perl_croak(aTHX_ "THIS is not of type Client");
 
@@ -4298,7 +4332,7 @@ XS(XS_Client_GetItemAt)
 		Perl_croak(aTHX_ "Usage: Client::GetItemAt(THIS, slot)");
 	{
 		Client *		THIS;
-		ItemInst *		RETVAL;
+		EQEmu::ItemInstance *		RETVAL;
 		uint32 slot = (int32)SvIV(ST(1));
 
 		if (sv_derived_from(ST(0), "Client")) {
@@ -4325,7 +4359,7 @@ XS(XS_Client_GetAugmentAt)
 		Perl_croak(aTHX_ "Usage: Client::GetAugmentAt(THIS, slot, aug_slot)");
 	{
 		Client *		THIS;
-		ItemInst *		RETVAL;
+		EQEmu::ItemInstance *		RETVAL;
 		uint32 slot = (int32)SvIV(ST(1));
 		uint32 aug_slot = (int32)SvIV(ST(1));
 
@@ -4338,7 +4372,7 @@ XS(XS_Client_GetAugmentAt)
 		if(THIS == nullptr)
 			Perl_croak(aTHX_ "THIS is nullptr, avoiding crash.");
 
-		ItemInst * inst = THIS->GetInv().GetItem(slot);
+		EQEmu::ItemInstance * inst = THIS->GetInv().GetItem(slot);
 		if(inst)
 		{
 			RETVAL = inst->GetAugment(aug_slot);
@@ -5601,7 +5635,7 @@ XS(XS_Client_GetItemInInventory)
 	{
 		Client *	THIS;
 		int16		slot_id = (int16)SvIV(ST(1));
-		ItemInst	*RETVAL = nullptr;
+		EQEmu::ItemInstance	*RETVAL = nullptr;
 
 		if (sv_derived_from(ST(0), "Client")) {
 			IV tmp = SvIV((SV*)SvRV(ST(0)));
@@ -6465,6 +6499,7 @@ XS(boot_Client)
 		newXSproto(strcpy(buf, "GetWeight"), XS_Client_GetWeight, file, "$");
 		newXSproto(strcpy(buf, "GetEXP"), XS_Client_GetEXP, file, "$");
 		newXSproto(strcpy(buf, "GetAAExp"), XS_Client_GetAAExp, file, "$");
+		newXSproto(strcpy(buf, "GetAAPercent"), XS_Client_GetAAPercent, file, "$");
 		newXSproto(strcpy(buf, "GetTotalSecondsPlayed"), XS_Client_GetTotalSecondsPlayed, file, "$");
 		newXSproto(strcpy(buf, "UpdateLDoNPoints"), XS_Client_UpdateLDoNPoints, file, "$$$");
 		newXSproto(strcpy(buf, "SetDeity"), XS_Client_SetDeity, file, "$$");

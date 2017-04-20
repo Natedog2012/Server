@@ -149,7 +149,7 @@ struct TintProfile
 			Tint_Struct Primary;
 			Tint_Struct Secondary;
 		};
-		Tint_Struct Slot[EQEmu::textures::TextureCount];
+		Tint_Struct Slot[EQEmu::textures::materialCount];
 	};
 };
 
@@ -178,7 +178,7 @@ struct TextureProfile
 			Texture_Struct Primary;
 			Texture_Struct Secondary;
 		};
-		Texture_Struct Slot[EQEmu::textures::TextureCount];
+		Texture_Struct Slot[EQEmu::textures::materialCount];
 	};
 
 	TextureProfile();
@@ -195,7 +195,7 @@ struct CharacterSelectEntry_Struct
 /*0000*/	uint8 Beard;				//
 /*0001*/	uint8 HairColor;			//
 /*0000*/	uint8 Face;					//
-/*0000*/	CharSelectEquip	Equip[EQEmu::textures::TextureCount];
+/*0000*/	CharSelectEquip	Equip[EQEmu::textures::materialCount];
 /*0000*/	uint32 PrimaryIDFile;		//
 /*0000*/	uint32 SecondaryIDFile;		//
 /*0000*/	uint8 Unknown15;			// 0xff
@@ -847,7 +847,7 @@ struct BindStruct {
  */
 static const uint32 MAX_PP_LANGUAGE		= 25; //
 static const uint32 MAX_PP_SPELLBOOK	= 720; // Confirmed 60 pages on Underfoot now
-static const uint32 MAX_PP_MEMSPELL		= 10; //was 9 now 10 on Underfoot
+static const uint32 MAX_PP_MEMSPELL		= 12; //was 9 now 10 on Underfoot
 static const uint32 MAX_PP_SKILL		= PACKET_SKILL_ARRAY_SIZE;	// 100 - actual skills buffer size
 static const uint32 MAX_PP_AA_ARRAY		= 300; //was 299
 static const uint32 MAX_GROUP_MEMBERS	= 6;
@@ -917,7 +917,7 @@ struct PlayerProfile_Struct
 /*00160*/ uint32  deity;				// deity
 /*00164*/ uint32  intoxication;			// Alcohol level (in ticks till sober?)
 /*00168*/ uint32  spellSlotRefresh[MAX_PP_MEMSPELL]; // Refresh time (millis) - 4 Octets Each
-/*00208*/ uint8   unknown00208[14];		// Seen 00 00 00 00 00 00 00 00 00 00 00 00 02 01
+/*00208*/ uint8   unknown00208[6];		// Seen 00 00 00 00 00 00 00 00 00 00 00 00 02 01
 /*00222*/ uint32  abilitySlotRefresh;
 /*00226*/ uint8   haircolor;			// Player hair color
 /*00227*/ uint8   beardcolor;			// Player beard color
@@ -945,7 +945,7 @@ struct PlayerProfile_Struct
 /*04217*/ uint8   unknown04217[147];		// was [175]
 /*04364*/ uint32   spell_book[MAX_PP_SPELLBOOK];	// List of the Spells in spellbook 720 = 90 pages [2880] was [1920]
 /*07244*/ uint32   mem_spells[MAX_PP_MEMSPELL]; // List of spells memorized
-/*07284*/ uint8   unknown07284[28];		//#### uint8 unknown04396[32]; in Titanium ####[28]
+/*07284*/ uint8   unknown07284[20];		//#### uint8 unknown04396[32]; in Titanium ####[28]
 /*07312*/ uint32  platinum;				// Platinum Pieces on player
 /*07316*/ uint32  gold;					// Gold Pieces on player
 /*07320*/ uint32  silver;				// Silver Pieces on player
@@ -1707,7 +1707,7 @@ struct LootingItem_Struct {
 /*000*/	uint32	lootee;
 /*004*/	uint32	looter;
 /*008*/	uint32	slot_id;
-/*012*/	uint32	auto_loot;
+/*012*/	int32	auto_loot;
 /*016*/	uint32	unknown16;
 /*020*/
 };
@@ -1921,8 +1921,7 @@ struct Merchant_Sell_Struct {
 /*004*/	uint32	playerid;		// Player's entity id
 /*008*/	uint32	itemslot;
 /*012*/	uint32	unknown12;
-/*016*/	uint8	quantity;		// Already sold
-/*017*/ uint8	Unknown017[3];
+/*016*/	uint32	quantity;
 /*020*/	uint32	Unknown020;
 /*024*/	uint32	price;
 /*028*/	uint32	pricehighorderbits;	// It appears the price is 64 bits in Underfoot+
@@ -2012,7 +2011,7 @@ struct AdventureLeaderboard_Struct
 /*struct Item_Shop_Struct {
 	uint16 merchantid;
 	uint8 itemtype;
-	ItemBase item;
+	ItemData item;
 	uint8 iss_unknown001[6];
 };*/
 
@@ -3929,7 +3928,6 @@ struct AnnoyingZoneUnknown_Struct {
 
 struct LoadSpellSet_Struct {
       uint8  spell[MAX_PP_MEMSPELL];      // 0 if no action
-      uint16 unknown2;	// is this two more spell gems?
       uint32 unknown;	// there seems to be an extra field in this packet...
 };
 

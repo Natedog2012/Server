@@ -21,8 +21,8 @@
 #include "emu_constants.h"
 
 #include "string_util.h"
-#include "item.h"
-#include "item_base.h"
+#include "item_instance.h"
+#include "item_data.h"
 #include "../zone/zonedb.h"
 
 
@@ -98,10 +98,10 @@ std::string EQEmu::SayLinkEngine::GenerateLink()
 	if ((m_Link.length() == 0) || (m_Link.length() > 250)) {
 		m_Error = true;
 		m_Link = "<LINKER ERROR>";
-		Log.Out(Logs::General, Logs::Error, "TextLink::GenerateLink() failed to generate a useable text link (LinkType: %i, Lengths: {link: %u, body: %u, text: %u})",
+		Log(Logs::General, Logs::Error, "TextLink::GenerateLink() failed to generate a useable text link (LinkType: %i, Lengths: {link: %u, body: %u, text: %u})",
 			m_LinkType, m_Link.length(), m_LinkBody.length(), m_LinkText.length());
-		Log.Out(Logs::General, Logs::Error, ">> LinkBody: %s", m_LinkBody.c_str());
-		Log.Out(Logs::General, Logs::Error, ">> LinkText: %s", m_LinkText.c_str());
+		Log(Logs::General, Logs::Error, ">> LinkBody: %s", m_LinkBody.c_str());
+		Log(Logs::General, Logs::Error, ">> LinkText: %s", m_LinkText.c_str());
 	}
 
 	return m_Link;
@@ -147,7 +147,7 @@ void EQEmu::SayLinkEngine::generate_body()
 
 	memset(&m_LinkBodyStruct, 0, sizeof(SayLinkBody_Struct));
 
-	const EQEmu::ItemBase* item_data = nullptr;
+	const EQEmu::ItemData* item_data = nullptr;
 
 	switch (m_LinkType) {
 	case saylink::SayLinkBlank:
@@ -250,7 +250,7 @@ void EQEmu::SayLinkEngine::generate_text()
 		return;
 	}
 
-	const EQEmu::ItemBase* item_data = nullptr;
+	const EQEmu::ItemData* item_data = nullptr;
 
 	switch (m_LinkType) {
 	case saylink::SayLinkBlank:

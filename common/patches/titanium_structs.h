@@ -144,7 +144,7 @@ struct TintProfile {
 			Tint_Struct Primary;
 			Tint_Struct Secondary;
 		};
-		Tint_Struct Slot[EQEmu::textures::TextureCount];
+		Tint_Struct Slot[EQEmu::textures::materialCount];
 	};
 };
 
@@ -167,7 +167,7 @@ struct TextureProfile
 			Texture_Struct Primary;
 			Texture_Struct Secondary;
 		};
-		Texture_Struct Slot[EQEmu::textures::TextureCount];
+		Texture_Struct Slot[EQEmu::textures::materialCount];
 	};
 
 	TextureProfile();
@@ -1420,7 +1420,7 @@ struct LootingItem_Struct {
 /*002*/	uint32	looter;
 /*004*/	uint16	slot_id;
 /*006*/	uint8	unknown3[2];
-/*008*/	uint32	auto_loot;
+/*008*/	int32	auto_loot;
 };
 
 struct GuildManageStatus_Struct{
@@ -1657,8 +1657,7 @@ struct Merchant_Sell_Struct {
 /*004*/	uint32	playerid;		// Player's entity id
 /*008*/	uint32	itemslot;
 		uint32	unknown12;
-/*016*/	uint8	quantity;		// Already sold
-/*017*/ uint8	Unknown016[3];
+/*016*/	uint32	quantity;
 /*020*/ uint32	price;
 };
 struct Merchant_Purchase_Struct {
@@ -3227,6 +3226,11 @@ struct MobHealth_Struct {
 struct AnnoyingZoneUnknown_Struct {
 	uint32	entity_id;
 	uint32	value;		//always 4
+};
+
+struct LoadSpellSet_Struct {
+	uint32 spell[MAX_PP_MEMSPELL];
+	uint32 unknown;
 };
 
 struct ApplyPoison_Struct {

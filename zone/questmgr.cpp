@@ -54,7 +54,7 @@ QuestManager quest_manager;
 #define QuestManagerCurrentQuestVars() \
 	Mob *owner = nullptr; \
 	Client *initiator = nullptr; \
-	ItemInst* questitem = nullptr; \
+	EQEmu::ItemInstance* questitem = nullptr; \
 	bool depop_npc = false; \
 	std::string encounter; \
 	do { \
@@ -116,7 +116,7 @@ void QuestManager::Process() {
 	}
 }
 
-void QuestManager::StartQuest(Mob *_owner, Client *_initiator, ItemInst* _questitem, std::string encounter) {
+void QuestManager::StartQuest(Mob *_owner, Client *_initiator, EQEmu::ItemInstance* _questitem, std::string encounter) {
 	running_quest run;
 	run.owner = _owner;
 	run.initiator = _initiator;
@@ -157,7 +157,7 @@ void QuestManager::echo(int colour, const char *str) {
 void QuestManager::say(const char *str) {
 	QuestManagerCurrentQuestVars();
 	if (!owner) {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::say called with nullptr owner. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::say called with nullptr owner. Probably syntax error in quest file.");
 		return;
 	}
 	else {
@@ -173,7 +173,7 @@ void QuestManager::say(const char *str) {
 void QuestManager::say(const char *str, uint8 language) {
 	QuestManagerCurrentQuestVars();
 	if (!owner) {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::say called with nullptr owner. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::say called with nullptr owner. Probably syntax error in quest file.");
 		return;
 	}
 	else {
@@ -375,11 +375,11 @@ void QuestManager::selfcast(int spell_id) {
 		initiator->SpellFinished(spell_id, initiator, EQEmu::CastingSlot::Item, 0, -1, spells[spell_id].ResistDiff);
 }
 
-void QuestManager::addloot(int item_id, int charges, bool equipitem) {
+void QuestManager::addloot(int item_id, int charges, bool equipitem, int aug1, int aug2, int aug3, int aug4, int aug5, int aug6) {
 	QuestManagerCurrentQuestVars();
 	if(item_id != 0){
 		if(owner->IsNPC())
-			owner->CastToNPC()->AddItem(item_id, charges, equipitem);
+			owner->CastToNPC()->AddItem(item_id, charges, equipitem, aug1, aug2, aug3, aug4, aug5, aug6);
 	}
 }
 
@@ -450,7 +450,7 @@ void QuestManager::settimerMS(const char *timer_name, int milliseconds) {
 	QTimerList.push_back(QuestTimer(milliseconds, owner, timer_name));
 }
 
-void QuestManager::settimerMS(const char *timer_name, int milliseconds, ItemInst *inst) {
+void QuestManager::settimerMS(const char *timer_name, int milliseconds, EQEmu::ItemInstance *inst) {
 	if (inst) {
 		inst->SetTimer(timer_name, milliseconds);
 	}
@@ -493,7 +493,7 @@ void QuestManager::stoptimer(const char *timer_name) {
 	}
 }
 
-void QuestManager::stoptimer(const char *timer_name, ItemInst *inst) {
+void QuestManager::stoptimer(const char *timer_name, EQEmu::ItemInstance *inst) {
 	if (inst) {
 		inst->StopTimer(timer_name);
 	}
@@ -531,7 +531,7 @@ void QuestManager::stopalltimers() {
 	}
 }
 
-void QuestManager::stopalltimers(ItemInst *inst) {
+void QuestManager::stopalltimers(EQEmu::ItemInstance *inst) {
 	if (inst) {
 		inst->ClearTimers();
 	}
@@ -552,7 +552,7 @@ void QuestManager::stopalltimers(Mob *mob) {
 void QuestManager::emote(const char *str) {
 	QuestManagerCurrentQuestVars();
 	if (!owner) {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::emote called with nullptr owner. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::emote called with nullptr owner. Probably syntax error in quest file.");
 		return;
 	}
 	else {
@@ -563,7 +563,7 @@ void QuestManager::emote(const char *str) {
 void QuestManager::shout(const char *str) {
 	QuestManagerCurrentQuestVars();
 	if (!owner) {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::shout called with nullptr owner. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::shout called with nullptr owner. Probably syntax error in quest file.");
 		return;
 	}
 	else {
@@ -574,7 +574,7 @@ void QuestManager::shout(const char *str) {
 void QuestManager::shout2(const char *str) {
 	QuestManagerCurrentQuestVars();
 	if (!owner) {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::shout2 called with nullptr owner. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::shout2 called with nullptr owner. Probably syntax error in quest file.");
 		return;
 	}
 	else {
@@ -593,7 +593,7 @@ void QuestManager::gmsay(const char *str, uint32 color, bool send_to_world, uint
 void QuestManager::depop(int npc_type) {
 	QuestManagerCurrentQuestVars();
 	if (!owner || !owner->IsNPC()) {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::depop called with nullptr owner or non-NPC owner. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::depop called with nullptr owner or non-NPC owner. Probably syntax error in quest file.");
 		return;
 	}
 	else {
@@ -623,7 +623,7 @@ void QuestManager::depop(int npc_type) {
 void QuestManager::depop_withtimer(int npc_type) {
 	QuestManagerCurrentQuestVars();
 	if (!owner || !owner->IsNPC()) {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::depop_withtimer called with nullptr owner or non-NPC owner. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::depop_withtimer called with nullptr owner or non-NPC owner. Probably syntax error in quest file.");
 		return;
 	}
 	else {
@@ -650,7 +650,7 @@ void QuestManager::depopall(int npc_type) {
 		entity_list.DepopAll(npc_type);
 	}
 	else {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::depopall called with nullptr owner, non-NPC owner, or invalid NPC Type ID. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::depopall called with nullptr owner, non-NPC owner, or invalid NPC Type ID. Probably syntax error in quest file.");
 	}
 }
 
@@ -659,7 +659,7 @@ void QuestManager::depopzone(bool StartSpawnTimer) {
 		zone->Depop(StartSpawnTimer);
 	}
 	else {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::depopzone called with nullptr zone. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::depopzone called with nullptr zone. Probably syntax error in quest file.");
 	}
 }
 
@@ -668,14 +668,14 @@ void QuestManager::repopzone() {
 		zone->Repop();
 	}
 	else {
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::repopzone called with nullptr zone. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::repopzone called with nullptr zone. Probably syntax error in quest file.");
 	}
 }
 
 void QuestManager::ConnectNodeToNode(int node1, int node2, int teleport, int doorid) {
 	if (!node1 || !node2)
 	{
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::ConnectNodeToNode called without node1 or node2. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::ConnectNodeToNode called without node1 or node2. Probably syntax error in quest file.");
 	}
 	else
 	{
@@ -702,7 +702,7 @@ void QuestManager::ConnectNodeToNode(int node1, int node2, int teleport, int doo
 		if (zone->pathing)
 		{
 			zone->pathing->ConnectNodeToNode(node1, node2, teleport, doorid);
-			Log.Out(Logs::Moderate, Logs::Quests, "QuestManager::ConnectNodeToNode connecting node %i to node %i.", node1, node2);
+			Log(Logs::Moderate, Logs::Quests, "QuestManager::ConnectNodeToNode connecting node %i to node %i.", node1, node2);
 		}
 	}
 }
@@ -711,7 +711,7 @@ void QuestManager::AddNode(float x, float y, float z, float best_z, int32 reques
 {
 	if (!x || !y || !z)
 	{
-		Log.Out(Logs::General, Logs::Quests, "QuestManager::AddNode called without x, y, z. Probably syntax error in quest file.");
+		Log(Logs::General, Logs::Quests, "QuestManager::AddNode called without x, y, z. Probably syntax error in quest file.");
 	}
 
 	if (!best_z || best_z == 0)
@@ -741,7 +741,7 @@ void QuestManager::AddNode(float x, float y, float z, float best_z, int32 reques
 	if (zone->pathing)
 	{
 		zone->pathing->AddNode(x, y, z, best_z, requested_id);
-		Log.Out(Logs::Moderate, Logs::Quests, "QuestManager::AddNode adding node at (%i, %i, %i).", x, y, z);
+		Log(Logs::Moderate, Logs::Quests, "QuestManager::AddNode adding node at (%i, %i, %i).", x, y, z);
 	}
 }
 
@@ -814,7 +814,7 @@ void QuestManager::traindisc(int discipline_tome_item_id) {
 }
 
 bool QuestManager::isdisctome(int item_id) {
-	const EQEmu::ItemBase *item = database.GetItem(item_id);
+	const EQEmu::ItemData *item = database.GetItem(item_id);
 	if(item == nullptr) {
 		return(false);
 	}
@@ -1305,7 +1305,7 @@ void QuestManager::settime(uint8 new_hour, uint8 new_min, bool update_world /*= 
 void QuestManager::itemlink(int item_id) {
 	QuestManagerCurrentQuestVars();
 	if (initiator) {
-		const EQEmu::ItemBase* item = database.GetItem(item_id);
+		const EQEmu::ItemData* item = database.GetItem(item_id);
 		if (item == nullptr)
 			return;
 
@@ -1724,7 +1724,7 @@ void QuestManager::showgrid(int grid) {
                                     "ORDER BY `number`", grid, zone->GetZoneID());
     auto results = database.QueryDatabase(query);
     if (!results.Success()) {
-        Log.Out(Logs::General, Logs::Quests, "Error loading grid %d for showgrid(): %s", grid, results.ErrorMessage().c_str());
+        Log(Logs::General, Logs::Quests, "Error loading grid %d for showgrid(): %s", grid, results.ErrorMessage().c_str());
 		return;
     }
 
@@ -2141,7 +2141,7 @@ bool QuestManager::istaskenabled(int taskid) {
 
 void QuestManager::tasksetselector(int tasksetid) {
 	QuestManagerCurrentQuestVars();
-	Log.Out(Logs::General, Logs::Tasks, "[UPDATE] TaskSetSelector called for task set %i", tasksetid);
+	Log(Logs::General, Logs::Tasks, "[UPDATE] TaskSetSelector called for task set %i", tasksetid);
 	if(RuleB(TaskSystem, EnableTaskSystem) && initiator && owner && taskmanager)
 		initiator->TaskSetSelector(owner, tasksetid);
 }
@@ -2408,7 +2408,7 @@ int QuestManager::collectitems_processSlot(int16 slot_id, uint32 item_id,
 	bool remove)
 {
 	QuestManagerCurrentQuestVars();
-	ItemInst *item = nullptr;
+	EQEmu::ItemInstance *item = nullptr;
 	int quantity = 0;
 
 	item = initiator->GetInv().GetItem(slot_id);
@@ -2497,7 +2497,7 @@ void QuestManager::MerchantSetItem(uint32 NPCid, uint32 itemid, uint32 quantity)
 	if (merchant == 0 || !merchant->IsNPC() || (merchant->GetClass() != MERCHANT))
 		return;	// don't do anything if NPCid isn't a merchant
 
-	const EQEmu::ItemBase* item = nullptr;
+	const EQEmu::ItemData* item = nullptr;
 	item = database.GetItem(itemid);
 	if (!item) return;		// if the item id doesn't correspond to a real item, do nothing
 
@@ -2510,7 +2510,7 @@ uint32 QuestManager::MerchantCountItem(uint32 NPCid, uint32 itemid) {
 	if (merchant == 0 || !merchant->IsNPC() || (merchant->GetClass() != MERCHANT))
 		return 0;	// if it isn't a merchant, it doesn't have any items
 
-	const EQEmu::ItemBase* item = nullptr;
+	const EQEmu::ItemData* item = nullptr;
 	item = database.GetItem(itemid);
 	if (!item)
 		return 0;	// if it isn't a valid item, the merchant doesn't have any
@@ -2533,7 +2533,7 @@ uint32 QuestManager::MerchantCountItem(uint32 NPCid, uint32 itemid) {
 // Item Link for use in Variables - "my $example_link = quest::varlink(item_id);"
 const char* QuestManager::varlink(char* perltext, int item_id) {
 	QuestManagerCurrentQuestVars();
-	const EQEmu::ItemBase* item = database.GetItem(item_id);
+	const EQEmu::ItemData* item = database.GetItem(item_id);
 	if (!item)
 		return "INVALID ITEM ID IN VARLINK";
 
@@ -2747,7 +2747,7 @@ const char* QuestManager::saylink(char* Phrase, bool silent, const char* LinkNam
 			std::string insert_query = StringFormat("INSERT INTO `saylink` (`phrase`) VALUES ('%s')", escaped_string);
 			results = database.QueryDatabase(insert_query);
 			if (!results.Success()) {
-				Log.Out(Logs::General, Logs::Error, "Error in saylink phrase queries", results.ErrorMessage().c_str());
+				Log(Logs::General, Logs::Error, "Error in saylink phrase queries", results.ErrorMessage().c_str());
 			} else {
 				results = database.QueryDatabase(query);
 				if (results.Success()) {
@@ -2755,7 +2755,7 @@ const char* QuestManager::saylink(char* Phrase, bool silent, const char* LinkNam
 						for(auto row = results.begin(); row != results.end(); ++row)
 							sayid = atoi(row[0]);
 				} else {
-					Log.Out(Logs::General, Logs::Error, "Error in saylink phrase queries", results.ErrorMessage().c_str());
+					Log(Logs::General, Logs::Error, "Error in saylink phrase queries", results.ErrorMessage().c_str());
 				}
 			}
 		}
@@ -2914,7 +2914,7 @@ void QuestManager::voicetell(const char *str, int macronum, int racenum, int gen
 			safe_delete(outapp);
 		}
 		else
-			Log.Out(Logs::General, Logs::Quests, "QuestManager::voicetell from %s. Client %s not found.", owner->GetName(), str);
+			Log(Logs::General, Logs::Quests, "QuestManager::voicetell from %s. Client %s not found.", owner->GetName(), str);
 	}
 }
 
@@ -3017,6 +3017,20 @@ void QuestManager::CrossZoneSetEntityVariableByNPCTypeID(uint32 npctype_id, cons
 	safe_delete(pack);
 }
 
+void QuestManager::WorldWideMarquee(uint32 Type, uint32 Priority, uint32 FadeIn, uint32 FadeOut, uint32 Duration, const char *Message) {
+	uint32 message_len = strlen(Message) + 1;
+	auto pack = new ServerPacket(ServerOP_WWMarquee, sizeof(WWMarquee_Struct) + message_len);
+	WWMarquee_Struct* WWMS = (WWMarquee_Struct*) pack->pBuffer;
+	WWMS->Type = Type;
+	WWMS->Priority = Priority;
+	WWMS->FadeIn = FadeIn;
+	WWMS->FadeOut = FadeOut;
+	WWMS->Duration = Duration;
+	strn0cpy(WWMS->Message, Message, 512);
+	worldserver.SendPacket(pack);
+	safe_delete(pack);
+}
+
 bool QuestManager::EnableRecipe(uint32 recipe_id)
 {
 	bool success = false;
@@ -3073,7 +3087,7 @@ Mob *QuestManager::GetOwner() const {
 	return nullptr;
 }
 
-ItemInst *QuestManager::GetQuestItem() const {
+EQEmu::ItemInstance *QuestManager::GetQuestItem() const {
 	if(!quests_running_.empty()) {
 		running_quest e = quests_running_.top();
 		return e.questitem;

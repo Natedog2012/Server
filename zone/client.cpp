@@ -33,6 +33,7 @@ extern volatile bool RunLoops;
 
 #include "../common/eqemu_logsys.h"
 #include "../common/features.h"
+#include "../common/emu_legacy.h"
 #include "../common/spdat.h"
 #include "../common/guilds.h"
 #include "../common/rulesys.h"
@@ -132,10 +133,8 @@ Client::Client(EQStreamInterface* ieqs)
 	fishing_timer(8000),
 	endupkeep_timer(1000),
 	forget_timer(0),
-	autosave_timer(RuleI(Character, AutosaveIntervalS)*1000),
-#ifdef REVERSE_AGGRO
-	scanarea_timer(AIClientScanarea_delay),
-#endif
+	autosave_timer(RuleI(Character, AutosaveIntervalS) * 1000),
+	client_scan_npc_aggro_timer(RuleI(Aggro, ClientAggroCheckInterval) * 1000),
 	tribute_timer(Tribute_duration),
 	proximity_timer(ClientProximity_interval),
 	TaskPeriodic_Timer(RuleI(TaskSystem, PeriodicCheckTimer) * 1000),
@@ -152,12 +151,14 @@ Client::Client(EQStreamInterface* ieqs)
 	anon_toggle_timer(250),
 	afk_toggle_timer(250),
 	helm_toggle_timer(250),
-	light_update_timer(600),
+	aggro_meter_timer(AGGRO_METER_UPDATE_MS),
 	m_Proximity(FLT_MAX, FLT_MAX, FLT_MAX), //arbitrary large number
 	m_ZoneSummonLocation(-2.0f,-2.0f,-2.0f),
 	m_AutoAttackPosition(0.0f, 0.0f, 0.0f, 0.0f),
 	m_AutoAttackTargetLocation(0.0f, 0.0f, 0.0f),
-	last_region_type(RegionTypeUnsupported)
+	last_region_type(RegionTypeUnsupported),
+	m_dirtyautohaters(false),
+	npc_close_scan_timer(6000)
 {
 	for(int cf=0; cf < _FilterCount; cf++)
 		ClientFilters[cf] = FilterShow;
@@ -173,6 +174,7 @@ Client::Client(EQStreamInterface* ieqs)
 	client_state = CLIENT_CONNECTING;
 	Trader=false;
 	Buyer = false;
+	Haste = 0;
 	CustomerID = 0;
 	TraderID = 0;
 	TrackingID = 0;
@@ -309,6 +311,8 @@ Client::Client(EQStreamInterface* ieqs)
 	}
 	MaxXTargets = 5;
 	XTargetAutoAddHaters = true;
+	m_autohatermgr.SetOwner(this, nullptr, nullptr);
+	m_activeautohatermgr = &m_autohatermgr;
 	LoadAccountFlags();
 
 	initial_respawn_selection = 0;
@@ -344,7 +348,7 @@ Client::~Client() {
 		ToggleBuyerMode(false);
 
 	if(conn_state != ClientConnectFinished) {
-		Log.Out(Logs::General, Logs::None, "Client '%s' was destroyed before reaching the connected state:", GetName());
+		Log(Logs::General, Logs::None, "Client '%s' was destroyed before reaching the connected state:", GetName());
 		ReportConnectingState();
 	}
 
@@ -352,6 +356,8 @@ Client::~Client() {
 		m_tradeskill_object->Close();
 		m_tradeskill_object = nullptr;
 	}
+
+	close_npcs.clear();
 
 	if(IsDueling() && GetDuelTarget() != 0) {
 		Entity* entity = entity_list.GetID(GetDuelTarget());
@@ -424,6 +430,7 @@ Client::~Client() {
 
 void Client::SendZoneInPackets()
 {
+
 	//////////////////////////////////////////////////////
 	// Spawn Appearance Packet
 	auto outapp = new EQApplicationPacket(OP_SpawnAppearance, sizeof(SpawnAppearance_Struct));
@@ -502,31 +509,31 @@ void Client::SendLogoutPackets() {
 void Client::ReportConnectingState() {
 	switch(conn_state) {
 	case NoPacketsReceived:		//havent gotten anything
-		Log.Out(Logs::General, Logs::None, "Client has not sent us an initial zone entry packet.");
+		Log(Logs::General, Logs::None, "Client has not sent us an initial zone entry packet.");
 		break;
 	case ReceivedZoneEntry:		//got the first packet, loading up PP
-		Log.Out(Logs::General, Logs::None, "Client sent initial zone packet, but we never got their player info from the database.");
+		Log(Logs::General, Logs::None, "Client sent initial zone packet, but we never got their player info from the database.");
 		break;
 	case PlayerProfileLoaded:	//our DB work is done, sending it
-		Log.Out(Logs::General, Logs::None, "We were sending the player profile, tributes, tasks, spawns, time and weather, but never finished.");
+		Log(Logs::General, Logs::None, "We were sending the player profile, tributes, tasks, spawns, time and weather, but never finished.");
 		break;
 	case ZoneInfoSent:		//includes PP, tributes, tasks, spawns, time and weather
-		Log.Out(Logs::General, Logs::None, "We successfully sent player info and spawns, waiting for client to request new zone.");
+		Log(Logs::General, Logs::None, "We successfully sent player info and spawns, waiting for client to request new zone.");
 		break;
 	case NewZoneRequested:	//received and sent new zone request
-		Log.Out(Logs::General, Logs::None, "We received client's new zone request, waiting for client spawn request.");
+		Log(Logs::General, Logs::None, "We received client's new zone request, waiting for client spawn request.");
 		break;
 	case ClientSpawnRequested:	//client sent ReqClientSpawn
-		Log.Out(Logs::General, Logs::None, "We received the client spawn request, and were sending objects, doors, zone points and some other stuff, but never finished.");
+		Log(Logs::General, Logs::None, "We received the client spawn request, and were sending objects, doors, zone points and some other stuff, but never finished.");
 		break;
 	case ZoneContentsSent:		//objects, doors, zone points
-		Log.Out(Logs::General, Logs::None, "The rest of the zone contents were successfully sent, waiting for client ready notification.");
+		Log(Logs::General, Logs::None, "The rest of the zone contents were successfully sent, waiting for client ready notification.");
 		break;
 	case ClientReadyReceived:	//client told us its ready, send them a bunch of crap like guild MOTD, etc
-		Log.Out(Logs::General, Logs::None, "We received client ready notification, but never finished Client::CompleteConnect");
+		Log(Logs::General, Logs::None, "We received client ready notification, but never finished Client::CompleteConnect");
 		break;
 	case ClientConnectFinished:	//client finally moved to finished state, were done here
-		Log.Out(Logs::General, Logs::None, "Client is successfully connected.");
+		Log(Logs::General, Logs::None, "Client is successfully connected.");
 		break;
 	};
 }
@@ -619,7 +626,7 @@ bool Client::Save(uint8 iCommitNow) {
 		GetMercInfo().MercTimerRemaining = GetMercTimer()->GetRemainingTime();
 	}
 
-	if (!(GetMerc() && !dead)) {
+	if (dead || (!GetMerc() && !GetMercInfo().IsSuspended)) {
 		memset(&m_mercinfo, 0, sizeof(struct MercInfo));
 	}
 
@@ -711,7 +718,7 @@ bool Client::AddPacket(EQApplicationPacket** pApp, bool bAckreq) {
 
 	c->ack_req = bAckreq;
 	c->app = *pApp;
-	*pApp = 0;
+	*pApp = nullptr;
 
 	clientpackets.Append(c);
 	return true;
@@ -720,14 +727,14 @@ bool Client::AddPacket(EQApplicationPacket** pApp, bool bAckreq) {
 bool Client::SendAllPackets() {
 	LinkedListIterator<CLIENTPACKET*> iterator(clientpackets);
 
-	CLIENTPACKET* cp = 0;
+	CLIENTPACKET* cp = nullptr;
 	iterator.Reset();
 	while(iterator.MoreElements()) {
 		cp = iterator.GetData();
 		if(eqs)
 			eqs->FastQueuePacket((EQApplicationPacket **)&cp->app, cp->ack_req);
 		iterator.RemoveCurrent();
-		Log.Out(Logs::Moderate, Logs::Client_Server_Packet, "Transmitting a packet");
+		Log(Logs::Moderate, Logs::Client_Server_Packet, "Transmitting a packet");
 	}
 	return true;
 }
@@ -766,7 +773,7 @@ void Client::FastQueuePacket(EQApplicationPacket** app, bool ack_req, CLIENT_CON
 			eqs->FastQueuePacket((EQApplicationPacket **)app, ack_req);
 		else if (app && (*app))
 			delete *app;
-		*app = 0;
+		*app = nullptr;
 	}
 	return;
 }
@@ -775,7 +782,7 @@ void Client::ChannelMessageReceived(uint8 chan_num, uint8 language, uint8 lang_s
 	char message[4096];
 	strn0cpy(message, orig_message, sizeof(message));
 
-	Log.Out(Logs::Detail, Logs::Zone_Server, "Client::ChannelMessageReceived() Channel:%i message:'%s'", chan_num, message);
+	Log(Logs::Detail, Logs::Zone_Server, "Client::ChannelMessageReceived() Channel:%i message:'%s'", chan_num, message);
 
 	if (targetname == nullptr) {
 		targetname = (!GetTarget()) ? "" : GetTarget()->GetName();
@@ -845,7 +852,6 @@ void Client::ChannelMessageReceived(uint8 chan_num, uint8 language, uint8 lang_s
 		if(GetName() != 0)
 			strcpy(sem->from, GetName());
 
-		pack->Deflate();
 		if(worldserver.Connected())
 			worldserver.SendPacket(pack);
 		safe_delete(pack);
@@ -1094,7 +1100,7 @@ void Client::ChannelMessageReceived(uint8 chan_num, uint8 language, uint8 lang_s
 				CheckLDoNHail(GetTarget());
 				CheckEmoteHail(GetTarget(), message);
 
-				if(DistanceSquaredNoZ(m_Position, GetTarget()->GetPosition()) <= 200) {
+				if(DistanceSquaredNoZ(m_Position, GetTarget()->GetPosition()) <= RuleI(Range, Say)) {
 					NPC *tar = GetTarget()->CastToNPC();
 					parse->EventNPC(EVENT_SAY, tar->CastToNPC(), this, message, language);
 
@@ -1106,7 +1112,7 @@ void Client::ChannelMessageReceived(uint8 chan_num, uint8 language, uint8 lang_s
 				}
 			}
 			else {
-				if (DistanceSquaredNoZ(m_Position, GetTarget()->GetPosition()) <= 200) {
+				if (DistanceSquaredNoZ(m_Position, GetTarget()->GetPosition()) <= RuleI(Range, Say)) {
 					parse->EventNPC(EVENT_AGGRO_SAY, GetTarget()->CastToNPC(), this, message, language);
 				}
 			}
@@ -1135,7 +1141,7 @@ void Client::ChannelMessageReceived(uint8 chan_num, uint8 language, uint8 lang_s
 		char *Buffer = (char *)es;
 		Buffer += 4;
 		snprintf(Buffer, sizeof(Emote_Struct) - 4, "%s %s", GetName(), message);
-		entity_list.QueueCloseClients(this, outapp, true, 100, 0, true, FilterSocials);
+		entity_list.QueueCloseClients(this, outapp, true, RuleI(Range, Emote), 0, true, FilterSocials);
 		safe_delete(outapp);
 		break;
 	}
@@ -1211,7 +1217,7 @@ void Client::ChannelMessageSend(const char* from, const char* to, uint8 chan_num
 	QueuePacket(&app);
 
 	if ((chan_num == 2) && (ListenerSkill < 100)) {	// group message in unmastered language, check for skill up
-		if ((m_pp.languages[language] <= lang_skill) && (from != this->GetName()))
+		if (m_pp.languages[language] <= lang_skill)
 			CheckLanguageSkillIncrease(language, lang_skill);
 	}
 }
@@ -1602,7 +1608,7 @@ void Client::UpdateAdmin(bool iFromDB) {
 
 	if(m_pp.gm)
 	{
-		Log.Out(Logs::Moderate, Logs::Zone_Server, "%s - %s is a GM", __FUNCTION__ , GetName());
+		Log(Logs::Moderate, Logs::Zone_Server, "%s - %s is a GM", __FUNCTION__ , GetName());
 // no need for this, having it set in pp you already start as gm
 // and it's also set in your spawn packet so other people see it too
 //		SendAppearancePacket(AT_GM, 1, false);
@@ -1997,6 +2003,7 @@ void Client::SetGM(bool toggle) {
 }
 
 void Client::ReadBook(BookRequest_Struct *book) {
+	int16 book_language=0;
 	char *txtfile = book->txtfile;
 
 	if(txtfile[0] == '0' && txtfile[1] == '\0') {
@@ -2004,31 +2011,57 @@ void Client::ReadBook(BookRequest_Struct *book) {
 		return;
 	}
 
-	std::string booktxt2 = database.GetBook(txtfile);
+	std::string booktxt2 = database.GetBook(txtfile, &book_language);
 	int length = booktxt2.length();
 
 	if (booktxt2[0] != '\0') {
 #if EQDEBUG >= 6
-		Log.Out(Logs::General, Logs::Normal, "Client::ReadBook() textfile:%s Text:%s", txtfile, booktxt2.c_str());
+		Log(Logs::General, Logs::Normal, "Client::ReadBook() textfile:%s Text:%s", txtfile, booktxt2.c_str());
 #endif
 		auto outapp = new EQApplicationPacket(OP_ReadBook, length + sizeof(BookText_Struct));
 
 		BookText_Struct *out = (BookText_Struct *) outapp->pBuffer;
 		out->window = book->window;
-		if (ClientVersion() >= EQEmu::versions::ClientVersion::SoF)
-		{
-			const ItemInst *inst = m_inv[book->invslot];
+
+
+		if (ClientVersion() >= EQEmu::versions::ClientVersion::SoF) {
+			// Find out what slot the book was read from.
+			// SoF+ need to look up book type for the output message.
+			int16	read_from_slot;
+
+			if (book->subslot >= 0) {
+				uint16 offset;
+				offset = (book->invslot-23) * 10;	// How many packs to skip.
+				read_from_slot = 251 + offset + book->subslot;
+			}
+			else {
+				read_from_slot = book->invslot -1;
+			}
+
+			const EQEmu::ItemInstance *inst = nullptr;
+
+			if (read_from_slot <= EQEmu::legacy::SLOT_PERSONAL_BAGS_END)
+				{
+				inst = m_inv[read_from_slot];
+				}
+
 			if(inst)
 				out->type = inst->GetItem()->Book;
 			else
 				out->type = book->type;
 		}
-		else
-		{
+		else {
 			out->type = book->type;
 		}
 		out->invslot = book->invslot;
+
 		memcpy(out->booktext, booktxt2.c_str(), length);
+
+		if (book_language > 0 && book_language < MAX_PP_LANGUAGE) {
+			if (m_pp.languages[book_language] < 100) {
+				GarbleMessage(out->booktext, (100 - m_pp.languages[book_language]));
+			}
+		}
 
 		QueuePacket(outapp);
 		safe_delete(outapp);
@@ -2203,7 +2236,7 @@ void Client::AddMoneyToPP(uint64 copper, bool updateclient){
 
 	SaveCurrency();
 
-	Log.Out(Logs::General, Logs::None, "Client::AddMoneyToPP() %s should have: plat:%i gold:%i silver:%i copper:%i", GetName(), m_pp.platinum, m_pp.gold, m_pp.silver, m_pp.copper);
+	Log(Logs::General, Logs::None, "Client::AddMoneyToPP() %s should have: plat:%i gold:%i silver:%i copper:%i", GetName(), m_pp.platinum, m_pp.gold, m_pp.silver, m_pp.copper);
 }
 
 void Client::EVENT_ITEM_ScriptStopReturn(){
@@ -2243,7 +2276,7 @@ void Client::AddMoneyToPP(uint32 copper, uint32 silver, uint32 gold, uint32 plat
 	SaveCurrency();
 
 #if (EQDEBUG>=5)
-		Log.Out(Logs::General, Logs::None, "Client::AddMoneyToPP() %s should have: plat:%i gold:%i silver:%i copper:%i",
+		Log(Logs::General, Logs::None, "Client::AddMoneyToPP() %s should have: plat:%i gold:%i silver:%i copper:%i",
 			GetName(), m_pp.platinum, m_pp.gold, m_pp.silver, m_pp.copper);
 #endif
 }
@@ -2310,7 +2343,7 @@ bool Client::CheckIncreaseSkill(EQEmu::skills::SkillType skillid, Mob *against_w
 	if(against_who)
 	{
 		if(against_who->GetSpecialAbility(IMMUNE_AGGRO) || against_who->IsClient() ||
-			GetLevelCon(against_who->GetLevel()) == CON_GREEN)
+			GetLevelCon(against_who->GetLevel()) == CON_GRAY)
 		{
 			//false by default
 			if( !mod_can_increase_skill(skillid, against_who) ) { return(false); }
@@ -2333,13 +2366,13 @@ bool Client::CheckIncreaseSkill(EQEmu::skills::SkillType skillid, Mob *against_w
 		if(zone->random.Real(0, 99) < Chance)
 		{
 			SetSkill(skillid, GetRawSkill(skillid) + 1);
-			Log.Out(Logs::Detail, Logs::Skills, "Skill %d at value %d successfully gain with %d%%chance (mod %d)", skillid, skillval, Chance, chancemodi);
+			Log(Logs::Detail, Logs::Skills, "Skill %d at value %d successfully gain with %d%%chance (mod %d)", skillid, skillval, Chance, chancemodi);
 			return true;
 		} else {
-			Log.Out(Logs::Detail, Logs::Skills, "Skill %d at value %d failed to gain with %d%%chance (mod %d)", skillid, skillval, Chance, chancemodi);
+			Log(Logs::Detail, Logs::Skills, "Skill %d at value %d failed to gain with %d%%chance (mod %d)", skillid, skillval, Chance, chancemodi);
 		}
 	} else {
-		Log.Out(Logs::Detail, Logs::Skills, "Skill %d at value %d cannot increase due to maxmum %d", skillid, skillval, maxskill);
+		Log(Logs::Detail, Logs::Skills, "Skill %d at value %d cannot increase due to maxmum %d", skillid, skillval, maxskill);
 	}
 	return false;
 }
@@ -2360,10 +2393,10 @@ void Client::CheckLanguageSkillIncrease(uint8 langid, uint8 TeacherSkill) {
 
 		if(zone->random.Real(0,100) < Chance) {	// if they make the roll
 			IncreaseLanguageSkill(langid);	// increase the language skill by 1
-			Log.Out(Logs::Detail, Logs::Skills, "Language %d at value %d successfully gain with %.4f%%chance", langid, LangSkill, Chance);
+			Log(Logs::Detail, Logs::Skills, "Language %d at value %d successfully gain with %.4f%%chance", langid, LangSkill, Chance);
 		}
 		else
-			Log.Out(Logs::Detail, Logs::Skills, "Language %d at value %d failed to gain with %.4f%%chance", langid, LangSkill, Chance);
+			Log(Logs::Detail, Logs::Skills, "Language %d at value %d failed to gain with %.4f%%chance", langid, LangSkill, Chance);
 	}
 }
 
@@ -2472,7 +2505,7 @@ uint16 Client::GetMaxSkillAfterSpecializationRules(EQEmu::skills::SkillType skil
 
 				Save();
 
-				Log.Out(Logs::General, Logs::Normal, "Reset %s's caster specialization skills to 1. "
+				Log(Logs::General, Logs::Normal, "Reset %s's caster specialization skills to 1. "
 								"Too many specializations skills were above 50.", GetCleanName());
 			}
 
@@ -2549,7 +2582,7 @@ void Client::SetFeigned(bool in_feigned) {
 	feigned=in_feigned;
  }
 
-void Client::LogMerchant(Client* player, Mob* merchant, uint32 quantity, uint32 price, const EQEmu::ItemBase* item, bool buying)
+void Client::LogMerchant(Client* player, Mob* merchant, uint32 quantity, uint32 price, const EQEmu::ItemData* item, bool buying)
 {
 	if(!player || !merchant || !item)
 		return;
@@ -2655,60 +2688,120 @@ bool Client::BindWound(Mob *bindmob, bool start, bool fail)
 					bind_out->type = 0;
 					CheckIncreaseSkill(EQEmu::skills::SkillBindWound, nullptr, 5);
 
-					int maxHPBonus = spellbonuses.MaxBindWound + itembonuses.MaxBindWound +
-							 aabonuses.MaxBindWound;
+					if (RuleB(Character, UseOldBindWound)) {
+						int maxHPBonus = spellbonuses.MaxBindWound + itembonuses.MaxBindWound +
+							aabonuses.MaxBindWound;
 
-					int max_percent = 50 + 10 * maxHPBonus;
+						int max_percent = 50 + maxHPBonus;
 
-					if (GetClass() == MONK && GetSkill(EQEmu::skills::SkillBindWound) > 200) {
-						max_percent = 70 + 10 * maxHPBonus;
-					}
-
-					max_percent = mod_bindwound_percent(max_percent, bindmob);
-
-					int max_hp = bindmob->GetMaxHP() * max_percent / 100;
-
-					// send bindmob new hp's
-					if (bindmob->GetHP() < bindmob->GetMaxHP() && bindmob->GetHP() <= (max_hp)-1) {
-						// 0.120 per skill point, 0.60 per skill level, minimum 3 max 30
-						int bindhps = 3;
-
-						if (GetSkill(EQEmu::skills::SkillBindWound) > 200) {
-							bindhps += GetSkill(EQEmu::skills::SkillBindWound) * 4 / 10;
-						}
-						else if (GetSkill(EQEmu::skills::SkillBindWound) >= 10) {
-							bindhps += GetSkill(EQEmu::skills::SkillBindWound) / 4;
+						if (GetClass() == MONK && GetSkill(EQEmu::skills::SkillBindWound) > 200) {
+							max_percent = 70 + maxHPBonus;
 						}
 
-						// Implementation of aaMithanielsBinding is a guess (the multiplier)
-						int bindBonus = spellbonuses.BindWound + itembonuses.BindWound +
+						max_percent = mod_bindwound_percent(max_percent, bindmob);
+
+						int max_hp = bindmob->GetMaxHP() * max_percent / 100;
+
+						// send bindmob new hp's
+						if (bindmob->GetHP() < bindmob->GetMaxHP() && bindmob->GetHP() <= (max_hp)-1) {
+							// 0.120 per skill point, 0.60 per skill level, minimum 3 max 30
+							int bindhps = 3;
+
+							if (GetSkill(EQEmu::skills::SkillBindWound) > 200) {
+								bindhps += GetSkill(EQEmu::skills::SkillBindWound) * 4 / 10;
+							}
+							else if (GetSkill(EQEmu::skills::SkillBindWound) >= 10) {
+								bindhps += GetSkill(EQEmu::skills::SkillBindWound) / 4;
+							}
+
+							// Implementation of aaMithanielsBinding is a guess (the multiplier)
+							int bindBonus = spellbonuses.BindWound + itembonuses.BindWound +
 								aabonuses.BindWound;
 
-						bindhps += bindhps * bindBonus / 100;
+							bindhps += bindhps * bindBonus / 100;
 
-						bindhps = mod_bindwound_hp(bindhps, bindmob);
+							bindhps = mod_bindwound_hp(bindhps, bindmob);
 
-						// if the bind takes them above the max bindable
-						// cap it at that value. Dont know if live does it this way
-						// but it makes sense to me.
-						int chp = bindmob->GetHP() + bindhps;
-						if (chp > max_hp)
-							chp = max_hp;
+							// if the bind takes them above the max bindable
+							// cap it at that value. Dont know if live does it this way
+							// but it makes sense to me.
+							int chp = bindmob->GetHP() + bindhps;
+							if (chp > max_hp)
+								chp = max_hp;
 
-						bindmob->SetHP(chp);
-						bindmob->SendHPUpdate();
-					} else {
-						// I dont have the real, live
-						Message(15, "You cannot bind wounds above %d%% hitpoints.",
-							max_percent);
-						if (bindmob != this && bindmob->IsClient())
-							bindmob->CastToClient()->Message(
-							    15,
-							    "You cannot have your wounds bound above %d%% hitpoints.",
-							    max_percent);
-						// Too many hp message goes here.
+							bindmob->SetHP(chp);
+							bindmob->SendHPUpdate();
+						}
+						else {
+							// I dont have the real, live
+							Message(15, "You cannot bind wounds above %d%% hitpoints.",
+								max_percent);
+							if (bindmob != this && bindmob->IsClient())
+								bindmob->CastToClient()->Message(
+								15,
+								"You cannot have your wounds bound above %d%% hitpoints.",
+								max_percent);
+							// Too many hp message goes here.
+						}
 					}
-				} else {
+					else {
+						int percent_base = 50;
+						if (GetRawSkill(EQEmu::skills::SkillBindWound) > 200) {
+							if ((GetClass() == MONK) || (GetClass() == BEASTLORD))
+								percent_base = 70;
+							else if ((GetLevel() > 50) && ((GetClass() == WARRIOR) || (GetClass() == ROGUE) || (GetClass() == CLERIC)))
+								percent_base = 70;
+						}
+
+						int percent_bonus = 0;
+						if (percent_base >= 70)
+							percent_bonus = spellbonuses.MaxBindWound + itembonuses.MaxBindWound + aabonuses.MaxBindWound;
+
+						int max_percent = percent_base + percent_bonus;
+						if (max_percent < 0)
+							max_percent = 0;
+						if (max_percent > 100)
+							max_percent = 100;
+
+						max_percent = mod_bindwound_percent(max_percent, bindmob);
+
+						int max_hp = (bindmob->GetMaxHP() * max_percent) / 100;
+						if (max_hp > bindmob->GetMaxHP())
+							max_hp = bindmob->GetMaxHP();
+
+						if (bindmob->GetHP() < bindmob->GetMaxHP() && bindmob->GetHP() < max_hp) {
+							int bindhps = 3; // base bind hp
+							if (percent_base >= 70)
+								bindhps = (GetSkill(EQEmu::skills::SkillBindWound) * 4) / 10; // 8:5 skill-to-hp ratio
+							else if (GetSkill(EQEmu::skills::SkillBindWound) >= 12)
+								bindhps = GetSkill(EQEmu::skills::SkillBindWound) / 4; // 4:1 skill-to-hp ratio
+
+							int bonus_hp_percent = 0;
+							if (percent_base >= 70)
+								bonus_hp_percent = spellbonuses.BindWound + itembonuses.BindWound + aabonuses.BindWound;
+
+							bindhps += (bindhps * bonus_hp_percent) / 100;
+
+							if (bindhps < 3)
+								bindhps = 3;
+
+							bindhps = mod_bindwound_hp(bindhps, bindmob);
+
+							bindhps += bindmob->GetHP();
+							if (bindhps > max_hp)
+								bindhps = max_hp;
+
+							bindmob->SetHP(bindhps);
+							bindmob->SendHPUpdate();
+						}
+						else {
+							Message(15, "You cannot bind wounds above %d%% hitpoints", max_percent);
+							if (bindmob != this && bindmob->IsClient())
+								bindmob->CastToClient()->Message(15, "You cannot have your wounds bound above %d%% hitpoints", max_percent);
+						}
+					}
+				}
+				else {
 					// Send client bind failed
 					if (bindmob != this)
 						bind_out->type = 6; // They moved
@@ -2736,11 +2829,11 @@ bool Client::BindWound(Mob *bindmob, bool start, bool fail)
 }
 
 void Client::SetMaterial(int16 in_slot, uint32 item_id) {
-	const EQEmu::ItemBase* item = database.GetItem(item_id);
+	const EQEmu::ItemData* item = database.GetItem(item_id);
 	if (item && item->IsClassCommon())
 	{
-		uint8 matslot = Inventory::CalcMaterialFromSlot(in_slot);
-		if (matslot != EQEmu::textures::TextureInvalid)
+		uint8 matslot = EQEmu::InventoryProfile::CalcMaterialFromSlot(in_slot);
+		if (matslot != EQEmu::textures::materialInvalid)
 		{
 			m_pp.item_material.Slot[matslot].Material = GetEquipmentMaterial(matslot);
 		}
@@ -3072,17 +3165,17 @@ void Client::Tell_StringID(uint32 string_id, const char *who, const char *messag
 }
 
 void Client::SetTint(int16 in_slot, uint32 color) {
-	EQEmu::Tint_Struct new_color;
+	EQEmu::textures::Tint_Struct new_color;
 	new_color.Color = color;
 	SetTint(in_slot, new_color);
 	database.SaveCharacterMaterialColor(this->CharacterID(), in_slot, color);
 }
 
 // Still need to reconcile bracer01 versus bracer02
-void Client::SetTint(int16 in_slot, EQEmu::Tint_Struct& color) {
+void Client::SetTint(int16 in_slot, EQEmu::textures::Tint_Struct& color) {
 
-	uint8 matslot = Inventory::CalcMaterialFromSlot(in_slot);
-	if (matslot != EQEmu::textures::TextureInvalid)
+	uint8 matslot = EQEmu::InventoryProfile::CalcMaterialFromSlot(in_slot);
+	if (matslot != EQEmu::textures::materialInvalid)
 	{
 		m_pp.item_tint.Slot[matslot].Color = color.Color;
 		database.SaveCharacterMaterialColor(this->CharacterID(), in_slot, color.Color);
@@ -3159,28 +3252,28 @@ void Client::LinkDead()
 uint8 Client::SlotConvert(uint8 slot,bool bracer){
 	uint8 slot2 = 0; // why are we returning MainCharm instead of INVALID_INDEX? (must be a pre-charm segment...)
 	if(bracer)
-		return EQEmu::legacy::SlotWrist2;
+		return EQEmu::inventory::slotWrist2;
 	switch(slot) {
-	case EQEmu::textures::TextureHead:
-		slot2 = EQEmu::legacy::SlotHead;
+	case EQEmu::textures::armorHead:
+		slot2 = EQEmu::inventory::slotHead;
 		break;
-	case EQEmu::textures::TextureChest:
-		slot2 = EQEmu::legacy::SlotChest;
+	case EQEmu::textures::armorChest:
+		slot2 = EQEmu::inventory::slotChest;
 		break;
-	case EQEmu::textures::TextureArms:
-		slot2 = EQEmu::legacy::SlotArms;
+	case EQEmu::textures::armorArms:
+		slot2 = EQEmu::inventory::slotArms;
 		break;
-	case EQEmu::textures::TextureWrist:
-		slot2 = EQEmu::legacy::SlotWrist1;
+	case EQEmu::textures::armorWrist:
+		slot2 = EQEmu::inventory::slotWrist1;
 		break;
-	case EQEmu::textures::TextureHands:
-		slot2 = EQEmu::legacy::SlotHands;
+	case EQEmu::textures::armorHands:
+		slot2 = EQEmu::inventory::slotHands;
 		break;
-	case EQEmu::textures::TextureLegs:
-		slot2 = EQEmu::legacy::SlotLegs;
+	case EQEmu::textures::armorLegs:
+		slot2 = EQEmu::inventory::slotLegs;
 		break;
-	case EQEmu::textures::TextureFeet:
-		slot2 = EQEmu::legacy::SlotFeet;
+	case EQEmu::textures::armorFeet:
+		slot2 = EQEmu::inventory::slotFeet;
 		break;
 	}
 	return slot2;
@@ -3189,26 +3282,26 @@ uint8 Client::SlotConvert(uint8 slot,bool bracer){
 uint8 Client::SlotConvert2(uint8 slot){
 	uint8 slot2 = 0; // same as above...
 	switch(slot){
-	case EQEmu::legacy::SlotHead:
-		slot2 = EQEmu::textures::TextureHead;
+	case EQEmu::inventory::slotHead:
+		slot2 = EQEmu::textures::armorHead;
 		break;
-	case EQEmu::legacy::SlotChest:
-		slot2 = EQEmu::textures::TextureChest;
+	case EQEmu::inventory::slotChest:
+		slot2 = EQEmu::textures::armorChest;
 		break;
-	case EQEmu::legacy::SlotArms:
-		slot2 = EQEmu::textures::TextureArms;
+	case EQEmu::inventory::slotArms:
+		slot2 = EQEmu::textures::armorArms;
 		break;
-	case EQEmu::legacy::SlotWrist1:
-		slot2 = EQEmu::textures::TextureWrist;
+	case EQEmu::inventory::slotWrist1:
+		slot2 = EQEmu::textures::armorWrist;
 		break;
-	case EQEmu::legacy::SlotHands:
-		slot2 = EQEmu::textures::TextureHands;
+	case EQEmu::inventory::slotHands:
+		slot2 = EQEmu::textures::armorHands;
 		break;
-	case EQEmu::legacy::SlotLegs:
-		slot2 = EQEmu::textures::TextureLegs;
+	case EQEmu::inventory::slotLegs:
+		slot2 = EQEmu::textures::armorLegs;
 		break;
-	case EQEmu::legacy::SlotFeet:
-		slot2 = EQEmu::textures::TextureFeet;
+	case EQEmu::inventory::slotFeet:
+		slot2 = EQEmu::textures::armorFeet;
 		break;
 	}
 	return slot2;
@@ -3779,7 +3872,7 @@ void Client::SendOPTranslocateConfirm(Mob *Caster, uint16 SpellID) {
 
 	return;
 }
-void Client::SendPickPocketResponse(Mob *from, uint32 amt, int type, const EQEmu::ItemBase* item){
+void Client::SendPickPocketResponse(Mob *from, uint32 amt, int type, const EQEmu::ItemData* item){
 	auto outapp = new EQApplicationPacket(OP_PickPocket, sizeof(sPickPocket_Struct));
 	sPickPocket_Struct *pick_out = (sPickPocket_Struct *)outapp->pBuffer;
 	pick_out->coin = amt;
@@ -3953,7 +4046,7 @@ bool Client::KeyRingCheck(uint32 item_id)
 void Client::KeyRingList()
 {
 	Message(4,"Keys on Keyring:");
-	const EQEmu::ItemBase *item = 0;
+	const EQEmu::ItemData *item = nullptr;
 	for (auto iter = keyring.begin(); iter != keyring.end(); ++iter) {
 		if ((item = database.GetItem(*iter))!=nullptr) {
 			Message(4,item->Name);
@@ -4070,6 +4163,18 @@ bool Client::GroupFollow(Client* inviter) {
 			}
 			if (raid->RaidCount() < MAX_RAID_MEMBERS)
 			{
+				// okay, so we now have a single client (this) joining a group in a raid
+				// And they're not already in the raid (which is above and doesn't need xtarget shit)
+				if (!GetXTargetAutoMgr()->empty()) {
+					raid->GetXTargetAutoMgr()->merge(*GetXTargetAutoMgr());
+					GetXTargetAutoMgr()->clear();
+					RemoveAutoXTargets();
+				}
+
+				SetXTargetAutoMgr(GetXTargetAutoMgr());
+				if (!GetXTargetAutoMgr()->empty())
+					SetDirtyAutoHaters();
+
 				if (raid->GroupCount(groupToUse) < 6)
 				{
 					raid->SendRaidCreate(this);
@@ -4145,7 +4250,9 @@ bool Client::GroupFollow(Client* inviter) {
 				inviter->SendGroupLeaderChangePacket(inviter->GetName());
 				inviter->SendGroupJoinAcknowledge();
 			}
-
+			group->GetXTargetAutoMgr()->merge(*inviter->GetXTargetAutoMgr());
+			inviter->GetXTargetAutoMgr()->clear();
+			inviter->SetXTargetAutoMgr(group->GetXTargetAutoMgr());
 		}
 
 		if (!group)
@@ -4208,14 +4315,14 @@ bool Client::GroupFollow(Client* inviter) {
 uint16 Client::GetPrimarySkillValue()
 {
 	EQEmu::skills::SkillType skill = EQEmu::skills::HIGHEST_SKILL; //because nullptr == 0, which is 1H Slashing, & we want it to return 0 from GetSkill
-	bool equiped = m_inv.GetItem(EQEmu::legacy::SlotPrimary);
+	bool equiped = m_inv.GetItem(EQEmu::inventory::slotPrimary);
 
 	if (!equiped)
 		skill = EQEmu::skills::SkillHandtoHand;
 
 	else {
 
-		uint8 type = m_inv.GetItem(EQEmu::legacy::SlotPrimary)->GetItem()->ItemType; //is this the best way to do this?
+		uint8 type = m_inv.GetItem(EQEmu::inventory::slotPrimary)->GetItem()->ItemType; //is this the best way to do this?
 
 		switch (type) {
 		case EQEmu::item::ItemType1HSlash: // 1H Slashing
@@ -4552,7 +4659,7 @@ void Client::SendRespawnBinds()
 	uint32 PacketLength = 17 + (26 * num_options); //Header size + per-option invariant size
 
 	std::list<RespawnOption>::iterator itr;
-	RespawnOption* opt;
+	RespawnOption* opt = nullptr;
 
 	//Find string size for each option
 	for (itr = respawn_options.begin(); itr != respawn_options.end(); ++itr)
@@ -4596,14 +4703,14 @@ void Client::HandleLDoNOpen(NPC *target)
 	{
 		if(target->GetClass() != LDON_TREASURE)
 		{
-			Log.Out(Logs::General, Logs::None, "%s tried to open %s but %s was not a treasure chest.",
+			Log(Logs::General, Logs::None, "%s tried to open %s but %s was not a treasure chest.",
 				GetName(), target->GetName(), target->GetName());
 			return;
 		}
 
 		if(DistanceSquaredNoZ(m_Position, target->GetPosition()) > RuleI(Adventure, LDoNTrapDistanceUse))
 		{
-			Log.Out(Logs::General, Logs::None, "%s tried to open %s but %s was out of range",
+			Log(Logs::General, Logs::None, "%s tried to open %s but %s was out of range",
 				GetName(), target->GetName(), target->GetName());
 			Message(13, "Treasure chest out of range.");
 			return;
@@ -5380,7 +5487,7 @@ bool Client::TryReward(uint32 claim_id)
 	uint32 free_slot = 0xFFFFFFFF;
 
 	for (int i = EQEmu::legacy::GENERAL_BEGIN; i <= EQEmu::legacy::GENERAL_END; ++i) {
-		ItemInst *item = GetInv().GetItem(i);
+		EQEmu::ItemInstance *item = GetInv().GetItem(i);
 		if (!item) {
 			free_slot = i;
 			break;
@@ -5426,7 +5533,7 @@ bool Client::TryReward(uint32 claim_id)
 	}
 
 	auto &ivr = (*iter);
-	ItemInst *claim = database.CreateItem(ivr.items[0].item_id, ivr.items[0].charges);
+	EQEmu::ItemInstance *claim = database.CreateItem(ivr.items[0].item_id, ivr.items[0].charges);
 	if (!claim) {
 		Save();
 		return true;
@@ -5436,7 +5543,7 @@ bool Client::TryReward(uint32 claim_id)
 
 	for (int y = 1; y < 8; y++)
 		if (ivr.items[y].item_id && claim->GetItem()->ItemClass == 1) {
-			ItemInst *item_temp = database.CreateItem(ivr.items[y].item_id, ivr.items[y].charges);
+			EQEmu::ItemInstance *item_temp = database.CreateItem(ivr.items[y].item_id, ivr.items[y].charges);
 			if (item_temp) {
 				if (CheckLoreConflict(item_temp->GetItem())) {
 					lore_conflict = true;
@@ -5696,8 +5803,8 @@ void Client::ProcessInspectRequest(Client* requestee, Client* requester) {
 		insr->TargetID = requester->GetID();
 		insr->playerid = requestee->GetID();
 
-		const EQEmu::ItemBase* item = nullptr;
-		const ItemInst* inst = nullptr;
+		const EQEmu::ItemData* item = nullptr;
+		const EQEmu::ItemInstance* inst = nullptr;
 		int ornamentationAugtype = RuleI(Character, OrnamentationAugmentType);
 		for(int16 L = 0; L <= 20; L++) {
 			inst = requestee->GetInv().GetItem(L);
@@ -5708,7 +5815,7 @@ void Client::ProcessInspectRequest(Client* requestee, Client* requester) {
 					strcpy(insr->itemnames[L], item->Name);
 					if (inst && inst->GetOrnamentationAug(ornamentationAugtype))
 					{
-						const EQEmu::ItemBase *aug_item = inst->GetOrnamentationAug(ornamentationAugtype)->GetItem();
+						const EQEmu::ItemData *aug_item = inst->GetOrnamentationAug(ornamentationAugtype)->GetItem();
 						insr->itemicons[L] = aug_item->Icon;
 					}
 					else if (inst && inst->GetOrnamentationIcon())
@@ -5725,7 +5832,7 @@ void Client::ProcessInspectRequest(Client* requestee, Client* requester) {
 			}
 		}
 
-		inst = requestee->GetInv().GetItem(EQEmu::legacy::SlotPowerSource);
+		inst = requestee->GetInv().GetItem(EQEmu::inventory::slotPowerSource);
 
 		if(inst) {
 			item = inst->GetItem();
@@ -5739,7 +5846,7 @@ void Client::ProcessInspectRequest(Client* requestee, Client* requester) {
 				insr->itemicons[SoF::invslot::PossessionsPowerSource] = 0xFFFFFFFF;
 		}
 
-		inst = requestee->GetInv().GetItem(EQEmu::legacy::SlotAmmo);
+		inst = requestee->GetInv().GetItem(EQEmu::inventory::slotAmmo);
 
 		if(inst) {
 			item = inst->GetItem();
@@ -5807,20 +5914,20 @@ void Client::SendGroupCreatePacket()
 
 	char *Buffer = (char *)outapp->pBuffer;
 	// Header
-	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 0);
-	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 1);
-	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);	// Null Leader name
+	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 0);	// group ID probably
+	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 1);	// count of members in packet
+	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);	// Null Leader name, shouldn't be null besides this case
 
-	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 0);	// Member 0
-	VARSTRUCT_ENCODE_STRING(Buffer, GetName());
-	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);
-	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);
-	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);	// This is a string
-	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, GetLevel());
-	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);
-	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 0);
-	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 0);
-	VARSTRUCT_ENCODE_TYPE(uint16, Buffer, 0);
+	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 0);	// Member 0, index
+	VARSTRUCT_ENCODE_STRING(Buffer, GetName());	// group member name
+	VARSTRUCT_ENCODE_TYPE(uint16, Buffer, 0);	// merc flag
+	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);	// owner name (if merc)
+	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, GetLevel());	// level
+	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);	// group tank flag
+	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);	// group assist flag
+	VARSTRUCT_ENCODE_TYPE(uint8, Buffer, 0);	// group puller flag
+	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 0);	// offline flag
+	VARSTRUCT_ENCODE_TYPE(uint32, Buffer, 0);	// timestamp
 
 	FastQueuePacket(&outapp);
 }
@@ -5948,7 +6055,6 @@ void Client::LeaveAdventure()
 		PendingAdventureLeave();
 		auto pack = new ServerPacket(ServerOP_AdventureLeave, 64);
 		strcpy((char*)pack->pBuffer, GetName());
-		pack->Deflate();
 		worldserver.SendPacket(pack);
 		delete pack;
 	}
@@ -6241,12 +6347,12 @@ void Client::Doppelganger(uint16 spell_id, Mob *target, const char *name_overrid
 	PetRecord record;
 	if(!database.GetPetEntry(spells[spell_id].teleport_zone, &record))
 	{
-		Log.Out(Logs::General, Logs::Error, "Unknown doppelganger spell id: %d, check pets table", spell_id);
+		Log(Logs::General, Logs::Error, "Unknown doppelganger spell id: %d, check pets table", spell_id);
 		Message(13, "Unable to find data for pet %s", spells[spell_id].teleport_zone);
 		return;
 	}
 
-	AA_SwarmPet pet;
+	SwarmPet_Struct pet;
 	pet.count = pet_count;
 	pet.duration = pet_duration;
 	pet.npc_id = record.npc_type;
@@ -6255,7 +6361,7 @@ void Client::Doppelganger(uint16 spell_id, Mob *target, const char *name_overrid
 
 	const NPCType *npc_type = database.LoadNPCTypesData(pet.npc_id);
 	if(npc_type == nullptr) {
-		Log.Out(Logs::General, Logs::Error, "Unknown npc type for doppelganger spell id: %d", spell_id);
+		Log(Logs::General, Logs::Error, "Unknown npc type for doppelganger spell id: %d", spell_id);
 		Message(0,"Unable to find pet!");
 		return;
 	}
@@ -6281,8 +6387,8 @@ void Client::Doppelganger(uint16 spell_id, Mob *target, const char *name_overrid
 	made_npc->Corrup = GetCorrup();
 	made_npc->PhR = GetPhR();
 	// looks
-	made_npc->texture = GetEquipmentMaterial(EQEmu::textures::TextureChest);
-	made_npc->helmtexture = GetEquipmentMaterial(EQEmu::textures::TextureHead);
+	made_npc->texture = GetEquipmentMaterial(EQEmu::textures::armorChest);
+	made_npc->helmtexture = GetEquipmentMaterial(EQEmu::textures::armorHead);
 	made_npc->haircolor = GetHairColor();
 	made_npc->beardcolor = GetBeardColor();
 	made_npc->eyecolor1 = GetEyeColor1();
@@ -6293,9 +6399,9 @@ void Client::Doppelganger(uint16 spell_id, Mob *target, const char *name_overrid
 	made_npc->drakkin_heritage = GetDrakkinHeritage();
 	made_npc->drakkin_tattoo = GetDrakkinTattoo();
 	made_npc->drakkin_details = GetDrakkinDetails();
-	made_npc->d_melee_texture1 = GetEquipmentMaterial(EQEmu::textures::TexturePrimary);
-	made_npc->d_melee_texture2 = GetEquipmentMaterial(EQEmu::textures::TextureSecondary);
-	for (int i = EQEmu::textures::TextureBegin; i <= EQEmu::textures::LastTexture; i++)	{
+	made_npc->d_melee_texture1 = GetEquipmentMaterial(EQEmu::textures::weaponPrimary);
+	made_npc->d_melee_texture2 = GetEquipmentMaterial(EQEmu::textures::weaponSecondary);
+	for (int i = EQEmu::textures::textureBegin; i <= EQEmu::textures::LastTexture; i++)	{
 		made_npc->armor_tint.Slot[i].Color = GetEquipmentColor(i);
 	}
 	made_npc->loottable_id = 0;
@@ -6321,33 +6427,35 @@ void Client::Doppelganger(uint16 spell_id, Mob *target, const char *name_overrid
 			memcpy(npc_dup, made_npc, sizeof(NPCType));
 		}
 
-		NPC* npca = new NPC(
+		NPC* swarm_pet_npc = new NPC(
 				(npc_dup!=nullptr)?npc_dup:npc_type,	//make sure we give the NPC the correct data pointer
 				0,
 				GetPosition() + glm::vec4(swarmPetLocations[summon_count], 0.0f, 0.0f),
 				FlyMode3);
 
-		if(!npca->GetSwarmInfo()){
-			auto nSI = new AA_SwarmPetInfo;
-			npca->SetSwarmInfo(nSI);
-			npca->GetSwarmInfo()->duration = new Timer(pet_duration*1000);
+		if(!swarm_pet_npc->GetSwarmInfo()){
+			auto nSI = new SwarmPet;
+			swarm_pet_npc->SetSwarmInfo(nSI);
+			swarm_pet_npc->GetSwarmInfo()->duration = new Timer(pet_duration*1000);
 		}
 		else{
-			npca->GetSwarmInfo()->duration->Start(pet_duration*1000);
+			swarm_pet_npc->GetSwarmInfo()->duration->Start(pet_duration*1000);
 		}
 
-		npca->GetSwarmInfo()->owner_id = GetID();
+		swarm_pet_npc->StartSwarmTimer(pet_duration * 1000);
+
+		swarm_pet_npc->GetSwarmInfo()->owner_id = GetID();
 
 		// Give the pets alittle more agro than the caster and then agro them on the target
-		target->AddToHateList(npca, (target->GetHateAmount(this) + 100), (target->GetDamageAmount(this) + 100));
-		npca->AddToHateList(target, 1000, 1000);
-		npca->GetSwarmInfo()->target = target->GetID();
+		target->AddToHateList(swarm_pet_npc, (target->GetHateAmount(this) + 100), (target->GetDamageAmount(this) + 100));
+		swarm_pet_npc->AddToHateList(target, 1000, 1000);
+		swarm_pet_npc->GetSwarmInfo()->target = target->GetID();
 
 		//we allocated a new NPC type object, give the NPC ownership of that memory
 		if(npc_dup != nullptr)
-			npca->GiveNPCTypeData(npc_dup);
+			swarm_pet_npc->GiveNPCTypeData(npc_dup);
 
-		entity_list.AddNPC(npca);
+		entity_list.AddNPC(swarm_pet_npc);
 		summon_count--;
 	}
 }
@@ -6802,16 +6910,46 @@ void Client::SendStatsWindow(Client* client, bool use_window)
 					indP + "Wind: " + itoa(GetWindMod()) + "<br>";
 	}
 
+	EQEmu::skills::SkillType skill = EQEmu::skills::SkillHandtoHand;
+	auto *inst = GetInv().GetItem(EQEmu::inventory::slotPrimary);
+	if (inst && inst->IsClassCommon()) {
+		switch (inst->GetItem()->ItemType) {
+		case EQEmu::item::ItemType1HSlash:
+			skill = EQEmu::skills::Skill1HSlashing;
+			break;
+		case EQEmu::item::ItemType2HSlash:
+			skill = EQEmu::skills::Skill2HSlashing;
+			break;
+		case EQEmu::item::ItemType1HPiercing:
+			skill = EQEmu::skills::Skill1HPiercing;
+			break;
+		case EQEmu::item::ItemType1HBlunt:
+			skill = EQEmu::skills::Skill1HBlunt;
+			break;
+		case EQEmu::item::ItemType2HBlunt:
+			skill = EQEmu::skills::Skill2HBlunt;
+			break;
+		case EQEmu::item::ItemType2HPiercing:
+			if (ClientVersion() < EQEmu::versions::ClientVersion::RoF2)
+				skill = EQEmu::skills::Skill1HPiercing;
+			else
+				skill = EQEmu::skills::Skill2HPiercing;
+			break;
+		default:
+			break;
+		}
+	}
+
 	std::ostringstream final_string;
 					final_string <<
 	/*	C/L/R	*/	indP << "Class: " << class_Name << indS << "Level: " << static_cast<int>(GetLevel()) << indS << "Race: " << race_Name << "<br>" <<
 	/*	Runes	*/	indP << "Rune: " << rune_number << indL << indS << "Spell Rune: " << magic_rune_number << "<br>" <<
 	/*	HP/M/E	*/	HME_row <<
 	/*	DS		*/	indP << "DS: " << (itembonuses.DamageShield + spellbonuses.DamageShield*-1) << " (Spell: " << (spellbonuses.DamageShield*-1) << " + Item: " << itembonuses.DamageShield << " / " << RuleI(Character, ItemDamageShieldCap) << ")<br>" <<
-	/*	Atk		*/	indP << "<c \"#CCFF00\">ATK: " << GetTotalATK() << "</c><br>" <<
-	/*	Atk2	*/	indP << "- Base: " << GetATKRating() << " | Item: " << itembonuses.ATK << " (" << RuleI(Character, ItemATKCap) << ")~Used: " << (itembonuses.ATK * 1.342) << " | Spell: " << spellbonuses.ATK << "<br>" <<
-	/*	AC		*/	indP << "<c \"#CCFF00\">AC: " << CalcAC() << "</c><br>" <<
-	/*	AC2		*/	indP << "- Mit: " << GetACMit() << " | Avoid: " << GetACAvoid() << " | Spell: " << spellbonuses.AC << " | Shield: " << shield_ac << "<br>" <<
+	/*	Atk		*/	indP << "<c \"#CCFF00\">tohit: " << compute_tohit(skill) << " / " << GetTotalToHit(skill, 0) << "</c><br>" <<
+	/*	Atk2	*/	indP << "- Offense: " << offense(skill) << " | Item: " << itembonuses.ATK << " (" << RuleI(Character, ItemATKCap) << ")~Used: " << (itembonuses.ATK * 1.342) << " | Spell: " << spellbonuses.ATK << "<br>" <<
+	/*	AC		*/	indP << "<c \"#CCFF00\">mitigation AC: " << GetMitigationAC() << "</c><br>" <<
+	/*	AC2		*/	indP << "- defense: " << compute_defense() << " / " << GetTotalDefense() << " | Spell: " << spellbonuses.AC << " | Shield: " << shield_ac << "<br>" <<
 	/*	Haste	*/	indP << "<c \"#CCFF00\">Haste: " << GetHaste() << "</c><br>" <<
 	/*	Haste2	*/	indP << " - Item: " << itembonuses.haste << " + Spell: " << (spellbonuses.haste + spellbonuses.hastetype2) << " (Cap: " << RuleI(Character, HasteCap) << ") | Over: " << (spellbonuses.hastetype3 + ExtraHaste) << "<br>" <<
 	/*	RunSpeed*/	indP << "<c \"#CCFF00\">Runspeed: " << GetRunspeed() << "</c><br>" <<
@@ -6849,7 +6987,9 @@ void Client::SendStatsWindow(Client* client, bool use_window)
 	client->Message(15, "~~~~~ %s %s ~~~~~", GetCleanName(), GetLastName());
 	client->Message(0, " Level: %i Class: %i Race: %i DS: %i/%i Size: %1.1f  Weight: %.1f/%d  ", GetLevel(), GetClass(), GetRace(), GetDS(), RuleI(Character, ItemDamageShieldCap), GetSize(), (float)CalcCurrentWeight() / 10.0f, GetSTR());
 	client->Message(0, " HP: %i/%i  HP Regen: %i/%i",GetHP(), GetMaxHP(), CalcHPRegen(), CalcHPRegenCap());
-	client->Message(0, " AC: %i ( Mit.: %i + Avoid.: %i + Spell: %i ) | Shield AC: %i", CalcAC(), GetACMit(), GetACAvoid(), spellbonuses.AC, shield_ac);
+	client->Message(0, " compute_tohit: %i TotalToHit: %i", compute_tohit(skill), GetTotalToHit(skill, 0));
+	client->Message(0, " compute_defense: %i TotalDefense: %i", compute_defense(), GetTotalDefense());
+	client->Message(0, " offense: %i mitigation ac: %i", offense(skill), GetMitigationAC());
 	if(CalcMaxMana() > 0)
 		client->Message(0, " Mana: %i/%i  Mana Regen: %i/%i", GetMana(), GetMaxMana(), CalcManaRegen(), CalcManaRegenCap());
 	client->Message(0, " End.: %i/%i  End. Regen: %i/%i",GetEndurance(), GetMaxEndurance(), CalcEnduranceRegen(), CalcEnduranceRegenCap());
@@ -6889,7 +7029,7 @@ void Client::SendAltCurrencies() {
 		uint32 i = 0;
 		auto iter = zone->AlternateCurrencies.begin();
 		while(iter != zone->AlternateCurrencies.end()) {
-			const EQEmu::ItemBase* item = database.GetItem((*iter).item_id);
+			const EQEmu::ItemData* item = database.GetItem((*iter).item_id);
 			altc->entries[i].currency_number = (*iter).id;
 			altc->entries[i].unknown00 = 1;
 			altc->entries[i].currency_number2 = (*iter).id;
@@ -7050,12 +7190,12 @@ void Client::UpdateClientXTarget(Client *c)
 	}
 }
 
+// IT IS NOT SAFE TO CALL THIS IF IT'S NOT INITIAL AGGRO
 void Client::AddAutoXTarget(Mob *m, bool send)
 {
-	if(!XTargettingAvailable() || !XTargetAutoAddHaters)
-		return;
+	m_activeautohatermgr->increment_count(m);
 
-	if(IsXTarget(m))
+	if (!XTargettingAvailable() || !XTargetAutoAddHaters || IsXTarget(m))
 		return;
 
 	for(int i = 0; i < GetMaxXTargets(); ++i)
@@ -7074,60 +7214,15 @@ void Client::AddAutoXTarget(Mob *m, bool send)
 
 void Client::RemoveXTarget(Mob *m, bool OnlyAutoSlots)
 {
-	if (!XTargettingAvailable())
-		return;
-
-	bool HadFreeAutoSlotsBefore = false;
-
-	int FreedAutoSlots = 0;
-
-	if (m->GetID() == 0)
-		return;
-
+	m_activeautohatermgr->decrement_count(m);
+	// now we may need to clean up our CurrentTargetNPC entries
 	for (int i = 0; i < GetMaxXTargets(); ++i) {
-		if (OnlyAutoSlots && XTargets[i].Type != Auto)
-			continue;
-
-		if (XTargets[i].ID == m->GetID()) {
-			if (XTargets[i].Type == CurrentTargetNPC)
-				XTargets[i].Type = Auto;
-
-			if (XTargets[i].Type == Auto)
-				++FreedAutoSlots;
-
+		if (XTargets[i].Type == CurrentTargetNPC && XTargets[i].ID == m->GetID()) {
+			XTargets[i].Type = Auto;
 			XTargets[i].ID = 0;
 			XTargets[i].dirty = true;
-		} else {
-			if (XTargets[i].Type == Auto && XTargets[i].ID == 0)
-				HadFreeAutoSlotsBefore = true;
 		}
 	}
-
-	// move shit up! If the removed NPC was in a CurrentTargetNPC slot it becomes Auto
-	// and we need to potentially fill it
-	std::queue<int> empty_slots;
-	for (int i = 0; i < GetMaxXTargets(); ++i) {
-		if (XTargets[i].Type != Auto)
-			continue;
-
-		if (XTargets[i].ID == 0) {
-			empty_slots.push(i);
-			continue;
-		}
-
-		if (XTargets[i].ID != 0 && !empty_slots.empty()) {
-			int temp = empty_slots.front();
-			std::swap(XTargets[i], XTargets[temp]);
-			XTargets[i].dirty = XTargets[temp].dirty = true;
-			empty_slots.pop();
-			empty_slots.push(i);
-		}
-	}
-	// If there are more mobs aggro on us than we had auto-hate slots, add one of those haters into the slot(s) we
-	// just freed up.
-	if (!HadFreeAutoSlotsBefore && FreedAutoSlots)
-		entity_list.RefreshAutoXTargets(this);
-	SendXTargetUpdates();
 }
 
 void Client::UpdateXTargetType(XTargetType Type, Mob *m, const char *Name)
@@ -7212,7 +7307,8 @@ void Client::SendXTargetUpdates()
 	for (int i = 0; i < GetMaxXTargets(); ++i) {
 		if (XTargets[i].dirty) {
 			outapp->WriteUInt32(i);
-			outapp->WriteUInt8(0); // no idea what this is
+			// MQ2 checks this for valid mobs, so 0 is bad here at least ...
+			outapp->WriteUInt8(XTargets[i].ID ? 1 : 0);
 			outapp->WriteUInt32(XTargets[i].ID);
 			outapp->WriteString(XTargets[i].Name);
 			count++;
@@ -7283,6 +7379,123 @@ void Client::ShowXTargets(Client *c)
 
 	for(int i = 0; i < GetMaxXTargets(); ++i)
 		c->Message(0, "Xtarget Slot: %i, Type: %2i, ID: %4i, Name: %s", i, XTargets[i].Type, XTargets[i].ID, XTargets[i].Name);
+	auto &list = GetXTargetAutoMgr()->get_list();
+	 // yeah, I kept having to do something for debugging to tell if managers were the same object or not :P
+	 // so lets use the address as an "ID"
+	c->Message(0, "XTargetAutoMgr ID %p size %d", GetXTargetAutoMgr(), list.size());
+	int count = 0;
+	for (auto &e : list) {
+		c->Message(0, "spawn id %d count %d", e.spawn_id, e.count);
+		count++;
+		if (count == 20) { // lets not spam too many ...
+			c->Message(0, " ... ");
+			break;
+		}
+	}
+}
+
+void Client::ProcessXTargetAutoHaters()
+{
+	if (!XTargettingAvailable())
+		return;
+
+	// move shit up! If the removed NPC was in a CurrentTargetNPC slot it becomes Auto
+	// and we need to potentially fill it
+	std::queue<int> empty_slots;
+	for (int i = 0; i < GetMaxXTargets(); ++i) {
+		if (XTargets[i].Type != Auto)
+			continue;
+
+		if (XTargets[i].ID != 0 && !GetXTargetAutoMgr()->contains_mob(XTargets[i].ID)) {
+			XTargets[i].ID = 0;
+			XTargets[i].dirty = true;
+		}
+
+		if (XTargets[i].ID == 0) {
+			empty_slots.push(i);
+			continue;
+		}
+
+		if (XTargets[i].ID != 0 && !empty_slots.empty()) {
+			int temp = empty_slots.front();
+			std::swap(XTargets[i], XTargets[temp]);
+			XTargets[i].dirty = XTargets[temp].dirty = true;
+			empty_slots.pop();
+			empty_slots.push(i);
+		}
+	}
+	// okay, now we need to check if we have any empty slots and if we have aggro
+	// We make the assumption that if we shuffled the NPCs up that they're still on the aggro
+	// list in the same order. We could probably do this better and try to calc if
+	// there are new NPCs for our empty slots on the manager, but ahhh fuck it.
+	if (!empty_slots.empty() && !GetXTargetAutoMgr()->empty() && XTargetAutoAddHaters) {
+		auto &haters = GetXTargetAutoMgr()->get_list();
+		for (auto &e : haters) {
+			auto *mob = entity_list.GetMob(e.spawn_id);
+			if (mob && !IsXTarget(mob)) {
+				auto slot = empty_slots.front();
+				empty_slots.pop();
+				XTargets[slot].dirty = true;
+				XTargets[slot].ID = mob->GetID();
+				strn0cpy(XTargets[slot].Name, mob->GetCleanName(), 64);
+			}
+			if (empty_slots.empty())
+				break;
+		}
+	}
+	m_dirtyautohaters = false;
+	SendXTargetUpdates();
+}
+
+// This function is called when a client is added to a group
+// Group leader joining isn't handled by this function
+void Client::JoinGroupXTargets(Group *g)
+{
+	if (!g)
+		return;
+
+	if (!GetXTargetAutoMgr()->empty()) {
+		g->GetXTargetAutoMgr()->merge(*GetXTargetAutoMgr());
+		GetXTargetAutoMgr()->clear();
+		RemoveAutoXTargets();
+	}
+
+	SetXTargetAutoMgr(g->GetXTargetAutoMgr());
+
+	if (!GetXTargetAutoMgr()->empty())
+		SetDirtyAutoHaters();
+}
+
+// This function is called when a client leaves a group
+void Client::LeaveGroupXTargets(Group *g)
+{
+	if (!g)
+		return;
+
+	SetXTargetAutoMgr(nullptr); // this will set it back to our manager
+	RemoveAutoXTargets();
+	entity_list.RefreshAutoXTargets(this); // this will probably break the temporal ordering, but whatever
+	// We now have a rebuilt, valid auto hater manager, so we need to demerge from the groups
+	if (!GetXTargetAutoMgr()->empty()) {
+		GetXTargetAutoMgr()->demerge(*g->GetXTargetAutoMgr()); // this will remove entries where we only had aggro
+		SetDirtyAutoHaters();
+	}
+}
+
+// This function is called when a client leaves a group
+void Client::LeaveRaidXTargets(Raid *r)
+{
+	if (!r)
+		return;
+
+	SetXTargetAutoMgr(nullptr); // this will set it back to our manager
+	RemoveAutoXTargets();
+	entity_list.RefreshAutoXTargets(this); // this will probably break the temporal ordering, but whatever
+	// We now have a rebuilt, valid auto hater manager, so we need to demerge from the groups
+	if (!GetXTargetAutoMgr()->empty()) {
+		GetXTargetAutoMgr()->demerge(*r->GetXTargetAutoMgr()); // this will remove entries where we only had aggro
+		SetDirtyAutoHaters();
+	}
 }
 
 void Client::SetMaxXTargets(uint8 NewMax)
@@ -7418,7 +7631,7 @@ void Client::SendMercPersonalInfo()
 	stancecount += zone->merc_stance_list[GetMercInfo().MercTemplateID].size();
 	if(stancecount > MAX_MERC_STANCES || mercCount > MAX_MERC || mercTypeCount > MAX_MERC_GRADES)
 	{
-		Log.Out(Logs::General, Logs::Mercenaries, "SendMercPersonalInfo canceled: (%i) (%i) (%i) for %s", stancecount, mercCount, mercTypeCount, GetName());
+		Log(Logs::General, Logs::Mercenaries, "SendMercPersonalInfo canceled: (%i) (%i) (%i) for %s", stancecount, mercCount, mercTypeCount, GetName());
 		SendMercMerchantResponsePacket(0);
 		return;
 	}
@@ -7514,13 +7727,13 @@ void Client::SendMercPersonalInfo()
 				return;
 			}
 		}
-		Log.Out(Logs::General, Logs::Mercenaries, "SendMercPersonalInfo Send Successful for %s.", GetName());
+		Log(Logs::General, Logs::Mercenaries, "SendMercPersonalInfo Send Successful for %s.", GetName());
 
 		SendMercMerchantResponsePacket(0);
 	}
 	else
 	{
-		Log.Out(Logs::General, Logs::Mercenaries, "SendMercPersonalInfo Send Failed Due to no MercData (%i) for %s", GetMercInfo().MercTemplateID, GetName());
+		Log(Logs::General, Logs::Mercenaries, "SendMercPersonalInfo Send Failed Due to no MercData (%i) for %s", GetMercInfo().MercTemplateID, GetName());
 	}
 
 }
@@ -7544,7 +7757,7 @@ void Client::DuplicateLoreMessage(uint32 ItemID)
 		return;
 	}
 
-	const EQEmu::ItemBase *item = database.GetItem(ItemID);
+	const EQEmu::ItemData *item = database.GetItem(ItemID);
 
 	if(!item)
 		return;
@@ -8001,7 +8214,7 @@ void Client::TickItemCheck()
 		TryItemTick(i);
 	}
 	//Scan main inventory + cursor
-	for (i = EQEmu::legacy::GENERAL_BEGIN; i <= EQEmu::legacy::SlotCursor; i++)
+	for (i = EQEmu::legacy::GENERAL_BEGIN; i <= EQEmu::inventory::slotCursor; i++)
 	{
 		TryItemTick(i);
 	}
@@ -8015,7 +8228,7 @@ void Client::TickItemCheck()
 void Client::TryItemTick(int slot)
 {
 	int iid = 0;
-	const ItemInst* inst = m_inv[slot];
+	const EQEmu::ItemInstance* inst = m_inv[slot];
 	if(inst == 0) { return; }
 
 	iid = inst->GetID();
@@ -8024,7 +8237,7 @@ void Client::TryItemTick(int slot)
 	{
 		if (GetLevel() >= zone->tick_items[iid].level && zone->random.Int(0, 100) >= (100 - zone->tick_items[iid].chance) && (zone->tick_items[iid].bagslot || slot <= EQEmu::legacy::EQUIPMENT_END))
 		{
-			ItemInst* e_inst = (ItemInst*)inst;
+			EQEmu::ItemInstance* e_inst = (EQEmu::ItemInstance*)inst;
 			parse->EventItem(EVENT_ITEM_TICK, this, e_inst, nullptr, "", slot);
 		}
 	}
@@ -8032,9 +8245,9 @@ void Client::TryItemTick(int slot)
 	//Only look at augs in main inventory
 	if (slot > EQEmu::legacy::EQUIPMENT_END) { return; }
 
-	for (int x = AUG_INDEX_BEGIN; x < EQEmu::legacy::ITEM_COMMON_SIZE; ++x)
+	for (int x = EQEmu::inventory::socketBegin; x < EQEmu::inventory::SocketCount; ++x)
 	{
-		ItemInst * a_inst = inst->GetAugment(x);
+		EQEmu::ItemInstance * a_inst = inst->GetAugment(x);
 		if(!a_inst) { continue; }
 
 		iid = a_inst->GetID();
@@ -8043,7 +8256,7 @@ void Client::TryItemTick(int slot)
 		{
 			if( GetLevel() >= zone->tick_items[iid].level && zone->random.Int(0, 100) >= (100 - zone->tick_items[iid].chance) )
 			{
-				ItemInst* e_inst = (ItemInst*)a_inst;
+				EQEmu::ItemInstance* e_inst = (EQEmu::ItemInstance*)a_inst;
 				parse->EventItem(EVENT_ITEM_TICK, this, e_inst, nullptr, "", slot);
 			}
 		}
@@ -8058,7 +8271,7 @@ void Client::ItemTimerCheck()
 		TryItemTimer(i);
 	}
 
-	for (i = EQEmu::legacy::GENERAL_BEGIN; i <= EQEmu::legacy::SlotCursor; i++)
+	for (i = EQEmu::legacy::GENERAL_BEGIN; i <= EQEmu::inventory::slotCursor; i++)
 	{
 		TryItemTimer(i);
 	}
@@ -8071,7 +8284,7 @@ void Client::ItemTimerCheck()
 
 void Client::TryItemTimer(int slot)
 {
-	ItemInst* inst = m_inv.GetItem(slot);
+	EQEmu::ItemInstance* inst = m_inv.GetItem(slot);
 	if(!inst) {
 		return;
 	}
@@ -8089,9 +8302,9 @@ void Client::TryItemTimer(int slot)
 		return;
 	}
 
-	for (int x = AUG_INDEX_BEGIN; x < EQEmu::legacy::ITEM_COMMON_SIZE; ++x)
+	for (int x = EQEmu::inventory::socketBegin; x < EQEmu::inventory::SocketCount; ++x)
 	{
-		ItemInst * a_inst = inst->GetAugment(x);
+		EQEmu::ItemInstance * a_inst = inst->GetAugment(x);
 		if(!a_inst) {
 			continue;
 		}
@@ -8107,7 +8320,7 @@ void Client::TryItemTimer(int slot)
 	}
 }
 
-void Client::SendItemScale(ItemInst *inst) {
+void Client::SendItemScale(EQEmu::ItemInstance *inst) {
 	int slot = m_inv.GetSlotByItemInst(inst);
 	if(slot != -1) {
 		inst->ScaleItem();
@@ -8173,7 +8386,7 @@ bool Client::RemoveRespawnOption(std::string option_name)
 	if (IsHoveringForRespawn() || respawn_options.empty()) { return false; }
 
 	bool had = false;
-	RespawnOption* opt;
+	RespawnOption* opt = nullptr;
 	std::list<RespawnOption>::iterator itr;
 	for (itr = respawn_options.begin(); itr != respawn_options.end(); ++itr)
 	{
@@ -8220,7 +8433,7 @@ bool Client::RemoveRespawnOption(uint8 position)
 
 void Client::SetHunger(int32 in_hunger)
 {
-	EQApplicationPacket *outapp;
+	EQApplicationPacket *outapp = nullptr;
 	outapp = new EQApplicationPacket(OP_Stamina, sizeof(Stamina_Struct));
 	Stamina_Struct* sta = (Stamina_Struct*)outapp->pBuffer;
 	sta->food = in_hunger;
@@ -8234,7 +8447,7 @@ void Client::SetHunger(int32 in_hunger)
 
 void Client::SetThirst(int32 in_thirst)
 {
-	EQApplicationPacket *outapp;
+	EQApplicationPacket *outapp = nullptr;
 	outapp = new EQApplicationPacket(OP_Stamina, sizeof(Stamina_Struct));
 	Stamina_Struct* sta = (Stamina_Struct*)outapp->pBuffer;
 	sta->food = m_pp.hunger_level > 6000 ? 6000 : m_pp.hunger_level;
@@ -8248,7 +8461,7 @@ void Client::SetThirst(int32 in_thirst)
 
 void Client::SetConsumption(int32 in_hunger, int32 in_thirst)
 {
-	EQApplicationPacket *outapp;
+	EQApplicationPacket *outapp = nullptr;
 	outapp = new EQApplicationPacket(OP_Stamina, sizeof(Stamina_Struct));
 	Stamina_Struct* sta = (Stamina_Struct*)outapp->pBuffer;
 	sta->food = in_hunger;
@@ -8261,7 +8474,7 @@ void Client::SetConsumption(int32 in_hunger, int32 in_thirst)
 	safe_delete(outapp);
 }
 
-void Client::Consume(const EQEmu::ItemBase *item, uint8 type, int16 slot, bool auto_consume)
+void Client::Consume(const EQEmu::ItemData *item, uint8 type, int16 slot, bool auto_consume)
 {
    if(!item) { return; }
 
@@ -8288,7 +8501,7 @@ void Client::Consume(const EQEmu::ItemBase *item, uint8 type, int16 slot, bool a
 		   entity_list.MessageClose_StringID(this, true, 50, 0, EATING_MESSAGE, GetName(), item->Name);
 
 #if EQDEBUG >= 5
-       Log.Out(Logs::General, Logs::None, "Eating from slot:%i", (int)slot);
+       Log(Logs::General, Logs::None, "Eating from slot:%i", (int)slot);
 #endif
    }
    else
@@ -8305,7 +8518,7 @@ void Client::Consume(const EQEmu::ItemBase *item, uint8 type, int16 slot, bool a
 			entity_list.MessageClose_StringID(this, true, 50, 0, DRINKING_MESSAGE, GetName(), item->Name);
 
 #if EQDEBUG >= 5
-        Log.Out(Logs::General, Logs::None, "Drinking from slot:%i", (int)slot);
+        Log(Logs::General, Logs::None, "Drinking from slot:%i", (int)slot);
 #endif
    }
 }
@@ -8376,7 +8589,7 @@ void Client::ShowNumHits()
 
 int Client::GetQuiverHaste(int delay)
 {
-	const ItemInst *pi = nullptr;
+	const EQEmu::ItemInstance *pi = nullptr;
 	for (int r = EQEmu::legacy::GENERAL_BEGIN; r <= EQEmu::legacy::GENERAL_END; r++) {
 		pi = GetInv().GetItem(r);
 		if (pi && pi->IsClassBag() && pi->GetItem()->BagType == EQEmu::item::BagTypeQuiver &&
@@ -8422,7 +8635,7 @@ void Client::QuestReward(Mob* target, uint32 copper, uint32 silver, uint32 gold,
 		AddMoneyToPP(copper, silver, gold, platinum, false);
 
 	if (itemid > 0)
-		SummonItem(itemid, 0, 0, 0, 0, 0, 0, false, EQEmu::legacy::SlotPowerSource);
+		SummonItem(itemid, 0, 0, 0, 0, 0, 0, false, EQEmu::inventory::slotPowerSource);
 
 	if (faction)
 	{
@@ -8438,14 +8651,11 @@ void Client::QuestReward(Mob* target, uint32 copper, uint32 silver, uint32 gold,
 	if (exp > 0)
 		AddEXP(exp);
 
-	QueuePacket(outapp, false, Client::CLIENT_CONNECTED);
+	QueuePacket(outapp, true, Client::CLIENT_CONNECTED);
 	safe_delete(outapp);
 }
 
 void Client::SendHPUpdateMarquee(){
-	if (!RuleB(Character, MarqueeHPUpdates))
-		return;
-
 	if (!this || !this->IsClient() || !this->cur_hp || !this->max_hp)
 		return;
 
@@ -8561,3 +8771,169 @@ void Client::CheckRegionTypeChanges()
 	else if (GetPVP())
 		SetPVP(false, false);
 }
+
+void Client::ProcessAggroMeter()
+{
+	if (!AggroMeterAvailable()) {
+		aggro_meter_timer.Disable();
+		return;
+	}
+
+	// we need to decide if we need to send OP_AggroMeterTargetInfo now
+	// This packet sends the current lock target ID and the current target ID
+	// target ID will be either our target or our target of target when we're targeting a PC
+	bool send_targetinfo = false;
+	auto cur_tar = GetTarget();
+
+	// probably should have PVP rules ...
+	if (cur_tar && cur_tar != this) {
+		if (cur_tar->IsNPC() && !cur_tar->IsPetOwnerClient() && cur_tar->GetID() != m_aggrometer.get_target_id()) {
+			m_aggrometer.set_target_id(cur_tar->GetID());
+			send_targetinfo = true;
+		} else if ((cur_tar->IsPetOwnerClient() || cur_tar->IsClient()) && cur_tar->GetTarget() && cur_tar->GetTarget()->GetID() != m_aggrometer.get_target_id()) {
+			m_aggrometer.set_target_id(cur_tar->GetTarget()->GetID());
+			send_targetinfo = true;
+		}
+	} else if (m_aggrometer.get_target_id()) {
+		m_aggrometer.set_target_id(0);
+		send_targetinfo = true;
+	}
+
+	if (m_aggrometer.update_lock())
+		send_targetinfo = true;
+
+	if (send_targetinfo) {
+		auto app = new EQApplicationPacket(OP_AggroMeterTargetInfo, sizeof(uint32) * 2);
+		app->WriteUInt32(m_aggrometer.get_lock_id());
+		app->WriteUInt32(m_aggrometer.get_target_id());
+		FastQueuePacket(&app);
+	}
+
+	// we could just calculate how big the packet would need to be ... but it's easier this way :P should be 87 bytes
+	auto app = new EQApplicationPacket(OP_AggroMeterUpdate, m_aggrometer.max_packet_size());
+
+	cur_tar = entity_list.GetMob(m_aggrometer.get_target_id());
+
+	// first we must check the secondary
+	// TODO: lock target should affect secondary as well
+	bool send = false;
+	Mob *secondary = nullptr;
+	bool has_aggro = false;
+	if (cur_tar) {
+		if (cur_tar->GetTarget() == this) {// we got aggro
+			secondary = cur_tar->GetSecondaryHate(this);
+			has_aggro = true;
+		} else {
+			secondary = cur_tar->CheckAggro(cur_tar->GetTarget()) ? cur_tar->GetTarget() : nullptr; // make sure they are targeting for aggro reasons
+		}
+	}
+
+	if (secondary && secondary->GetID() != m_aggrometer.get_secondary_id()) {
+		m_aggrometer.set_secondary_id(secondary->GetID());
+		app->WriteUInt8(1);
+		app->WriteUInt32(m_aggrometer.get_secondary_id());
+		send = true;
+	} else if (!secondary && m_aggrometer.get_secondary_id()) {
+		m_aggrometer.set_secondary_id(0);
+		app->WriteUInt8(1);
+		app->WriteUInt32(0);
+		send = true;
+	} else { // might not need to send in this case
+		app->WriteUInt8(0);
+	}
+
+	auto count_offset = app->GetWritePosition();
+	app->WriteUInt8(0);
+
+	int count = 0;
+	auto add_entry = [&app, &count, this](AggroMeter::AggroTypes i) {
+		count++;
+		app->WriteUInt8(i);
+		app->WriteUInt16(m_aggrometer.get_pct(i));
+	};
+	// TODO: Player entry should either be lock or yourself, ignoring lock for now
+	// player, secondary, and group depend on your target/lock
+	if (cur_tar) {
+		if (m_aggrometer.set_pct(AggroMeter::AT_Player, cur_tar->GetHateRatio(cur_tar->GetTarget(), this)))
+			add_entry(AggroMeter::AT_Player);
+
+		if (m_aggrometer.set_pct(AggroMeter::AT_Secondary, has_aggro ? cur_tar->GetHateRatio(this, secondary) : secondary ? 100 : 0))
+			add_entry(AggroMeter::AT_Secondary);
+
+		// fuuuuuuuuuuuuuuuuuuuuuuuucckkkkkkkkkkkkkkk raids
+		if (IsRaidGrouped()) {
+			auto raid = GetRaid();
+			if (raid) {
+				auto gid = raid->GetGroup(this);
+				if (gid < 12) {
+					int at_id = AggroMeter::AT_Group1;
+					for (int i = 0; i < MAX_RAID_MEMBERS; ++i) {
+						if (raid->members[i].member && raid->members[i].member != this && raid->members[i].GroupNumber == gid) {
+							if (m_aggrometer.set_pct(static_cast<AggroMeter::AggroTypes>(at_id), cur_tar->GetHateRatio(cur_tar->GetTarget(), raid->members[i].member)))
+								add_entry(static_cast<AggroMeter::AggroTypes>(at_id));
+							at_id++;
+							if (at_id > AggroMeter::AT_Group5)
+								break;
+						}
+					}
+				}
+			}
+		} else if (IsGrouped()) {
+			auto group = GetGroup();
+			if (group) {
+				int at_id = AggroMeter::AT_Group1;
+				for (int i = 0; i < MAX_GROUP_MEMBERS; ++i) {
+					if (group->members[i] && group->members[i] != this) {
+						if (m_aggrometer.set_pct(static_cast<AggroMeter::AggroTypes>(at_id), cur_tar->GetHateRatio(cur_tar->GetTarget(), group->members[i])))
+							add_entry(static_cast<AggroMeter::AggroTypes>(at_id));
+						at_id++;
+					}
+				}
+			}
+		}
+	} else { // we might need to clear out some data now
+		if (m_aggrometer.set_pct(AggroMeter::AT_Player, 0))
+			add_entry(AggroMeter::AT_Player);
+		if (m_aggrometer.set_pct(AggroMeter::AT_Secondary, 0))
+			add_entry(AggroMeter::AT_Secondary);
+		if (m_aggrometer.set_pct(AggroMeter::AT_Group1, 0))
+			add_entry(AggroMeter::AT_Group1);
+		if (m_aggrometer.set_pct(AggroMeter::AT_Group2, 0))
+			add_entry(AggroMeter::AT_Group2);
+		if (m_aggrometer.set_pct(AggroMeter::AT_Group3, 0))
+			add_entry(AggroMeter::AT_Group3);
+		if (m_aggrometer.set_pct(AggroMeter::AT_Group4, 0))
+			add_entry(AggroMeter::AT_Group4);
+		if (m_aggrometer.set_pct(AggroMeter::AT_Group5, 0))
+			add_entry(AggroMeter::AT_Group5);
+	}
+
+	// now to go over our xtargets
+	// if the entry is an NPC it's our hate relative to the NPCs current tank
+	// if it's a PC, it's their hate relative to our current target
+	for (int i = 0; i < GetMaxXTargets(); ++i) {
+		if (XTargets[i].ID) {
+			auto mob = entity_list.GetMob(XTargets[i].ID);
+			if (mob) {
+				int ratio = 0;
+				if (mob->IsNPC())
+					ratio = mob->GetHateRatio(mob->GetTarget(), this);
+				else if (cur_tar)
+					ratio = cur_tar->GetHateRatio(cur_tar->GetTarget(), mob);
+				if (m_aggrometer.set_pct(static_cast<AggroMeter::AggroTypes>(AggroMeter::AT_XTarget1 + i), ratio))
+					add_entry(static_cast<AggroMeter::AggroTypes>(AggroMeter::AT_XTarget1 + i));
+			}
+		}
+	}
+
+	if (send || count) {
+		app->size = app->GetWritePosition(); // this should be safe, although not recommended
+		// but this way we can have a smaller buffer created for the packet dispatched to the client w/o resizing this one
+		app->SetWritePosition(count_offset);
+		app->WriteUInt8(count);
+		FastQueuePacket(&app);
+	} else {
+		safe_delete(app);
+	}
+}
+

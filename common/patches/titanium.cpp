@@ -30,7 +30,7 @@
 #include "../eq_packet_structs.h"
 #include "../misc_functions.h"
 #include "../string_util.h"
-#include "../item.h"
+#include "../item_instance.h"
 #include "titanium_structs.h"
 
 #include <sstream>
@@ -42,7 +42,7 @@ namespace Titanium
 	static OpcodeManager *opcodes = nullptr;
 	static Strategy struct_strategy;
 
-	void SerializeItem(EQEmu::OutBuffer& ob, const ItemInst *inst, int16 slot_id_in, uint8 depth);
+	void SerializeItem(EQEmu::OutBuffer& ob, const EQEmu::ItemInstance *inst, int16 slot_id_in, uint8 depth);
 
 	// server to client inventory location converters
 	static inline int16 ServerToTitaniumSlot(uint32 serverSlot);
@@ -61,6 +61,9 @@ namespace Titanium
 	static inline CastingSlot ServerToTitaniumCastingSlot(EQEmu::CastingSlot slot);
 	static inline EQEmu::CastingSlot TitaniumToServerCastingSlot(CastingSlot slot, uint32 itemlocation);
 
+	static inline int ServerToTitaniumBuffSlot(int index);
+	static inline int TitaniumToServerBuffSlot(int index);
+
 	void Register(EQStreamIdentifier &into)
 	{
 		auto Config = EQEmuConfig::get();
@@ -75,14 +78,14 @@ namespace Titanium
 			//TODO: figure out how to support shared memory with multiple patches...
 			opcodes = new RegularOpcodeManager();
 			if (!opcodes->LoadOpcodes(opfile.c_str())) {
-				Log.Out(Logs::General, Logs::Netcode, "[OPCODES] Error loading opcodes file %s. Not registering patch %s.", opfile.c_str(), name);
+				Log(Logs::General, Logs::Netcode, "[OPCODES] Error loading opcodes file %s. Not registering patch %s.", opfile.c_str(), name);
 				return;
 			}
 		}
 
 		//ok, now we have what we need to register.
 
-		EQStream::Signature signature;
+		EQStreamInterface::Signature signature;
 		std::string pname;
 
 		//register our world signature.
@@ -101,7 +104,7 @@ namespace Titanium
 
 
 
-		Log.Out(Logs::General, Logs::Netcode, "[IDENTIFY] Registered patch %s", name);
+		Log(Logs::General, Logs::Netcode, "[IDENTIFY] Registered patch %s", name);
 	}
 
 	void Reload()
@@ -118,10 +121,10 @@ namespace Titanium
 			opfile += name;
 			opfile += ".conf";
 			if (!opcodes->ReloadOpcodes(opfile.c_str())) {
-				Log.Out(Logs::General, Logs::Netcode, "[OPCODES] Error reloading opcodes file %s for patch %s.", opfile.c_str(), name);
+				Log(Logs::General, Logs::Netcode, "[OPCODES] Error reloading opcodes file %s for patch %s.", opfile.c_str(), name);
 				return;
 			}
-			Log.Out(Logs::General, Logs::Netcode, "[OPCODES] Reloaded opcodes for patch %s", name);
+			Log(Logs::General, Logs::Netcode, "[OPCODES] Reloaded opcodes for patch %s", name);
 		}
 	}
 
@@ -216,7 +219,7 @@ namespace Titanium
 		//determine and verify length
 		int entrycount = in->size / sizeof(BazaarSearchResults_Struct);
 		if (entrycount == 0 || (in->size % sizeof(BazaarSearchResults_Struct)) != 0) {
-			Log.Out(Logs::General, Logs::Netcode, "[STRUCTS] Wrong size on outbound %s: Got %d, expected multiple of %d",
+			Log(Logs::General, Logs::Netcode, "[STRUCTS] Wrong size on outbound %s: Got %d, expected multiple of %d",
 				opcodes->EmuToName(in->GetOpcode()), in->size, sizeof(BazaarSearchResults_Struct));
 			delete in;
 			return;
@@ -270,7 +273,7 @@ namespace Titanium
 		OUT(buff.duration);
 		OUT(buff.counters);
 		OUT(buff.player_id);
-		OUT(slotid);
+		eq->slotid = ServerToTitaniumBuffSlot(emu->slotid);
 		OUT(bufffade);
 
 		FINISH_ENCODE();
@@ -316,7 +319,7 @@ namespace Titanium
 
 		int itemcount = in->size / sizeof(EQEmu::InternalSerializedItem_Struct);
 		if (itemcount == 0 || (in->size % sizeof(EQEmu::InternalSerializedItem_Struct)) != 0) {
-			Log.Out(Logs::General, Logs::Netcode, "[STRUCTS] Wrong size on outbound %s: Got %d, expected multiple of %d",
+			Log(Logs::General, Logs::Netcode, "[STRUCTS] Wrong size on outbound %s: Got %d, expected multiple of %d",
 				opcodes->EmuToName(in->GetOpcode()), in->size, sizeof(EQEmu::InternalSerializedItem_Struct));
 			delete in;
 			return;
@@ -329,9 +332,9 @@ namespace Titanium
 		EQEmu::OutBuffer::pos_type last_pos = ob.tellp();
 
 		for (int r = 0; r < itemcount; r++, eq++) {
-			SerializeItem(ob, (const ItemInst*)eq->inst, eq->slot_id, 0);
+			SerializeItem(ob, (const EQEmu::ItemInstance*)eq->inst, eq->slot_id, 0);
 			if (ob.tellp() == last_pos)
-				Log.Out(Logs::General, Logs::Netcode, "[STRUCTS] Serialization failed on item slot %d during OP_CharInventory.  Item skipped.", eq->slot_id);
+				Log(Logs::General, Logs::Netcode, "[STRUCTS] Serialization failed on item slot %d during OP_CharInventory.  Item skipped.", eq->slot_id);
 			
 			last_pos = ob.tellp();
 		}
@@ -595,6 +598,46 @@ namespace Titanium
 		dest->FastQueuePacket(&in, ack_req);
 	}
 
+	ENCODE(OP_GroundSpawn)
+	{
+		// We are not encoding the spawn_id field here, but it doesn't appear to matter.
+		//
+		EQApplicationPacket *in = *p;
+		*p = nullptr;
+
+		//store away the emu struct
+		unsigned char *__emu_buffer = in->pBuffer;
+		Object_Struct *emu = (Object_Struct *)__emu_buffer;
+
+		in->size = strlen(emu->object_name) + sizeof(structs::Object_Struct) - 1;
+		in->pBuffer = new unsigned char[in->size];
+
+		structs::Object_Struct *eq = (structs::Object_Struct *) in->pBuffer;
+
+		eq->drop_id = emu->drop_id;
+		eq->heading = emu->heading;
+		eq->linked_list_addr[0] = 0;
+		eq->linked_list_addr[1] = 0;
+		strcpy(eq->object_name, emu->object_name);
+		eq->object_type = emu->object_type;
+		eq->spawn_id = 0;
+		eq->unknown008[0] = 0;
+		eq->unknown008[1] = 0;
+		eq->unknown020 = 0;
+		eq->unknown024 = 0;
+		eq->unknown076 = 0;
+		eq->unknown084 = 0xffffffff;
+		eq->z = emu->z;
+		eq->x = emu->x;
+		eq->y = emu->y;
+		eq->zone_id = emu->zone_id;
+		eq->zone_instance = emu->zone_instance;
+
+
+		delete[] __emu_buffer;
+		dest->FastQueuePacket(&in, ack_req);
+	}
+
 	ENCODE(OP_GuildMemberList)
 	{
 		//consume the packet
@@ -775,9 +818,9 @@ namespace Titanium
 
 		ob.write((const char*)__emu_buffer, 4);
 
-		SerializeItem(ob, (const ItemInst*)int_struct->inst, int_struct->slot_id, 0);
+		SerializeItem(ob, (const EQEmu::ItemInstance*)int_struct->inst, int_struct->slot_id, 0);
 		if (ob.tellp() == last_pos) {
-			Log.Out(Logs::General, Logs::Netcode, "[STRUCTS] Serialization failed on item slot %d.", int_struct->slot_id);
+			Log(Logs::General, Logs::Netcode, "[STRUCTS] Serialization failed on item slot %d.", int_struct->slot_id);
 			delete in;
 			return;
 		}
@@ -941,7 +984,7 @@ namespace Titanium
 		OUT(hairstyle);
 		OUT(beard);
 		//	OUT(unknown00178[10]);
-		for (r = EQEmu::textures::TextureBegin; r < EQEmu::textures::TextureCount; r++) {
+		for (r = EQEmu::textures::textureBegin; r < EQEmu::textures::materialCount; r++) {
 			OUT(item_material.Slot[r].Material);
 			OUT(item_tint.Slot[r].Color);
 		}
@@ -1261,14 +1304,14 @@ namespace Titanium
 			if (eq->Race[char_index] > 473)
 				eq->Race[char_index] = 1;
 
-			for (int index = 0; index < EQEmu::textures::TextureCount; ++index) {
+			for (int index = 0; index < EQEmu::textures::materialCount; ++index) {
 				eq->CS_Colors[char_index].Slot[index].Color = emu_cse->Equip[index].Color;
 			}
 
 			eq->BeardColor[char_index] = emu_cse->BeardColor;
 			eq->HairStyle[char_index] = emu_cse->HairStyle;
 
-			for (int index = 0; index < EQEmu::textures::TextureCount; ++index) {
+			for (int index = 0; index < EQEmu::textures::materialCount; ++index) {
 				eq->Equip[char_index].Slot[index].Material = emu_cse->Equip[index].Material;
 			}
 
@@ -1298,14 +1341,14 @@ namespace Titanium
 		for (; char_index < 10; ++char_index) {
 			eq->Race[char_index] = 0;
 
-			for (int index = 0; index < EQEmu::textures::TextureCount; ++index) {
+			for (int index = 0; index < EQEmu::textures::materialCount; ++index) {
 				eq->CS_Colors[char_index].Slot[index].Color = 0;
 			}
 
 			eq->BeardColor[char_index] = 0;
 			eq->HairStyle[char_index] = 0;
 
-			for (int index = 0; index < EQEmu::textures::TextureCount; ++index) {
+			for (int index = 0; index < EQEmu::textures::materialCount; ++index) {
 				eq->Equip[char_index].Slot[index].Material = 0;
 			}
 
@@ -1449,7 +1492,7 @@ namespace Titanium
 
 		if (EntryCount == 0 || ((in->size % sizeof(Track_Struct))) != 0)
 		{
-			Log.Out(Logs::General, Logs::Netcode, "[STRUCTS] Wrong size on outbound %s: Got %d, expected multiple of %d", opcodes->EmuToName(in->GetOpcode()), in->size, sizeof(Track_Struct));
+			Log(Logs::General, Logs::Netcode, "[STRUCTS] Wrong size on outbound %s: Got %d, expected multiple of %d", opcodes->EmuToName(in->GetOpcode()), in->size, sizeof(Track_Struct));
 			delete in;
 			return;
 		}
@@ -1567,7 +1610,7 @@ namespace Titanium
 		//determine and verify length
 		int entrycount = in->size / sizeof(Spawn_Struct);
 		if (entrycount == 0 || (in->size % sizeof(Spawn_Struct)) != 0) {
-			Log.Out(Logs::General, Logs::Netcode, "[STRUCTS] Wrong size on outbound %s: Got %d, expected multiple of %d", opcodes->EmuToName(in->GetOpcode()), in->size, sizeof(Spawn_Struct));
+			Log(Logs::General, Logs::Netcode, "[STRUCTS] Wrong size on outbound %s: Got %d, expected multiple of %d", opcodes->EmuToName(in->GetOpcode()), in->size, sizeof(Spawn_Struct));
 			delete in;
 			return;
 		}
@@ -1637,7 +1680,7 @@ namespace Titanium
 			eq->petOwnerId = emu->petOwnerId;
 			eq->guildrank = emu->guildrank;
 			//		eq->unknown0194[3] = emu->unknown0194[3];
-			for (k = EQEmu::textures::TextureBegin; k < EQEmu::textures::TextureCount; k++) {
+			for (k = EQEmu::textures::textureBegin; k < EQEmu::textures::materialCount; k++) {
 				eq->equipment.Slot[k].Material = emu->equipment.Slot[k].Material;
 				eq->equipment_tint.Slot[k].Color = emu->equipment_tint.Slot[k].Color;
 			}
@@ -1739,7 +1782,7 @@ namespace Titanium
 		IN(buff.duration);
 		IN(buff.counters);
 		IN(buff.player_id);
-		IN(slotid);
+		emu->slotid = TitaniumToServerBuffSlot(eq->slotid);
 		IN(bufffade);
 
 		FINISH_DIRECT_DECODE();
@@ -1938,6 +1981,21 @@ namespace Titanium
 		FINISH_DIRECT_DECODE();
 	}
 
+	DECODE(OP_LoadSpellSet)
+	{
+		DECODE_LENGTH_EXACT(structs::LoadSpellSet_Struct);
+		SETUP_DIRECT_DECODE(LoadSpellSet_Struct, structs::LoadSpellSet_Struct);
+
+		for (int i = 0; i < structs::MAX_PP_MEMSPELL; ++i)
+			IN(spell[i]);
+		for (int i = structs::MAX_PP_MEMSPELL; i < MAX_PP_MEMSPELL; ++i)
+			emu->spell[i] = 0xFFFFFFFF;
+
+		IN(unknown);
+
+		FINISH_DIRECT_DECODE();
+	}
+
 	DECODE(OP_LootItem)
 	{
 		DECODE_LENGTH_EXACT(structs::LootingItem_Struct);
@@ -1956,7 +2014,7 @@ namespace Titanium
 		DECODE_LENGTH_EXACT(structs::MoveItem_Struct);
 		SETUP_DIRECT_DECODE(MoveItem_Struct, structs::MoveItem_Struct);
 
-		Log.Out(Logs::General, Logs::Netcode, "[Titanium] Moved item from %u to %u", eq->from_slot, eq->to_slot);
+		Log(Logs::General, Logs::Netcode, "[Titanium] Moved item from %u to %u", eq->from_slot, eq->to_slot);
 
 		emu->from_slot = TitaniumToServerSlot(eq->from_slot);
 		emu->to_slot = TitaniumToServerSlot(eq->to_slot);
@@ -2161,10 +2219,10 @@ namespace Titanium
 	}
 
 // file scope helper methods
-	void SerializeItem(EQEmu::OutBuffer& ob, const ItemInst *inst, int16 slot_id_in, uint8 depth)
+	void SerializeItem(EQEmu::OutBuffer& ob, const EQEmu::ItemInstance *inst, int16 slot_id_in, uint8 depth)
 	{
 		const char* protection = "\\\\\\\\\\";
-		const EQEmu::ItemBase* item = inst->GetUnscaledItem();
+		const EQEmu::ItemData* item = inst->GetUnscaledItem();
 
 		ob << StringFormat("%.*s%s", (depth ? (depth - 1) : 0), protection, (depth ? "\"" : "")); // For leading quotes (and protection) if a subitem;
 		
@@ -2382,10 +2440,10 @@ namespace Titanium
 		ob << StringFormat("%.*s\"", depth, protection); // Quotes (and protection, if needed) around static data
 
 		// Sub data
-		for (int index = SUB_INDEX_BEGIN; index < invbag::ItemBagSize; ++index) {
+		for (int index = EQEmu::inventory::containerBegin; index < invbag::ItemBagSize; ++index) {
 			ob << '|';
 
-			ItemInst* sub = inst->GetItem(index);
+			EQEmu::ItemInstance* sub = inst->GetItem(index);
 			if (!sub)
 				continue;
 			
@@ -2576,5 +2634,31 @@ namespace Titanium
 		default: // we shouldn't have any issues with other slots ... just return something
 			return EQEmu::CastingSlot::Discipline;
 		}
+	}
+
+	static inline int ServerToTitaniumBuffSlot(int index)
+	{
+		// we're a disc
+		if (index >= EQEmu::constants::LongBuffs + EQEmu::constants::ShortBuffs)
+			return index - EQEmu::constants::LongBuffs - EQEmu::constants::ShortBuffs +
+			       constants::LongBuffs + constants::ShortBuffs;
+		// we're a song
+		if (index >= EQEmu::constants::LongBuffs)
+			return index - EQEmu::constants::LongBuffs + constants::LongBuffs;
+		// we're a normal buff
+		return index; // as long as we guard against bad slots server side, we should be fine
+	}
+
+	static inline int TitaniumToServerBuffSlot(int index)
+	{
+		// we're a disc
+		if (index >= constants::LongBuffs + constants::ShortBuffs)
+			return index - constants::LongBuffs - constants::ShortBuffs + EQEmu::constants::LongBuffs +
+			       EQEmu::constants::ShortBuffs;
+		// we're a song
+		if (index >= constants::LongBuffs)
+			return index - constants::LongBuffs + EQEmu::constants::LongBuffs;
+		// we're a normal buff
+		return index; // as long as we guard against bad slots server side, we should be fine
 	}
 } /*Titanium*/

@@ -279,6 +279,7 @@ public:
 	bool	RemoveTrap(uint16 delete_id);
 	bool	RemoveObject(uint16 delete_id);
 	bool	RemoveProximity(uint16 delete_npc_id);
+	bool	RemoveNPCFromClientCloseLists(NPC *npc);
 	void	RemoveAllMobs();
 	void	RemoveAllClients();
 	void	RemoveAllNPCs();
@@ -292,6 +293,7 @@ public:
 	void	RemoveAllObjects();
 	void	RemoveAllLocalities();
 	void	RemoveAllRaids();
+	void	RemoveAllEncounters();
 	void	DestroyTempPets(Mob *owner);
 	int16	CountTempPets(Mob *owner);
 	void	AddTempPetsToHateList(Mob *owner, Mob* other, bool bFrenzy = false);
@@ -352,7 +354,7 @@ public:
 	void	QueueToGroupsForNPCHealthAA(Mob* sender, const EQApplicationPacket* app);
 	void	QueueManaged(Mob* sender, const EQApplicationPacket* app, bool ignore_sender=false, bool ackreq = true);
 
-	void	AEAttack(Mob *attacker, float dist, int Hand = EQEmu::legacy::SlotPrimary, int count = 0, bool IsFromSpell = false);
+	void	AEAttack(Mob *attacker, float dist, int Hand = EQEmu::inventory::slotPrimary, int count = 0, bool IsFromSpell = false);
 	void	AETaunt(Client *caster, float range=0, int32 bonus_hate=0);
 	void	AESpell(Mob *caster, Mob *center, uint16 spell_id, bool affect_caster = true, int16 resist_adjust = 0);
 	void	MassGroupBuff(Mob *caster, Mob *center, uint16 spell_id, bool affect_caster = true);
@@ -410,10 +412,10 @@ public:
 	bool	LimitCheckName(const char* npc_name);
 
 	void	CheckClientAggro(Client *around);
-	Mob*	AICheckCloseAggro(Mob* sender, float iAggroRange, float iAssistRange);
+	Mob*	AICheckNPCtoNPCAggro(Mob* sender, float iAggroRange, float iAssistRange);
 	int	GetHatedCount(Mob *attacker, Mob *exclude);
 	void	AIYellForHelp(Mob* sender, Mob* attacker);
-	bool	AICheckCloseBeneficialSpells(NPC* caster, uint8 iChance, float iRange, uint16 iSpellTypes);
+	bool	AICheckCloseBeneficialSpells(NPC* caster, uint8 iChance, float iRange, uint32 iSpellTypes);
 	bool	Merc_AICheckCloseBeneficialSpells(Merc* caster, uint8 iChance, float iRange, uint32 iSpellTypes);
 	Mob*	GetTargetForMez(Mob* caster);
 	uint32	CheckNPCsClose(Mob *center);
@@ -451,7 +453,15 @@ public:
 	void GetObjectList(std::list<Object*> &o_list);
 	void GetDoorsList(std::list<Doors*> &d_list);
 	void GetSpawnList(std::list<Spawn2*> &d_list);
-	void GetTargetsForConeArea(Mob *start, float min_radius, float radius, float height, std::list<Mob*> &m_list);
+	void GetTargetsForConeArea(Mob *start, float min_radius, float radius, float height, int pcnpc, std::list<Mob*> &m_list);
+
+	inline const std::unordered_map<uint16, Mob *> &GetMobList() { return mob_list; }
+	inline const std::unordered_map<uint16, NPC *> &GetNPCList() { return npc_list; }
+	inline const std::unordered_map<uint16, Merc *> &GetMercList() { return merc_list; }
+	inline const std::unordered_map<uint16, Client *> &GetClientList() { return client_list; }
+	inline const std::unordered_map<uint16, Corpse *> &GetCorpseList() { return corpse_list; }
+	inline const std::unordered_map<uint16, Object *> &GetObjectList() { return object_list; }
+	inline const std::unordered_map<uint16, Doors *> &GetDoorsList() { return door_list; }
 
 	void	DepopAll(int NPCTypeID, bool StartSpawnTimer = true);
 
@@ -502,7 +512,7 @@ private:
 		Bot* GetBotByBotName(std::string botName);
 		std::list<Bot*> GetBotsByBotOwnerCharacterID(uint32 botOwnerCharacterID);
 
-		bool Bot_AICheckCloseBeneficialSpells(Bot* caster, uint8 iChance, float iRange, uint16 iSpellTypes); // TODO: Evaluate this closesly in hopes to eliminate
+		bool Bot_AICheckCloseBeneficialSpells(Bot* caster, uint8 iChance, float iRange, uint32 iSpellTypes); // TODO: Evaluate this closesly in hopes to eliminate
 		void ShowSpawnWindow(Client* client, int Distance, bool NamedOnly); // TODO: Implement ShowSpawnWindow in the bot class but it needs entity list stuff
 	private:
 		std::list<Bot*> bot_list;

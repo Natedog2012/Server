@@ -181,6 +181,7 @@ public:
 	bool SpellFinished(int spell_id, Lua_Mob target, int slot, int mana_used, uint32 inventory_slot);
 	bool SpellFinished(int spell_id, Lua_Mob target, int slot, int mana_used, uint32 inventory_slot, int resist_adjust);
 	bool SpellFinished(int spell_id, Lua_Mob target, int slot, int mana_used, uint32 inventory_slot, int resist_adjust, bool proc);
+	void SendBeginCast(int spell_id, int cast_time);
 	void SpellEffect(Lua_Mob caster, int spell_id, double partial);
 	Lua_Mob GetPet();
 	Lua_Mob GetOwner();
@@ -267,7 +268,6 @@ public:
 	void DoSpecialAttackDamage(Lua_Mob other, int skill, int max_damage, int min_damage);
 	void DoSpecialAttackDamage(Lua_Mob other, int skill, int max_damage, int min_damage, int hate_override);
 	void DoSpecialAttackDamage(Lua_Mob other, int skill, int max_damage, int min_damage, int hate_override, int reuse_time);
-	void DoSpecialAttackDamage(Lua_Mob other, int skill, int max_damage, int min_damage, int hate_override, int reuse_time, bool hit_chance);
 	void DoThrowingAttackDmg(Lua_Mob other);
 	void DoThrowingAttackDmg(Lua_Mob other, Lua_ItemInst range_weapon);
 	void DoThrowingAttackDmg(Lua_Mob other, Lua_ItemInst range_weapon, Lua_Item item);
@@ -348,6 +348,7 @@ public:
 	void ClearSpecialAbilities();
 	void ProcessSpecialAbilities(std::string str);
 	void SetAppearance(int app);
+	uint32 GetAppearance();
 	void SetAppearance(int app, bool ignore_self);
 	void SetDestructibleObject(bool set);
 	bool IsImmuneToSpell(int spell_id, Lua_Mob caster);

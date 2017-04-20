@@ -823,6 +823,11 @@ bool Lua_Mob::SpellFinished(int spell_id, Lua_Mob target, int slot, int mana_use
 	return self->SpellFinished(spell_id, target, static_cast<EQEmu::CastingSlot>(slot), mana_used, inventory_slot, resist_adjust, proc);
 }
 
+void Lua_Mob::SendBeginCast(int spell_id, int cast_time) {
+	Lua_Safe_Call_Void();
+	self->SendBeginCast(spell_id, cast_time);
+}
+
 void Lua_Mob::SpellEffect(Lua_Mob caster, int spell_id, double partial) {
 	Lua_Safe_Call_Void();
 	self->SpellEffect(caster, spell_id, static_cast<float>(partial));
@@ -1268,12 +1273,6 @@ void Lua_Mob::DoSpecialAttackDamage(Lua_Mob other, int skill, int max_damage, in
 void Lua_Mob::DoSpecialAttackDamage(Lua_Mob other, int skill, int max_damage, int min_damage, int hate_override, int reuse_time) {
 	Lua_Safe_Call_Void();
 	self->DoSpecialAttackDamage(other, static_cast<EQEmu::skills::SkillType>(skill), max_damage, min_damage, hate_override, reuse_time);
-}
-
-void Lua_Mob::DoSpecialAttackDamage(Lua_Mob other, int skill, int max_damage, int min_damage, int hate_override, int reuse_time,
-									bool hit_chance) {
-	Lua_Safe_Call_Void();
-	self->DoSpecialAttackDamage(other, static_cast<EQEmu::skills::SkillType>(skill), max_damage, min_damage, hate_override, reuse_time, hit_chance);
 }
 
 void Lua_Mob::DoThrowingAttackDmg(Lua_Mob other) {
@@ -1806,6 +1805,11 @@ void Lua_Mob::ProcessSpecialAbilities(std::string str) {
 	self->ProcessSpecialAbilities(str);
 }
 
+uint32 Lua_Mob::GetAppearance() {
+	Lua_Safe_Call_Int();
+	return self->GetAppearance();
+}
+
 void Lua_Mob::SetAppearance(int app) {
 	Lua_Safe_Call_Void();
 	self->SetAppearance(static_cast<EmuAppearance>(app));
@@ -2129,7 +2133,10 @@ luabind::scope lua_register_mob() {
 		.def("SpellFinished", (bool(Lua_Mob::*)(int,Lua_Mob,int,int,uint32))&Lua_Mob::SpellFinished)
 		.def("SpellFinished", (bool(Lua_Mob::*)(int,Lua_Mob,int,int,uint32,int))&Lua_Mob::SpellFinished)
 		.def("SpellFinished", (bool(Lua_Mob::*)(int,Lua_Mob,int,int,uint32,int,bool))&Lua_Mob::SpellFinished)
+		.def("SendBeginCast", &Lua_Mob::SendBeginCast)
 		.def("SpellEffect", &Lua_Mob::SpellEffect)
+		.def("GetPet", &Lua_Mob::GetPet)
+		.def("GetOwner", &Lua_Mob::GetOwner)
 		.def("GetHateList", &Lua_Mob::GetHateList)
 		.def("GetHateTop", (Lua_Mob(Lua_Mob::*)(void))&Lua_Mob::GetHateTop)
 		.def("GetHateDamageTop", (Lua_Mob(Lua_Mob::*)(Lua_Mob))&Lua_Mob::GetHateDamageTop)
@@ -2213,7 +2220,6 @@ luabind::scope lua_register_mob() {
 		.def("DoSpecialAttackDamage", (void(Lua_Mob::*)(Lua_Mob,int,int,int))&Lua_Mob::DoSpecialAttackDamage)
 		.def("DoSpecialAttackDamage", (void(Lua_Mob::*)(Lua_Mob,int,int,int,int))&Lua_Mob::DoSpecialAttackDamage)
 		.def("DoSpecialAttackDamage", (void(Lua_Mob::*)(Lua_Mob,int,int,int,int,int))&Lua_Mob::DoSpecialAttackDamage)
-		.def("DoSpecialAttackDamage", (void(Lua_Mob::*)(Lua_Mob,int,int,int,int,int,bool))&Lua_Mob::DoSpecialAttackDamage)
 		.def("DoThrowingAttackDmg", (void(Lua_Mob::*)(Lua_Mob))&Lua_Mob::DoThrowingAttackDmg)
 		.def("DoThrowingAttackDmg", (void(Lua_Mob::*)(Lua_Mob,Lua_ItemInst))&Lua_Mob::DoThrowingAttackDmg)
 		.def("DoThrowingAttackDmg", (void(Lua_Mob::*)(Lua_Mob,Lua_ItemInst,Lua_Item))&Lua_Mob::DoThrowingAttackDmg)
@@ -2291,6 +2297,7 @@ luabind::scope lua_register_mob() {
 		.def("SetSpecialAbilityParam", (void(Lua_Mob::*)(int,int,int))&Lua_Mob::SetSpecialAbilityParam)
 		.def("ClearSpecialAbilities", (void(Lua_Mob::*)(void))&Lua_Mob::ClearSpecialAbilities)
 		.def("ProcessSpecialAbilities", (void(Lua_Mob::*)(std::string))&Lua_Mob::ProcessSpecialAbilities)
+		.def("GetAppearance", (uint32(Lua_Mob::*)(void))&Lua_Mob::GetAppearance)
 		.def("SetAppearance", (void(Lua_Mob::*)(int))&Lua_Mob::SetAppearance)
 		.def("SetAppearance", (void(Lua_Mob::*)(int,bool))&Lua_Mob::SetAppearance)
 		.def("SetDestructibleObject", (void(Lua_Mob::*)(bool))&Lua_Mob::SetDestructibleObject)

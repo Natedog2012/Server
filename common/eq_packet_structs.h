@@ -127,7 +127,7 @@ struct LDoNTrapTemplate
 
 // All clients translate the character select information to some degree
 
-struct CharSelectEquip : EQEmu::Texture_Struct, EQEmu::Tint_Struct {};
+struct CharSelectEquip : EQEmu::textures::Texture_Struct, EQEmu::textures::Tint_Struct {};
 
 // RoF2-based hybrid struct
 struct CharacterSelectEntry_Struct
@@ -142,7 +142,7 @@ struct CharacterSelectEntry_Struct
 	uint16 Instance;
 	uint8 Gender;
 	uint8 Face;
-	CharSelectEquip	Equip[EQEmu::textures::TextureCount];
+	CharSelectEquip	Equip[EQEmu::textures::materialCount];
 	uint8 Unknown15;			// Seen FF
 	uint8 Unknown19;			// Seen FF
 	uint32 DrakkinTattoo;
@@ -834,7 +834,7 @@ struct SuspendedMinion_Struct
 	/*002*/	uint32 HP;
 	/*006*/	uint32 Mana;
 	/*010*/	SpellBuff_Struct Buffs[BUFF_COUNT];
-	/*510*/	EQEmu::TextureShortProfile Items;
+	/*510*/	EQEmu::TextureMaterialProfile Items;
 	/*546*/	char Name[64];
 	/*610*/
 };
@@ -942,7 +942,7 @@ struct PlayerProfile_Struct
 /*0304*/	uint8				ability_time_minutes;
 /*0305*/	uint8				ability_time_hours;	//place holder
 /*0306*/	uint8				unknown0306[6];		// @bp Spacer/Flag?
-/*0312*/	EQEmu::TextureShortProfile	item_material;	// Item texture/material of worn/held items
+/*0312*/	EQEmu::TextureMaterialProfile	item_material;	// Item texture/material of worn/held items
 /*0348*/	uint8				unknown0348[44];
 /*0392*/	EQEmu::TintProfile	item_tint;
 /*0428*/	AA_Array			aa_array[MAX_PP_AA_ARRAY];
@@ -1179,7 +1179,7 @@ struct WearChange_Struct{
 /*010*/ uint32 elite_material;	// 1 for Drakkin Elite Material
 /*014*/ uint32 hero_forge_model; // New to VoA
 /*018*/ uint32 unknown18; // New to RoF
-/*022*/ EQEmu::Tint_Struct color;
+/*022*/ EQEmu::textures::Tint_Struct color;
 /*026*/ uint8 wear_slot_id;
 /*027*/
 };
@@ -1643,7 +1643,7 @@ struct LootingItem_Struct {
 /*002*/	uint32	looter;
 /*004*/	uint16	slot_id;
 /*006*/	uint8	unknown3[2];
-/*008*/	uint32	auto_loot;
+/*008*/	int32	auto_loot;
 };
 
 struct GuildManageStatus_Struct{
@@ -1934,8 +1934,7 @@ struct Merchant_Sell_Struct {
 /*004*/	uint32	playerid;		// Player's entity id
 /*008*/	uint32	itemslot;
 		uint32	unknown12;
-/*016*/	uint8	quantity;		// Already sold
-/*017*/ uint8	Unknown016[3];
+/*016*/	uint32	quantity;
 /*020*/ uint32	price;
 };
 struct Merchant_Purchase_Struct {
@@ -2072,7 +2071,7 @@ struct AdventureLeaderboard_Struct
 /*struct Item_Shop_Struct {
 	uint16 merchantid;
 	uint8 itemtype;
-	EQEmu::ItemBase item;
+	EQEmu::ItemData item;
 	uint8 iss_unknown001[6];
 };*/
 
@@ -2244,6 +2243,7 @@ struct GroupFollow_Struct { // SoF Follow Struct
 /*0132*/
 };
 
+// this is generic struct
 struct GroupLeaderChange_Struct
 {
 /*000*/		char	Unknown000[64];
@@ -2496,6 +2496,7 @@ struct BookRequest_Struct {
 	uint8 window;	// where to display the text (0xFF means new window)
 	uint8 type;		//type: 0=scroll, 1=book, 2=item info.. prolly others.
 	uint32 invslot;	// Only used in Sof and later clients;
+	int16 subslot; // The subslot inside of a bag if it is inside one.
 	char txtfile[20];
 };
 
@@ -2509,23 +2510,25 @@ struct BookRequest_Struct {
 */
 struct Object_Struct {
 /*00*/	uint32	linked_list_addr[2];// They are, get this, prev and next, ala linked list
-/*08*/	uint16	size;				//
+/*08*/	float	size;				//
 /*10*/	uint16	solidtype;			//
 /*12*/	uint32	drop_id;			// Unique object id for zone
 /*16*/	uint16	zone_id;			// Redudant, but: Zone the object appears in
 /*18*/	uint16	zone_instance;		//
 /*20*/	uint32	unknown020;			//
 /*24*/	uint32	unknown024;			//
-/*28*/	float	heading;			// heading
-/*32*/	float	z;					// z coord
-/*36*/	float	x;					// x coord
-/*40*/	float	y;					// y coord
-/*44*/	char	object_name[32];	// Name of object, usually something like IT63_ACTORDEF
-/*76*/	uint32	unknown076;			//
-/*80*/	uint32	object_type;		// Type of object, not directly translated to OP_OpenObject
-/*84*/	uint32	unknown084;			//set to 0xFF
-/*88*/	uint32	spawn_id;			// Spawn Id of client interacting with object
-/*92*/
+/*28*/	float	tilt_x;
+/*32*/	float	tilt_y;
+/*36*/	float	heading;			// heading
+/*40*/	float	z;					// z coord
+/*44*/	float	x;					// x coord
+/*76*/	float	y;					// y coord
+/*80*/	char	object_name[32];	// Name of object, usually something like IT63_ACTORDEF
+/*84*/	uint32	unknown076;			//
+/*88*/	uint32	object_type;		// Type of object, not directly translated to OP_OpenObject
+/*92*/	uint32	unknown084;			//set to 0xFF
+		uint32	spawn_id;			// Spawn Id of client interacting with object
+
 };
 // 01 = generic drop, 02 = armor, 19 = weapon
 //[13:40] and 0xff seems to be indicative of the tradeskill/openable items that end up returning the old style item type in the OP_OpenObject
@@ -3514,6 +3517,20 @@ struct RecipeAutoCombine_Struct {
 	uint32 reply_code;		// 93 64 e1 00 (junk) in request
 								// 00 00 00 00 in successful reply
 								// f5 ff ff ff in 'you dont have all the stuff' reply
+};
+
+// this is the "value#a" data
+enum EParticlePoint {
+	eDefault,
+	eChest,
+	eHead,
+	eLeftHand,
+	eRigthHand,
+	eLeftFoot,
+	eRightFood,
+	eLeftEye,
+	eRightEye,
+	eMouth
 };
 
 struct LevelAppearance_Struct { //Sends a little graphic on level up
