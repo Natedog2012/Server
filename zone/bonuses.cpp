@@ -284,11 +284,11 @@ void Client::CalcBonuses()
 			break;
 	}
 	
-	spellbonuses.DamageModifier[HIGHEST_SKILL + 1] += (GetSTR() * melee_mod) / 100;
-	spellbonuses.MinDamageModifier[HIGHEST_SKILL + 1] += (GetSTR() * melee_mod) / 100;
+	spellbonuses.DamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += (GetSTR() * melee_mod) / 100;
+	spellbonuses.MinDamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += (GetSTR() * melee_mod) / 100;
 	spellbonuses.HPRegen += (GetSTA() * regen_mod) / 100;
 	spellbonuses.DodgeChance += (GetAGI() * dodge_mod) / 100;
-	spellbonuses.CriticalHitChance[HIGHEST_SKILL+1] += (GetDEX() * melee_crit_mod) / 100;
+	spellbonuses.CriticalHitChance[EQEmu::skills::HIGHEST_SKILL+1] += (GetDEX() * melee_crit_mod) / 100;
 	itembonuses.SpellDmg += (GetINT() * spelldmg_mod) / 100;
 	itembonuses.HealAmt += (GetWIS() * healamt_mod) / 100;
 	spellbonuses.ManaRegen += (GetCHA() * mana_regen_mod) / 100;
