@@ -2630,7 +2630,11 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 						float new_ground = GetGroundZ(my_x, my_y);
 
 						if(caster->IsClient())
-							caster->CastToClient()->MovePC(zone->GetZoneID(), zone->GetInstanceID(), my_x, my_y, new_ground, GetHeading()*2);
+							if (caster->CastToClient()->ClientVersion() >= EQEmu::versions::ClientVersion::RoF2) {
+								caster->CastToClient()->Fling(value, target_x, target_y, target_z);
+							} else {
+								caster->CastToClient()->MovePC(zone->GetZoneID(), zone->GetInstanceID(), my_x, my_y, new_ground, GetHeading()*2);
+							}
 						else
 							caster->GMMove(my_x, my_y, new_ground, GetHeading());
 					}
