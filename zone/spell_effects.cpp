@@ -2609,8 +2609,8 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					float target_x = GetX();
 					float target_y = GetY();
 					float target_z = GetZ();
-					if ((CalculateDistance(my_x, my_y, my_z) > 10) &&
-						(CalculateDistance(my_x, my_y, my_z) < 75) &&
+					if ((CalculateDistance(my_x, my_y, my_z) > 5) &&
+						(CalculateDistance(my_x, my_y, my_z) <= 1200) &&
 						(caster->CheckLosFN(caster->GetTarget())))
 					{
 						float value, x_vector, y_vector, hypot;
