@@ -121,6 +121,7 @@ void Client::CalcBonuses()
 	int healamt_mod = 0;
 	int mana_regen_mod = 0;
 	int endur_regen_mod = 0;
+	int archery_mod = 0;
 	
 	switch (GetClass()) {
 		case 1: // Warrior
@@ -162,6 +163,16 @@ void Client::CalcBonuses()
 			healamt_mod = RuleI(Character, Ranger_HealAMTMod);
 			mana_regen_mod = RuleI(Character, Ranger_ManaRegenMod);
 			endur_regen_mod = RuleI(Character, Ranger_EndurRegenMod);
+			archery_mod = RuleI(Character, Ranger_ArcheryMod);
+			if (GetLevel() < 70) {
+				spellbonuses.ArcheryDamageModifier += 15;
+			} else {
+				if (GetDEX() > 255) {
+					spellbonuses.ArcheryDamageModifier += (((GetDEX()-255) * archery_mod) / 100) + 15;
+				} else {
+					spellbonuses.ArcheryDamageModifier += 15;
+				}
+			}
 			break;
 		case 5: // Shadowknight
 			melee_mod = RuleI(Character, Shadowknight_MeleeMod);
