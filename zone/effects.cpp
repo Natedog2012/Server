@@ -721,6 +721,15 @@ bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 	return(true);
 }
 
+void Client::ResetDisciplineTimer(uint32 timer_id)
+{
+	pTimerType DiscTimer = pTimerDisciplineReuseStart + timer_id;
+	if (GetPTimers().Enabled((uint32)DiscTimer)) {
+		GetPTimers().Clear(&database, (uint32)DiscTimer);
+	}
+	SendDisciplineTimer(timer_id, 0);
+}
+
 void Client::SendDisciplineTimer(uint32 timer_id, uint32 duration)
 {
 	if (timer_id < MAX_DISCIPLINE_TIMERS)

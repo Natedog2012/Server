@@ -6450,6 +6450,30 @@ XS(XS_Client_Fling)
 	XSRETURN_EMPTY;
 }
 
+XS(XS_Client_ResetDisciplineTimer); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Client_ResetDisciplineTimer)
+{
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Client::ResetDisciplineTimer(THIS, timer_id)");
+	{
+		Client*		THIS;
+		uint32		timer_id = (uint32)SvUV(ST(1));
+
+		if (sv_derived_from(ST(0), "Client")) {
+			IV tmp = SvIV((SV*)SvRV(ST(0)));
+			THIS = INT2PTR(Client *,tmp);
+		}
+		else
+			Perl_croak(aTHX_ "THIS is not of type Client");
+		if(THIS == nullptr)
+			Perl_croak(aTHX_ "THIS is nullptr, avoiding crash.");
+
+		THIS->ResetDisciplineTimer(timer_id);
+	}
+	XSRETURN_EMPTY;
+}
+
 XS(XS_Client_GetAccountAge);
 XS(XS_Client_GetAccountAge) {
 	dXSARGS;
@@ -6730,6 +6754,7 @@ XS(boot_Client)
 		newXSproto(strcpy(buf, "CalcEXP"), XS_Client_CalcEXP, file, "$");
 		newXSproto(strcpy(buf, "GetMoney"), XS_Client_GetMoney, file, "$$$");
 		newXSproto(strcpy(buf, "Fling"), XS_Client_Fling, file, "$$$$$;$$");
+		newXSproto(strcpy(buf, "ResetDisciplineTimer"), XS_Client_ResetDisciplineTimer, file, "$$");
 		newXSproto(strcpy(buf, "GetAccountAge"), XS_Client_GetAccountAge, file, "$");
 		XSRETURN_YES;
 }
