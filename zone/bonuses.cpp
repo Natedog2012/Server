@@ -126,6 +126,7 @@ void Client::CalcBonuses()
 	int mana_regen_mod = 0;
 	int endur_regen_mod = 0;
 	int archery_mod = 0;
+	int mod_start_value = RuleI(Character, Mod_Start_Value);
 	
 	switch (GetClass()) {
 		case 1: // Warrior
@@ -168,11 +169,11 @@ void Client::CalcBonuses()
 			mana_regen_mod = RuleI(Character, Ranger_ManaRegenMod);
 			endur_regen_mod = RuleI(Character, Ranger_EndurRegenMod);
 			archery_mod = RuleI(Character, Ranger_ArcheryMod);
-			if (GetLevel() < 70) {
+			if (GetLevel() < RuleI(Character, MaxLevel)) {
 				spellbonuses.ArcheryDamageModifier += 15;
 			} else {
-				if (GetDEX() > 255) {
-					spellbonuses.ArcheryDamageModifier += (((GetDEX()-255) * archery_mod) / 100) + 15;
+				if (GetDEX() > mod_start_value) {
+					spellbonuses.ArcheryDamageModifier += (((GetDEX()-mod_start_value) * archery_mod) / 100) + 15;
 				} else {
 					spellbonuses.ArcheryDamageModifier += 15;
 				}
@@ -300,7 +301,7 @@ void Client::CalcBonuses()
 			break;
 	}
 	
-	if (GetLevel() < 70) {
+	if (GetLevel() < RuleI(Character, MaxLevel)) {
 		spellbonuses.DamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += 15;
 		spellbonuses.MinDamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += 15;
 		spellbonuses.CriticalHitChance[EQEmu::skills::HIGHEST_SKILL+1] += 3;
@@ -309,35 +310,35 @@ void Client::CalcBonuses()
 		spellbonuses.ManaRegen += (GetLevel() / 5);
 		spellbonuses.EnduranceRegen += (GetLevel() / 5);
 	} else {
-		if (GetSTR() > 255) {
-			spellbonuses.DamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += (((GetSTR()-255) * melee_mod) / 100) + 15;
-			spellbonuses.MinDamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += (((GetSTR()-255) * melee_mod) / 100) + 15;
+		if (GetSTR() > mod_start_value) {
+			spellbonuses.DamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100) + 15;
+			spellbonuses.MinDamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100) + 15;
 		} else {
 			spellbonuses.DamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += 15;
 			spellbonuses.MinDamageModifier[EQEmu::skills::HIGHEST_SKILL + 1] += 15;
 		}
 		
-		if (GetDEX() > 255) {
-			spellbonuses.CriticalHitChance[EQEmu::skills::HIGHEST_SKILL+1] += (((GetDEX()-255) * melee_crit_mod) / 100) + 3;
+		if (GetDEX() > mod_start_value) {
+			spellbonuses.CriticalHitChance[EQEmu::skills::HIGHEST_SKILL+1] += (((GetDEX()-mod_start_value) * melee_crit_mod) / 100) + 3;
 		} else {
 			spellbonuses.CriticalHitChance[EQEmu::skills::HIGHEST_SKILL+1] += 3;
 		}
 		
-		if (GetINT() > 255) {
-			itembonuses.SpellDmg += (((GetINT()-255) * spelldmg_mod) / 100) + 35;
+		if (GetINT() > mod_start_value) {
+			itembonuses.SpellDmg += (((GetINT()-mod_start_value) * spelldmg_mod) / 100) + 35;
 		} else {
 			itembonuses.SpellDmg += (GetLevel() / 2);
 		}
 		
-		if (GetWIS() > 255) {
-			itembonuses.HealAmt += (((GetWIS()-255) * healamt_mod) / 100) + 35;
+		if (GetWIS() > mod_start_value) {
+			itembonuses.HealAmt += (((GetWIS()-mod_start_value) * healamt_mod) / 100) + 35;
 		} else {
 			itembonuses.HealAmt += (GetLevel() / 2);
 		}
 		
-		if (GetCHA() > 255) {
-			spellbonuses.ManaRegen += (((GetCHA()-255) * mana_regen_mod) / 100) + 14;
-			spellbonuses.EnduranceRegen += (((GetCHA()-255) * endur_regen_mod) / 100) + 14;
+		if (GetCHA() > mod_start_value) {
+			spellbonuses.ManaRegen += (((GetCHA()-mod_start_value) * mana_regen_mod) / 100) + 14;
+			spellbonuses.EnduranceRegen += (((GetCHA()-mod_start_value) * endur_regen_mod) / 100) + 14;
 		} else {
 			spellbonuses.ManaRegen += (GetLevel() / 5);
 			spellbonuses.EnduranceRegen += (GetLevel() / 5);
