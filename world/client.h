@@ -68,6 +68,7 @@ public:
 	inline const char*	GetLSKey()			{ if (cle) { return cle->GetLSKey(); } return "NOKEY"; }
 	inline uint32		GetCharID()			{ return charid; }
 	inline const char*	GetCharName()		{ return char_name; }
+	inline EQEmu::versions::ClientVersion	GetClientVersion()	{ return m_ClientVersion; }
 	inline ClientListEntry* GetCLE()		{ return cle; }
 	inline void			SetCLE(ClientListEntry* iCLE)			{ cle = iCLE; }
 private:
@@ -81,6 +82,7 @@ private:
 	bool	is_player_zoning;
 	Timer	autobootup_timeout;
 	uint32	zone_waiting_for_bootup;
+	bool	enter_world_triggered;
 
 	bool StartInTutorial;
 	EQEmu::versions::ClientVersion m_ClientVersion;
@@ -93,7 +95,6 @@ private:
 	void SetClassLanguages(PlayerProfile_Struct *pp);
 
 	ClientListEntry* cle;
-	Timer	CLE_keepalive_timer;
 	Timer	connect;
 	bool firstlogin;
 	bool seen_character_select;

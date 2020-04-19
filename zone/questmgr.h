@@ -41,6 +41,12 @@ class QuestManager {
 		bool depop_npc;
 		std::string encounter;
 	};
+
+	struct PausedTimer {
+		Mob * owner;
+		std::string name;
+		uint32 time;
+	};
 public:
 	QuestManager();
 	virtual ~QuestManager();
@@ -56,8 +62,7 @@ public:
 
 	//quest functions
 	void echo(int colour, const char *str);
-	void say(const char *str);
-	void say(const char *str, uint8 language);
+	void say(const char *str, Journal::Options &opts);
 	void me(const char *str);
 	void summonitem(uint32 itemid, int16 charges = -1);
 	void write(const char *file, const char *str);
@@ -82,6 +87,9 @@ public:
 	void stopalltimers();
 	void stopalltimers(EQEmu::ItemInstance *inst);
 	void stopalltimers(Mob *mob);
+	void pausetimer(const char *timer_name);
+	void resumetimer(const char *timer_name);
+	bool ispausedtimer(const char *timer_name);
 	void emote(const char *str);
 	void shout(const char *str);
 	void shout2(const char *str);
@@ -91,8 +99,6 @@ public:
 	void depopall(int npc_type = 0);
 	void depopzone(bool StartSpawnTimer = true);
 	void repopzone();
-	void ConnectNodeToNode(int node1, int node2, int teleport, int doorid);
-	void AddNode(float x, float y, float z, float best_z, int32 requested_id);
 	void settarget(const char *type, int target_id);
 	void follow(int entity_id, int distance);
 	void sfollow();
@@ -101,6 +107,9 @@ public:
 	void level(int newlevel);
 	void traindisc(int discipline_tome_item_id);
 	bool isdisctome(int item_id);
+	std::string getracename(uint16 race_id);
+	std::string getspellname(uint32 spell_id);
+	std::string getskillname(int skill_id);
 	void safemove();
 	void rain(int weather);
 	void snow(int weather);
@@ -150,7 +159,7 @@ public:
 	void setnexthpevent(int at);
 	void setnextinchpevent(int at);
 	void respawn(int npc_type, int grid);
-	void set_proximity(float minx, float maxx, float miny, float maxy, float minz=-999999, float maxz=999999);
+	void set_proximity(float minx, float maxx, float miny, float maxy, float minz=-999999, float maxz=999999, bool bSay = false);
 	void clear_proximity();
 	void enable_proximity_say();
 	void disable_proximity_say();
@@ -166,6 +175,8 @@ public:
 	bool summonburiedplayercorpse(uint32 char_id, const glm::vec4& position);
 	bool summonallplayercorpses(uint32 char_id, const glm::vec4& position);
 	uint32 getplayerburiedcorpsecount(uint32 char_id);
+	int getplayercorpsecount(uint32 char_id);
+	int getplayercorpsecountbyzoneid(uint32 char_id, uint32 zone_id);
 	bool buryplayercorpse(uint32 char_id);
 	void forcedooropen(uint32 doorid, bool altmode);
 	void forcedoorclose(uint32 doorid, bool altmode);
@@ -205,12 +216,15 @@ public:
 	int activetasksinset(int taskset);
 	int completedtasksinset(int taskset);
 	bool istaskappropriate(int task);
+	std::string gettaskname(uint32 task_id);
     void clearspawntimers();
 	void ze(int type, const char *str);
 	void we(int type, const char *str);
     int getlevel(uint8 type);
     int collectitems(uint32 item_id, bool remove);
     int collectitems_processSlot(int16 slot_id, uint32 item_id, bool remove);
+	int countitem(uint32 item_id);
+	std::string getitemname(uint32 item_id);
     void enabletitle(int titleset);
    	bool checktitle(int titlecheck);
    	void removetitle(int titlecheck);
@@ -227,10 +241,14 @@ public:
 	uint32 GetInstanceTimerByID(uint16 instance_id = 0);
 	void DestroyInstance(uint16 instance_id);
 	uint16 GetInstanceID(const char *zone, int16 version);
+	uint16 GetInstanceIDByCharID(const char *zone, int16 version, uint32 char_id);
 	void AssignToInstance(uint16 instance_id);
+	void AssignToInstanceByCharID(uint16 instance_id, uint32 char_id);
 	void AssignGroupToInstance(uint16 instance_id);
 	void AssignRaidToInstance(uint16 instance_id);
 	void RemoveFromInstance(uint16 instance_id);
+	void RemoveFromInstanceByCharID(uint16 instance_id, uint32 char_id);
+	bool CheckInstanceByCharID(uint16 instance_id, uint32 char_id);
 	//void RemoveGroupFromInstance(uint16 instance_id);	//potentially useful but not implmented at this time.
 	//void RemoveRaidFromInstance(uint16 instance_id);	//potentially useful but not implmented at this time.
 	void RemoveAllFromInstance(uint16 instance_id);
@@ -238,11 +256,20 @@ public:
 	void FlagInstanceByGroupLeader(uint32 zone, int16 version);
 	void FlagInstanceByRaidLeader(uint32 zone, int16 version);
 	const char* varlink(char* perltext, int item_id);
-	const char* saylink(char* Phrase, bool silent, const char* LinkName);
+	std::string saylink(char *saylink_text, bool silent, const char *link_name);
+	const char* getcharnamebyid(uint32 char_id);
+	uint32 getcharidbyname(const char* name);
+	std::string getclassname(uint8 class_id, uint8 level = 0);
+	int getcurrencyid(uint32 item_id);
+	int getcurrencyitemid(int currency_id);
 	const char* getguildnamebyid(int guild_id);
+	int getguildidbycharid(uint32 char_id);
+	int getgroupidbycharid(uint32 char_id);
+	const char* getnpcnamebyid(uint32 npc_id);
+	int getraididbycharid(uint32 char_id);
 	void SetRunning(bool val);
 	bool IsRunning();
-	void FlyMode(uint8 flymode);
+	void FlyMode(GravityBehavior flymode);
 	uint8 FactionValue();
 	void wearchange(uint8 slot, uint16 texture, uint32 hero_forge_model = 0, uint32 elite_material = 0);
 	void voicetell(const char *str, int macronum, int racenum, int gendernum);
@@ -255,6 +282,7 @@ public:
 	void CrossZoneSignalNPCByNPCTypeID(uint32 npctype_id, uint32 data);
 	void CrossZoneSignalPlayerByName(const char *CharName, uint32 data);
 	void CrossZoneSetEntityVariableByNPCTypeID(uint32 npctype_id, const char *id, const char *m_var);
+	void CrossZoneSetEntityVariableByClientName(const char *CharName, const char *id, const char *m_var);
 	void CrossZoneMessagePlayerByName(uint32 Type, const char *CharName, const char *Message);
 	void WorldWideMarquee(uint32 Type, uint32 Priority, uint32 FadeIn, uint32 FadeOut, uint32 Duration, const char *Message);
 	bool EnableRecipe(uint32 recipe_id);
@@ -303,6 +331,7 @@ private:
 	};
 	std::list<QuestTimer>	QTimerList;
 	std::list<SignalTimer>	STimerList;
+	std::list<PausedTimer>	PTimerList;
 	size_t item_timers;
 
 };

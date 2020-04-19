@@ -22,6 +22,7 @@
 #include "skills.h"
 
 #define SPELL_UNKNOWN 0xFFFF
+#define POISON_PROC 0xFFFE
 #define SPELLBOOK_UNKNOWN 0xFFFFFFFF		//player profile spells are 32 bit
 
 //some spell IDs which will prolly change, but are needed
@@ -68,14 +69,16 @@ enum SpellTypes : uint32
 	SpellType_InCombatBuffSong = (1 << 18), // bard in-combat group/ae buffs
 	SpellType_OutOfCombatBuffSong = (1 << 19), // bard out-of-combat group/ae buffs
 	SpellType_PreCombatBuff = (1 << 20),
-	SpellType_PreCombatBuffSong = (1 << 21),
-
-	SpellTypes_Detrimental = (SpellType_Nuke | SpellType_Root | SpellType_Lifetap | SpellType_Snare | SpellType_DOT | SpellType_Dispel | SpellType_Mez | SpellType_Charm | SpellType_Debuff | SpellType_Slow),
-	SpellTypes_Beneficial = (SpellType_Heal | SpellType_Buff | SpellType_Escape | SpellType_Pet | SpellType_InCombatBuff | SpellType_Cure | SpellType_HateRedux | SpellType_InCombatBuffSong | SpellType_OutOfCombatBuffSong | SpellType_PreCombatBuff | SpellType_PreCombatBuffSong),
-
-	SpellType_Any = 0xFFFFFFFF
+	SpellType_PreCombatBuffSong = (1 << 21)
 };
 
+const uint32 SPELL_TYPE_MIN = (SpellType_Nuke << 1) - 1;
+const uint32 SPELL_TYPE_MAX = (SpellType_PreCombatBuffSong << 1) - 1;
+const uint32 SPELL_TYPE_ANY = 0xFFFFFFFF;
+
+const uint32 SPELL_TYPES_DETRIMENTAL = (SpellType_Nuke | SpellType_Root | SpellType_Lifetap | SpellType_Snare | SpellType_DOT | SpellType_Dispel | SpellType_Mez | SpellType_Charm | SpellType_Debuff | SpellType_Slow);
+const uint32 SPELL_TYPES_BENEFICIAL = (SpellType_Heal | SpellType_Buff | SpellType_Escape | SpellType_Pet | SpellType_InCombatBuff | SpellType_Cure | SpellType_HateRedux | SpellType_InCombatBuffSong | SpellType_OutOfCombatBuffSong | SpellType_PreCombatBuff | SpellType_PreCombatBuffSong);
+const uint32 SPELL_TYPES_INNATE = (SpellType_Nuke | SpellType_Lifetap | SpellType_DOT | SpellType_Dispel | SpellType_Mez | SpellType_Slow | SpellType_Debuff | SpellType_Charm | SpellType_Root);
 
 // These should not be used to determine spell category..
 // They are a graphical affects (effects?) index only
@@ -131,6 +134,11 @@ enum SpellAffectIndex {
 	SAI_NPC_Special_80			= 80,
 	SAI_Trap_Lock				= 88
 };
+
+enum class GlobalGroup {
+	Lich = 46,
+};
+
 enum RESISTTYPE
 {
 	RESIST_NONE = 0,
@@ -562,9 +570,9 @@ typedef enum {
 #define SE_LimitManaMin					348	// implemented
 #define SE_ShieldEquipDmgMod			349	// implemented[AA] Increase melee base damage (indirectly increasing hate) when wearing a shield.
 #define SE_ManaBurn						350	// implemented - Drains mana for damage/heal at a defined ratio up to a defined maximum amount of mana.
-//#define SE_PersistentEffect			351	// *not implemented. creates a trap/totem that casts a spell (spell id + base1?) when anything comes near it. can probably make a beacon for this
-//#define SE_IncreaseTrapCount			352	// *not implemented - looks to be some type of invulnerability? Test ITC (8755)
-//#define SE_AdditionalAura				353	// *not implemented - allows use of more than 1 aura, aa effect
+#define SE_PersistentEffect				351	// *not implemented. creates a trap/totem that casts a spell (spell id + base1?) when anything comes near it. can probably make a beacon for this
+#define SE_IncreaseTrapCount			352	// *not implemented - looks to be some type of invulnerability? Test ITC (8755)
+#define SE_AdditionalAura				353	// *not implemented - allows use of more than 1 aura, aa effect
 //#define SE_DeactivateAllTraps			354	// *not implemented - looks to be some type of invulnerability? Test DAT (8757)
 //#define SE_LearnTrap					355	// *not implemented - looks to be some type of invulnerability? Test LT (8758)
 //#define SE_ChangeTriggerType			356	// not used
@@ -583,7 +591,7 @@ typedef enum {
 #define SE_CorruptionCounter			369	// implemented
 #define SE_ResistCorruption				370	// implemented
 #define SE_AttackSpeed4					371 // implemented - stackable slow effect 'Inhibit Melee'
-#define SE_ForageSkill					372	// *not implemented[AA] Will increase the skill cap for those that have the Forage skill and grant the skill and raise the cap to those that do not.
+#define SE_ForageSkill					372	// implemented[AA] Will increase the skill cap for those that have the Forage skill and grant the skill and raise the cap to those that do not.
 #define SE_CastOnFadeEffectAlways		373 // implemented - Triggers if fades after natural duration OR from rune/numhits fades.
 #define SE_ApplyEffect					374 // implemented
 #define SE_DotCritDmgIncrease			375	// implemented - Increase damage of DoT critical amount
@@ -599,7 +607,7 @@ typedef enum {
 #define SE_LimitSpellGroup				385	// implemented - Limits to spell group(ie type 3 reuse reduction augs that are class specific and thus all share s SG)
 #define SE_CastOnCurer					386 // implemented - Casts a spell on the person curing
 #define SE_CastOnCure					387 // implemented - Casts a spell on the cured person
-//#define SE_SummonCorpseZone			388 // *not implemented - summons a corpse from any zone(nec AA)
+#define SE_SummonCorpseZone				388 // implemented - summons a corpse from any zone(nec AA)
 #define SE_FcTimerRefresh				389 // implemented - Refresh spell icons
 //#define SE_FcTimerLockout				390 // *not implemented - Sets recast timers to specific value, focus limited.
 #define SE_LimitManaMax					391	// implemented
@@ -757,7 +765,7 @@ struct SPDat_Spell_Struct
 										// -- DIETY_BERTOXXULOUS ... DIETY_VEESHAN
 /* 142 */	//int8 npc_no_cast;			// 142: between 0 & 100 -- NPC_NO_CAST
 /* 143 */	//int ai_pt_bonus;			// 143: always set to 0, client doesn't save this -- AI_PT_BONUS
-/* 144 */	//int16 new_icon	// Spell icon used by the client in uifiles/default/spells??.tga, both for spell gems & buff window. Looks to depreciate icon & memicon -- NEW_ICON
+/* 144 */	int16 new_icon;	// Spell icon used by the client in uifiles/default/spells??.tga, both for spell gems & buff window. Looks to depreciate icon & memicon -- NEW_ICON
 /* 145 */	//int16 spellanim; // Doesn't look like it's the same as #doanim, so not sure what this is, particles I think -- SPELL_EFFECT_INDEX
 /* 146 */	bool uninterruptable;	// Looks like anything != 0 is uninterruptable. Values are mostly -1, 0, & 1 (Fetid Breath = 90?) -- NO_INTERRUPT
 /* 147 */	int16 ResistDiff; // -- RESIST_MOD
@@ -961,11 +969,11 @@ uint32 GetPartialMeleeRuneAmount(uint32 spell_id);
 uint32 GetPartialMagicRuneAmount(uint32 spell_id);
 bool NoDetrimentalSpellAggro(uint16 spell_id);
 bool IsStackableDot(uint16 spell_id);
+bool IsBardOnlyStackEffect(int effect);
 bool IsCastWhileInvis(uint16 spell_id);
 bool IsEffectIgnoredInStacking(int spa);
 
 int CalcPetHp(int levelb, int classb, int STA = 75);
-const char *GetRandPetName();
 int GetSpellEffectDescNum(uint16 spell_id);
 DmgShieldType GetDamageShieldType(uint16 spell_id, int32 DSType = 0);
 bool DetrimentalSpellAllowsRest(uint16 spell_id);

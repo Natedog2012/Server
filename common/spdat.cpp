@@ -87,8 +87,9 @@
 
 bool IsTargetableAESpell(uint16 spell_id)
 {
-	if (IsValidSpell(spell_id) && spells[spell_id].targettype == ST_AETarget)
+	if (IsValidSpell(spell_id) && spells[spell_id].targettype == ST_AETarget) {
 		return true;
+	}
 
 	return false;
 }
@@ -244,8 +245,7 @@ bool IsBeneficialSpell(uint16 spell_id)
 			} else {
 				// If the resisttype is not magic and spell is Bind Sight or Cast Sight
 				// It's not beneficial
-				if (sai == SAI_Dispell_Sight && spells[spell_id].skill == 18 &&
-						!IsEffectInSpell(spell_id, SE_VoiceGraft))
+				if ((sai == SAI_Calm && IsEffectInSpell(spell_id, SE_Harmony)) || (sai == SAI_Calm_Song && IsEffectInSpell(spell_id, SE_BindSight)) || (sai == SAI_Dispell_Sight && spells[spell_id].skill == 18 && !IsEffectInSpell(spell_id, SE_VoiceGraft)))
 					return false;
 			}
 		}
@@ -851,7 +851,7 @@ DmgShieldType GetDamageShieldType(uint16 spell_id, int32 DSType)
 	// If we have a DamageShieldType for this spell from the damageshieldtypes table, return that,
 	// else, make a guess, based on the resist type. Default return value is DS_THORNS
 	if (IsValidSpell(spell_id)) {
-		Log(Logs::Detail, Logs::Spells, "DamageShieldType for spell %i (%s) is %X\n", spell_id,
+		LogSpells("DamageShieldType for spell [{}] ([{}]) is [{}]", spell_id,
 			spells[spell_id].name, spells[spell_id].DamageShieldType);
 
 		if (spells[spell_id].DamageShieldType)
@@ -1121,6 +1121,20 @@ bool IsStackableDot(uint16 spell_id)
 	if (spell.dot_stacking_exempt || spell.goodEffect || !spell.buffdurationformula)
 		return false;
 	return IsEffectInSpell(spell_id, SE_CurrentHP) || IsEffectInSpell(spell_id, SE_GravityEffect);
+}
+
+bool IsBardOnlyStackEffect(int effect)
+{
+	switch(effect) {
+	/*case SE_CurrentMana:
+	case SE_ManaRegen_v2:
+	case SE_CurrentHP:
+	case SE_HealOverTime:*/
+	case SE_BardAEDot:
+		return true;
+	default:
+		return false;
+	}
 }
 
 bool IsCastWhileInvis(uint16 spell_id)

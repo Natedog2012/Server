@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <ctime>
 #include <thread>
+#include <fmt/format.h>
 
 #ifdef _WINDOWS
 #define strcasecmp _stricmp
@@ -52,14 +53,15 @@
 #include "../common/rulesys.h"
 #include "../common/serverinfo.h"
 #include "../common/string_util.h"
-#include "../say_link.h"
+#include "../common/say_link.h"
 #include "../common/eqemu_logsys.h"
+#include "../common/profanity_manager.h"
+#include "../common/net/eqstream.h"
 
-
+#include "data_bucket.h"
 #include "command.h"
 #include "guild_mgr.h"
 #include "map.h"
-#include "pathing.h"
 #include "qglobals.h"
 #include "queryserv.h"
 #include "quest_parser_collection.h"
@@ -67,10 +69,14 @@
 #include "titles.h"
 #include "water_map.h"
 #include "worldserver.h"
+#include "fastmath.h"
+#include "mob_movement_manager.h"
+#include "npc_scale_manager.h"
 
 extern QueryServ* QServ;
 extern WorldServer worldserver;
 extern TaskManager *taskmanager;
+extern FastMath g_Math;
 void CatchSignal(int sig_num);
 
 
@@ -100,7 +106,7 @@ LinkedList<CommandRecord *> cleanup_commandlist;
  */
 int command_notavail(Client *c, const char *message)
 {
-	c->Message(13, "Commands not available.");
+	c->Message(Chat::Red, "Commands not available.");
 	return -1;
 }
 
@@ -146,7 +152,7 @@ Access Levels:
 int command_init(void)
 {
 	commandaliases.clear();
-	
+
 	if (
 		command_add("acceptrules", "[acceptrules] - Accept the EQEmu Agreement", 0, command_acceptrules) ||
 		command_add("advnpcspawn", "[maketype|makegroup|addgroupentry|addgroupspawn][removegroupspawn|movespawn|editgroupbox|cleargroupbox]", 150, command_advnpcspawn) ||
@@ -171,11 +177,12 @@ int command_init(void)
 		command_add("castspell", "[spellid] - Cast a spell", 50, command_castspell) ||
 		command_add("chat", "[channel num] [message] - Send a channel message to all zones", 200, command_chat) ||
 		command_add("checklos", "- Check for line of sight to your target", 50, command_checklos) ||
-		command_add("clearinvsnapshots", "[use rule] - Clear inventory snapshot history (true - elapsed entries, false - all entries)", 200, command_clearinvsnapshots) ||
 		command_add("corpse", "- Manipulate corpses, use with no arguments for help", 50, command_corpse) ||
+		command_add("corpsefix", "Attempts to bring corpses from underneath the ground within close proximity of the player", 0, command_corpsefix) ||
 		command_add("crashtest", "- Crash the zoneserver", 255, command_crashtest) ||
 		command_add("cvs", "- Summary of client versions currently online.", 200, command_cvs) ||
 		command_add("damage", "[amount] - Damage your target", 100, command_damage) ||
+		command_add("databuckets", "View|Delete [key] [limit]- View data buckets, limit 50 default or Delete databucket by key", 80, command_databuckets) ||
 		command_add("date", "[yyyy] [mm] [dd] [HH] [MM] - Set EQ time", 90, command_date) ||
 		command_add("dbspawn2", "[spawngroup] [respawn] [variance] - Spawn an NPC from a predefined row in the spawn2 table", 100, command_dbspawn2) ||
 		command_add("delacct", "[accountname] - Delete an account", 150, command_delacct) ||
@@ -183,17 +190,20 @@ int command_init(void)
 		command_add("delpetition", "[petition number] - Delete a petition", 20, command_delpetition) ||
 		command_add("depop", "- Depop your NPC target", 50, command_depop) ||
 		command_add("depopzone", "- Depop the zone", 100, command_depopzone) ||
+		command_add("devtools", "- Manages devtools", 200, command_devtools) ||
 		command_add("details", "- Change the details of your target (Drakkin Only)", 80, command_details) ||
 		command_add("disablerecipe",  "[recipe_id] - Disables a recipe using the recipe id.",  80, command_disablerecipe) ||
 		command_add("disarmtrap",  "Analog for ldon disarm trap for the newer clients since we still don't have it working.", 80, command_disarmtrap) ||
 		command_add("distance", "- Reports the distance between you and your target.",  80, command_distance) ||
 		command_add("doanim", "[animnum] [type] - Send an EmoteAnim for you or your target", 50, command_doanim) ||
+		command_add("editmassrespawn", "[name-search] [second-value] - Mass (Zone wide) NPC respawn timer editing command", 100, command_editmassrespawn) ||
 		command_add("emote", "['name'/'world'/'zone'] [type] [message] - Send an emote message", 80, command_emote) ||
 		command_add("emotesearch", "Searches NPC Emotes", 80, command_emotesearch) ||
 		command_add("emoteview", "Lists all NPC Emotes", 80, command_emoteview) ||
 		command_add("enablerecipe",  "[recipe_id] - Enables a recipe using the recipe id.",  80, command_enablerecipe) ||
 		command_add("equipitem", "[slotid(0-21)] - Equip the item on your cursor into the specified slot", 50, command_equipitem) ||
 		command_add("face", "- Change the face of your target", 80, command_face) ||
+		command_add("faction", "[Find (criteria | all ) | Review (criteria | all) | Reset (id)] - Resets Player's Faction", 80, command_faction) ||
 		command_add("findaliases", "[search term]- Searches for available command aliases, by alias or command", 0, command_findaliases) ||
 		command_add("findnpctype", "[search criteria] - Search database NPC types", 100, command_findnpctype) ||
 		command_add("findspell", "[searchstring] - Search for a spell", 50, command_findspell) ||
@@ -202,7 +212,7 @@ int command_init(void)
 		command_add("flag", "[status] [acctname] - Refresh your admin status, or set an account's admin status if arguments provided", 0, command_flag) ||
 		command_add("flagedit", "- Edit zone flags on your target", 100, command_flagedit) ||
 		command_add("flags", "- displays the flags of you or your target", 0, command_flags) ||
-		command_add("flymode", "[0/1/2] - Set your or your player target's flymode to off/on/levitate", 50, command_flymode) ||
+		command_add("flymode", "[0/1/2/3/4/5] - Set your or your player target's flymode to ground/flying/levitate/water/floating/levitate_running", 50, command_flymode) ||
 		command_add("fov", "- Check wether you're behind or in your target's field of view", 80, command_fov) ||
 		command_add("freeze", "- Freeze your target", 80, command_freeze) ||
 		command_add("gassign", "[id] - Assign targetted NPC to predefined wandering grid id", 100, command_gassign) ||
@@ -215,7 +225,8 @@ int command_init(void)
 		command_add("globalview", "Lists all qglobals in cache if you were to do a quest with this target.", 80, command_globalview) ||
 		command_add("gm", "- Turn player target's or your GM flag on or off", 80, command_gm) ||
 		command_add("gmspeed", "[on/off] - Turn GM speed hack on/off for you or your player target", 100, command_gmspeed) ||
-		command_add("goto", "[x] [y] [z] - Teleport to the provided coordinates or to your target", 10, command_goto) ||
+		command_add("gmzone", "[zone_short_name] [zone_version=0] [identifier=gmzone] - Zones to a private GM instance", 100, command_gmzone) ||
+		command_add("goto", "[playername] or [x y z] [h] - Teleport to the provided coordinates or to your target", 10, command_goto) ||
 		command_add("grid", "[add/delete] [grid_num] [wandertype] [pausetype] - Create/delete a wandering grid", 170, command_grid) ||
 		command_add("guild", "- Guild manipulation commands. Use argument help for more info.", 10, command_guild) ||
 		command_add("guildapprove", "[guildapproveid] - Approve a guild with specified ID (guild creator receives the id)", 0, command_guildapprove) ||
@@ -237,7 +248,7 @@ int command_init(void)
 		command_add("instance", "- Modify Instances", 200, command_instance) ||
 		command_add("interrogateinv", "- use [help] argument for available options", 0, command_interrogateinv) ||
 		command_add("interrupt", "[message id] [color] - Interrupt your casting. Arguments are optional.", 50, command_interrupt) ||
-		command_add("invsnapshot", "- Takes an inventory snapshot of your current target", 80, command_invsnapshot) ||
+		command_add("invsnapshot", "- Manipulates inventory snapshots for your current target", 80, command_invsnapshot) ||
 		command_add("invul", "[on/off] - Turn player target's or your invulnerable flag on or off", 80, command_invul) ||
 		command_add("ipban", "[IP address] - Ban IP by character name", 200, command_ipban) ||
 		command_add("iplookup", "[charname] - Look up IP address of charname", 200, command_iplookup) ||
@@ -245,9 +256,11 @@ int command_init(void)
 		command_add("itemsearch", "[search criteria] - Search for an item", 10, command_itemsearch) ||
 		command_add("kick", "[charname] - Disconnect charname", 150, command_kick) ||
 		command_add("kill", "- Kill your target", 100, command_kill) ||
+		command_add("killallnpcs", " [npc_name] Kills all npcs by search name, leave blank for all attackable NPC's", 200, command_killallnpcs) ||
 		command_add("lastname", "[new lastname] - Set your or your player target's lastname", 50, command_lastname) ||
 		command_add("level", "[level] - Set your or your target's level", 10, command_level) ||
 		command_add("listnpcs", "[name/range] - Search NPCs", 20, command_listnpcs) ||
+		command_add("list", "[npcs|players|corpses|doors|objects] [search] - Search entities", 20, command_list) ||
 		command_add("listpetition", "- List petitions", 50, command_listpetition) ||
 		command_add("load_shared_memory", "[shared_memory_name] - Reloads shared memory and uses the input as output", 250, command_load_shared_memory) ||
 		command_add("loc", "- Print out your or your target's current location and heading", 0, command_loc) ||
@@ -263,14 +276,17 @@ int command_init(void)
 		command_add("modifynpcstat", "- Modifys a NPC's stats", 150, command_modifynpcstat) ||
 		command_add("motd", "[new motd] - Set message of the day", 150, command_motd) ||
 		command_add("movechar", "[charname] [zonename] - Move charname to zonename", 50, command_movechar) ||
+		command_add("movement", "Various movement commands", 200, command_movement) ||
 		command_add("myskills", "- Show details about your current skill levels", 0, command_myskills) ||
 		command_add("mysqltest", "Akkadius MySQL Bench Test", 250, command_mysqltest) ||
 		command_add("mysql", "Mysql CLI, see 'help' for options.", 250, command_mysql) ||
 		command_add("mystats", "- Show details about you or your pet", 50, command_mystats) ||
 		command_add("name", "[newname] - Rename your player target", 150, command_name) ||
 		command_add("netstats", "- Gets the network stats for a stream.", 200, command_netstats) ||
+		command_add("network", "- Admin commands for the udp network interface.", 250, command_network) ||
 		command_add("npccast", "[targetname/entityid] [spellid] - Causes NPC target to cast spellid on targetname/entityid", 80, command_npccast) ||
 		command_add("npcedit", "[column] [value] - Mega NPC editing command", 100, command_npcedit) ||
+		command_add("npceditmass", "[name-search] [column] [value] - Mass (Zone wide) NPC data editing command", 100, command_npceditmass) ||
 		command_add("npcemote", "[message] - Make your NPC target emote a message.", 150, command_npcemote) ||
 		command_add("npcloot", "[show/money/add/remove] [itemid/all/money: pp gp sp cp] - Manipulate the loot an NPC is carrying", 80, command_npcloot) ||
 		command_add("npcsay", "[message] - Make your NPC target say a message.", 150, command_npcsay) ||
@@ -280,6 +296,7 @@ int command_init(void)
 		command_add("npcstats", "- Show stats about target NPC", 80, command_npcstats) ||
 		command_add("npctype_cache",  "[id] or all - Clears the npc type cache for either the id or all npcs.",  250, command_npctype_cache) ||
 		command_add("npctypespawn", "[npctypeid] [factionid] - Spawn an NPC from the db", 10, command_npctypespawn) ||
+		command_add("nudge", "- Nudge your target's current position by specific values", 80, command_nudge) ||
 		command_add("nukebuffs", "- Strip all buffs on you or your target", 50, command_nukebuffs) ||
 		command_add("nukeitem", "[itemid] - Remove itemid from your player target's inventory", 150, command_nukeitem) ||
 		command_add("object", "List|Add|Edit|Move|Rotate|Copy|Save|Undo|Delete - Manipulate static and tradeskill objects within the zone", 100, command_object) ||
@@ -291,7 +308,7 @@ int command_init(void)
 #endif
 
 		command_add("path", "- view and edit pathing", 200, command_path) ||
-		command_add("peekinv", "[worn/inv/cursor/trib/bank/trade/world/all] - Print out contents of your player target's inventory", 100, command_peekinv) ||
+		command_add("peekinv", "[equip/gen/cursor/poss/limbo/curlim/trib/bank/shbank/allbank/trade/world/all] - Print out contents of your player target's inventory", 100, command_peekinv) ||
 		command_add("peqzone", "[zonename] - Go to specified zone, if you have > 75% health", 0, command_peqzone) ||
 		command_add("permaclass", "[classnum] - Change your or your player target's class (target is disconnected)", 80, command_permaclass) ||
 		command_add("permagender", "[gendernum] - Change your or your player target's gender (zone to take effect)", 80, command_permagender) ||
@@ -299,12 +316,15 @@ int command_init(void)
 		command_add("petitioninfo", "[petition number] - Get info about a petition", 20, command_petitioninfo) ||
 		command_add("pf", "- Display additional mob coordinate and wandering data", 0, command_pf) ||
 		command_add("picklock",  "Analog for ldon pick lock for the newer clients since we still don't have it working.",  0, command_picklock) ||
+		command_add("profanity", "Manage censored language.", 150, command_profanity) ||
 
 #ifdef EQPROFILE
 		command_add("profiledump", "- Dump profiling info to logs", 250, command_profiledump) ||
 		command_add("profilereset", "- Reset profiling info", 250, command_profilereset) ||
 #endif
 
+		command_add("push", "Lets you do spell push", 150, command_push) ||
+		command_add("proximity", "Shows NPC proximity", 150, command_proximity) ||
 		command_add("pvp", "[on/off] - Set your or your player target's PVP status", 100, command_pvp) ||
 		command_add("qglobal", "[on/off/view] - Toggles qglobal functionality on an NPC", 100, command_qglobal) ||
 		command_add("questerrors", "Shows quest errors.", 100, command_questerrors) ||
@@ -316,10 +336,12 @@ int command_init(void)
 		command_add("reloadallrules", "Executes a reload of all rules.", 80, command_reloadallrules) ||
 		command_add("reloademote", "Reloads NPC Emotes", 80, command_reloademote) ||
 		command_add("reloadlevelmods", nullptr, 255, command_reloadlevelmods) ||
+		command_add("reloadmerchants", nullptr, 255, command_reloadmerchants) ||
 		command_add("reloadperlexportsettings", nullptr, 255, command_reloadperlexportsettings) ||
 		command_add("reloadqst", " - Clear quest cache (any argument causes it to also stop all timers)", 150, command_reloadqst) ||
 		command_add("reloadrulesworld", "Executes a reload of all rules in world specifically.", 80, command_reloadworldrules) ||
 		command_add("reloadstatic", "- Reload Static Zone Data", 150, command_reloadstatic) ||
+		command_add("reloadtraps", "- Repops all traps in the current zone.", 80, command_reloadtraps) ||
 		command_add("reloadtitles", "- Reload player titles from the database",  150, command_reloadtitles) ||
 		command_add("reloadworld", "[0|1] - Clear quest cache (0 - no repop, 1 - repop)", 255, command_reloadworld) ||
 		command_add("reloadzps", "- Reload zone points from database", 150, command_reloadzps) ||
@@ -328,8 +350,10 @@ int command_init(void)
 		command_add("resetaa", "- Resets a Player's AA in their profile and refunds spent AA's to unspent, may disconnect player.", 200, command_resetaa) ||
 		command_add("resetaa_timer", "Command to reset AA cooldown timers.", 200, command_resetaa_timer) ||
 		command_add("revoke", "[charname] [1/0] - Makes charname unable to talk on OOC", 200, command_revoke) ||
+		command_add("roambox", "Manages roambox settings for an NPC", 200, command_roambox) ||
 		command_add("rules", "(subcommand) - Manage server rules", 250, command_rules) ||
 		command_add("save", "- Force your player or player corpse target to be saved to the database", 50, command_save) ||
+		command_add("scale", "- Handles npc scaling", 150, command_scale) ||
 		command_add("scribespell", "[spellid] - Scribe specified spell in your target's spell book.", 180, command_scribespell) ||
 		command_add("scribespells", "[max level] [min level] - Scribe all spells for you or your player target that are usable by them, up to level specified. (may freeze client for a few seconds)", 150, command_scribespells) ||
 		command_add("sendzonespawns", "- Refresh spawn list for all clients in zone", 150, command_sendzonespawns) ||
@@ -355,12 +379,15 @@ int command_init(void)
 		command_add("showbonusstats", "[item|spell|all] Shows bonus stats for target from items or spells. Shows both by default.", 50, command_showbonusstats) ||
 		command_add("showbuffs", "- List buffs active on your target or you if no target", 50, command_showbuffs) ||
 		command_add("shownumhits",  "Shows buffs numhits for yourself.",  0, command_shownumhits) ||
+		command_add("shownpcgloballoot", "Show GlobalLoot entires on this npc", 50, command_shownpcgloballoot) ||
 		command_add("showskills", "- Show the values of your or your player target's skills", 50, command_showskills) ||
 		command_add("showspellslist", "Shows spell list of targeted NPC", 100, command_showspellslist) ||
 		command_add("showstats", "- Show details about you or your target", 50, command_showstats) ||
+		command_add("showzonegloballoot", "Show GlobalLoot entires on this zone", 50, command_showzonegloballoot) ||
 		command_add("shutdown", "- Shut this zone process down", 150, command_shutdown) ||
 		command_add("size", "[size] - Change size of you or your target", 50, command_size) ||
 		command_add("spawn", "[name] [race] [level] [material] [hp] [gender] [class] [priweapon] [secweapon] [merchantid] - Spawn an NPC", 10, command_spawn) ||
+		command_add("spawneditmass", "Mass editing spawn command", 150, command_spawneditmass) ||
 		command_add("spawnfix", "- Find targeted NPC in database based on its X/Y/heading and update the database to make it spawn at your current location/heading.", 170, command_spawnfix) ||
 		command_add("spawnstatus", "- Show respawn timer status", 100, command_spawnstatus) ||
 		command_add("spellinfo", "[spellid] - Get detailed info about a spell", 10, command_spellinfo) ||
@@ -374,6 +401,8 @@ int command_init(void)
 		command_add("task", "(subcommand) - Task system commands",  150, command_task) ||
 		command_add("tattoo", "- Change the tattoo of your target (Drakkin Only)", 80, command_tattoo) ||
 		command_add("tempname", "[newname] - Temporarily renames your target. Leave name blank to restore the original name.", 100, command_tempname) ||
+		command_add("petname", "[newname] - Temporarily renames your pet. Leave name blank to restore the original name.", 100, command_petname) ||
+		command_add("test", "Test command", 200, command_test) ||
 		command_add("texture", "[texture] [helmtexture] - Change your or your target's appearance, use 255 to show equipment", 10, command_texture) ||
 		command_add("time", "[HH] [MM] - Set EQ time", 90, command_time) ||
 		command_add("timers", "- Display persistent timers for target", 200, command_timers) ||
@@ -381,7 +410,9 @@ int command_init(void)
 		command_add("title", "[text] [1 = create title table row] - Set your or your player target's title", 50, command_title) ||
 		command_add("titlesuffix", "[text] [1 = create title table row] - Set your or your player target's title suffix", 50, command_titlesuffix) ||
 		command_add("traindisc", "[level] - Trains all the disciplines usable by the target, up to level specified. (may freeze client for a few seconds)", 150, command_traindisc) ||
+		command_add("trapinfo", "- Gets infomation about the traps currently spawned in the zone.", 81, command_trapinfo) ||
 		command_add("tune",  "Calculate ideal statical values related to combat.",  100, command_tune) ||
+		command_add("ucs", "- Attempts to reconnect to the UCS server", 0, command_ucs) ||
 		command_add("undyeme", "- Remove dye from all of your armor slots", 0, command_undyeme) ||
 		command_add("unfreeze", "- Unfreeze your target", 80, command_unfreeze) ||
 		command_add("unlock", "- Unlock the worldserver", 150, command_unlock) ||
@@ -395,6 +426,7 @@ int command_init(void)
 		command_add("viewpetition", "[petition number] - View a petition", 20, command_viewpetition) ||
 		command_add("wc", "[wear slot] [material] - Sends an OP_WearChange for your target", 200, command_wc) ||
 		command_add("weather", "[0/1/2/3] (Off/Rain/Snow/Manual) - Change the weather", 80, command_weather) ||
+		command_add("who", "[search]", 20, command_who) ||
 		command_add("worldshutdown", "- Shut down world and all zones", 200, command_worldshutdown) ||
 		command_add("wp", "[add/delete] [grid_num] [pause] [wp_num] [-h] - Add/delete a waypoint to/from a wandering grid", 170, command_wp) ||
 		command_add("wpadd", "[pause] [-h] - Add your current location as a waypoint to your NPC target's AI path", 170, command_wpadd) ||
@@ -421,37 +453,94 @@ int command_init(void)
 		command_deinit();
 		return -1;
 	}
-	
+
 	std::map<std::string, std::pair<uint8, std::vector<std::string>>> command_settings;
 	database.GetCommandSettings(command_settings);
 
-	std::map<std::string, CommandRecord *> working_cl = commandlist;
-	for (auto iter_cl = working_cl.begin(); iter_cl != working_cl.end(); ++iter_cl) {
-		auto iter_cs = command_settings.find(iter_cl->first);
-		if (iter_cs == command_settings.end()) {
-			if (iter_cl->second->access == 0)
-				Log(Logs::General, Logs::Commands, "command_init(): Warning: Command '%s' defaulting to access level 0!", iter_cl->first.c_str());
+	std::vector<std::pair<std::string, uint8>> injected_command_settings;
+	std::vector<std::string> orphaned_command_settings;
+
+	for (auto cs_iter : command_settings) {
+
+		auto cl_iter = commandlist.find(cs_iter.first);
+		if (cl_iter == commandlist.end()) {
+
+			orphaned_command_settings.push_back(cs_iter.first);
+			LogInfo(
+				"Command [{}] no longer exists... Deleting orphaned entry from `command_settings` table...",
+				cs_iter.first.c_str()
+			);
+		}
+	}
+
+	if (orphaned_command_settings.size()) {
+		if (!database.UpdateOrphanedCommandSettings(orphaned_command_settings)) {
+			LogInfo("Failed to process 'Orphaned Commands' update operation.");
+		}
+	}
+
+	auto working_cl = commandlist;
+	for (auto working_cl_iter : working_cl) {
+
+		auto cs_iter = command_settings.find(working_cl_iter.first);
+		if (cs_iter == command_settings.end()) {
+
+			injected_command_settings.push_back(std::pair<std::string, uint8>(working_cl_iter.first, working_cl_iter.second->access));
+			LogInfo(
+				"New Command [{}] found... Adding to `command_settings` table with access [{}]...",
+				working_cl_iter.first.c_str(),
+				working_cl_iter.second->access
+			);
+
+			if (working_cl_iter.second->access == 0) {
+				LogCommands(
+					"command_init(): Warning: Command [{}] defaulting to access level 0!",
+					working_cl_iter.first.c_str()
+				);
+			}
+			
 			continue;
 		}
 
-		iter_cl->second->access = iter_cs->second.first;
-		Log(Logs::General, Logs::Commands, "command_init(): - Command '%s' set to access level %d.", iter_cl->first.c_str(), iter_cs->second.first);
-		if (iter_cs->second.second.empty())
+		working_cl_iter.second->access = cs_iter->second.first;
+		LogCommands(
+			"command_init(): - Command [{}] set to access level [{}]",
+			working_cl_iter.first.c_str(),
+			cs_iter->second.first
+		);
+		
+		if (cs_iter->second.second.empty()) {
 			continue;
+		}
 
-		for (auto iter_aka = iter_cs->second.second.begin(); iter_aka != iter_cs->second.second.end();
-		     ++iter_aka) {
-			if (iter_aka->empty())
-				continue;
-			if (commandlist.find(*iter_aka) != commandlist.end()) {
-				Log(Logs::General, Logs::Commands, "command_init(): Warning: Alias '%s' already exists as a command - skipping!", iter_aka->c_str());
+		for (auto alias_iter : cs_iter->second.second) {
+			if (alias_iter.empty()) {
 				continue;
 			}
 
-			commandlist[*iter_aka] = iter_cl->second;
-			commandaliases[*iter_aka] = iter_cl->first;
+			if (commandlist.find(alias_iter) != commandlist.end()) {
+				LogCommands(
+					"command_init(): Warning: Alias [{}] already exists as a command - skipping!",
+					alias_iter.c_str()
+				);
+				
+				continue;
+			}
 
-			Log(Logs::General, Logs::Commands, "command_init(): - Alias '%s' added to command '%s'.", iter_aka->c_str(), commandaliases[*iter_aka].c_str());
+			commandlist[alias_iter] = working_cl_iter.second;
+			commandaliases[alias_iter] = working_cl_iter.first;
+
+			LogCommands(
+				"command_init(): - Alias [{}] added to command [{}]",
+				alias_iter.c_str(),
+				commandaliases[alias_iter].c_str()
+			);
+		}
+	}
+
+	if (injected_command_settings.size()) {
+		if (!database.UpdateInjectedCommandSettings(injected_command_settings)) {
+			LogInfo("Failed to process 'Injected Commands' update operation.");
 		}
 	}
 
@@ -491,21 +580,21 @@ void command_deinit(void)
 int command_add(std::string command_name, const char *desc, int access, CmdFuncPtr function)
 {
 	if (command_name.empty()) {
-		Log(Logs::General, Logs::Error, "command_add() - Command added with empty name string - check command.cpp.");
+		LogError("command_add() - Command added with empty name string - check command.cpp");
 		return -1;
 	}
 	if (function == nullptr) {
-		Log(Logs::General, Logs::Error, "command_add() - Command '%s' added without a valid function pointer - check command.cpp.", command_name.c_str());
+		LogError("command_add() - Command [{}] added without a valid function pointer - check command.cpp", command_name.c_str());
 		return -1;
 	}
 	if (commandlist.count(command_name) != 0) {
-		Log(Logs::General, Logs::Error, "command_add() - Command '%s' is a duplicate command name - check command.cpp.", command_name.c_str());
+		LogError("command_add() - Command [{}] is a duplicate command name - check command.cpp", command_name.c_str());
 		return -1;
 	}
 	for (auto iter = commandlist.begin(); iter != commandlist.end(); ++iter) {
 		if (iter->second->function != function)
 			continue;
-		Log(Logs::General, Logs::Error, "command_add() - Command '%s' equates to an alias of '%s' - check command.cpp.", command_name.c_str(), iter->first.c_str());
+		LogError("command_add() - Command [{}] equates to an alias of [{}] - check command.cpp", command_name.c_str(), iter->first.c_str());
 		return -1;
 	}
 
@@ -548,7 +637,7 @@ int command_realdispatch(Client *c, const char *message)
 
 	CommandRecord *cur = commandlist[cstr];
 	if(c->Admin() < cur->access){
-		c->Message(13,"Your access level is not high enough to use this command.");
+		c->Message(Chat::Red,"Your access level is not high enough to use this command.");
 		return(-1);
 	}
 
@@ -559,11 +648,11 @@ int command_realdispatch(Client *c, const char *message)
 	}
 
 	if(cur->access >= COMMANDS_LOGGING_MIN_STATUS) {
-		Log(Logs::General, Logs::Commands, "%s (%s) used command: %s (target=%s)",  c->GetName(), c->AccountName(), message, c->GetTarget()?c->GetTarget()->GetName():"NONE");
+		LogCommands("[{}] ([{}]) used command: [{}] (target=[{}])",  c->GetName(), c->AccountName(), message, c->GetTarget()?c->GetTarget()->GetName():"NONE");
 	}
 
 	if(cur->function == nullptr) {
-		Log(Logs::General, Logs::Error, "Command '%s' has a null function\n",  cstr.c_str());
+		LogError("Command [{}] has a null function\n", cstr.c_str());
 		return(-1);
 	} else {
 		//dispatch C++ command
@@ -646,9 +735,9 @@ void command_setstat(Client* c, const Seperator* sep){
 		c->GetTarget()->CastToClient()->SetStats(atoi(sep->arg[1]),atoi(sep->arg[2]));
 	}
 	else{
-		c->Message(0,"This command is used to permanently increase or decrease a players stats.");
-		c->Message(0,"Usage: #setstat {type} {value the stat should be}");
-		c->Message(0,"Types: Str: 0, Sta: 1, Agi: 2, Dex: 3, Int: 4, Wis: 5, Cha: 6");
+		c->Message(Chat::White,"This command is used to permanently increase or decrease a players stats.");
+		c->Message(Chat::White,"Usage: #setstat {type} {value the stat should be}");
+		c->Message(Chat::White,"Types: Str: 0, Sta: 1, Agi: 2, Dex: 3, Int: 4, Wis: 5, Cha: 6");
 	}
 }
 
@@ -657,27 +746,27 @@ void command_incstat(Client* c, const Seperator* sep){
 		c->GetTarget()->CastToClient()->IncStats(atoi(sep->arg[1]),atoi(sep->arg[2]));
 	}
 	else{
-		c->Message(0,"This command is used to permanently increase or decrease a players stats.");
-		c->Message(0,"Usage: #setstat {type} {value by which to increase or decrease}");
-		c->Message(0,"Note: The value is in increments of 2, so a value of 3 will actually increase the stat by 6");
-		c->Message(0,"Types: Str: 0, Sta: 1, Agi: 2, Dex: 3, Int: 4, Wis: 5, Cha: 6");
+		c->Message(Chat::White,"This command is used to permanently increase or decrease a players stats.");
+		c->Message(Chat::White,"Usage: #setstat {type} {value by which to increase or decrease}");
+		c->Message(Chat::White,"Note: The value is in increments of 2, so a value of 3 will actually increase the stat by 6");
+		c->Message(Chat::White,"Types: Str: 0, Sta: 1, Agi: 2, Dex: 3, Int: 4, Wis: 5, Cha: 6");
 	}
 }
 
 void command_resetaa(Client* c,const Seperator *sep) {
 	if(c->GetTarget() && c->GetTarget()->IsClient()){
 		c->GetTarget()->CastToClient()->ResetAA();
-		c->Message(13,"Successfully reset %s's AAs", c->GetTarget()->GetName());
+		c->Message(Chat::Red,"Successfully reset %s's AAs", c->GetTarget()->GetName());
 	}
 	else
-		c->Message(0,"Usage: Target a client and use #resetaa to reset the AA data in their Profile.");
+		c->Message(Chat::White,"Usage: Target a client and use #resetaa to reset the AA data in their Profile.");
 }
 
 void command_help(Client *c, const Seperator *sep)
 {
 	int commands_shown=0;
 
-	c->Message(0, "Available EQEMu commands:");
+	c->Message(Chat::White, "Available EQEMu commands:");
 
 	std::map<std::string, CommandRecord *>::iterator cur,end;
 	cur = commandlist.begin();
@@ -693,29 +782,35 @@ void command_help(Client *c, const Seperator *sep)
 		if(c->Admin() < cur->second->access)
 			continue;
 		commands_shown++;
-		c->Message(0, "	%c%s %s",  COMMAND_CHAR, cur->first.c_str(), cur->second->desc == nullptr?"":cur->second->desc);
+		c->Message(Chat::White, "	%c%s %s",  COMMAND_CHAR, cur->first.c_str(), cur->second->desc == nullptr?"":cur->second->desc);
 	}
-	c->Message(0, "%d command%s listed.",  commands_shown, commands_shown!=1?"s":"");
+	if (parse->PlayerHasQuestSub(EVENT_COMMAND)) {
+		int i = parse->EventPlayer(EVENT_COMMAND, c, sep->msg, 0);
+		if (i >= 1) {
+			commands_shown += i;
+		}
+	}
+	c->Message(Chat::White, "%d command%s listed.",  commands_shown, commands_shown!=1?"s":"");
 
 }
 
 void command_version(Client *c, const Seperator *sep)
 {
-	c->Message(0, "Current version information.");
-	c->Message(0, "	%s",  CURRENT_VERSION);
-	c->Message(0, "	Compiled on: %s at %s",  COMPILE_DATE, COMPILE_TIME);
-	c->Message(0, "	Last modified on: %s",  LAST_MODIFIED);
+	c->Message(Chat::White, "Current version information.");
+	c->Message(Chat::White, "	%s",  CURRENT_VERSION);
+	c->Message(Chat::White, "	Compiled on: %s at %s",  COMPILE_DATE, COMPILE_TIME);
+	c->Message(Chat::White, "	Last modified on: %s",  LAST_MODIFIED);
 }
 
 void command_setfaction(Client *c, const Seperator *sep)
 {
 	if((sep->arg[1][0] == 0 || strcasecmp(sep->arg[1],"*")==0) || ((c->GetTarget()==0) || (c->GetTarget()->IsClient()))) {
-		c->Message(0, "Usage: #setfaction [faction number]");
+		c->Message(Chat::White, "Usage: #setfaction [faction number]");
 		return;
     }
 
     auto npcTypeID = c->GetTarget()->CastToNPC()->GetNPCTypeID();
-    c->Message(15,"Setting NPC %u to faction %i",  npcTypeID, atoi(sep->argplus[1]));
+    c->Message(Chat::Yellow,"Setting NPC %u to faction %i",  npcTypeID, atoi(sep->argplus[1]));
 
     std::string query = StringFormat("UPDATE npc_types SET npc_faction_id = %i WHERE id = %i",
                                     atoi(sep->argplus[1]), npcTypeID);
@@ -725,28 +820,28 @@ void command_setfaction(Client *c, const Seperator *sep)
 void command_serversidename(Client *c, const Seperator *sep)
 {
 	if(c->GetTarget())
-		c->Message(0, c->GetTarget()->GetName());
+		c->Message(Chat::White, c->GetTarget()->GetName());
 	else
-		c->Message(0, "Error: no target");
+		c->Message(Chat::White, "Error: no target");
 }
 
 void command_wc(Client *c, const Seperator *sep)
 {
-	if(sep->argnum < 2)
-	{
-		c->Message(0, "Usage: #wc [wear slot] [material] [ [hero_forge_model] [elite_material] [unknown06] [unknown18] ]");
+	if (sep->argnum < 2) {
+		c->Message(
+			0,
+			"Usage: #wc [wear slot] [material] [ [hero_forge_model] [elite_material] [unknown06] [unknown18] ]"
+		);
 	}
-	else if(c->GetTarget() == nullptr) {
-		c->Message(13, "You must have a target to do a wear change.");
+	else if (c->GetTarget() == nullptr) {
+		c->Message(Chat::Red, "You must have a target to do a wear change.");
 	}
-	else
-	{
+	else {
 		uint32 hero_forge_model = 0;
-		uint32 wearslot = atoi(sep->arg[1]);
+		uint32 wearslot         = atoi(sep->arg[1]);
 
 		// Hero Forge
-		if (sep->argnum > 2)
-		{
+		if (sep->argnum > 2) {
 			hero_forge_model = atoi(sep->arg[3]);
 
 			if (hero_forge_model != 0 && hero_forge_model < 1000) {
@@ -762,46 +857,44 @@ void command_wc(Client *c, const Seperator *sep)
 		else
 			Color = c->GetTarget()->GetArmorTint(atoi(sep->arg[1]));
 		*/
-		c->GetTarget()->SendTextureWC(wearslot, atoi(sep->arg[2]), hero_forge_model, atoi(sep->arg[4]), atoi(sep->arg[5]), atoi(sep->arg[6]));
+		c->GetTarget()->SendTextureWC(
+			wearslot,
+			atoi(sep->arg[2]),
+			hero_forge_model,
+			atoi(sep->arg[4]),
+			atoi(sep->arg[5]),
+			atoi(sep->arg[6]));
 	}
 }
 
 void command_heromodel(Client *c, const Seperator *sep)
 {
-	if (sep->argnum < 1)
-	{
-		c->Message(0, "Usage: #heromodel [hero forge model] [ [slot] ] (example: #heromodel 63)");
+	if (sep->argnum < 1) {
+		c->Message(Chat::White, "Usage: #heromodel [hero forge model] [ [slot] ] (example: #heromodel 63)");
 	}
-	else if (c->GetTarget() == nullptr)
-	{
-		c->Message(13, "You must have a target to do a wear change for Hero's Forge Models.");
+	else if (c->GetTarget() == nullptr) {
+		c->Message(Chat::Red, "You must have a target to do a wear change for Hero's Forge Models.");
 	}
-	else
-	{
+	else {
 		uint32 hero_forge_model = atoi(sep->arg[1]);
 
-		if (sep->argnum > 1)
-		{
-			uint8 wearslot = (uint8)atoi(sep->arg[2]);
+		if (sep->argnum > 1) {
+			uint8 wearslot = (uint8) atoi(sep->arg[2]);
 			c->GetTarget()->SendTextureWC(wearslot, 0, hero_forge_model, 0, 0, 0);
 		}
-		else
-		{
-			if (hero_forge_model > 0)
-			{
+		else {
+			if (hero_forge_model > 0) {
 				// Conversion to simplify the command arguments
 				// Hero's Forge model is actually model * 1000 + texture * 100 + wearslot
 				// Hero's Forge Model slot 7 is actually for Robes, but it still needs to use wearslot 1 in the packet
 				hero_forge_model *= 100;
 
-				for (uint8 wearslot = 0; wearslot < 7; wearslot++)
-				{
+				for (uint8 wearslot = 0; wearslot < 7; wearslot++) {
 					c->GetTarget()->SendTextureWC(wearslot, 0, (hero_forge_model + wearslot), 0, 0, 0);
 				}
 			}
-			else
-			{
-				c->Message(13, "Hero's Forge Model must be greater than 0.");
+			else {
+				c->Message(Chat::Red, "Hero's Forge Model must be greater than 0.");
 			}
 		}
 	}
@@ -811,52 +904,68 @@ void command_setanim(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget() && sep->IsNumber(1)) {
 		int num = atoi(sep->arg[1]);
-		if(num < 0 || num >= _eaMaxAppearance) {
-		c->Message(0, "Invalid animation number, between 0 and %d",  _eaMaxAppearance-1);
+		if (num < 0 || num >= _eaMaxAppearance) {
+			c->Message(Chat::White, "Invalid animation number, between 0 and %d", _eaMaxAppearance - 1);
 		}
 		c->GetTarget()->SetAppearance(EmuAppearance(num));
-	} else
-		c->Message(0, "Usage: #setanim [animnum]");
+	}
+	else {
+		c->Message(Chat::White, "Usage: #setanim [animnum]");
+	}
 }
 
 void command_serverinfo(Client *c, const Seperator *sep)
 {
-#ifdef _WINDOWS
-	char intbuffer [sizeof(unsigned long)];
-	c->Message(0, "Operating system information.");
-	c->Message(0, "	%s",  Ver_name);
-	c->Message(0, "	Build number: %s",  ultoa(Ver_build, intbuffer, 10));
-	c->Message(0, "	Minor version: %s",  ultoa(Ver_min, intbuffer, 10));
-	c->Message(0, "	Major version: %s",  ultoa(Ver_maj, intbuffer, 10));
-	c->Message(0, "	Platform Id: %s",  ultoa(Ver_pid, intbuffer, 10));
-#else
-char buffer[255];
-	c->Message(0, "Operating system information: %s", GetOS(buffer));
-#endif
+	auto os = EQ::GetOS();
+	auto cpus = EQ::GetCPUs();
+	auto pid = EQ::GetPID();
+	auto rss = EQ::GetRSS();
+	auto uptime = EQ::GetUptime();
+
+	c->Message(Chat::White, "Operating System Information");
+	c->Message(Chat::White, "==================================================");
+	c->Message(Chat::White, "System: %s", os.sysname.c_str());
+	c->Message(Chat::White, "Release: %s", os.release.c_str());
+	c->Message(Chat::White, "Version: %s", os.version.c_str());
+	c->Message(Chat::White, "Machine: %s", os.machine.c_str());
+	c->Message(Chat::White, "Uptime: %.2f seconds", uptime);
+	c->Message(Chat::White, "==================================================");
+	c->Message(Chat::White, "CPU Information");
+	c->Message(Chat::White, "==================================================");
+	for (size_t i = 0; i < cpus.size(); ++i) {
+		auto &cp = cpus[i];
+		c->Message(Chat::White, "CPU #%i: %s, Speed: %.2fGhz", i, cp.model.c_str(), cp.speed);
+	}
+	c->Message(Chat::White, "==================================================");
+	c->Message(Chat::White, "Process Information");
+	c->Message(Chat::White, "==================================================");
+	c->Message(Chat::White, "PID: %u", pid);
+	c->Message(Chat::White, "RSS: %.2f MB", rss / 1048576.0);
+	c->Message(Chat::White, "==================================================");
 }
 
 void command_getvariable(Client *c, const Seperator *sep)
 {
 	std::string tmp;
 	if (database.GetVariable(sep->argplus[1], tmp))
-		c->Message(0, "%s = %s",  sep->argplus[1], tmp.c_str());
+		c->Message(Chat::White, "%s = %s",  sep->argplus[1], tmp.c_str());
 	else
-		c->Message(0, "GetVariable(%s) returned false",  sep->argplus[1]);
+		c->Message(Chat::White, "GetVariable(%s) returned false",  sep->argplus[1]);
 }
 
 void command_chat(Client *c, const Seperator *sep)
 {
 	if (sep->arg[2][0] == 0)
-		c->Message(0, "Usage: #chat [channum] [message]");
+		c->Message(Chat::White, "Usage: #chat [channum] [message]");
 	else
-		if (!worldserver.SendChannelMessage(0, 0, (uint8) atoi(sep->arg[1]), 0, 0, sep->argplus[2]))
-			c->Message(0, "Error: World server disconnected");
+		if (!worldserver.SendChannelMessage(0, 0, (uint8) atoi(sep->arg[1]), 0, 0, 100, sep->argplus[2]))
+			c->Message(Chat::White, "Error: World server disconnected");
 }
 
 void command_npcloot(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget() == 0)
-		c->Message(0, "Error: No target");
+		c->Message(Chat::White, "Error: No target");
 	// #npcloot show
 	else if (strcasecmp(sep->arg[1], "show") == 0)
 	{
@@ -865,11 +974,11 @@ void command_npcloot(Client *c, const Seperator *sep)
 		else if (c->GetTarget()->IsCorpse())
 			c->GetTarget()->CastToCorpse()->QueryLoot(c);
 		else
-			c->Message(0, "Error: Target's type doesnt have loot");
+			c->Message(Chat::White, "Error: Target's type doesnt have loot");
 	}
 	// These 2 types are *BAD* for the next few commands
 	else if (c->GetTarget()->IsClient() || c->GetTarget()->IsCorpse())
-		c->Message(0, "Error: Invalid target type, try a NPC =).");
+		c->Message(Chat::White, "Error: Invalid target type, try a NPC =).");
 	// #npcloot add
 	else if (strcasecmp(sep->arg[1], "add") == 0)
 	{
@@ -883,22 +992,22 @@ void command_npcloot(Client *c, const Seperator *sep)
 					c->GetTarget()->CastToNPC()->AddItem(item, atoi(sep->arg[3]), 0);
 				else
 					c->GetTarget()->CastToNPC()->AddItem(item, 1, 0);
-				c->Message(0, "Added item(%i) to the %s's loot.",  item, c->GetTarget()->GetName());
+				c->Message(Chat::White, "Added item(%i) to the %s's loot.",  item, c->GetTarget()->GetName());
 			}
 			else
-				c->Message(0, "Error: #npcloot add: Item(%i) does not exist!",  item);
+				c->Message(Chat::White, "Error: #npcloot add: Item(%i) does not exist!",  item);
 		}
 		else if (!sep->IsNumber(2))
-			c->Message(0, "Error: #npcloot add: Itemid must be a number.");
+			c->Message(Chat::White, "Error: #npcloot add: Itemid must be a number.");
 		else
-			c->Message(0, "Error: #npcloot add: This is not a valid target.");
+			c->Message(Chat::White, "Error: #npcloot add: This is not a valid target.");
 	}
 	// #npcloot remove
 	else if (strcasecmp(sep->arg[1], "remove") == 0)
 	{
 		//#npcloot remove all
 		if (strcasecmp(sep->arg[2], "all") == 0)
-			c->Message(0, "Error: #npcloot remove all: Not yet implemented.");
+			c->Message(Chat::White, "Error: #npcloot remove all: Not yet implemented.");
 		//#npcloot remove itemid
 		else
 		{
@@ -906,12 +1015,12 @@ void command_npcloot(Client *c, const Seperator *sep)
 			{
 				uint32 item = atoi(sep->arg[2]);
 				c->GetTarget()->CastToNPC()->RemoveItem(item);
-				c->Message(0, "Removed item(%i) from the %s's loot.",  item, c->GetTarget()->GetName());
+				c->Message(Chat::White, "Removed item(%i) from the %s's loot.",  item, c->GetTarget()->GetName());
 			}
 			else if (!sep->IsNumber(2))
-				c->Message(0, "Error: #npcloot remove: Item must be a number.");
+				c->Message(Chat::White, "Error: #npcloot remove: Item must be a number.");
 			else
-				c->Message(0, "Error: #npcloot remove: This is not a valid target.");
+				c->Message(Chat::White, "Error: #npcloot remove: This is not a valid target.");
 		}
 	}
 	// #npcloot money
@@ -922,16 +1031,16 @@ void command_npcloot(Client *c, const Seperator *sep)
 			if ((atoi(sep->arg[2]) < 34465 && atoi(sep->arg[2]) >= 0) && (atoi(sep->arg[3]) < 34465 && atoi(sep->arg[3]) >= 0) && (atoi(sep->arg[4]) < 34465 && atoi(sep->arg[4]) >= 0) && (atoi(sep->arg[5]) < 34465 && atoi(sep->arg[5]) >= 0))
 			{
 				c->GetTarget()->CastToNPC()->AddCash(atoi(sep->arg[5]), atoi(sep->arg[4]), atoi(sep->arg[3]), atoi(sep->arg[2]));
-				c->Message(0, "Set %i Platinum, %i Gold, %i Silver, and %i Copper as %s's money.",  atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]), atoi(sep->arg[5]), c->GetTarget()->GetName());
+				c->Message(Chat::White, "Set %i Platinum, %i Gold, %i Silver, and %i Copper as %s's money.",  atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]), atoi(sep->arg[5]), c->GetTarget()->GetName());
 			}
 			else
-				c->Message(0, "Error: #npcloot money: Values must be between 0-34465.");
+				c->Message(Chat::White, "Error: #npcloot money: Values must be between 0-34465.");
 		}
 		else
-			c->Message(0, "Usage: #npcloot money platinum gold silver copper");
+			c->Message(Chat::White, "Usage: #npcloot money platinum gold silver copper");
 	}
 	else
-		c->Message(0, "Usage: #npcloot [show/money/add/remove] [itemid/all/money: pp gp sp cp]");
+		c->Message(Chat::White, "Usage: #npcloot [show/money/add/remove] [itemid/all/money: pp gp sp cp]");
 }
 
 void command_gm(Client *c, const Seperator *sep)
@@ -944,10 +1053,10 @@ void command_gm(Client *c, const Seperator *sep)
 
 	if(sep->arg[1][0] != 0) {
 		t->SetGM(state);
-		c->Message(0, "%s is %s a GM.",  t->GetName(), state?"now":"no longer");
+		c->Message(Chat::White, "%s is %s a GM.",  t->GetName(), state?"now":"no longer");
 	}
 	else
-		c->Message(0, "Usage: #gm [on/off]");
+		c->Message(Chat::White, "Usage: #gm [on/off]");
 }
 
 // there's no need for this, as /summon already takes care of it
@@ -969,11 +1078,11 @@ void command_summon(Client *c, const Seperator *sep)
 		else
 		{
 			if (!worldserver.Connected())
-				c->Message(0, "Error: World server disconnected.");
+				c->Message(Chat::White, "Error: World server disconnected.");
 			else
 			{ // player is in another zone
 				//Taking this command out until we test the factor of 8 in ServerOP_ZonePlayer
-				//c->Message(0, "Summoning player from another zone not yet implemented.");
+				//c->Message(Chat::White, "Summoning player from another zone not yet implemented.");
 				//return;
 
 				auto pack = new ServerPacket(ServerOP_ZonePlayer, sizeof(ServerZonePlayer_Struct));
@@ -998,9 +1107,9 @@ void command_summon(Client *c, const Seperator *sep)
 	else
 	{
 		/*if(c->Admin() < 150)
-			c->Message(0, "You need a NPC/corpse target for this command");
+			c->Message(Chat::White, "You need a NPC/corpse target for this command");
 		else*/
-			c->Message(0, "Usage: #summon [charname] Either target or charname is required");
+			c->Message(Chat::White, "Usage: #summon [charname] Either target or charname is required");
 		return;
 	}
 
@@ -1009,23 +1118,23 @@ void command_summon(Client *c, const Seperator *sep)
 
 	if (t->IsNPC())
 	{ // npc target
-		c->Message(0, "Summoning NPC %s to %1.1f, %1.1f, %1.1f",  t->GetName(), c->GetX(), c->GetY(), c->GetZ());
+		c->Message(Chat::White, "Summoning NPC %s to %1.1f, %1.1f, %1.1f",  t->GetName(), c->GetX(), c->GetY(), c->GetZ());
 		t->CastToNPC()->GMMove(c->GetX(), c->GetY(), c->GetZ(), c->GetHeading());
-		t->CastToNPC()->SaveGuardSpot(true);
+		t->CastToNPC()->SaveGuardSpot(glm::vec4(0.0f));
 	}
 	else if (t->IsCorpse())
 	{ // corpse target
-		c->Message(0, "Summoning corpse %s to %1.1f, %1.1f, %1.1f",  t->GetName(), c->GetX(), c->GetY(), c->GetZ());
+		c->Message(Chat::White, "Summoning corpse %s to %1.1f, %1.1f, %1.1f",  t->GetName(), c->GetX(), c->GetY(), c->GetZ());
 		t->CastToCorpse()->GMMove(c->GetX(), c->GetY(), c->GetZ(), c->GetHeading());
 	}
 	else if (t->IsClient())
 	{
 		/*if(c->Admin() < 150)
 		{
-			c->Message(0, "You may not summon a player.");
+			c->Message(Chat::White, "You may not summon a player.");
 			return;
 		}*/
-		c->Message(0, "Summoning player %s to %1.1f, %1.1f, %1.1f",  t->GetName(), c->GetX(), c->GetY(), c->GetZ());
+		c->Message(Chat::White, "Summoning player %s to %1.1f, %1.1f, %1.1f",  t->GetName(), c->GetX(), c->GetY(), c->GetZ());
 		t->CastToClient()->MovePC(zone->GetZoneID(), zone->GetInstanceID(), c->GetX(), c->GetY(), c->GetZ(), c->GetHeading(), 2, GMSummon);
 	}
 }
@@ -1034,7 +1143,7 @@ void command_zone(Client *c, const Seperator *sep)
 {
 	if(c->Admin() < commandZoneToCoords &&
 		(sep->IsNumber(2) || sep->IsNumber(3) || sep->IsNumber(4))) {
-		c->Message(0, "Your status is not high enough to zone to specific coordinates.");
+		c->Message(Chat::White, "Your status is not high enough to zone to specific coordinates.");
 		return;
 	}
 
@@ -1043,29 +1152,29 @@ void command_zone(Client *c, const Seperator *sep)
 	if (sep->IsNumber(1))
 	{
 		if(atoi(sep->arg[1])==26 && (c->Admin() < commandZoneToSpecials)){ //cshome
-				c->Message(0, "Only Guides and above can goto that zone.");
+				c->Message(Chat::White, "Only Guides and above can goto that zone.");
 				return;
 		}
 		zoneid = atoi(sep->arg[1]);
 	}
 	else if (sep->arg[1][0] == 0)
 	{
-		c->Message(0, "Usage: #zone [zonename]");
-		c->Message(0, "Optional Usage: #zone [zonename] y x z");
+		c->Message(Chat::White, "Usage: #zone [zonename]");
+		c->Message(Chat::White, "Optional Usage: #zone [zonename] y x z");
 		return;
 	}
 	else if (zone->GetZoneID() == 184 && c->Admin() < commandZoneToSpecials) {	// Zone: 'Load'
-		c->Message(0, "The Gods brought you here, only they can send you away.");
+		c->Message(Chat::White, "The Gods brought you here, only they can send you away.");
 		return;
 	} else {
 		if((strcasecmp(sep->arg[1], "cshome")==0) && (c->Admin() < commandZoneToSpecials)){
-			c->Message(0, "Only Guides and above can goto that zone.");
+			c->Message(Chat::White, "Only Guides and above can goto that zone.");
 			return;
 		}
 
 		zoneid = database.GetZoneID(sep->arg[1]);
 		if(zoneid == 0) {
-			c->Message(0, "Unable to locate zone '%s'",  sep->arg[1]);
+			c->Message(Chat::White, "Unable to locate zone '%s'",  sep->arg[1]);
 			return;
 		}
 	}
@@ -1090,14 +1199,14 @@ void command_zone_instance(Client *c, const Seperator *sep)
 {
 	if(c->Admin() < commandZoneToCoords &&
 		(sep->IsNumber(2) || sep->IsNumber(3) || sep->IsNumber(4))) {
-		c->Message(0, "Your status is not high enough to zone to specific coordinates.");
+		c->Message(Chat::White, "Your status is not high enough to zone to specific coordinates.");
 		return;
 	}
 
 	if (sep->arg[1][0] == 0)
 	{
-		c->Message(0, "Usage: #zoneinstance [instance id]");
-		c->Message(0, "Optional Usage: #zoneinstance [instance id] y x z");
+		c->Message(Chat::White, "Usage: #zoneinstance [instance id]");
+		c->Message(Chat::White, "Optional Usage: #zoneinstance [instance id] y x z");
 		return;
 	}
 
@@ -1109,26 +1218,26 @@ void command_zone_instance(Client *c, const Seperator *sep)
 		instanceid = atoi(sep->arg[1]);
 		if(!instanceid)
 		{
-			c->Message(0, "Must enter a valid instance id.");
+			c->Message(Chat::White, "Must enter a valid instance id.");
 			return;
 		}
 
 		zoneid = database.ZoneIDFromInstanceID(instanceid);
 		if(!zoneid)
 		{
-			c->Message(0, "Instance not found or zone is set to null.");
+			c->Message(Chat::White, "Instance not found or zone is set to null.");
 			return;
 		}
 	}
 	else
 	{
-		c->Message(0, "Must enter a valid instance id.");
+		c->Message(Chat::White, "Must enter a valid instance id.");
 		return;
 	}
 
 	if(!database.VerifyInstanceAlive(instanceid, c->CharacterID()))
 	{
-		c->Message(0, "Instance ID expiried or you are not apart of this instance.");
+		c->Message(Chat::White, "Instance ID expiried or you are not apart of this instance.");
 		return;
 	}
 
@@ -1154,12 +1263,12 @@ void command_peqzone(Client *c, const Seperator *sep)
 	uint32 timeleft = c->GetPTimers().GetRemainingTime(pTimerPeqzoneReuse)/60;
 
 	if(!c->GetPTimers().Expired(&database, pTimerPeqzoneReuse, false)) {
-		c->Message(13,"You must wait %i minute(s) before using this ability again.",  timeleft);
+		c->Message(Chat::Red,"You must wait %i minute(s) before using this ability again.",  timeleft);
 		return;
 	}
 
 	if(c->GetHPRatio() < 75) {
-		c->Message(0, "You cannot use this command with less than 75 percent health.");
+		c->Message(Chat::White, "You cannot use this command with less than 75 percent health.");
 		return;
 	}
 
@@ -1172,7 +1281,7 @@ void command_peqzone(Client *c, const Seperator *sep)
 		|| c->AutoAttackEnabled()
 		|| c->GetInvul()
 	) {
-		c->Message(0, "You cannot use this command in your current state. Settle down and wait.");
+		c->Message(Chat::White, "You cannot use this command in your current state. Settle down and wait.");
 		return;
 	}
 
@@ -1183,33 +1292,33 @@ void command_peqzone(Client *c, const Seperator *sep)
 		zoneid = atoi(sep->arg[1]);
 		destzone = database.GetPEQZone(zoneid, 0);
 		if(destzone == 0){
-			c->Message(13, "You cannot use this command to enter that zone!");
+			c->Message(Chat::Red, "You cannot use this command to enter that zone!");
 			return;
 		}
 		if(zoneid == zone->GetZoneID()) {
-			c->Message(13, "You cannot use this command on the zone you are in!");
+			c->Message(Chat::Red, "You cannot use this command on the zone you are in!");
 			return;
 		}
 	}
 	else if (sep->arg[1][0] == 0 || sep->IsNumber(2) || sep->IsNumber(3) || sep->IsNumber(4) || sep->IsNumber(5))
 	{
-		c->Message(0, "Usage: #peqzone [zonename]");
-		c->Message(0, "Optional Usage: #peqzone [zoneid]");
+		c->Message(Chat::White, "Usage: #peqzone [zonename]");
+		c->Message(Chat::White, "Optional Usage: #peqzone [zoneid]");
 		return;
 	}
 	else {
 		zoneid = database.GetZoneID(sep->arg[1]);
 		destzone = database.GetPEQZone(zoneid, 0);
 		if(zoneid == 0) {
-			c->Message(0, "Unable to locate zone '%s'",  sep->arg[1]);
+			c->Message(Chat::White, "Unable to locate zone '%s'",  sep->arg[1]);
 			return;
 		}
 		if(destzone == 0){
-			c->Message(13, "You cannot use this command to enter that zone!");
+			c->Message(Chat::Red, "You cannot use this command to enter that zone!");
 			return;
 		}
 		if(zoneid == zone->GetZoneID()) {
-			c->Message(13, "You cannot use this command on the zone you are in!");
+			c->Message(Chat::Red, "You cannot use this command on the zone you are in!");
 			return;
 		}
 	}
@@ -1227,9 +1336,9 @@ void command_peqzone(Client *c, const Seperator *sep)
 void command_movechar(Client *c, const Seperator *sep)
 {
 	if(sep->arg[1][0]==0 || sep->arg[2][0] == 0)
-		c->Message(0, "Usage: #movechar [charactername] [zonename]");
+		c->Message(Chat::White, "Usage: #movechar [charactername] [zonename]");
 	else if (c->Admin() < commandMovecharToSpecials && strcasecmp(sep->arg[2], "cshome") == 0 || strcasecmp(sep->arg[2], "load") == 0 || strcasecmp(sep->arg[2], "load2") == 0)
-		c->Message(0, "Invalid zone name");
+		c->Message(Chat::White, "Invalid zone name");
 	else
 	{
 		uint32 tmp = database.GetAccountIDByChar(sep->arg[1]);
@@ -1237,48 +1346,120 @@ void command_movechar(Client *c, const Seperator *sep)
 		{
 			if (c->Admin() >= commandMovecharSelfOnly || tmp == c->AccountID())
 				if (!database.MoveCharacterToZone((char*) sep->arg[1], (char*) sep->arg[2]))
-					c->Message(0, "Character Move Failed!");
+					c->Message(Chat::White, "Character Move Failed!");
 				else
-					c->Message(0, "Character has been moved.");
+					c->Message(Chat::White, "Character has been moved.");
 			else
-				c->Message(13,"You cannot move characters that are not on your account.");
+				c->Message(Chat::Red,"You cannot move characters that are not on your account.");
 		}
 		else
-			c->Message(0, "Character Does Not Exist");
+			c->Message(Chat::White, "Character Does Not Exist");
+	}
+}
+
+void command_movement(Client *c, const Seperator *sep)
+{
+	auto &mgr = MobMovementManager::Get();
+
+	if (sep->arg[1][0] == 0) {
+		c->Message(Chat::White, "Usage: #movement stats/clearstats/walkto/runto/rotateto/stop/packet");
+		return;
+	}
+
+	if (strcasecmp(sep->arg[1], "stats") == 0)
+	{
+		mgr.DumpStats(c);
+	}
+	else if (strcasecmp(sep->arg[1], "clearstats") == 0)
+	{
+		mgr.ClearStats();
+	}
+	else if (strcasecmp(sep->arg[1], "walkto") == 0)
+	{
+		auto target = c->GetTarget();
+		if (target == nullptr) {
+			c->Message(Chat::White, "No target found.");
+			return;
+		}
+
+		target->WalkTo(c->GetX(), c->GetY(), c->GetZ());
+	}
+	else if (strcasecmp(sep->arg[1], "runto") == 0)
+	{
+		auto target = c->GetTarget();
+		if (target == nullptr) {
+			c->Message(Chat::White, "No target found.");
+			return;
+		}
+
+		target->RunTo(c->GetX(), c->GetY(), c->GetZ());
+	}
+	else if (strcasecmp(sep->arg[1], "rotateto") == 0)
+	{
+		auto target = c->GetTarget();
+		if (target == nullptr) {
+			c->Message(Chat::White, "No target found.");
+			return;
+		}
+
+		target->RotateToWalking(target->CalculateHeadingToTarget(c->GetX(), c->GetY()));
+	}
+	else if (strcasecmp(sep->arg[1], "stop") == 0)
+	{
+		auto target = c->GetTarget();
+		if (target == nullptr) {
+			c->Message(Chat::White, "No target found.");
+			return;
+		}
+
+		target->StopNavigation();
+	}
+	else if (strcasecmp(sep->arg[1], "packet") == 0)
+	{
+		auto target = c->GetTarget();
+		if (target == nullptr) {
+			c->Message(Chat::White, "No target found.");
+			return;
+		}
+
+		mgr.SendCommandToClients(target, atof(sep->arg[2]), atof(sep->arg[3]), atof(sep->arg[4]), atof(sep->arg[5]), atoi(sep->arg[6]), ClientRangeAny);
+	}
+	else {
+		c->Message(Chat::White, "Usage: #movement stats/clearstats/walkto/runto/rotateto/stop/packet");
 	}
 }
 
 void command_viewpetition(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == 0) {
-		c->Message(0, "Usage: #viewpetition (petition number) Type #listpetition for a list");
+		c->Message(Chat::White, "Usage: #viewpetition (petition number) Type #listpetition for a list");
 		return;
     }
 
-    c->Message(13,"	ID : Character Name , Petition Text");
+    c->Message(Chat::Red,"	ID : Character Name , Petition Text");
 
     std::string query = "SELECT petid, charname, petitiontext FROM petitions ORDER BY petid";
     auto results = database.QueryDatabase(query);
     if (!results.Success())
         return;
 
-    Log(Logs::General, Logs::Normal, "View petition request from %s, petition number: %i",  c->GetName(), atoi(sep->argplus[1]) );
+    LogInfo("View petition request from [{}], petition number: [{}]",  c->GetName(), atoi(sep->argplus[1]) );
 
     if (results.RowCount() == 0) {
-        c->Message(13,"There was an error in your request: ID not found! Please check the Id and try again.");
+        c->Message(Chat::Red,"There was an error in your request: ID not found! Please check the Id and try again.");
         return;
     }
 
     for (auto row = results.begin(); row != results.end(); ++row)
         if (strcasecmp(row[0], sep->argplus[1]) == 0)
-			c->Message(15, " %s:	%s , %s ",  row[0], row[1], row[2]);
+			c->Message(Chat::Yellow, " %s:	%s , %s ",  row[0], row[1], row[2]);
 
 }
 
 void command_petitioninfo(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == 0) {
-		c->Message(0, "Usage: #petitioninfo (petition number) Type #listpetition for a list");
+		c->Message(Chat::White, "Usage: #petitioninfo (petition number) Type #listpetition for a list");
 		return;
     }
 
@@ -1287,48 +1468,298 @@ void command_petitioninfo(Client *c, const Seperator *sep)
     if (!results.Success())
         return;
 
-    Log(Logs::General, Logs::Normal, "Petition information request from %s, petition number:",  c->GetName(), atoi(sep->argplus[1]) );
+    LogInfo("Petition information request from [{}], petition number:",  c->GetName(), atoi(sep->argplus[1]) );
 
     if (results.RowCount() == 0) {
-		c->Message(13,"There was an error in your request: ID not found! Please check the Id and try again.");
+		c->Message(Chat::Red,"There was an error in your request: ID not found! Please check the Id and try again.");
         return;
     }
 
 	for (auto row = results.begin(); row != results.end(); ++row)
 		if (strcasecmp(row[0],sep->argplus[1])== 0)
-			c->Message(13,"	ID : %s Character Name: %s Account Name: %s Zone: %s Character Class: %s Character Race: %s Character Level: %s", row[0],row[1],row[2],row[3],row[4],row[5],row[6]);
+			c->Message(Chat::Red,"	ID : %s Character Name: %s Account Name: %s Zone: %s Character Class: %s Character Race: %s Character Level: %s", row[0],row[1],row[2],row[3],row[4],row[5],row[6]);
 
 }
 
 void command_delpetition(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == 0 || strcasecmp(sep->arg[1],"*") == 0) {
-		c->Message(0, "Usage: #delpetition (petition number) Type #listpetition for a list");
+		c->Message(Chat::White, "Usage: #delpetition (petition number) Type #listpetition for a list");
 		return;
     }
 
-	c->Message(13,"Attempting to delete petition number: %i", atoi(sep->argplus[1]));
+	c->Message(Chat::Red,"Attempting to delete petition number: %i", atoi(sep->argplus[1]));
 	std::string query = StringFormat("DELETE FROM petitions WHERE petid = %i",  atoi(sep->argplus[1]));
 	auto results = database.QueryDatabase(query);
 	if (!results.Success())
         return;
 
-    Log(Logs::General, Logs::Normal, "Delete petition request from %s, petition number:",  c->GetName(), atoi(sep->argplus[1]) );
+    LogInfo("Delete petition request from [{}], petition number:",  c->GetName(), atoi(sep->argplus[1]) );
 
 }
 
 void command_listnpcs(Client *c, const Seperator *sep)
 {
-	if (strcasecmp(sep->arg[1], "all") == 0)
-		entity_list.ListNPCs(c,sep->arg[1],sep->arg[2],0);
-	else if(sep->IsNumber(1) && sep->IsNumber(2))
-		entity_list.ListNPCs(c,sep->arg[1],sep->arg[2],2);
-	else if(sep->arg[1][0] != 0)
-		entity_list.ListNPCs(c,sep->arg[1],sep->arg[2],1);
+	c->Message(Chat::White, "Deprecated, use the #list command (#list npcs <search>)");
+}
+
+void command_list(Client *c, const Seperator *sep)
+{
+	std::string search_type;
+	if (strcasecmp(sep->arg[1], "npcs") == 0) {
+		search_type = "npcs";
+	}
+
+	if (strcasecmp(sep->arg[1], "players") == 0) {
+		search_type = "players";
+	}
+
+	if (strcasecmp(sep->arg[1], "corpses") == 0) {
+		search_type = "corpses";
+	}
+
+	if (strcasecmp(sep->arg[1], "doors") == 0) {
+		search_type = "doors";
+	}
+
+	if (strcasecmp(sep->arg[1], "objects") == 0) {
+		search_type = "objects";
+	}
+
+	if (search_type.length() > 0) {
+
+		int entity_count = 0;
+		int found_count  = 0;
+
+		std::string search_string;
+
+		if (sep->arg[2]) {
+			search_string = sep->arg[2];
+		}
+
+		/**
+		 * NPC
+		 */
+		if (search_type.find("npcs") != std::string::npos) {
+			auto &entity_list_search = entity_list.GetMobList();
+
+			for (auto &itr : entity_list_search) {
+				Mob *entity = itr.second;
+				if (!entity->IsNPC()) {
+					continue;
+				}
+
+				entity_count++;
+
+				std::string entity_name = entity->GetName();
+
+				/**
+				 * Filter by name
+				 */
+				if (search_string.length() > 0 && entity_name.find(search_string) == std::string::npos) {
+					continue;
+				}
+
+				std::string saylink = StringFormat(
+					"#goto %.0f %0.f %.0f",
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ());
+
+				c->Message(
+					0,
+					"| %s | ID %5d | %s | x %.0f | y %0.f | z %.0f",
+					EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Goto").c_str(),
+					entity->GetID(),
+					entity->GetName(),
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ()
+				);
+
+				found_count++;
+			}
+		}
+
+		/**
+		 * Client
+		 */
+		if (search_type.find("players") != std::string::npos) {
+			auto &entity_list_search = entity_list.GetClientList();
+
+			for (auto &itr : entity_list_search) {
+				Client *entity = itr.second;
+
+				entity_count++;
+
+				std::string entity_name = entity->GetName();
+
+				/**
+				 * Filter by name
+				 */
+				if (search_string.length() > 0 && entity_name.find(search_string) == std::string::npos) {
+					continue;
+				}
+
+				std::string saylink = StringFormat(
+					"#goto %.0f %0.f %.0f",
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ());
+
+				c->Message(
+					0,
+					"| %s | ID %5d | %s | x %.0f | y %0.f | z %.0f",
+					EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Goto").c_str(),
+					entity->GetID(),
+					entity->GetName(),
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ()
+				);
+
+				found_count++;
+			}
+		}
+
+		/**
+		 * Corpse
+		 */
+		if (search_type.find("corpses") != std::string::npos) {
+			auto &entity_list_search = entity_list.GetCorpseList();
+
+			for (auto &itr : entity_list_search) {
+				Corpse *entity = itr.second;
+
+				entity_count++;
+
+				std::string entity_name = entity->GetName();
+
+				/**
+				 * Filter by name
+				 */
+				if (search_string.length() > 0 && entity_name.find(search_string) == std::string::npos) {
+					continue;
+				}
+
+				std::string saylink = StringFormat(
+					"#goto %.0f %0.f %.0f",
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ());
+
+				c->Message(
+					0,
+					"| %s | ID %5d | %s | x %.0f | y %0.f | z %.0f",
+					EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Goto").c_str(),
+					entity->GetID(),
+					entity->GetName(),
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ()
+				);
+
+				found_count++;
+			}
+		}
+
+		/**
+		 * Doors
+		 */
+		if (search_type.find("doors") != std::string::npos) {
+			auto &entity_list_search = entity_list.GetDoorsList();
+
+			for (auto &itr : entity_list_search) {
+				Doors * entity = itr.second;
+
+				entity_count++;
+
+				std::string entity_name = entity->GetDoorName();
+
+				/**
+				 * Filter by name
+				 */
+				if (search_string.length() > 0 && entity_name.find(search_string) == std::string::npos) {
+					continue;
+				}
+
+				std::string saylink = StringFormat(
+					"#goto %.0f %0.f %.0f",
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ());
+
+				c->Message(
+					0,
+					"| %s | Entity ID %5d | Door ID %i | %s | x %.0f | y %0.f | z %.0f",
+					EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Goto").c_str(),
+					entity->GetID(),
+					entity->GetDoorID(),
+					entity->GetDoorName(),
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ()
+				);
+
+				found_count++;
+			}
+		}
+
+		/**
+		 * Objects
+		 */
+		if (search_type.find("objects") != std::string::npos) {
+			auto &entity_list_search = entity_list.GetObjectList();
+
+			for (auto &itr : entity_list_search) {
+				Object * entity = itr.second;
+
+				entity_count++;
+
+				std::string entity_name = entity->GetModelName();
+
+				/**
+				 * Filter by name
+				 */
+				if (search_string.length() > 0 && entity_name.find(search_string) == std::string::npos) {
+					continue;
+				}
+
+				std::string saylink = StringFormat(
+					"#goto %.0f %0.f %.0f",
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ());
+
+				c->Message(
+					0,
+					"| %s | Entity ID %5d | Object DBID %i | %s | x %.0f | y %0.f | z %.0f",
+					EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Goto").c_str(),
+					entity->GetID(),
+					entity->GetDBID(),
+					entity->GetModelName(),
+					entity->GetX(),
+					entity->GetY(),
+					entity->GetZ()
+				);
+
+				found_count++;
+			}
+		}
+
+		if (found_count) {
+			c->Message(
+				0, "Found (%i) of type (%s) in zone (%i) total",
+				found_count,
+				search_type.c_str(),
+				entity_count
+			);
+		}
+	}
 	else {
-		c->Message(0, "Usage of #listnpcs:");
-		c->Message(0, "#listnpcs [#] [#] (Each number would search by ID, ex. #listnpcs 1 30, searches 1-30)");
-		c->Message(0, "#listnpcs [name] (Would search for a npc with [name])");
+		c->Message(Chat::White, "Usage of #list");
+		c->Message(Chat::White, "- #list [npcs|players|corpses|doors|objects] [search]");
+		c->Message(Chat::White, "- Example: #list npc (Blank for all)");
 	}
 }
 
@@ -1336,7 +1767,7 @@ void command_date(Client *c, const Seperator *sep)
 {
 	//yyyy mm dd hh mm local
 	if(sep->arg[3][0]==0 || !sep->IsNumber(1) || !sep->IsNumber(2) || !sep->IsNumber(3)) {
-		c->Message(13, "Usage: #date yyyy mm dd [HH MM]");
+		c->Message(Chat::Red, "Usage: #date yyyy mm dd [HH MM]");
 	}
 	else {
 		int h=0, m=0;
@@ -1350,7 +1781,7 @@ void command_date(Client *c, const Seperator *sep)
 			m=eqTime.minute;
 		else
 			m=atoi(sep->arg[5]);
-		c->Message(13, "Setting world time to %s-%s-%s %i:%i...",  sep->arg[1], sep->arg[2], sep->arg[3], h, m);
+		c->Message(Chat::Red, "Setting world time to %s-%s-%s %i:%i...",  sep->arg[1], sep->arg[2], sep->arg[3], h, m);
 		zone->SetDate(atoi(sep->arg[1]), atoi(sep->arg[2]), atoi(sep->arg[3]), h, m);
 	}
 }
@@ -1358,15 +1789,15 @@ void command_date(Client *c, const Seperator *sep)
 void command_timezone(Client *c, const Seperator *sep)
 {
 	if(sep->arg[1][0]==0 && !sep->IsNumber(1)) {
-		c->Message(13, "Usage: #timezone HH [MM]");
-		c->Message(13, "Current timezone is: %ih %im",  zone->zone_time.getEQTimeZoneHr(), zone->zone_time.getEQTimeZoneMin());
+		c->Message(Chat::Red, "Usage: #timezone HH [MM]");
+		c->Message(Chat::Red, "Current timezone is: %ih %im",  zone->zone_time.getEQTimeZoneHr(), zone->zone_time.getEQTimeZoneMin());
 	}
 	else {
 		uint8 hours = atoi(sep->arg[1]);
 		uint8 minutes = atoi(sep->arg[2]);
 		if(!sep->IsNumber(2))
 			minutes = 0;
-		c->Message(13, "Setting timezone to %i h %i m",  hours, minutes);
+		c->Message(Chat::Red, "Setting timezone to %i h %i m",  hours, minutes);
 		uint32 ntz=(hours*60)+minutes;
 		zone->zone_time.setEQTimeZone(ntz);
 		database.SetZoneTZ(zone->GetZoneID(), zone->GetInstanceVersion(), ntz);
@@ -1390,10 +1821,10 @@ void command_invul(Client *c, const Seperator *sep)
 
 	if(sep->arg[1][0] != 0) {
 		t->SetInvul(state);
-		c->Message(0, "%s is %s invulnerable from attack.",  t->GetName(), state?"now":"no longer");
+		c->Message(Chat::White, "%s is %s invulnerable from attack.",  t->GetName(), state?"now":"no longer");
 	}
 	else
-		c->Message(0, "Usage: #invulnerable [on/off]");
+		c->Message(Chat::White, "Usage: #invulnerable [on/off]");
 }
 
 void command_hideme(Client *c, const Seperator *sep)
@@ -1401,18 +1832,18 @@ void command_hideme(Client *c, const Seperator *sep)
 	bool state=atobool(sep->arg[1]);
 
 	if(sep->arg[1][0]==0)
-		c->Message(0, "Usage: #hideme [on/off]");
+		c->Message(Chat::White, "Usage: #hideme [on/off]");
 	else
 	{
 		c->SetHideMe(state);
-		c->Message_StringID(MT_Broadcasts, c->GetHideMe() ? NOW_INVISIBLE : NOW_VISIBLE, c->GetName());
+		c->MessageString(Chat::Broadcasts, c->GetHideMe() ? NOW_INVISIBLE : NOW_VISIBLE, c->GetName());
 	}
 }
 
 void command_emote(Client *c, const Seperator *sep)
 {
 	if (sep->arg[3][0] == 0)
-		c->Message(0, "Usage: #emote [name | world | zone] type# message");
+		c->Message(Chat::White, "Usage: #emote [name | world | zone] type# message");
 	else {
 		if (strcasecmp(sep->arg[1], "zone") == 0){
 			char* newmessage=0;
@@ -1424,7 +1855,7 @@ void command_emote(Client *c, const Seperator *sep)
 			}
 		}
 		else if (!worldserver.Connected())
-			c->Message(0, "Error: World server disconnected");
+			c->Message(Chat::White, "Error: World server disconnected");
 		else if (strcasecmp(sep->arg[1], "world") == 0)
 			worldserver.SendEmoteMessage(0, 0, atoi(sep->arg[2]), sep->argplus[3]);
 		else
@@ -1436,42 +1867,42 @@ void command_fov(Client *c, const Seperator *sep)
 {
 	if(c->GetTarget())
 		if(c->BehindMob(c->GetTarget(), c->GetX(), c->GetY()))
-			c->Message(0, "You are behind mob %s, it is looking to %d",  c->GetTarget()->GetName(), c->GetTarget()->GetHeading());
+			c->Message(Chat::White, "You are behind mob %s, it is looking to %d",  c->GetTarget()->GetName(), c->GetTarget()->GetHeading());
 		else
-			c->Message(0, "You are NOT behind mob %s, it is looking to %d",  c->GetTarget()->GetName(), c->GetTarget()->GetHeading());
+			c->Message(Chat::White, "You are NOT behind mob %s, it is looking to %d",  c->GetTarget()->GetName(), c->GetTarget()->GetHeading());
 	else
-		c->Message(0, "I Need a target!");
+		c->Message(Chat::White, "I Need a target!");
 }
 
 void command_npcstats(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget() == 0)
-		c->Message(0, "ERROR: No target!");
+		c->Message(Chat::White, "ERROR: No target!");
 	else if (!c->GetTarget()->IsNPC())
-		c->Message(0, "ERROR: Target is not a NPC!");
+		c->Message(Chat::White, "ERROR: Target is not a NPC!");
 	else {
 		auto target_npc = c->GetTarget()->CastToNPC();
-		c->Message(0, "NPC Stats:");
-		c->Message(0, "Name: %s   NpcID: %u", target_npc->GetName(), target_npc->GetNPCTypeID());
-		c->Message(0, "Race: %i  Level: %i  Class: %i  Material: %i", target_npc->GetRace(), target_npc->GetLevel(), target_npc->GetClass(), target_npc->GetTexture());
-		c->Message(0, "Current HP: %i  Max HP: %i", target_npc->GetHP(), target_npc->GetMaxHP());
-		//c->Message(0, "Weapon Item Number: %s", target_npc->GetWeapNo());
-		c->Message(0, "Gender: %i  Size: %f  Bodytype: %d", target_npc->GetGender(), target_npc->GetSize(), target_npc->GetBodyType());
-		c->Message(0, "Runspeed: %.3f  Walkspeed: %.3f", static_cast<float>(0.025f * target_npc->GetRunspeed()), static_cast<float>(0.025f * target_npc->GetWalkspeed()));
-		c->Message(0, "Spawn Group: %i  Grid: %i", target_npc->GetSp2(), target_npc->GetGrid());
+		c->Message(Chat::White, "# NPC Stats");
+		c->Message(Chat::White, "- Name: %s   NpcID: %u", target_npc->GetName(), target_npc->GetNPCTypeID());
+		c->Message(Chat::White, "- Race: %i  Level: %i  Class: %i  Material: %i", target_npc->GetRace(), target_npc->GetLevel(), target_npc->GetClass(), target_npc->GetTexture());
+		c->Message(Chat::White, "- Current HP: %i  Max HP: %i", target_npc->GetHP(), target_npc->GetMaxHP());
+		//c->Message(Chat::White, "Weapon Item Number: %s", target_npc->GetWeapNo());
+		c->Message(Chat::White, "- Gender: %i  Size: %f  Bodytype: %d", target_npc->GetGender(), target_npc->GetSize(), target_npc->GetBodyType());
+		c->Message(Chat::White, "- Runspeed: %.3f  Walkspeed: %.3f", static_cast<float>(0.025f * target_npc->GetRunspeed()), static_cast<float>(0.025f * target_npc->GetWalkspeed()));
+		c->Message(Chat::White, "- Spawn Group: %i  Grid: %i", target_npc->GetSpawnGroupId(), target_npc->GetGrid());
 		if (target_npc->proximity) {
-			c->Message(0, "Proximity: Enabled");
-			c->Message(0, "Cur_X: %1.3f, Cur_Y: %1.3f, Cur_Z: %1.3f", target_npc->GetX(), target_npc->GetY(), target_npc->GetZ());
-			c->Message(0, "Min_X: %1.3f(%1.3f), Max_X: %1.3f(%1.3f), X_Range: %1.3f", target_npc->proximity->min_x, (target_npc->proximity->min_x - target_npc->GetX()), target_npc->proximity->max_x, (target_npc->proximity->max_x - target_npc->GetX()), (target_npc->proximity->max_x - target_npc->proximity->min_x));
-			c->Message(0, "Min_Y: %1.3f(%1.3f), Max_Y: %1.3f(%1.3f), Y_Range: %1.3f", target_npc->proximity->min_y, (target_npc->proximity->min_y - target_npc->GetY()), target_npc->proximity->max_y, (target_npc->proximity->max_y - target_npc->GetY()), (target_npc->proximity->max_y - target_npc->proximity->min_y));
-			c->Message(0, "Min_Z: %1.3f(%1.3f), Max_Z: %1.3f(%1.3f), Z_Range: %1.3f", target_npc->proximity->min_z, (target_npc->proximity->min_z - target_npc->GetZ()), target_npc->proximity->max_z, (target_npc->proximity->max_z - target_npc->GetZ()), (target_npc->proximity->max_z - target_npc->proximity->min_z));
-			c->Message(0, "Say: %s", (target_npc->proximity->say ? "Enabled" : "Disabled"));
+			c->Message(Chat::White, "- Proximity: Enabled");
+			c->Message(Chat::White, "-- Cur_X: %1.3f, Cur_Y: %1.3f, Cur_Z: %1.3f", target_npc->GetX(), target_npc->GetY(), target_npc->GetZ());
+			c->Message(Chat::White, "-- Min_X: %1.3f(%1.3f), Max_X: %1.3f(%1.3f), X_Range: %1.3f", target_npc->proximity->min_x, (target_npc->proximity->min_x - target_npc->GetX()), target_npc->proximity->max_x, (target_npc->proximity->max_x - target_npc->GetX()), (target_npc->proximity->max_x - target_npc->proximity->min_x));
+			c->Message(Chat::White, "-- Min_Y: %1.3f(%1.3f), Max_Y: %1.3f(%1.3f), Y_Range: %1.3f", target_npc->proximity->min_y, (target_npc->proximity->min_y - target_npc->GetY()), target_npc->proximity->max_y, (target_npc->proximity->max_y - target_npc->GetY()), (target_npc->proximity->max_y - target_npc->proximity->min_y));
+			c->Message(Chat::White, "-- Min_Z: %1.3f(%1.3f), Max_Z: %1.3f(%1.3f), Z_Range: %1.3f", target_npc->proximity->min_z, (target_npc->proximity->min_z - target_npc->GetZ()), target_npc->proximity->max_z, (target_npc->proximity->max_z - target_npc->GetZ()), (target_npc->proximity->max_z - target_npc->proximity->min_z));
+			c->Message(Chat::White, "-- Say: %s", (target_npc->proximity->say ? "Enabled" : "Disabled"));
 		}
 		else {
-			c->Message(0, "Proximity: Disabled");
+			c->Message(Chat::White, "-Proximity: Disabled");
 		}
-		c->Message(0, "");
-		c->Message(0, "EmoteID: %i", target_npc->GetEmoteID());
+		c->Message(Chat::White, "");
+		c->Message(Chat::White, "EmoteID: %i", target_npc->GetEmoteID());
 		target_npc->QueryLoot(c);
 	}
 }
@@ -1480,13 +1911,13 @@ void command_zclip(Client *c, const Seperator *sep)
 {
 	// modifys and resends zhdr packet
 	if(sep->arg[2][0]==0)
-		c->Message(0, "Usage: #zclip <min clip> <max clip>");
+		c->Message(Chat::White, "Usage: #zclip <min clip> <max clip>");
 	else if(atoi(sep->arg[1])<=0)
-		c->Message(0, "ERROR: Min clip can not be zero or less!");
+		c->Message(Chat::White, "ERROR: Min clip can not be zero or less!");
 	else if(atoi(sep->arg[2])<=0)
-		c->Message(0, "ERROR: Max clip can not be zero or less!");
+		c->Message(Chat::White, "ERROR: Max clip can not be zero or less!");
 	else if(atoi(sep->arg[1])>atoi(sep->arg[2]))
-		c->Message(0, "ERROR: Min clip is greater than max clip!");
+		c->Message(Chat::White, "ERROR: Min clip is greater than max clip!");
 	else {
 		zone->newzone_data.minclip = atof(sep->arg[1]);
 		zone->newzone_data.maxclip = atof(sep->arg[2]);
@@ -1512,27 +1943,27 @@ void command_npccast(Client *c, const Seperator *sep)
 		if (spelltar)
 			c->GetTarget()->CastSpell(atoi(sep->arg[2]), spelltar->GetID());
 		else
-			c->Message(0, "Error: %s not found",  sep->arg[1]);
+			c->Message(Chat::White, "Error: %s not found",  sep->arg[1]);
 	}
 	else if (c->GetTarget() && c->GetTarget()->IsNPC() && sep->IsNumber(1) && sep->IsNumber(2) ) {
 		Mob* spelltar = entity_list.GetMob(atoi(sep->arg[1]));
 		if (spelltar)
 			c->GetTarget()->CastSpell(atoi(sep->arg[2]), spelltar->GetID());
 		else
-			c->Message(0, "Error: target ID %i not found",  atoi(sep->arg[1]));
+			c->Message(Chat::White, "Error: target ID %i not found",  atoi(sep->arg[1]));
 	}
 	else
-		c->Message(0, "Usage: (needs NPC targeted) #npccast targetname/entityid spellid");
+		c->Message(Chat::White, "Usage: (needs NPC targeted) #npccast targetname/entityid spellid");
 }
 
 void command_zstats(Client *c, const Seperator *sep)
 {
-	c->Message(0, "Zone Header Data:");
-	c->Message(0, "Sky Type: %i",  zone->newzone_data.sky);
-	c->Message(0, "Fog Colour: Red: %i; Blue: %i; Green %i",  zone->newzone_data.fog_red[0], zone->newzone_data.fog_green[0], zone->newzone_data.fog_blue[0]);
-	c->Message(0, "Safe Coords: %f, %f, %f",  zone->newzone_data.safe_x, zone->newzone_data.safe_y, zone->newzone_data.safe_z);
-	c->Message(0, "Underworld Coords: %f",  zone->newzone_data.underworld);
-	c->Message(0, "Clip Plane: %f - %f",  zone->newzone_data.minclip, zone->newzone_data.maxclip);
+	c->Message(Chat::White, "Zone Header Data:");
+	c->Message(Chat::White, "Sky Type: %i",  zone->newzone_data.sky);
+	c->Message(Chat::White, "Fog Colour: Red: %i; Blue: %i; Green %i",  zone->newzone_data.fog_red[0], zone->newzone_data.fog_green[0], zone->newzone_data.fog_blue[0]);
+	c->Message(Chat::White, "Safe Coords: %f, %f, %f",  zone->newzone_data.safe_x, zone->newzone_data.safe_y, zone->newzone_data.safe_z);
+	c->Message(Chat::White, "Underworld Coords: %f",  zone->newzone_data.underworld);
+	c->Message(Chat::White, "Clip Plane: %f - %f",  zone->newzone_data.minclip, zone->newzone_data.maxclip);
 }
 
 void command_permaclass(Client *c, const Seperator *sep)
@@ -1543,16 +1974,16 @@ void command_permaclass(Client *c, const Seperator *sep)
 		t=c->GetTarget()->CastToClient();
 
 	if(sep->arg[1][0]==0) {
-		c->Message(0,"Usage: #permaclass <classnum>");
+		c->Message(Chat::White,"Usage: #permaclass <classnum>");
 	}
 	else if(!t->IsClient())
-		c->Message(0,"Target is not a client.");
+		c->Message(Chat::White,"Target is not a client.");
 	else {
-		c->Message(0, "Setting %s's class...Sending to char select.",  t->GetName());
-		Log(Logs::General, Logs::Normal, "Class change request from %s for %s, requested class:%i",  c->GetName(), t->GetName(), atoi(sep->arg[1]) );
+		c->Message(Chat::White, "Setting %s's class...Sending to char select.",  t->GetName());
+		LogInfo("Class change request from [{}] for [{}], requested class:[{}]",  c->GetName(), t->GetName(), atoi(sep->arg[1]) );
 		t->SetBaseClass(atoi(sep->arg[1]));
 		t->Save();
-		t->Kick();
+		t->Kick("Class was changed.");
 	}
 }
 
@@ -1564,14 +1995,14 @@ void command_permarace(Client *c, const Seperator *sep)
 		t=c->GetTarget()->CastToClient();
 
 	if(sep->arg[1][0]==0) {
-		c->Message(0,"Usage: #permarace <racenum>");
-		c->Message(0,"NOTE: Not all models are global. If a model is not global, it will appear as a human on character select and in zones without the model.");
+		c->Message(Chat::White,"Usage: #permarace <racenum>");
+		c->Message(Chat::White,"NOTE: Not all models are global. If a model is not global, it will appear as a human on character select and in zones without the model.");
 	}
 	else if(!t->IsClient())
-		c->Message(0,"Target is not a client.");
+		c->Message(Chat::White,"Target is not a client.");
 	else {
-		c->Message(0, "Setting %s's race - zone to take effect", t->GetName());
-		Log(Logs::General, Logs::Normal, "Permanant race change request from %s for %s, requested race:%i",  c->GetName(), t->GetName(), atoi(sep->arg[1]) );
+		c->Message(Chat::White, "Setting %s's race - zone to take effect", t->GetName());
+		LogInfo("Permanant race change request from [{}] for [{}], requested race:[{}]",  c->GetName(), t->GetName(), atoi(sep->arg[1]) );
 		uint32 tmp = Mob::GetDefaultGender(atoi(sep->arg[1]), t->GetBaseGender());
 		t->SetBaseRace(atoi(sep->arg[1]));
 		t->SetBaseGender(tmp);
@@ -1588,14 +2019,14 @@ void command_permagender(Client *c, const Seperator *sep)
 		t=c->GetTarget()->CastToClient();
 
 	if(sep->arg[1][0]==0) {
-		c->Message(0,"Usage: #permagender <gendernum>");
-		c->Message(0,"Gender Numbers: 0=Male, 1=Female, 2=Neuter");
+		c->Message(Chat::White,"Usage: #permagender <gendernum>");
+		c->Message(Chat::White,"Gender Numbers: 0=Male, 1=Female, 2=Neuter");
 	}
 	else if(!t->IsClient())
-		c->Message(0,"Target is not a client.");
+		c->Message(Chat::White,"Target is not a client.");
 	else {
-		c->Message(0, "Setting %s's gender - zone to take effect", t->GetName());
-		Log(Logs::General, Logs::Normal, "Permanant gender change request from %s for %s, requested gender:%i",  c->GetName(), t->GetName(), atoi(sep->arg[1]) );
+		c->Message(Chat::White, "Setting %s's gender - zone to take effect", t->GetName());
+		LogInfo("Permanant gender change request from [{}] for [{}], requested gender:[{}]",  c->GetName(), t->GetName(), atoi(sep->arg[1]) );
 		t->SetBaseGender(atoi(sep->arg[1]));
 		t->Save();
 		t->SendIllusionPacket(atoi(sep->arg[1]));
@@ -1605,12 +2036,12 @@ void command_permagender(Client *c, const Seperator *sep)
 void command_weather(Client *c, const Seperator *sep)
 {
 	if (!(sep->arg[1][0] == '0' || sep->arg[1][0] == '1' || sep->arg[1][0] == '2' || sep->arg[1][0] == '3')) {
-		c->Message(0, "Usage: #weather <0/1/2/3> - Off/Rain/Snow/Manual.");
+		c->Message(Chat::White, "Usage: #weather <0/1/2/3> - Off/Rain/Snow/Manual.");
 	}
 	else if(zone->zone_weather == 0) {
 		if(sep->arg[1][0] == '3')	{ // Put in modifications here because it had a very good chance at screwing up the client's weather system if rain was sent during snow -T7
 			if(sep->arg[2][0] != 0 && sep->arg[3][0] != 0) {
-				c->Message(0, "Sending weather packet... TYPE=%s, INTENSITY=%s",  sep->arg[2], sep->arg[3]);
+				c->Message(Chat::White, "Sending weather packet... TYPE=%s, INTENSITY=%s",  sep->arg[2], sep->arg[3]);
 				zone->zone_weather = atoi(sep->arg[2]);
 				auto outapp = new EQApplicationPacket(OP_Weather, 8);
 				outapp->pBuffer[0] = atoi(sep->arg[2]);
@@ -1619,7 +2050,7 @@ void command_weather(Client *c, const Seperator *sep)
 				safe_delete(outapp);
 			}
 			else {
-				c->Message(0, "Manual Usage: #weather 3 <type> <intensity>");
+				c->Message(Chat::White, "Manual Usage: #weather 3 <type> <intensity>");
 			}
 		}
 		else if(sep->arg[1][0] == '2')	{
@@ -1673,16 +2104,16 @@ void command_zheader(Client *c, const Seperator *sep)
 {
 	// sends zhdr packet
 	if(sep->arg[1][0]==0) {
-		c->Message(0, "Usage: #zheader <zone name>");
+		c->Message(Chat::White, "Usage: #zheader <zone name>");
 	}
 	else if(database.GetZoneID(sep->argplus[1])==0)
-		c->Message(0, "Invalid Zone Name: %s",  sep->argplus[1]);
+		c->Message(Chat::White, "Invalid Zone Name: %s",  sep->argplus[1]);
 	else {
 
-		if (zone->LoadZoneCFG(sep->argplus[1], true))
-			c->Message(0, "Successfully loaded zone header for %s from database.",  sep->argplus[1]);
+		if (zone->LoadZoneCFG(sep->argplus[1], 0))
+			c->Message(Chat::White, "Successfully loaded zone header for %s from database.",  sep->argplus[1]);
 		else
-			c->Message(0, "Failed to load zone header %s from database",  sep->argplus[1]);
+			c->Message(Chat::White, "Failed to load zone header %s from database",  sep->argplus[1]);
 		auto outapp = new EQApplicationPacket(OP_NewZone, sizeof(NewZone_Struct));
 		memcpy(outapp->pBuffer, &zone->newzone_data, outapp->size);
 		entity_list.QueueClients(c, outapp);
@@ -1694,9 +2125,9 @@ void command_zsky(Client *c, const Seperator *sep)
 {
 	// modifys and resends zhdr packet
 	if(sep->arg[1][0]==0)
-		c->Message(0, "Usage: #zsky <sky type>");
+		c->Message(Chat::White, "Usage: #zsky <sky type>");
 	else if(atoi(sep->arg[1])<0||atoi(sep->arg[1])>255)
-		c->Message(0, "ERROR: Sky type can not be less than 0 or greater than 255!");
+		c->Message(Chat::White, "ERROR: Sky type can not be less than 0 or greater than 255!");
 	else {
 		zone->newzone_data.sky = atoi(sep->arg[1]);
 		auto outapp = new EQApplicationPacket(OP_NewZone, sizeof(NewZone_Struct));
@@ -1710,13 +2141,13 @@ void command_zcolor(Client *c, const Seperator *sep)
 {
 	// modifys and resends zhdr packet
 	if (sep->arg[3][0]==0)
-		c->Message(0, "Usage: #zcolor <red> <green> <blue>");
+		c->Message(Chat::White, "Usage: #zcolor <red> <green> <blue>");
 	else if (atoi(sep->arg[1])<0||atoi(sep->arg[1])>255)
-		c->Message(0, "ERROR: Red can not be less than 0 or greater than 255!");
+		c->Message(Chat::White, "ERROR: Red can not be less than 0 or greater than 255!");
 	else if (atoi(sep->arg[2])<0||atoi(sep->arg[2])>255)
-		c->Message(0, "ERROR: Green can not be less than 0 or greater than 255!");
+		c->Message(Chat::White, "ERROR: Green can not be less than 0 or greater than 255!");
 	else if (atoi(sep->arg[3])<0||atoi(sep->arg[3])>255)
-		c->Message(0, "ERROR: Blue can not be less than 0 or greater than 255!");
+		c->Message(Chat::White, "ERROR: Blue can not be less than 0 or greater than 255!");
 	else {
 		for (int z=0; z<4; z++) {
 			zone->newzone_data.fog_red[z] = atoi(sep->arg[1]);
@@ -1743,25 +2174,6 @@ void command_spoff(Client *c, const Seperator *sep)
 	safe_delete(outapp);
 }
 
-void command_itemtest(Client *c, const Seperator *sep)
-{
-	char chBuffer[8192] = {0};
-	//Using this to determine new item layout
-	FILE* f = nullptr;
-	if (!(f = fopen("c:\\EQEMUcvs\\ItemDump.txt",  "rb"))) {
-		c->Message(13, "Error: Could not open c:\\EQEMUcvs\\ItemDump.txt");
-		return;
-	}
-
-	fread(chBuffer, sizeof(chBuffer), sizeof(char), f);
-	fclose(f);
-
-	auto outapp = new EQApplicationPacket(OP_ItemLinkResponse, strlen(chBuffer) + 5);
-	memcpy(&outapp->pBuffer[4], chBuffer, strlen(chBuffer));
-	c->QueuePacket(outapp);
-	safe_delete(outapp);
-}
-
 void command_gassign(Client *c, const Seperator *sep)
 {
 	if (sep->IsNumber(1) && c->GetTarget() && c->GetTarget()->IsNPC() && c->GetTarget()->CastToNPC()->GetSpawnPointID() > 0) {
@@ -1769,7 +2181,7 @@ void command_gassign(Client *c, const Seperator *sep)
 		database.AssignGrid(c, atoi(sep->arg[1]), spawn2id);
 	}
 	else
-		c->Message(0, "Usage: #gassign [num] - must have an npc target!");
+		c->Message(Chat::White, "Usage: #gassign [num] - must have an npc target!");
 }
 
 void command_ai(Client *c, const Seperator *sep)
@@ -1781,37 +2193,37 @@ void command_ai(Client *c, const Seperator *sep)
 			if (target->IsNPC())
 				target->CastToNPC()->SetNPCFactionID(atoi(sep->arg[2]));
 			else
-				c->Message(0, "%s is not an NPC.",  target->GetName());
+				c->Message(Chat::White, "%s is not an NPC.",  target->GetName());
 		}
 		else
-			c->Message(0, "Usage: (targeted) #ai factionid [factionid]");
+			c->Message(Chat::White, "Usage: (targeted) #ai factionid [factionid]");
 	}
 	else if (strcasecmp(sep->arg[1], "spellslist") == 0) {
 		if (target && sep->IsNumber(2) && atoi(sep->arg[2]) >= 0) {
 			if (target->IsNPC())
 				target->CastToNPC()->AI_AddNPCSpells(atoi(sep->arg[2]));
 			else
-				c->Message(0, "%s is not an NPC.",  target->GetName());
+				c->Message(Chat::White, "%s is not an NPC.",  target->GetName());
 		}
 		else
-			c->Message(0, "Usage: (targeted) #ai spellslist [npc_spells_id]");
+			c->Message(Chat::White, "Usage: (targeted) #ai spellslist [npc_spells_id]");
 	}
 	else if (strcasecmp(sep->arg[1], "con") == 0) {
 		if (target && sep->arg[2][0] != 0) {
 			Mob* tar2 = entity_list.GetMob(sep->arg[2]);
 			if (tar2)
-				c->Message(0, "%s considering %s: %i",  target->GetName(), tar2->GetName(), tar2->GetReverseFactionCon(target));
+				c->Message(Chat::White, "%s considering %s: %i",  target->GetName(), tar2->GetName(), tar2->GetReverseFactionCon(target));
 			else
-				c->Message(0, "Error: %s not found.",  sep->arg[2]);
+				c->Message(Chat::White, "Error: %s not found.",  sep->arg[2]);
 		}
 		else
-			c->Message(0, "Usage: (targeted) #ai con [mob name]");
+			c->Message(Chat::White, "Usage: (targeted) #ai con [mob name]");
 	}
 	else if (strcasecmp(sep->arg[1], "guard") == 0) {
 		if (target && target->IsNPC())
-			target->CastToNPC()->SaveGuardSpot();
+			target->CastToNPC()->SaveGuardSpot(target->GetPosition());
 		else
-			c->Message(0, "Usage: (targeted) #ai guard - sets npc to guard the current location (use #summon to move)");
+			c->Message(Chat::White, "Usage: (targeted) #ai guard - sets npc to guard the current location (use #summon to move)");
 	}
 	else if (strcasecmp(sep->arg[1], "roambox") == 0) {
 		if (target && target->IsAIControlled() && target->IsNPC()) {
@@ -1834,39 +2246,39 @@ void command_ai(Client *c, const Seperator *sep)
 				target->CastToNPC()->AI_SetRoambox(atof(sep->arg[2]), atof(sep->arg[3]), tmp, tmp2);
 			}
 			else {
-				c->Message(0, "Usage: #ai roambox dist max_x min_x max_y min_y [delay] [mindelay]");
-				c->Message(0, "Usage: #ai roambox dist roamdist [delay] [mindelay]");
+				c->Message(Chat::White, "Usage: #ai roambox dist max_x min_x max_y min_y [delay] [mindelay]");
+				c->Message(Chat::White, "Usage: #ai roambox dist roamdist [delay] [mindelay]");
 			}
 		}
 		else
-			c->Message(0, "You need a AI NPC targeted");
+			c->Message(Chat::White, "You need a AI NPC targeted");
 	}
 	else if (strcasecmp(sep->arg[1], "stop") == 0 && c->Admin() >= commandToggleAI) {
 		if (target) {
 			if (target->IsAIControlled())
 				target->AI_Stop();
 			else
-				c->Message(0, "Error: Target is not AI controlled");
+				c->Message(Chat::White, "Error: Target is not AI controlled");
 		}
 		else
-			c->Message(0, "Usage: Target a Mob with AI enabled and use this to turn off their AI.");
+			c->Message(Chat::White, "Usage: Target a Mob with AI enabled and use this to turn off their AI.");
 	}
 	else if (strcasecmp(sep->arg[1], "start") == 0 && c->Admin() >= commandToggleAI) {
 		if (target) {
 			if (!target->IsAIControlled())
 				target->AI_Start();
 			else
-				c->Message(0, "Error: Target is already AI controlled");
+				c->Message(Chat::White, "Error: Target is already AI controlled");
 		}
 		else
-			c->Message(0, "Usage: Target a Mob with AI disabled and use this to turn on their AI.");
+			c->Message(Chat::White, "Usage: Target a Mob with AI disabled and use this to turn on their AI.");
 	}
 	else {
-		c->Message(0, "#AI Sub-commands");
-		c->Message(0, "  factionid");
-		c->Message(0, "  spellslist");
-		c->Message(0, "  con");
-		c->Message(0, "  guard");
+		c->Message(Chat::White, "#AI Sub-commands");
+		c->Message(Chat::White, "  factionid");
+		c->Message(Chat::White, "  spellslist");
+		c->Message(Chat::White, "  con");
+		c->Message(Chat::White, "  guard");
 	}
 }
 
@@ -1878,7 +2290,7 @@ void command_worldshutdown(Client *c, const Seperator *sep)
 	if (worldserver.Connected()) {
 		if(sep->IsNumber(1) && sep->IsNumber(2) && ((time=atoi(sep->arg[1]))>0) && ((interval=atoi(sep->arg[2]))>0)) {
 			worldserver.SendEmoteMessage(0,0,15,"<SYSTEMWIDE MESSAGE>:SYSTEM MSG:World coming down in %i minutes, everyone log out before this time.",  (time / 60 ));
-			c->Message(0, "Sending shutdown packet now, World will shutdown in: %i minutes with an interval of: %i seconds",  (time / 60), interval);
+			c->Message(Chat::White, "Sending shutdown packet now, World will shutdown in: %i minutes with an interval of: %i seconds",  (time / 60), interval);
 			auto pack = new ServerPacket(ServerOP_ShutdownAll, sizeof(WorldShutDown_Struct));
 			WorldShutDown_Struct* wsd = (WorldShutDown_Struct*)pack->pBuffer;
 			wsd->time=time*1000;
@@ -1888,7 +2300,7 @@ void command_worldshutdown(Client *c, const Seperator *sep)
 		}
 		else if(strcasecmp(sep->arg[1], "now") == 0){
 			worldserver.SendEmoteMessage(0,0,15,"<SYSTEMWIDE MESSAGE>:SYSTEM MSG:World coming down, everyone log out now.");
-			c->Message(0, "Sending shutdown packet");
+			c->Message(Chat::White, "Sending shutdown packet");
 			auto pack = new ServerPacket;
 			pack->opcode = ServerOP_ShutdownAll;
 			pack->size=0;
@@ -1896,7 +2308,7 @@ void command_worldshutdown(Client *c, const Seperator *sep)
 			safe_delete(pack);
 		}
 		else if(strcasecmp(sep->arg[1], "disable") == 0){
-			c->Message(0, "Shutdown prevented, next time I may not be so forgiving...");
+			c->Message(Chat::White, "Shutdown prevented, next time I may not be so forgiving...");
 			auto pack = new ServerPacket(ServerOP_ShutdownAll, sizeof(WorldShutDown_Struct));
 			WorldShutDown_Struct* wsd = (WorldShutDown_Struct*)pack->pBuffer;
 			wsd->time=0;
@@ -1905,14 +2317,14 @@ void command_worldshutdown(Client *c, const Seperator *sep)
 			safe_delete(pack);
 		}
 		else{
-			c->Message(0,"#worldshutdown - Shuts down the server and all zones.");
-			c->Message(0,"Usage: #worldshutdown now - Shuts down the server and all zones immediately.");
-			c->Message(0,"Usage: #worldshutdown disable - Stops the server from a previously scheduled shut down.");
-			c->Message(0,"Usage: #worldshutdown [timer] [interval] - Shuts down the server and all zones after [timer] seconds and sends warning every [interval] seconds.");
+			c->Message(Chat::White,"#worldshutdown - Shuts down the server and all zones.");
+			c->Message(Chat::White,"Usage: #worldshutdown now - Shuts down the server and all zones immediately.");
+			c->Message(Chat::White,"Usage: #worldshutdown disable - Stops the server from a previously scheduled shut down.");
+			c->Message(Chat::White,"Usage: #worldshutdown [timer] [interval] - Shuts down the server and all zones after [timer] seconds and sends warning every [interval] seconds.");
 		}
 	}
 	else
-		c->Message(0, "Error: World server disconnected");
+		c->Message(Chat::White, "Error: World server disconnected");
 }
 
 void command_sendzonespawns(Client *c, const Seperator *sep)
@@ -1922,17 +2334,19 @@ void command_sendzonespawns(Client *c, const Seperator *sep)
 
 void command_zsave(Client *c, const Seperator *sep)
 {
-	if(zone->SaveZoneCFG())
-		c->Message(13, "Zone header saved successfully.");
-		else
-		c->Message(13, "ERROR: Zone header data was NOT saved.");
+	if (zone->SaveZoneCFG()) {
+		c->Message(Chat::Red, "Zone header saved successfully.");
+	}
+	else {
+		c->Message(Chat::Red, "ERROR: Zone header data was NOT saved.");
+	}
 }
 
 void command_dbspawn2(Client *c, const Seperator *sep)
 {
 
 	if (sep->IsNumber(1) && sep->IsNumber(2) && sep->IsNumber(3)) {
-		Log(Logs::General, Logs::Normal, "Spawning database spawn");
+		LogInfo("Spawning database spawn");
 		uint16 cond = 0;
 		int16 cond_min = 0;
 		if(sep->IsNumber(4)) {
@@ -1943,7 +2357,7 @@ void command_dbspawn2(Client *c, const Seperator *sep)
 		database.CreateSpawn2(c, atoi(sep->arg[1]), zone->GetShortName(), c->GetPosition(), atoi(sep->arg[2]), atoi(sep->arg[3]), cond, cond_min);
 	}
 	else {
-		c->Message(0, "Usage: #dbspawn2 spawngroup respawn variance [condition_id] [condition_min]");
+		c->Message(Chat::White, "Usage: #dbspawn2 spawngroup respawn variance [condition_id] [condition_min]");
 	}
 }
 
@@ -1954,60 +2368,130 @@ void command_shutdown(Client *c, const Seperator *sep)
 
 void command_delacct(Client *c, const Seperator *sep)
 {
-	if(sep->arg[1][0] == 0)
-		c->Message(0, "Format: #delacct accountname");
-	else
-		if (database.DeleteAccount(sep->arg[1]))
-			c->Message(0, "The account was deleted.");
+	if (sep->arg[1][0] == 0)
+		c->Message(Chat::White, "Format: #delacct accountname");
+	else {
+		std::string user;
+		std::string loginserver;
+		ParseAccountString(sep->arg[1], user, loginserver);
+
+		if (database.DeleteAccount(user.c_str(), loginserver.c_str()))
+			c->Message(Chat::White, "The account was deleted.");
 		else
-			c->Message(0, "Unable to delete account.");
+			c->Message(Chat::White, "Unable to delete account.");
+	}
 }
 
 void command_setpass(Client *c, const Seperator *sep)
 {
 	if(sep->argnum != 2)
-		c->Message(0, "Format: #setpass accountname password");
+		c->Message(Chat::White, "Format: #setpass accountname password");
 	else {
+		std::string user;
+		std::string loginserver;
+		ParseAccountString(sep->arg[1], user, loginserver);
+
 		int16 tmpstatus = 0;
-		uint32 tmpid = database.GetAccountIDByName(sep->arg[1], &tmpstatus);
+		uint32 tmpid = database.GetAccountIDByName(user.c_str(), loginserver.c_str(), &tmpstatus);
 		if (!tmpid)
-			c->Message(0, "Error: Account not found");
+			c->Message(Chat::White, "Error: Account not found");
 		else if (tmpstatus > c->Admin())
-			c->Message(0, "Cannot change password: Account's status is higher than yours");
+			c->Message(Chat::White, "Cannot change password: Account's status is higher than yours");
 		else if (database.SetLocalPassword(tmpid, sep->arg[2]))
-			c->Message(0, "Password changed.");
+			c->Message(Chat::White, "Password changed.");
 		else
-			c->Message(0, "Error changing password.");
+			c->Message(Chat::White, "Error changing password.");
 	}
 }
 
 void command_setlsinfo(Client *c, const Seperator *sep)
 {
 	if(sep->argnum != 2)
-		c->Message(0, "Format: #setlsinfo email password");
+		c->Message(Chat::White, "Format: #setlsinfo email password");
 	else {
 		auto pack = new ServerPacket(ServerOP_LSAccountUpdate, sizeof(ServerLSAccountUpdate_Struct));
 		ServerLSAccountUpdate_Struct* s = (ServerLSAccountUpdate_Struct *) pack->pBuffer;
 		s->useraccountid = c->LSAccountID();
 		strn0cpy(s->useraccount, c->AccountName(), 30);
-		strn0cpy(s->useremail, sep->arg[1], 100);
+		strn0cpy(s->user_email, sep->arg[1], 100);
 		strn0cpy(s->userpassword, sep->arg[2], 50);
 		worldserver.SendPacket(pack);
-		c->Message(0, "Login Server update packet sent.");
+		c->Message(Chat::White, "Login Server update packet sent.");
 	}
 }
 
 void command_grid(Client *c, const Seperator *sep)
 {
-	if (strcasecmp("max", sep->arg[1]) == 0)
-		c->Message(0, "Highest grid ID in this zone: %d",  database.GetHighestGrid(zone->GetZoneID()));
-	else if (strcasecmp("add", sep->arg[1]) == 0)
-		database.ModifyGrid(c, false,atoi(sep->arg[2]),atoi(sep->arg[3]), atoi(sep->arg[4]),zone->GetZoneID());
-	else if (strcasecmp("delete", sep->arg[1]) == 0)
-		database.ModifyGrid(c, true,atoi(sep->arg[2]),0,0,zone->GetZoneID());
+	if (strcasecmp("max", sep->arg[1]) == 0) {
+		c->Message(Chat::White, "Highest grid ID in this zone: %d", database.GetHighestGrid(zone->GetZoneID()));
+	}
+	else if (strcasecmp("add", sep->arg[1]) == 0) {
+		database.ModifyGrid(c, false, atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]), zone->GetZoneID());
+	}
+	else if (strcasecmp("show", sep->arg[1]) == 0) {
+
+		Mob *target = c->GetTarget();
+
+		if (!target || !target->IsNPC()) {
+			c->Message(Chat::White, "You need a NPC target!");
+			return;
+		}
+
+		std::string query = StringFormat(
+			"SELECT `x`, `y`, `z`, `heading`, `number`, `pause` "
+			"FROM `grid_entries` "
+			"WHERE `zoneid` = %u and `gridid` = %i "
+			"ORDER BY `number` ",
+			zone->GetZoneID(),
+			target->CastToNPC()->GetGrid()
+		);
+
+		auto results = database.QueryDatabase(query);
+		if (!results.Success()) {
+			c->Message(Chat::White, "Error querying database.");
+			c->Message(Chat::White, query.c_str());
+		}
+
+		if (results.RowCount() == 0) {
+			c->Message(Chat::White, "No grid found");
+			return;
+		}
+
+		/**
+		 * Depop any node npc's already spawned
+		 */
+		auto      &mob_list = entity_list.GetMobList();
+		for (auto itr       = mob_list.begin(); itr != mob_list.end(); ++itr) {
+			Mob *mob = itr->second;
+			if (mob->IsNPC() && mob->GetRace() == 2254) {
+				mob->Depop();
+			}
+		}
+
+		/**
+		 * Spawn grid nodes
+		 */
+		for (auto row = results.begin(); row != results.end(); ++row) {
+			auto node_position = glm::vec4(atof(row[0]), atof(row[1]), atof(row[2]), atof(row[3]));
+
+			NPC *npc = NPC::SpawnGridNodeNPC(
+				target->GetCleanName(),
+				node_position,
+				static_cast<uint32>(target->CastToNPC()->GetGrid()),
+				static_cast<uint32>(atoi(row[4])),
+				static_cast<uint32>(atoi(row[5]))
+			);
+			npc->SetFlyMode(GravityBehavior::Flying);
+			npc->GMMove(node_position.x, node_position.y, node_position.z, node_position.w);
+		}
+	}
+	else if (strcasecmp("delete", sep->arg[1]) == 0) {
+		database.ModifyGrid(c, true, atoi(sep->arg[2]), 0, 0, zone->GetZoneID());
+	}
 	else {
-		c->Message(0,"Usage: #grid add/delete grid_num wandertype pausetype");
-		c->Message(0,"Usage: #grid max - displays the highest grid ID used in this zone (for add)");
+		c->Message(Chat::White, "Usage: #grid add/delete grid_num wandertype pausetype");
+		c->Message(Chat::White, "Usage: #grid max - displays the highest grid ID used in this zone (for add)");
+		c->Message(Chat::White, "Usage: #grid show - displays wp nodes as boxes");
 	}
 }
 
@@ -2030,7 +2514,7 @@ void command_wp(Client *c, const Seperator *sep)
 	else if (strcasecmp("delete", sep->arg[1]) == 0)
 		database.DeleteWaypoint(c, atoi(sep->arg[2]),wp,zone->GetZoneID());
 	else
-		c->Message(0,"Usage: #wp add/delete grid_num pause wp_num [-h]");
+		c->Message(Chat::White,"Usage: #wp add/delete grid_num pause wp_num [-h]");
 }
 
 void command_iplookup(Client *c, const Seperator *sep)
@@ -2050,17 +2534,17 @@ void command_size(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0, "Usage: #size [0 - 255] (Decimal increments are allowed)");
+		c->Message(Chat::White, "Usage: #size [0 - 255] (Decimal increments are allowed)");
 	else {
 		float newsize = atof(sep->arg[1]);
 		if (newsize > 255)
-			c->Message(0, "Error: #size: Size can not be greater than 255.");
+			c->Message(Chat::White, "Error: #size: Size can not be greater than 255.");
 		else if (newsize < 0)
-			c->Message(0, "Error: #size: Size can not be less than 0.");
+			c->Message(Chat::White, "Error: #size: Size can not be less than 0.");
 		else if (!target)
-			c->Message(0,"Error: this command requires a target");
+			c->Message(Chat::White,"Error: this command requires a target");
 		else {
-			uint16 Race = target->GetRace();
+			uint16 Race = target->GetModel();
 			uint8 Gender = target->GetGender();
 			uint8 Texture = 0xFF;
 			uint8 HelmTexture = 0xFF;
@@ -2079,7 +2563,7 @@ void command_size(Client *c, const Seperator *sep)
 										EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 										DrakkinHeritage, DrakkinTattoo, DrakkinDetails, newsize);
 
-			c->Message(0,"Size = %f",  atof(sep->arg[1]));
+			c->Message(Chat::White,"Size = %f",  atof(sep->arg[1]));
 		}
 	}
 }
@@ -2098,20 +2582,37 @@ void command_mana(Client *c, const Seperator *sep)
 
 void command_flymode(Client *c, const Seperator *sep)
 {
-	Client *t=c;
+	Mob *t = c;
 
-	if (strlen(sep->arg[1]) == 1 && !(sep->arg[1][0] == '0' || sep->arg[1][0] == '1' || sep->arg[1][0] == '2'))
-		c->Message(0, "#flymode [0/1/2]");
+	if (strlen(sep->arg[1]) == 1 && !(sep->arg[1][0] == '0' || sep->arg[1][0] == '1' || sep->arg[1][0] == '2' || sep->arg[1][0] == '3' || sep->arg[1][0] == '4' || sep->arg[1][0] == '5'))
+		c->Message(Chat::White, "#flymode [0/1/2/3/4/5]");
 	else {
-		if(c->GetTarget() && c->GetTarget()->IsClient())
-			t=c->GetTarget()->CastToClient();
-		t->SendAppearancePacket(AT_Levitate, atoi(sep->arg[1]));
-		if (sep->arg[1][0] == '1')
-			c->Message(0, "Turning %s's Flymode ON",  t->GetName());
-		else if (sep->arg[1][0] == '2')
-			c->Message(0, "Turning %s's Flymode LEV",  t->GetName());
-		else
-			c->Message(0, "Turning %s's Flymode OFF",  t->GetName());
+		if (c->GetTarget()) {
+			t = c->GetTarget();
+		}
+
+		int fm = atoi(sep->arg[1]);
+
+		t->SetFlyMode(static_cast<GravityBehavior>(fm));
+		t->SendAppearancePacket(AT_Levitate, fm);
+		if (sep->arg[1][0] == '0') {
+			c->Message(Chat::White, "Setting %s to Grounded", t->GetName());
+		}
+		else if (sep->arg[1][0] == '1') {
+			c->Message(Chat::White, "Setting %s to Flying", t->GetName());
+		}
+		else if (sep->arg[1][0] == '2') {
+			c->Message(Chat::White, "Setting %s to Levitating", t->GetName());
+		}
+		else if (sep->arg[1][0] == '3') {
+			c->Message(Chat::White, "Setting %s to In Water", t->GetName());
+		}
+		else if (sep->arg[1][0] == '4') {
+			c->Message(Chat::White, "Setting %s to Floating(Boat)", t->GetName());
+		}
+		else if (sep->arg[1][0] == '5') {
+			c->Message(Chat::White, "Setting %s to Levitating While Running", t->GetName());
+		}
 	}
 }
 
@@ -2122,24 +2623,24 @@ void command_showskills(Client *c, const Seperator *sep)
 	if(c->GetTarget() && c->GetTarget()->IsClient())
 		t=c->GetTarget()->CastToClient();
 
-	c->Message(0, "Skills for %s",  t->GetName());
+	c->Message(Chat::White, "Skills for %s",  t->GetName());
 	for (EQEmu::skills::SkillType i = EQEmu::skills::Skill1HBlunt; i <= EQEmu::skills::HIGHEST_SKILL; i = (EQEmu::skills::SkillType)(i + 1))
-		c->Message(0, "Skill [%d] is at [%d] - %u",  i, t->GetSkill(i), t->GetRawSkill(i));
+		c->Message(Chat::White, "Skill [%d] is at [%d] - %u",  i, t->GetSkill(i), t->GetRawSkill(i));
 }
 
 void command_findspell(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == 0)
-		c->Message(0, "Usage: #FindSpell [spellname]");
+		c->Message(Chat::White, "Usage: #FindSpell [spellname]");
 	else if (SPDAT_RECORDS <= 0)
-		c->Message(0, "Spells not loaded");
+		c->Message(Chat::White, "Spells not loaded");
 	else if (Seperator::IsNumber(sep->argplus[1])) {
 		int spellid = atoi(sep->argplus[1]);
 		if (spellid <= 0 || spellid >= SPDAT_RECORDS) {
-			c->Message(0, "Error: Number out of range");
+			c->Message(Chat::White, "Error: Number out of range");
 		}
 		else {
-			c->Message(0, "  %i: %s",  spellid, spells[spellid].name);
+			c->Message(Chat::White, "  %i: %s",  spellid, spells[spellid].name);
 		}
 	}
 	else {
@@ -2156,7 +2657,7 @@ void command_findspell(Client *c, const Seperator *sep)
 				strupr(sName);
 				char* pdest = strstr(sName, sCriteria);
 				if ((pdest != nullptr) && (count <=20)) {
-					c->Message(0, "  %i: %s",  i, spells[i].name);
+					c->Message(Chat::White, "  %i: %s",  i, spells[i].name);
 					count++;
 				}
 				else if (count > 20)
@@ -2164,16 +2665,16 @@ void command_findspell(Client *c, const Seperator *sep)
 			}
 		}
 		if (count > 20)
-			c->Message(0, "20 spells found... max reached.");
+			c->Message(Chat::White, "20 spells found... max reached.");
 		else
-			c->Message(0, "%i spells found.",  count);
+			c->Message(Chat::White, "%i spells found.",  count);
 	}
 }
 
 void command_castspell(Client *c, const Seperator *sep)
 {
 	if (!sep->IsNumber(1))
-		c->Message(0, "Usage: #CastSpell spellid");
+		c->Message(Chat::White, "Usage: #CastSpell spellid");
 	else {
 		uint16 spellid = atoi(sep->arg[1]);
 		/*
@@ -2186,20 +2687,20 @@ void command_castspell(Client *c, const Seperator *sep)
 			((spellid >= 1342) && (spellid <= 1348)) || (spellid == 1923) || (spellid == 1924) ||
 			(spellid == 3355)) &&
 			c->Admin() < commandCastSpecials)
-			c->Message(13, "Unable to cast spell.");
+			c->Message(Chat::Red, "Unable to cast spell.");
 		else if (spellid >= SPDAT_RECORDS)
-			c->Message(0, "Error: #CastSpell: Argument out of range");
+			c->Message(Chat::White, "Error: #CastSpell: Argument out of range");
 		else
 			if (c->GetTarget() == 0)
 				if(c->Admin() >= commandInstacast)
-					c->SpellFinished(spellid, 0, EQEmu::CastingSlot::Item, 0, -1, spells[spellid].ResistDiff);
+					c->SpellFinished(spellid, 0, EQEmu::spells::CastingSlot::Item, 0, -1, spells[spellid].ResistDiff);
 				else
-					c->CastSpell(spellid, 0, EQEmu::CastingSlot::Item, 0);
+					c->CastSpell(spellid, 0, EQEmu::spells::CastingSlot::Item, 0);
 			else
 				if(c->Admin() >= commandInstacast)
-					c->SpellFinished(spellid, c->GetTarget(), EQEmu::CastingSlot::Item, 0, -1, spells[spellid].ResistDiff);
+					c->SpellFinished(spellid, c->GetTarget(), EQEmu::spells::CastingSlot::Item, 0, -1, spells[spellid].ResistDiff);
 				else
-					c->CastSpell(spellid, c->GetTarget()->GetID(), EQEmu::CastingSlot::Item, 0);
+					c->CastSpell(spellid, c->GetTarget()->GetID(), EQEmu::spells::CastingSlot::Item, 0);
 	}
 }
 
@@ -2207,55 +2708,55 @@ void command_setlanguage(Client *c, const Seperator *sep)
 {
 	if (strcasecmp(sep->arg[1], "list" ) == 0 )
 	{
-		c->Message(0, "Languages:");
-		c->Message(0, "(0) Common Tongue");
-		c->Message(0, "(1) Barbarian");
-		c->Message(0, "(2) Erudian");
-		c->Message(0, "(3) Elvish");
-		c->Message(0, "(4) Dark Elvish");
-		c->Message(0, "(5) Dwarvish");
-		c->Message(0, "(6) Troll");
-		c->Message(0, "(7) Ogre");
-		c->Message(0, "(8) Gnomish");
-		c->Message(0, "(9) Halfling");
-		c->Message(0, "(10) Thieves Cant");
-		c->Message(0, "(11) Old Erudian");
-		c->Message(0, "(12) Elder Elvish");
-		c->Message(0, "(13) Froglok");
-		c->Message(0, "(14) Goblin");
-		c->Message(0, "(15) Gnoll");
-		c->Message(0, "(16) Combine Tongue");
-		c->Message(0, "(17) Elder Teir`Dal");
-		c->Message(0, "(18) Lizardman");
-		c->Message(0, "(19) Orcish");
-		c->Message(0, "(20) Faerie");
-		c->Message(0, "(21) Dragon");
-		c->Message(0, "(22) Elder Dragon");
-		c->Message(0, "(23) Dark Speech");
-		c->Message(0, "(24) Vah Shir");
-		c->Message(0, "(25) Alaran");
-		c->Message(0, "(26) Hadal");
-		c->Message(0, "(27) Unknown1");
+		c->Message(Chat::White, "Languages:");
+		c->Message(Chat::White, "(0) Common Tongue");
+		c->Message(Chat::White, "(1) Barbarian");
+		c->Message(Chat::White, "(2) Erudian");
+		c->Message(Chat::White, "(3) Elvish");
+		c->Message(Chat::White, "(4) Dark Elvish");
+		c->Message(Chat::White, "(5) Dwarvish");
+		c->Message(Chat::White, "(6) Troll");
+		c->Message(Chat::White, "(7) Ogre");
+		c->Message(Chat::White, "(8) Gnomish");
+		c->Message(Chat::White, "(9) Halfling");
+		c->Message(Chat::White, "(10) Thieves Cant");
+		c->Message(Chat::White, "(11) Old Erudian");
+		c->Message(Chat::White, "(12) Elder Elvish");
+		c->Message(Chat::White, "(13) Froglok");
+		c->Message(Chat::White, "(14) Goblin");
+		c->Message(Chat::White, "(15) Gnoll");
+		c->Message(Chat::White, "(16) Combine Tongue");
+		c->Message(Chat::White, "(17) Elder Teir`Dal");
+		c->Message(Chat::White, "(18) Lizardman");
+		c->Message(Chat::White, "(19) Orcish");
+		c->Message(Chat::White, "(20) Faerie");
+		c->Message(Chat::White, "(21) Dragon");
+		c->Message(Chat::White, "(22) Elder Dragon");
+		c->Message(Chat::White, "(23) Dark Speech");
+		c->Message(Chat::White, "(24) Vah Shir");
+		c->Message(Chat::White, "(25) Alaran");
+		c->Message(Chat::White, "(26) Hadal");
+		c->Message(Chat::White, "(27) Unknown1");
 	}
 	else if( c->GetTarget() == 0 )
 	{
-		c->Message(0, "Error: #setlanguage: No target.");
+		c->Message(Chat::White, "Error: #setlanguage: No target.");
 	}
 	else if( !c->GetTarget()->IsClient() )
 	{
-		c->Message(0, "Error: Target must be a player.");
+		c->Message(Chat::White, "Error: Target must be a player.");
 	}
 	else if (
 				!sep->IsNumber(1) || atoi(sep->arg[1]) < 0 || atoi(sep->arg[1]) > 27 ||
 				!sep->IsNumber(2) || atoi(sep->arg[2]) < 0 || atoi(sep->arg[2]) > 100
 			)
 	{
-		c->Message(0, "Usage: #setlanguage [language ID] [value] (0-27, 0-100)");
-		c->Message(0, "Try #setlanguage list for a list of language IDs");
+		c->Message(Chat::White, "Usage: #setlanguage [language ID] [value] (0-27, 0-100)");
+		c->Message(Chat::White, "Try #setlanguage list for a list of language IDs");
 	}
 	else
 	{
-		Log(Logs::General, Logs::Normal, "Set language request from %s, target:%s lang_id:%i value:%i",  c->GetName(), c->GetTarget()->GetName(), atoi(sep->arg[1]), atoi(sep->arg[2]) );
+		LogInfo("Set language request from [{}], target:[{}] lang_id:[{}] value:[{}]",  c->GetName(), c->GetTarget()->GetName(), atoi(sep->arg[1]), atoi(sep->arg[2]) );
 		uint8 langid = (uint8)atoi(sep->arg[1]);
 		uint8 value = (uint8)atoi(sep->arg[2]);
 		c->GetTarget()->CastToClient()->SetLanguageSkill( langid, value );
@@ -2265,22 +2766,22 @@ void command_setlanguage(Client *c, const Seperator *sep)
 void command_setskill(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget() == nullptr) {
-		c->Message(0, "Error: #setskill: No target.");
+		c->Message(Chat::White, "Error: #setskill: No target.");
 	}
 	else if (!c->GetTarget()->IsClient()) {
-		c->Message(0, "Error: #setskill: Target must be a client.");
+		c->Message(Chat::White, "Error: #setskill: Target must be a client.");
 	}
 	else if (
 		!sep->IsNumber(1) || atoi(sep->arg[1]) < 0 || atoi(sep->arg[1]) > EQEmu::skills::HIGHEST_SKILL ||
 						!sep->IsNumber(2) || atoi(sep->arg[2]) < 0 || atoi(sep->arg[2]) > HIGHEST_CAN_SET_SKILL
 					)
 	{
-		c->Message(0, "Usage: #setskill skill x ");
-		c->Message(0, "       skill = 0 to %d", EQEmu::skills::HIGHEST_SKILL);
-		c->Message(0, "       x = 0 to %d",  HIGHEST_CAN_SET_SKILL);
+		c->Message(Chat::White, "Usage: #setskill skill x ");
+		c->Message(Chat::White, "       skill = 0 to %d", EQEmu::skills::HIGHEST_SKILL);
+		c->Message(Chat::White, "       x = 0 to %d",  HIGHEST_CAN_SET_SKILL);
 	}
 	else {
-		Log(Logs::General, Logs::Normal, "Set skill request from %s, target:%s skill_id:%i value:%i",  c->GetName(), c->GetTarget()->GetName(), atoi(sep->arg[1]), atoi(sep->arg[2]) );
+		LogInfo("Set skill request from [{}], target:[{}] skill_id:[{}] value:[{}]",  c->GetName(), c->GetTarget()->GetName(), atoi(sep->arg[1]), atoi(sep->arg[2]) );
 		int skill_num = atoi(sep->arg[1]);
 		uint16 skill_value = atoi(sep->arg[2]);
 		if (skill_num <= EQEmu::skills::HIGHEST_SKILL)
@@ -2291,38 +2792,45 @@ void command_setskill(Client *c, const Seperator *sep)
 void command_setskillall(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget() == 0)
-		c->Message(0, "Error: #setallskill: No target.");
+		c->Message(Chat::White, "Error: #setallskill: No target.");
 	else if (!c->GetTarget()->IsClient())
-		c->Message(0, "Error: #setskill: Target must be a client.");
+		c->Message(Chat::White, "Error: #setskill: Target must be a client.");
 	else if (!sep->IsNumber(1) || atoi(sep->arg[1]) < 0 || atoi(sep->arg[1]) > HIGHEST_CAN_SET_SKILL) {
-		c->Message(0, "Usage: #setskillall value ");
-		c->Message(0, "       value = 0 to %d",  HIGHEST_CAN_SET_SKILL);
+		c->Message(Chat::White, "Usage: #setskillall value ");
+		c->Message(Chat::White, "       value = 0 to %d",  HIGHEST_CAN_SET_SKILL);
 	}
 	else {
 		if (c->Admin() >= commandSetSkillsOther || c->GetTarget()==c || c->GetTarget()==0) {
-			Log(Logs::General, Logs::Normal, "Set ALL skill request from %s, target:%s",  c->GetName(), c->GetTarget()->GetName());
+			LogInfo("Set ALL skill request from [{}], target:[{}]",  c->GetName(), c->GetTarget()->GetName());
 			uint16 level = atoi(sep->arg[1]);
 			for (EQEmu::skills::SkillType skill_num = EQEmu::skills::Skill1HBlunt; skill_num <= EQEmu::skills::HIGHEST_SKILL; skill_num = (EQEmu::skills::SkillType)(skill_num + 1)) {
 				c->GetTarget()->CastToClient()->SetSkill(skill_num, level);
 			}
 		}
 		else
-			c->Message(0, "Error: Your status is not high enough to set anothers skills");
+			c->Message(Chat::White, "Error: Your status is not high enough to set anothers skills");
 	}
 }
 
 void command_race(Client *c, const Seperator *sep)
 {
-	Mob *t=c->CastToMob();
+	Mob *target = c->CastToMob();
 
-	// Need to figure out max race for LoY/LDoN: going with upper bound of 500 now for testing
-	if (sep->IsNumber(1) && atoi(sep->arg[1]) >= 0 && atoi(sep->arg[1]) <= 724) {
-		if ((c->GetTarget()) && c->Admin() >= commandRaceOthers)
-			t=c->GetTarget();
-		t->SendIllusionPacket(atoi(sep->arg[1]));
+	if (sep->IsNumber(1)) {
+		auto race = atoi(sep->arg[1]);
+		if ((race >= 0 && race <= 732) || (race >= 2253 && race <= 2259)) {
+			if ((c->GetTarget()) && c->Admin() >= commandRaceOthers) {
+				target = c->GetTarget();
+			}
+			target->SendIllusionPacket(race);
+		}
+		else {
+			c->Message(Chat::White, "Usage: #race [0-732, 2253-2259] (0 for back to normal)");
+		}
 	}
-	else
-		c->Message(0, "Usage: #race [0-724] (0 for back to normal)");
+	else {
+		c->Message(Chat::White, "Usage: #race [0-732, 2253-2259] (0 for back to normal)");
+	}
 }
 
 void command_gender(Client *c, const Seperator *sep)
@@ -2335,13 +2843,13 @@ void command_gender(Client *c, const Seperator *sep)
 		t->SendIllusionPacket(t->GetRace(), atoi(sep->arg[1]));
 	}
 	else
-		c->Message(0, "Usage: #gender [0/1/2]");
+		c->Message(Chat::White, "Usage: #gender [0/1/2]");
 }
 
 void command_makepet(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == '\0')
-		c->Message(0, "Usage: #makepet pet_type_name (will not survive across zones)");
+		c->Message(Chat::White, "Usage: #makepet pet_type_name (will not survive across zones)");
 	else
 		c->MakePet(0, sep->arg[1]);
 }
@@ -2351,9 +2859,9 @@ void command_level(Client *c, const Seperator *sep)
 	uint16 level = atoi(sep->arg[1]);
 
 	if ((level <= 0) || ((level > RuleI(Character, MaxLevel)) && (c->Admin() < commandLevelAboveCap))) {
-		c->Message(0, "Error: #Level: Invalid Level");
+		c->Message(Chat::White, "Error: #Level: Invalid Level");
 	}
-	else if (c->Admin() < 100) {
+	else if (c->Admin() < RuleI(GM, MinStatusToLevelTarget)) {
 		c->SetLevel(level, true);
 #ifdef BOTS
 		if(RuleB(Bots, BotLevelsWithOwner))
@@ -2361,11 +2869,11 @@ void command_level(Client *c, const Seperator *sep)
 #endif
 	}
 	else if (!c->GetTarget()) {
-		c->Message(0, "Error: #Level: No target");
+		c->Message(Chat::White, "Error: #Level: No target");
 	}
 	else {
 		if (!c->GetTarget()->IsNPC() && ((c->Admin() < commandLevelNPCAboveCap) && (level > RuleI(Character, MaxLevel)))) {
-			c->Message(0, "Error: #Level: Invalid Level");
+			c->Message(Chat::White, "Error: #Level: Invalid Level");
 		}
 		else {
 			c->GetTarget()->SetLevel(level, true);
@@ -2380,21 +2888,163 @@ void command_level(Client *c, const Seperator *sep)
 	}
 }
 
+void command_spawneditmass(Client *c, const Seperator *sep)
+{
+	std::string query = fmt::format(
+		SQL(
+			SELECT
+			npc_types.id,
+			npc_types.name,
+			spawn2.respawntime,
+			spawn2.id
+				FROM
+					npc_types
+				JOIN spawnentry ON spawnentry.npcID = npc_types.id
+				JOIN spawn2 ON spawn2.spawngroupID = spawnentry.spawngroupID
+				WHERE
+				spawn2.zone = '{0}' and spawn2.version = {1}
+				GROUP BY npc_types.id
+		),
+		zone->GetShortName(),
+		zone->GetInstanceVersion()
+	);
+
+	std::string status = "(Searching)";
+
+	if (strcasecmp(sep->arg[4], "apply") == 0) {
+		status = "(Applying)";
+	}
+
+	std::string search_value;
+	std::string edit_option;
+	std::string edit_value;
+	std::string apply_set;
+
+	if (sep->arg[1]) {
+		search_value = sep->arg[1];
+	}
+
+	if (sep->arg[2]) {
+		edit_option = sep->arg[2];
+	}
+
+	if (sep->arg[3]) {
+		edit_value = sep->arg[3];
+	}
+
+	if (sep->arg[4]) {
+		apply_set = sep->arg[4];
+	}
+
+	if (!edit_option.empty() && edit_value.empty()) {
+		c->Message(Chat::Yellow, "Please specify an edit option value | #npceditmass <search> <option> <value>");
+		return;
+	}
+
+	std::vector<std::string> npc_ids;
+	std::vector<std::string> spawn2_ids;
+
+	int  found_count = 0;
+	auto results     = database.QueryDatabase(query);
+
+	for (auto row = results.begin(); row != results.end(); ++row) {
+
+		std::string npc_id       = row[0];
+		std::string npc_name     = row[1];
+		std::string respawn_time = row[2];
+		std::string spawn2_id    = row[3];
+
+		if (npc_name.find(search_value) == std::string::npos) {
+			continue;
+		}
+
+		c->Message(
+			Chat::Yellow,
+			fmt::format(
+				"NPC ({0}) [{1}] respawn_time [{2}] {3}",
+				npc_id,
+				npc_name,
+				respawn_time,
+				status
+			).c_str()
+		);
+
+		npc_ids.push_back(npc_id);
+		spawn2_ids.push_back(spawn2_id);
+
+		found_count++;
+	}
+
+	c->Message(Chat::Yellow, "Found [%i] NPC Spawn2 entries that match this criteria in this zone", found_count);
+	if (edit_option.empty()) {
+		c->Message(Chat::Yellow, "Please specify an edit option | #npceditmass <search> <option>");
+		c->Message(Chat::Yellow, "Options [respawn_time]");
+		return;
+	}
+
+	std::string saylink = fmt::format(
+		"#spawneditmass {} {} {} apply",
+		search_value,
+		edit_option,
+		edit_value
+	);
+
+	if (found_count > 0) {
+		c->Message(
+			Chat::Yellow, "To apply these changes, click <%s> or type [%s]",
+			EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Apply").c_str(),
+			saylink.c_str()
+		);
+	}
+
+	if (edit_option == "respawn_time" && apply_set == "apply") {
+		std::string spawn2_ids_string = implode(",", spawn2_ids);
+		if (spawn2_ids_string.empty()) {
+			c->Message(Chat::Red, "Error: Ran into an unknown error compiling Spawn2 IDs");
+			return;
+		}
+
+		database.QueryDatabase(
+			fmt::format(
+				SQL(
+					UPDATE spawn2 SET respawntime = {} WHERE id IN({})
+				),
+				std::stoi(edit_value),
+				spawn2_ids_string
+			)
+		);
+
+		c->Message(Chat::Yellow, "Updated [%i] spawns", found_count);
+	}
+}
+
 void command_spawn(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] != 0){
 		Client* client = entity_list.GetClientByName(sep->arg[1]);
 		if(client){
-				c->Message(0,"You cannot spawn a mob with the same name as a character!");
+				c->Message(Chat::White,"You cannot spawn a mob with the same name as a character!");
 				return;
 		}
 	}
 
 	NPC* npc = NPC::SpawnNPC(sep->argplus[1], c->GetPosition(), c);
 	if (!npc) {
-		c->Message(0, "Format: #spawn name race level material hp gender class priweapon secweapon merchantid bodytype - spawns a npc those parameters.");
-		c->Message(0, "Name Format: NPCFirstname_NPCLastname - All numbers in a name are stripped and \"_\" characters become a space.");
-		c->Message(0, "Note: Using \"-\" for gender will autoselect the gender for the race. Using \"-\" for HP will use the calculated maximum HP.");
+		c->Message(Chat::White, "Format: #spawn name race level material hp gender class priweapon secweapon merchantid bodytype - spawns a npc those parameters.");
+		c->Message(Chat::White, "Name Format: NPCFirstname_NPCLastname - All numbers in a name are stripped and \"_\" characters become a space.");
+		c->Message(Chat::White, "Note: Using \"-\" for gender will autoselect the gender for the race. Using \"-\" for HP will use the calculated maximum HP.");
+	}
+}
+
+void command_test(Client *c, const Seperator *sep)
+{
+	c->Message(Chat::Yellow, "Triggering test command");
+
+	if (sep->arg[1]) {
+		c->SetPrimaryWeaponOrnamentation(atoi(sep->arg[1]));
+	}
+	if (sep->arg[2]) {
+		c->SetSecondaryWeaponOrnamentation(atoi(sep->arg[2]));
 	}
 }
 
@@ -2402,6 +3052,7 @@ void command_texture(Client *c, const Seperator *sep)
 {
 
 	uint16 texture;
+
 	if (sep->IsNumber(1) && atoi(sep->arg[1]) >= 0 && atoi(sep->arg[1]) <= 255) {
 		texture = atoi(sep->arg[1]);
 		uint8 helm = 0xFF;
@@ -2413,9 +3064,9 @@ void command_texture(Client *c, const Seperator *sep)
 			{
 				c->SendTextureWC(i, texture);
 			}
-		else if ((c->GetTarget()->GetRace() > 0 && c->GetTarget()->GetRace() <= 12) ||
-			c->GetTarget()->GetRace() == 128 || c->GetTarget()->GetRace() == 130 ||
-			c->GetTarget()->GetRace() == 330 || c->GetTarget()->GetRace() == 522) {
+		else if ((c->GetTarget()->GetModel() > 0 && c->GetTarget()->GetModel() <= 12) ||
+			c->GetTarget()->GetModel() == 128 || c->GetTarget()->GetModel() == 130 ||
+			c->GetTarget()->GetModel() == 330 || c->GetTarget()->GetModel() == 522) {
 			for (i = EQEmu::textures::textureBegin; i <= EQEmu::textures::LastTintableTexture; i++)
 			{
 				c->GetTarget()->SendTextureWC(i, texture);
@@ -2434,13 +3085,13 @@ void command_texture(Client *c, const Seperator *sep)
 			}
 
 			if ((c->GetTarget()) && (c->Admin() >= commandTextureOthers))
-				c->GetTarget()->SendIllusionPacket(c->GetTarget()->GetRace(), 0xFF, texture, helm);
+				c->GetTarget()->SendIllusionPacket(c->GetTarget()->GetModel(), 0xFF, texture, helm);
 			else
 				c->SendIllusionPacket(c->GetRace(), 0xFF, texture, helm);
 		}
 	}
 	else
-		c->Message(0, "Usage: #texture [texture] [helmtexture] (0-255, 255 for show equipment)");
+		c->Message(Chat::White, "Usage: #texture [texture] [helmtexture] (0-255, 255 for show equipment)");
 }
 
 void command_npctypespawn(Client *c, const Seperator *sep)
@@ -2449,25 +3100,102 @@ void command_npctypespawn(Client *c, const Seperator *sep)
 		const NPCType* tmp = 0;
 		if ((tmp = database.LoadNPCTypesData(atoi(sep->arg[1])))) {
 			//tmp->fixedZ = 1;
-			auto npc = new NPC(tmp, 0, c->GetPosition(), FlyMode3);
+			auto npc = new NPC(tmp, 0, c->GetPosition(), GravityBehavior::Water);
 			if (npc && sep->IsNumber(2))
 				npc->SetNPCFactionID(atoi(sep->arg[2]));
 
-				npc->AddLootTable();
+			npc->AddLootTable();
+			if (npc->DropsGlobalLoot())
+				npc->CheckGlobalLootTables();
 			entity_list.AddNPC(npc);
 		}
 		else
-			c->Message(0, "NPC Type %i not found",  atoi(sep->arg[1]));
+			c->Message(Chat::White, "NPC Type %i not found",  atoi(sep->arg[1]));
 	}
 	else
-		c->Message(0, "Usage: #npctypespawn npctypeid factionid");
+		c->Message(Chat::White, "Usage: #npctypespawn npctypeid factionid");
 
+}
+
+void command_nudge(Client* c, const Seperator* sep)
+{
+	if (sep->arg[1][0] == 0) {
+		c->Message(Chat::White, "Usage: #nudge [x=f] [y=f] [z=f] [h=f] (partial/mixed arguments allowed)");
+	}
+	else {
+
+		auto target = c->GetTarget();
+		if (!target) {
+
+			c->Message(Chat::Yellow, "This command requires a target.");
+			return;
+		}
+		if (target->IsMoving()) {
+
+			c->Message(Chat::Yellow, "This command requires a stationary target.");
+			return;
+		}
+
+		glm::vec4 position_offset(0.0f, 0.0f, 0.0f, 0.0f);
+		for (auto index = 1; index <= 4; ++index) {
+
+			if (!sep->arg[index]) {
+				continue;
+			}
+
+			Seperator argsep(sep->arg[index], '=');
+			if (!argsep.arg[1][0]) {
+				continue;
+			}
+
+			switch (argsep.arg[0][0]) {
+			case 'x':
+				position_offset.x = atof(argsep.arg[1]);
+				break;
+			case 'y':
+				position_offset.y = atof(argsep.arg[1]);
+				break;
+			case 'z':
+				position_offset.z = atof(argsep.arg[1]);
+				break;
+			case 'h':
+				position_offset.w = atof(argsep.arg[1]);
+				break;
+			default:
+				break;
+			}
+		}
+
+		const auto& current_position = target->GetPosition();
+		glm::vec4 new_position(
+			(current_position.x + position_offset.x),
+			(current_position.y + position_offset.y),
+			(current_position.z + position_offset.z),
+			(current_position.w + position_offset.w)
+		);
+
+		target->GMMove(new_position.x, new_position.y, new_position.z, new_position.w);
+
+		c->Message(
+			Chat::White,
+			"Nudging '%s' to {%1.3f, %1.3f, %1.3f, %1.2f} (adjustment: {%1.3f, %1.3f, %1.3f, %1.2f})",
+			target->GetName(),
+			new_position.x,
+			new_position.y,
+			new_position.z,
+			new_position.w,
+			position_offset.x,
+			position_offset.y,
+			position_offset.z,
+			position_offset.w
+		);
+	}
 }
 
 void command_heal(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget()==0)
-		c->Message(0, "Error: #Heal: No Target.");
+		c->Message(Chat::White, "Error: #Heal: No Target.");
 	else
 		c->GetTarget()->Heal();
 }
@@ -2479,12 +3207,12 @@ void command_appearance(Client *c, const Seperator *sep)
 	// sends any appearance packet
 	// Dev debug command, for appearance types
 	if (sep->arg[2][0] == 0)
-		c->Message(0, "Usage: #appearance type value");
+		c->Message(Chat::White, "Usage: #appearance type value");
 	else {
 		if ((c->GetTarget()))
 			t=c->GetTarget();
 		t->SendAppearancePacket(atoi(sep->arg[1]), atoi(sep->arg[2]));
-		c->Message(0, "Sending appearance packet: target=%s, type=%s, value=%s",  t->GetName(), sep->arg[1], sep->arg[2]);
+		c->Message(Chat::White, "Sending appearance packet: target=%s, type=%s, value=%s",  t->GetName(), sep->arg[1], sep->arg[2]);
 	}
 }
 
@@ -2495,252 +3223,309 @@ void command_nukeitem(Client *c, const Seperator *sep)
 	if (c->GetTarget() && c->GetTarget()->IsClient() && (sep->IsNumber(1) || sep->IsHexNumber(1))) {
 		itemid=sep->IsNumber(1)?atoi(sep->arg[1]):hextoi(sep->arg[1]);
 		numitems = c->GetTarget()->CastToClient()->NukeItem(itemid);
-		c->Message(0, " %u items deleted",  numitems);
+		c->Message(Chat::White, " %u items deleted",  numitems);
 	}
 	else
-		c->Message(0, "Usage: (targted) #nukeitem itemnum - removes the item from the player's inventory");
+		c->Message(Chat::White, "Usage: (targted) #nukeitem itemnum - removes the item from the player's inventory");
 }
 
 void command_peekinv(Client *c, const Seperator *sep)
 {
+	// this can be cleaned up once inventory is cleaned up
 	enum {
-		peekWorn = 0x01,
-		peekInv = 0x02,
-		peekCursor = 0x04,
-		peekTrib = 0x08,
-		peekBank = 0x10,
-		peekTrade = 0x20,
-		peekWorld = 0x40
-	} ;
+		peekNone = 0x0000,
+		peekEquip = 0x0001,
+		peekGen = 0x0002,
+		peekCursor = 0x0004,
+		peekLimbo = 0x0008,
+		peekTrib = 0x0010,
+		peekBank = 0x0020,
+		peekShBank = 0x0040,
+		peekTrade = 0x0080,
+		peekWorld = 0x0100,
+		peekOutOfScope = (peekWorld * 2) // less than
+	};
 
-	if (!c->GetTarget() || !c->GetTarget()->IsClient()) {
-		c->Message(0, "You must have a PC target selected for this command");
+	static const char* scope_prefix[] = { "equip", "gen", "cursor", "limbo", "trib", "bank", "shbank", "trade", "world" };
+
+	static const int16 scope_range[][2] = {
+		{ EQEmu::invslot::EQUIPMENT_BEGIN, EQEmu::invslot::EQUIPMENT_END },
+		{ EQEmu::invslot::GENERAL_BEGIN, EQEmu::invslot::GENERAL_END },
+		{ EQEmu::invslot::slotCursor, EQEmu::invslot::slotCursor },
+		{ EQEmu::invslot::SLOT_INVALID, EQEmu::invslot::SLOT_INVALID },
+		{ EQEmu::invslot::TRIBUTE_BEGIN, EQEmu::invslot::TRIBUTE_END },
+		{ EQEmu::invslot::BANK_BEGIN, EQEmu::invslot::BANK_END },
+		{ EQEmu::invslot::SHARED_BANK_BEGIN, EQEmu::invslot::SHARED_BANK_END },
+		{ EQEmu::invslot::TRADE_BEGIN, EQEmu::invslot::TRADE_END },
+		{ EQEmu::invslot::SLOT_BEGIN, (EQEmu::invtype::WORLD_SIZE - 1) }
+	};
+
+	static const bool scope_bag[] = { false, true, true, true, false, true, true, true, true };
+
+	if (!c)
+		return;
+
+	if (c->GetTarget() && !c->GetTarget()->IsClient()) {
+		c->Message(Chat::White, "You must target a PC for this command.");
 		return;
 	}
 
-	int scopeWhere = 0;
+	int scopeMask = peekNone;
 
-	if (strcasecmp(sep->arg[1], "all") == 0) { scopeWhere = ~0; }
-	else if (strcasecmp(sep->arg[1], "worn") == 0) { scopeWhere |= peekWorn; }
-	else if (strcasecmp(sep->arg[1], "inv") == 0) { scopeWhere |= peekInv; }
-	else if (strcasecmp(sep->arg[1], "cursor") == 0) { scopeWhere |= peekCursor; }
-	else if (strcasecmp(sep->arg[1], "trib") == 0) { scopeWhere |= peekTrib; }
-	else if (strcasecmp(sep->arg[1], "bank") == 0) { scopeWhere |= peekBank; }
-	else if (strcasecmp(sep->arg[1], "trade") == 0) { scopeWhere |= peekTrade; }
-	else if (strcasecmp(sep->arg[1], "world") == 0) { scopeWhere |= peekWorld; }
+	if (strcasecmp(sep->arg[1], "all") == 0) { scopeMask = (peekOutOfScope - 1); }
+	else if (strcasecmp(sep->arg[1], "equip") == 0) { scopeMask |= peekEquip; }
+	else if (strcasecmp(sep->arg[1], "gen") == 0) { scopeMask |= peekGen; }
+	else if (strcasecmp(sep->arg[1], "cursor") == 0) { scopeMask |= peekCursor; }
+	else if (strcasecmp(sep->arg[1], "poss") == 0) { scopeMask |= (peekEquip | peekGen | peekCursor); }
+	else if (strcasecmp(sep->arg[1], "limbo") == 0) { scopeMask |= peekLimbo; }
+	else if (strcasecmp(sep->arg[1], "curlim") == 0) { scopeMask |= (peekCursor | peekLimbo); }
+	else if (strcasecmp(sep->arg[1], "trib") == 0) { scopeMask |= peekTrib; }
+	else if (strcasecmp(sep->arg[1], "bank") == 0) { scopeMask |= peekBank; }
+	else if (strcasecmp(sep->arg[1], "shbank") == 0) { scopeMask |= peekShBank; }
+	else if (strcasecmp(sep->arg[1], "allbank") == 0) { scopeMask |= (peekBank | peekShBank); }
+	else if (strcasecmp(sep->arg[1], "trade") == 0) { scopeMask |= peekTrade; }
+	else if (strcasecmp(sep->arg[1], "world") == 0) { scopeMask |= peekWorld; }
 
-	if (scopeWhere == 0) {
-		c->Message(0, "Usage: #peekinv [worn|inv|cursor|trib|bank|trade|world|all]");
-		c->Message(0, "  Displays a portion of the targeted user's inventory");
-		c->Message(0, "  Caution: 'all' is a lot of information!");
+	if (!scopeMask) {
+		c->Message(Chat::White, "Usage: #peekinv [equip|gen|cursor|poss|limbo|curlim|trib|bank|shbank|allbank|trade|world|all]");
+		c->Message(Chat::White, "- Displays a portion of the targeted user's inventory");
+		c->Message(Chat::White, "- Caution: 'all' is a lot of information!");
 		return;
 	}
 
-	Client* targetClient = c->GetTarget()->CastToClient();
+	Client* targetClient = c;
+	if (c->GetTarget())
+		targetClient = c->GetTarget()->CastToClient();
+
 	const EQEmu::ItemInstance* inst_main = nullptr;
 	const EQEmu::ItemInstance* inst_sub = nullptr;
+	const EQEmu::ItemInstance* inst_aug = nullptr;
 	const EQEmu::ItemData* item_data = nullptr;
-	std::string item_link;
+
 	EQEmu::SayLinkEngine linker;
 	linker.SetLinkType(EQEmu::saylink::SayLinkItemInst);
 
-	c->Message(0, "Displaying inventory for %s...",  targetClient->GetName());
+	c->Message(Chat::White, "Displaying inventory for %s...", targetClient->GetName());
 
-	// worn
-	for (int16 indexMain = EQEmu::legacy::EQUIPMENT_BEGIN; (scopeWhere & peekWorn) && (indexMain <= EQEmu::legacy::EQUIPMENT_END); ++indexMain) {
-		inst_main = targetClient->GetInv().GetItem(indexMain);
-		item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
-		linker.SetItemInst(inst_main);
+	Object* objectTradeskill = targetClient->GetTradeskillObject();
 
-		item_link = linker.GenerateLink();
+	bool itemsFound = false;
 
-		c->Message((item_data == nullptr), "WornSlot: %i, Item: %i (%s), Charges: %i",
-			indexMain, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
-	}
+	for (int scopeIndex = 0, scopeBit = peekEquip; scopeBit < peekOutOfScope; ++scopeIndex, scopeBit <<= 1) {
+		if (scopeBit & ~scopeMask)
+			continue;
 
-	if ((scopeWhere & peekWorn) && (targetClient->ClientVersion() >= EQEmu::versions::ClientVersion::SoF)) {
-		inst_main = targetClient->GetInv().GetItem(EQEmu::inventory::slotPowerSource);
-		item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
-		linker.SetItemInst(inst_main);
-
-		item_link = linker.GenerateLink();
-
-		c->Message((item_data == nullptr), "WornSlot: %i, Item: %i (%s), Charges: %i",
-			EQEmu::inventory::slotPowerSource, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
-	}
-
-	// inv
-	for (int16 indexMain = EQEmu::legacy::GENERAL_BEGIN; (scopeWhere & peekInv) && (indexMain <= EQEmu::legacy::GENERAL_END); ++indexMain) {
-		inst_main = targetClient->GetInv().GetItem(indexMain);
-		item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
-		linker.SetItemInst(inst_main);
-
-		item_link = linker.GenerateLink();
-
-		c->Message((item_data == nullptr), "InvSlot: %i, Item: %i (%s), Charges: %i",
-			indexMain, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
-
-		for (uint8 indexSub = EQEmu::inventory::containerBegin; inst_main && inst_main->IsClassBag() && (indexSub < EQEmu::inventory::ContainerCount); ++indexSub) {
-			inst_sub = inst_main->GetItem(indexSub);
-			item_data = (inst_sub == nullptr) ? nullptr : inst_sub->GetItem();
-			linker.SetItemInst(inst_sub);
-
-			item_link = linker.GenerateLink();
-
-			c->Message((item_data == nullptr), "  InvBagSlot: %i (Slot #%i, Bag #%i), Item: %i (%s), Charges: %i",
-				EQEmu::InventoryProfile::CalcSlotId(indexMain, indexSub), indexMain, indexSub, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_sub == nullptr) ? 0 : inst_sub->GetCharges()));
+		if (scopeBit & peekWorld) {
+			if (objectTradeskill == nullptr) {
+				c->Message(Chat::Default, "No world tradeskill object selected...");
+				continue;
+			}
+			else {
+				c->Message(Chat::White, "[WorldObject DBID: %i (entityid: %i)]", objectTradeskill->GetDBID(), objectTradeskill->GetID());
+			}
 		}
-	}
 
-	// cursor
-	if (scopeWhere & peekCursor) {
-		if (targetClient->GetInv().CursorEmpty()) {
-			linker.SetItemInst(nullptr);
+		for (int16 indexMain = scope_range[scopeIndex][0]; indexMain <= scope_range[scopeIndex][1]; ++indexMain) {
+			if (indexMain == EQEmu::invslot::SLOT_INVALID)
+				continue;
 
-			item_link = linker.GenerateLink();
+			inst_main = ((scopeBit & peekWorld) ? objectTradeskill->GetItem(indexMain) : targetClient->GetInv().GetItem(indexMain));
+			if (inst_main) {
+				itemsFound = true;
+				item_data = inst_main->GetItem();
+			}
+			else {
+				item_data = nullptr;
+			}
 
-			c->Message(1, "CursorSlot: %i, Item: %i (%s), Charges: %i",
-				EQEmu::inventory::slotCursor, 0, item_link.c_str(), 0);
+			linker.SetItemInst(inst_main);
+
+			c->Message(
+				(item_data == nullptr),
+				"%sSlot: %i, Item: %i (%s), Charges: %i",
+				scope_prefix[scopeIndex],
+				((scopeBit & peekWorld) ? (EQEmu::invslot::WORLD_BEGIN + indexMain) : indexMain),
+				((item_data == nullptr) ? 0 : item_data->ID),
+				linker.GenerateLink().c_str(),
+				((inst_main == nullptr) ? 0 : inst_main->GetCharges())
+			);
+
+			if (inst_main && inst_main->IsClassCommon()) {
+				for (uint8 indexAug = EQEmu::invaug::SOCKET_BEGIN; indexAug <= EQEmu::invaug::SOCKET_END; ++indexAug) {
+					inst_aug = inst_main->GetItem(indexAug);
+					if (!inst_aug) // extant only
+						continue;
+
+					item_data = inst_aug->GetItem();
+					linker.SetItemInst(inst_aug);
+
+					c->Message(
+						(item_data == nullptr),
+						".%sAugSlot: %i (Slot #%i, Aug idx #%i), Item: %i (%s), Charges: %i",
+						scope_prefix[scopeIndex],
+						INVALID_INDEX,
+						((scopeBit & peekWorld) ? (EQEmu::invslot::WORLD_BEGIN + indexMain) : indexMain),
+						indexAug,
+						((item_data == nullptr) ? 0 : item_data->ID),
+						linker.GenerateLink().c_str(),
+						((inst_sub == nullptr) ? 0 : inst_sub->GetCharges())
+					);
+				}
+			}
+
+			if (!scope_bag[scopeIndex] || !(inst_main && inst_main->IsClassBag()))
+				continue;
+
+			for (uint8 indexSub = EQEmu::invbag::SLOT_BEGIN; indexSub <= EQEmu::invbag::SLOT_END; ++indexSub) {
+				inst_sub = inst_main->GetItem(indexSub);
+				if (!inst_sub) // extant only
+					continue;
+
+				item_data = inst_sub->GetItem();
+				linker.SetItemInst(inst_sub);
+
+				c->Message(
+					(item_data == nullptr),
+					"..%sBagSlot: %i (Slot #%i, Bag idx #%i), Item: %i (%s), Charges: %i",
+					scope_prefix[scopeIndex],
+					((scopeBit & peekWorld) ? INVALID_INDEX : EQEmu::InventoryProfile::CalcSlotId(indexMain, indexSub)),
+					((scopeBit & peekWorld) ? (EQEmu::invslot::WORLD_BEGIN + indexMain) : indexMain),
+					indexSub,
+					((item_data == nullptr) ? 0 : item_data->ID),
+					linker.GenerateLink().c_str(),
+					((inst_sub == nullptr) ? 0 : inst_sub->GetCharges())
+				);
+
+				if (inst_sub->IsClassCommon()) {
+					for (uint8 indexAug = EQEmu::invaug::SOCKET_BEGIN; indexAug <= EQEmu::invaug::SOCKET_END; ++indexAug) {
+						inst_aug = inst_sub->GetItem(indexAug);
+						if (!inst_aug) // extant only
+							continue;
+
+						item_data = inst_aug->GetItem();
+						linker.SetItemInst(inst_aug);
+
+						c->Message(
+							(item_data == nullptr),
+							"...%sAugSlot: %i (Slot #%i, Sub idx #%i, Aug idx #%i), Item: %i (%s), Charges: %i",
+							scope_prefix[scopeIndex],
+							INVALID_INDEX,
+							((scopeBit & peekWorld) ? INVALID_INDEX : EQEmu::InventoryProfile::CalcSlotId(indexMain, indexSub)),
+							indexSub,
+							indexAug,
+							((item_data == nullptr) ? 0 : item_data->ID),
+							linker.GenerateLink().c_str(),
+							((inst_sub == nullptr) ? 0 : inst_sub->GetCharges())
+						);
+					}
+				}
+			}
 		}
-		else {
-			int cursorDepth = 0;
-			for (auto it = targetClient->GetInv().cursor_cbegin(); (it != targetClient->GetInv().cursor_cend()); ++it, ++cursorDepth) {
+
+		if (scopeBit & peekLimbo) {
+			int limboIndex = 0;
+			for (auto it = targetClient->GetInv().cursor_cbegin(); (it != targetClient->GetInv().cursor_cend()); ++it, ++limboIndex) {
+				if (it == targetClient->GetInv().cursor_cbegin())
+					continue;
+
 				inst_main = *it;
-				item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
+				if (inst_main) {
+					itemsFound = true;
+					item_data = inst_main->GetItem();
+				}
+				else {
+					item_data = nullptr;
+				}
+
 				linker.SetItemInst(inst_main);
 
-				item_link = linker.GenerateLink();
+				c->Message(
+					(item_data == nullptr),
+					"%sSlot: %i, Item: %i (%s), Charges: %i",
+					scope_prefix[scopeIndex],
+					(8000 + limboIndex),
+					((item_data == nullptr) ? 0 : item_data->ID),
+					linker.GenerateLink().c_str(),
+					((inst_main == nullptr) ? 0 : inst_main->GetCharges())
+				);
 
-				c->Message((item_data == nullptr), "CursorSlot: %i, Depth: %i, Item: %i (%s), Charges: %i",
-					EQEmu::inventory::slotCursor, cursorDepth, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
+				if (inst_main && inst_main->IsClassCommon()) {
+					for (uint8 indexAug = EQEmu::invaug::SOCKET_BEGIN; indexAug <= EQEmu::invaug::SOCKET_END; ++indexAug) {
+						inst_aug = inst_main->GetItem(indexAug);
+						if (!inst_aug) // extant only
+							continue;
 
-				for (uint8 indexSub = EQEmu::inventory::containerBegin; (cursorDepth == 0) && inst_main && inst_main->IsClassBag() && (indexSub < EQEmu::inventory::ContainerCount); ++indexSub) {
+						item_data = inst_aug->GetItem();
+						linker.SetItemInst(inst_aug);
+
+						c->Message(
+							(item_data == nullptr),
+							".%sAugSlot: %i (Slot #%i, Aug idx #%i), Item: %i (%s), Charges: %i",
+							scope_prefix[scopeIndex],
+							INVALID_INDEX,
+							(8000 + limboIndex),
+							indexAug,
+							((item_data == nullptr) ? 0 : item_data->ID),
+							linker.GenerateLink().c_str(),
+							((inst_sub == nullptr) ? 0 : inst_sub->GetCharges())
+						);
+					}
+				}
+
+				if (!scope_bag[scopeIndex] || !(inst_main && inst_main->IsClassBag()))
+					continue;
+
+				for (uint8 indexSub = EQEmu::invbag::SLOT_BEGIN; indexSub <= EQEmu::invbag::SLOT_END; ++indexSub) {
 					inst_sub = inst_main->GetItem(indexSub);
+					if (!inst_sub)
+						continue;
+
 					item_data = (inst_sub == nullptr) ? nullptr : inst_sub->GetItem();
+
 					linker.SetItemInst(inst_sub);
 
-					item_link = linker.GenerateLink();
+					c->Message(
+						(item_data == nullptr),
+						"..%sBagSlot: %i (Slot #%i, Bag idx #%i), Item: %i (%s), Charges: %i",
+						scope_prefix[scopeIndex],
+						INVALID_INDEX,
+						(8000 + limboIndex),
+						indexSub,
+						((item_data == nullptr) ? 0 : item_data->ID),
+						linker.GenerateLink().c_str(),
+						((inst_sub == nullptr) ? 0 : inst_sub->GetCharges())
+					);
 
-					c->Message((item_data == nullptr), "  CursorBagSlot: %i (Slot #%i, Bag #%i), Item: %i (%s), Charges: %i",
-						EQEmu::InventoryProfile::CalcSlotId(EQEmu::inventory::slotCursor, indexSub), EQEmu::inventory::slotCursor, indexSub, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_sub == nullptr) ? 0 : inst_sub->GetCharges()));
+					if (inst_sub->IsClassCommon()) {
+						for (uint8 indexAug = EQEmu::invaug::SOCKET_BEGIN; indexAug <= EQEmu::invaug::SOCKET_END; ++indexAug) {
+							inst_aug = inst_sub->GetItem(indexAug);
+							if (!inst_aug) // extant only
+								continue;
+
+							item_data = inst_aug->GetItem();
+							linker.SetItemInst(inst_aug);
+
+							c->Message(
+								(item_data == nullptr),
+								"...%sAugSlot: %i (Slot #%i, Sub idx #%i, Aug idx #%i), Item: %i (%s), Charges: %i",
+								scope_prefix[scopeIndex],
+								INVALID_INDEX,
+								(8000 + limboIndex),
+								indexSub,
+								indexAug,
+								((item_data == nullptr) ? 0 : item_data->ID),
+								linker.GenerateLink().c_str(),
+								((inst_sub == nullptr) ? 0 : inst_sub->GetCharges())
+							);
+						}
+					}
 				}
 			}
 		}
 	}
 
-	// trib
-	for (int16 indexMain = EQEmu::legacy::TRIBUTE_BEGIN; (scopeWhere & peekTrib) && (indexMain <= EQEmu::legacy::TRIBUTE_END); ++indexMain) {
-		inst_main = targetClient->GetInv().GetItem(indexMain);
-		item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
-		linker.SetItemInst(inst_main);
-
-		item_link = linker.GenerateLink();
-
-		c->Message((item_data == nullptr), "TributeSlot: %i, Item: %i (%s), Charges: %i",
-			indexMain, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
-	}
-
-	// bank
-	for (int16 indexMain = EQEmu::legacy::BANK_BEGIN; (scopeWhere & peekBank) && (indexMain <= EQEmu::legacy::BANK_END); ++indexMain) {
-		inst_main = targetClient->GetInv().GetItem(indexMain);
-		item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
-		linker.SetItemInst(inst_main);
-
-		item_link = linker.GenerateLink();
-
-		c->Message((item_data == nullptr), "BankSlot: %i, Item: %i (%s), Charges: %i",
-			indexMain, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
-
-		for (uint8 indexSub = EQEmu::inventory::containerBegin; inst_main && inst_main->IsClassBag() && (indexSub < EQEmu::inventory::ContainerCount); ++indexSub) {
-			inst_sub = inst_main->GetItem(indexSub);
-			item_data = (inst_sub == nullptr) ? nullptr : inst_sub->GetItem();
-			linker.SetItemInst(inst_sub);
-
-			item_link = linker.GenerateLink();
-
-			c->Message((item_data == nullptr), "  BankBagSlot: %i (Slot #%i, Bag #%i), Item: %i (%s), Charges: %i",
-				EQEmu::InventoryProfile::CalcSlotId(indexMain, indexSub), indexMain, indexSub, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_sub == nullptr) ? 0 : inst_sub->GetCharges()));
-		}
-	}
-
-	for (int16 indexMain = EQEmu::legacy::SHARED_BANK_BEGIN; (scopeWhere & peekBank) && (indexMain <= EQEmu::legacy::SHARED_BANK_END); ++indexMain) {
-		inst_main = targetClient->GetInv().GetItem(indexMain);
-		item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
-		linker.SetItemInst(inst_main);
-
-		item_link = linker.GenerateLink();
-
-		c->Message((item_data == nullptr), "SharedBankSlot: %i, Item: %i (%s), Charges: %i",
-			indexMain, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
-
-		for (uint8 indexSub = EQEmu::inventory::containerBegin; inst_main && inst_main->IsClassBag() && (indexSub < EQEmu::inventory::ContainerCount); ++indexSub) {
-			inst_sub = inst_main->GetItem(indexSub);
-			item_data = (inst_sub == nullptr) ? nullptr : inst_sub->GetItem();
-			linker.SetItemInst(inst_sub);
-
-			item_link = linker.GenerateLink();
-
-			c->Message((item_data == nullptr), "  SharedBankBagSlot: %i (Slot #%i, Bag #%i), Item: %i (%s), Charges: %i",
-				EQEmu::InventoryProfile::CalcSlotId(indexMain, indexSub), indexMain, indexSub, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_sub == nullptr) ? 0 : inst_sub->GetCharges()));
-		}
-	}
-
-	// trade
-	for (int16 indexMain = EQEmu::legacy::TRADE_BEGIN; (scopeWhere & peekTrade) && (indexMain <= EQEmu::legacy::TRADE_END); ++indexMain) {
-		inst_main = targetClient->GetInv().GetItem(indexMain);
-		item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
-		linker.SetItemInst(inst_main);
-
-		item_link = linker.GenerateLink();
-
-		c->Message((item_data == nullptr), "TradeSlot: %i, Item: %i (%s), Charges: %i",
-			indexMain, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
-
-		for (uint8 indexSub = EQEmu::inventory::containerBegin; inst_main && inst_main->IsClassBag() && (indexSub < EQEmu::inventory::ContainerCount); ++indexSub) {
-			inst_sub = inst_main->GetItem(indexSub);
-			item_data = (inst_sub == nullptr) ? nullptr : inst_sub->GetItem();
-			linker.SetItemInst(inst_sub);
-
-			item_link = linker.GenerateLink();
-
-			c->Message((item_data == nullptr), "  TradeBagSlot: %i (Slot #%i, Bag #%i), Item: %i (%s), Charges: %i",
-				EQEmu::InventoryProfile::CalcSlotId(indexMain, indexSub), indexMain, indexSub, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_sub == nullptr) ? 0 : inst_sub->GetCharges()));
-		}
-	}
-
-	// world
-	if (scopeWhere & peekWorld) {
-		Object* objectTradeskill = targetClient->GetTradeskillObject();
-
-		if (objectTradeskill == nullptr) {
-			c->Message(1, "No world tradeskill object selected...");
-		}
-		else {
-			c->Message(0, "[WorldObject DBID: %i (entityid: %i)]",  objectTradeskill->GetDBID(), objectTradeskill->GetID());
-
-			for (int16 indexMain = EQEmu::inventory::slotBegin; indexMain < EQEmu::legacy::TYPE_WORLD_SIZE; ++indexMain) {
-				inst_main = objectTradeskill->GetItem(indexMain);
-				item_data = (inst_main == nullptr) ? nullptr : inst_main->GetItem();
-				linker.SetItemInst(inst_main);
-
-				item_link = linker.GenerateLink();
-
-				c->Message((item_data == nullptr), "WorldSlot: %i, Item: %i (%s), Charges: %i",
-					(EQEmu::legacy::WORLD_BEGIN + indexMain), ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_main == nullptr) ? 0 : inst_main->GetCharges()));
-
-				for (uint8 indexSub = EQEmu::inventory::containerBegin; inst_main && inst_main->IsType(EQEmu::item::ItemClassBag) && (indexSub < EQEmu::inventory::ContainerCount); ++indexSub) {
-					inst_sub = inst_main->GetItem(indexSub);
-					item_data = (inst_sub == nullptr) ? nullptr : inst_sub->GetItem();
-					linker.SetItemInst(inst_sub);
-
-					item_link = linker.GenerateLink();
-
-					c->Message((item_data == nullptr), "  WorldBagSlot: %i (Slot #%i, Bag #%i), Item: %i (%s), Charges: %i",
-						INVALID_INDEX, indexMain, indexSub, ((item_data == nullptr) ? 0 : item_data->ID), item_link.c_str(), ((inst_sub == nullptr) ? 0 : inst_sub->GetCharges()));
-				}
-			}
-		}
-	}
+	if (!itemsFound)
+		c->Message(Chat::White, "No items found.");
 }
 
 void command_interrogateinv(Client *c, const Seperator *sep)
@@ -2759,14 +3544,14 @@ void command_interrogateinv(Client *c, const Seperator *sep)
 
 	if (strcasecmp(sep->arg[1], "help") == 0) {
 		if (c->Admin() < commandInterrogateInv) {
-			c->Message(0, "Usage: #interrogateinv");
-			c->Message(0, "  Displays your inventory's current in-memory nested storage references");
+			c->Message(Chat::White, "Usage: #interrogateinv");
+			c->Message(Chat::White, "  Displays your inventory's current in-memory nested storage references");
 		}
 		else {
-			c->Message(0, "Usage: #interrogateinv [log] [silent]");
-			c->Message(0, "  Displays your or your Player target inventory's current in-memory nested storage references");
-			c->Message(0, "  [log] - Logs interrogation to file");
-			c->Message(0, "  [silent] - Omits the in-game message portion of the interrogation");
+			c->Message(Chat::White, "Usage: #interrogateinv [log] [silent]");
+			c->Message(Chat::White, "  Displays your or your Player target inventory's current in-memory nested storage references");
+			c->Message(Chat::White, "  [log] - Logs interrogation to file");
+			c->Message(Chat::White, "  [silent] - Omits the in-game message portion of the interrogation");
 		}
 		return;
 	}
@@ -2780,8 +3565,8 @@ void command_interrogateinv(Client *c, const Seperator *sep)
 
 	if (c->Admin() < commandInterrogateInv) {
 		if (c->GetInterrogateInvState()) {
-			c->Message(13, "The last use of #interrogateinv on this inventory instance discovered an error...");
-			c->Message(13, "Logging out, zoning or re-arranging items at this point will result in item loss!");
+			c->Message(Chat::Red, "The last use of #interrogateinv on this inventory instance discovered an error...");
+			c->Message(Chat::Red, "Logging out, zoning or re-arranging items at this point will result in item loss!");
 			return;
 		}
 		target = c;
@@ -2795,7 +3580,7 @@ void command_interrogateinv(Client *c, const Seperator *sep)
 			target = c->GetTarget()->CastToClient();
 		}
 		else {
-			c->Message(1, "Use of this command is limited to Client entities");
+			c->Message(Chat::Default, "Use of this command is limited to Client entities");
 			return;
 		}
 
@@ -2808,43 +3593,356 @@ void command_interrogateinv(Client *c, const Seperator *sep)
 	bool success = target->InterrogateInventory(c, log, silent, allowtrip, error);
 
 	if (!success)
-		c->Message(13, "An unknown error occurred while processing Client::InterrogateInventory()");
+		c->Message(Chat::Red, "An unknown error occurred while processing Client::InterrogateInventory()");
 }
 
 void command_invsnapshot(Client *c, const Seperator *sep)
 {
-	auto t = c->GetTarget();
-	if (!t || !t->IsClient()) {
-		c->Message(0, "Target must be a client");
+	if (!c)
+		return;
+
+	if (sep->argnum == 0 || strcmp(sep->arg[1], "help") == 0) {
+		std::string window_title = "Inventory Snapshot Argument Help Menu";
+
+		std::string window_text =
+			"<table>"
+				"<tr>"
+					"<td><c \"#FFFFFF\">Usage:</td>"
+					"<td></td>"
+					"<td>#invsnapshot arguments<br>(<c \"#00FF00\">required <c \"#FFFF00\">optional<c \"#FFFFFF\">)</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#FFFF00\">help</td>"
+					"<td></td>"
+					"<td><c \"#AAAAAA\">this menu</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#00FF00\">capture</td>"
+					"<td></td>"
+					"<td><c \"#AAAAAA\">takes snapshot of character inventory</td>"
+				"</tr>";
+
+		if (c->Admin() >= commandInvSnapshot)
+			window_text.append(
+				"<tr>"
+					"<td><c \"#00FF00\">gcount</td>"
+					"<td></td>"
+					"<td><c \"#AAAAAA\">returns global snapshot count</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#00FF00\">gclear</td>"
+					"<td><c \"#FFFF00\"><br>now</td>"
+					"<td><c \"#AAAAAA\">delete all snapshots - rule<br>delete all snapshots - now</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#00FF00\">count</td>"
+					"<td></td>"
+					"<td><c \"#AAAAAA\">returns character snapshot count</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#00FF00\">clear</td>"
+					"<td><c \"#FFFF00\"><br>now</td>"
+					"<td><c \"#AAAAAA\">delete character snapshots - rule<br>delete character snapshots - now</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#00FF00\">list</td>"
+					"<td><br><c \"#FFFF00\">count</td>"
+					"<td><c \"#AAAAAA\">lists entry ids for current character<br>limits to count</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#00FF00\">parse</td>"
+					"<td><c \"#00FF00\">tstmp</td>"
+					"<td><c \"#AAAAAA\">displays slots and items in snapshot</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#00FF00\">compare</td>"
+					"<td><c \"#00FF00\">tstmp</td>"
+					"<td><c \"#AAAAAA\">compares inventory against snapshot</td>"
+				"</tr>"
+				"<tr>"
+					"<td><c \"#00FF00\">restore</td>"
+					"<td><c \"#00FF00\">tstmp</td>"
+					"<td><c \"#AAAAAA\">restores slots and items in snapshot</td>"
+				"</tr>"
+			);
+
+		window_text.append(
+			"</table>"
+		);
+
+		c->SendPopupToClient(window_title.c_str(), window_text.c_str());
+
 		return;
 	}
 
-	if (database.SaveCharacterInventorySnapshot(((Client*)t)->CharacterID())) {
-		c->SetNextInvSnapshot(RuleI(Character, InvSnapshotMinIntervalM));
-		c->Message(0, "Successful inventory snapshot taken of %s", t->GetName());
-	}
-	else {
-		c->SetNextInvSnapshot(RuleI(Character, InvSnapshotMinRetryM));
-		c->Message(0, "Failed to take inventory snapshot of %s", t->GetName());
-	}
-}
+	if (c->Admin() >= commandInvSnapshot) { // global arguments
 
-void command_clearinvsnapshots(Client *c, const Seperator *sep)
-{
-	if (strcmp(sep->arg[1], "false") == 0) {
-		database.ClearInvSnapshots(false);
-		c->Message(0, "Inventory snapshots cleared using current time");
+		if (strcmp(sep->arg[1], "gcount") == 0) {
+			auto is_count = database.CountInvSnapshots();
+			c->Message(Chat::White, "There %s %i inventory snapshot%s.", (is_count == 1 ? "is" : "are"), is_count, (is_count == 1 ? "" : "s"));
+
+			return;
+		}
+
+		if (strcmp(sep->arg[1], "gclear") == 0) {
+			if (strcmp(sep->arg[2], "now") == 0) {
+				database.ClearInvSnapshots(true);
+				c->Message(Chat::White, "Inventory snapshots cleared using current time.");
+			}
+			else {
+				database.ClearInvSnapshots();
+				c->Message(Chat::White, "Inventory snapshots cleared using RuleI(Character, InvSnapshotHistoryD) (%i day%s).",
+					RuleI(Character, InvSnapshotHistoryD), (RuleI(Character, InvSnapshotHistoryD) == 1 ? "" : "s"));
+			}
+
+			return;
+		}
 	}
-	else {
-		database.ClearInvSnapshots();
-		c->Message(0, "Inventory snapshots cleared using RuleI(Character, InvSnapshotHistoryD) (%i days)", RuleI(Character, InvSnapshotHistoryD));
+
+	if (!c->GetTarget() || !c->GetTarget()->IsClient()) {
+		c->Message(Chat::White, "Target must be a client.");
+		return;
+	}
+
+	auto tc = (Client*)c->GetTarget();
+
+	if (strcmp(sep->arg[1], "capture") == 0) {
+		if (database.SaveCharacterInvSnapshot(tc->CharacterID())) {
+			tc->SetNextInvSnapshot(RuleI(Character, InvSnapshotMinIntervalM));
+			c->Message(Chat::White, "Successful inventory snapshot taken of %s - setting next interval for %i minute%s.",
+				tc->GetName(), RuleI(Character, InvSnapshotMinIntervalM), (RuleI(Character, InvSnapshotMinIntervalM) == 1 ? "" : "s"));
+		}
+		else {
+			tc->SetNextInvSnapshot(RuleI(Character, InvSnapshotMinRetryM));
+			c->Message(Chat::White, "Failed to take inventory snapshot of %s - retrying in %i minute%s.",
+				tc->GetName(), RuleI(Character, InvSnapshotMinRetryM), (RuleI(Character, InvSnapshotMinRetryM) == 1 ? "" : "s"));
+		}
+
+		return;
+	}
+
+	if (c->Admin() >= commandInvSnapshot) {
+		if (strcmp(sep->arg[1], "count") == 0) {
+			auto is_count = database.CountCharacterInvSnapshots(tc->CharacterID());
+			c->Message(Chat::White, "%s (id: %u) has %i inventory snapshot%s.", tc->GetName(), tc->CharacterID(), is_count, (is_count == 1 ? "" : "s"));
+
+			return;
+		}
+
+		if (strcmp(sep->arg[1], "clear") == 0) {
+			if (strcmp(sep->arg[2], "now") == 0) {
+				database.ClearCharacterInvSnapshots(tc->CharacterID(), true);
+				c->Message(Chat::White, "%s\'s (id: %u) inventory snapshots cleared using current time.", tc->GetName(), tc->CharacterID());
+			}
+			else {
+				database.ClearCharacterInvSnapshots(tc->CharacterID());
+				c->Message(Chat::White, "%s\'s (id: %u) inventory snapshots cleared using RuleI(Character, InvSnapshotHistoryD) (%i day%s).",
+					tc->GetName(), tc->CharacterID(), RuleI(Character, InvSnapshotHistoryD), (RuleI(Character, InvSnapshotHistoryD) == 1 ? "" : "s"));
+			}
+
+			return;
+		}
+
+		if (strcmp(sep->arg[1], "list") == 0) {
+			std::list<std::pair<uint32, int>> is_list;
+			database.ListCharacterInvSnapshots(tc->CharacterID(), is_list);
+
+			if (is_list.empty()) {
+				c->Message(Chat::White, "No inventory snapshots for %s (id: %u)", tc->GetName(), tc->CharacterID());
+				return;
+			}
+
+			auto list_count = 0;
+			if (sep->IsNumber(2))
+				list_count = atoi(sep->arg[2]);
+			if (list_count < 1 || list_count > is_list.size())
+				list_count = is_list.size();
+
+			std::string window_title = StringFormat("Snapshots for %s", tc->GetName());
+
+			std::string window_text =
+				"<table>"
+					"<tr>"
+						"<td>Timestamp</td>"
+						"<td>Entry Count</td>"
+					"</tr>";
+
+			for (auto iter : is_list) {
+				if (!list_count)
+					break;
+
+				window_text.append(StringFormat(
+					"<tr>"
+						"<td>%u</td>"
+						"<td>%i</td>"
+					"</tr>",
+					iter.first,
+					iter.second
+				));
+
+				--list_count;
+			}
+
+			window_text.append(
+				"</table>"
+			);
+
+			c->SendPopupToClient(window_title.c_str(), window_text.c_str());
+
+			return;
+		}
+
+		if (strcmp(sep->arg[1], "parse") == 0) {
+			if (!sep->IsNumber(2)) {
+				c->Message(Chat::White, "A timestamp is required to use this option.");
+				return;
+			}
+
+			uint32 timestamp = atoul(sep->arg[2]);
+
+			if (!database.ValidateCharacterInvSnapshotTimestamp(tc->CharacterID(), timestamp)) {
+				c->Message(Chat::White, "No inventory snapshots for %s (id: %u) exist at %u.", tc->GetName(), tc->CharacterID(), timestamp);
+				return;
+			}
+
+			std::list<std::pair<int16, uint32>> parse_list;
+			database.ParseCharacterInvSnapshot(tc->CharacterID(), timestamp, parse_list);
+
+			std::string window_title = StringFormat("Snapshot Parse for %s @ %u", tc->GetName(), timestamp);
+
+			std::string window_text = "Slot: ItemID - Description<br>";
+
+			for (auto iter : parse_list) {
+				auto item_data = database.GetItem(iter.second);
+				std::string window_line = StringFormat("%i: %u - %s<br>", iter.first, iter.second, (item_data ? item_data->Name : "[error]"));
+
+				if (window_text.length() + window_line.length() < 4095) {
+					window_text.append(window_line);
+				}
+				else {
+					c->Message(Chat::White, "Too many snapshot entries to list...");
+					break;
+				}
+			}
+
+			c->SendPopupToClient(window_title.c_str(), window_text.c_str());
+
+			return;
+		}
+
+		if (strcmp(sep->arg[1], "compare") == 0) {
+			if (!sep->IsNumber(2)) {
+				c->Message(Chat::White, "A timestamp is required to use this option.");
+				return;
+			}
+
+			uint32 timestamp = atoul(sep->arg[2]);
+
+			if (!database.ValidateCharacterInvSnapshotTimestamp(tc->CharacterID(), timestamp)) {
+				c->Message(Chat::White, "No inventory snapshots for %s (id: %u) exist at %u.", tc->GetName(), tc->CharacterID(), timestamp);
+				return;
+			}
+
+			std::list<std::pair<int16, uint32>> inv_compare_list;
+			database.DivergeCharacterInventoryFromInvSnapshot(tc->CharacterID(), timestamp, inv_compare_list);
+
+			std::list<std::pair<int16, uint32>> iss_compare_list;
+			database.DivergeCharacterInvSnapshotFromInventory(tc->CharacterID(), timestamp, iss_compare_list);
+
+			std::string window_title = StringFormat("Snapshot Comparison for %s @ %u", tc->GetName(), timestamp);
+
+			std::string window_text = "Slot: (action) Snapshot -&gt; Inventory<br>";
+
+			auto inv_iter = inv_compare_list.begin();
+			auto iss_iter = iss_compare_list.begin();
+
+			while (true) {
+				std::string window_line;
+
+				if (inv_iter == inv_compare_list.end() && iss_iter == iss_compare_list.end()) {
+					break;
+				}
+				else if (inv_iter != inv_compare_list.end() && iss_iter == iss_compare_list.end()) {
+					window_line = StringFormat("%i: (delete) [empty] -&gt; %u<br>", inv_iter->first, inv_iter->second);
+					++inv_iter;
+				}
+				else if (inv_iter == inv_compare_list.end() && iss_iter != iss_compare_list.end()) {
+					window_line = StringFormat("%i: (insert) %u -&gt; [empty]<br>", iss_iter->first, iss_iter->second);
+					++iss_iter;
+				}
+				else {
+					if (inv_iter->first < iss_iter->first) {
+						window_line = StringFormat("%i: (delete) [empty] -&gt; %u<br>", inv_iter->first, inv_iter->second);
+						++inv_iter;
+					}
+					else if (inv_iter->first > iss_iter->first) {
+						window_line = StringFormat("%i: (insert) %u -&gt; [empty]<br>", iss_iter->first, iss_iter->second);
+						++iss_iter;
+					}
+					else {
+						window_line = StringFormat("%i: (replace) %u -&gt; %u<br>", iss_iter->first, iss_iter->second, inv_iter->second);
+						++inv_iter;
+						++iss_iter;
+					}
+				}
+
+				if (window_text.length() + window_line.length() < 4095) {
+					window_text.append(window_line);
+				}
+				else {
+					c->Message(Chat::White, "Too many comparison entries to list...");
+					break;
+				}
+			}
+
+			c->SendPopupToClient(window_title.c_str(), window_text.c_str());
+
+			return;
+		}
+
+		if (strcmp(sep->arg[1], "restore") == 0) {
+			if (!sep->IsNumber(2)) {
+				c->Message(Chat::White, "A timestamp is required to use this option.");
+				return;
+			}
+
+			uint32 timestamp = atoul(sep->arg[2]);
+
+			if (!database.ValidateCharacterInvSnapshotTimestamp(tc->CharacterID(), timestamp)) {
+				c->Message(Chat::White, "No inventory snapshots for %s (id: %u) exist at %u.", tc->GetName(), tc->CharacterID(), timestamp);
+				return;
+			}
+
+			if (database.SaveCharacterInvSnapshot(tc->CharacterID())) {
+				tc->SetNextInvSnapshot(RuleI(Character, InvSnapshotMinIntervalM));
+			}
+			else {
+				c->Message(Chat::Red, "Failed to take pre-restore inventory snapshot of %s (id: %u).",
+					tc->GetName(), tc->CharacterID());
+				return;
+			}
+
+			if (database.RestoreCharacterInvSnapshot(tc->CharacterID(), timestamp)) {
+				// cannot delete all valid item slots from client..so, we worldkick
+				tc->WorldKick(); // self restores update before the 'kick' is processed
+
+				c->Message(Chat::White, "Successfully applied snapshot %u to %s's (id: %u) inventory.",
+					timestamp, tc->GetName(), tc->CharacterID());
+			}
+			else {
+				c->Message(Chat::Red, "Failed to apply snapshot %u to %s's (id: %u) inventory.",
+					timestamp, tc->GetName(), tc->CharacterID());
+			}
+
+			return;
+		}
 	}
 }
 
 void command_findnpctype(Client *c, const Seperator *sep)
 {
 	if(sep->arg[1][0] == 0) {
-		c->Message(0, "Usage: #findnpctype [search criteria]");
+		c->Message(Chat::White, "Usage: #findnpctype [search criteria]");
 		return;
     }
 
@@ -2886,77 +3984,236 @@ void command_findnpctype(Client *c, const Seperator *sep)
 
 }
 
+void command_faction(Client *c, const Seperator *sep)
+{
+	if (sep->arg[1][0] == 0) {
+		c->Message(Chat::White, "Usage: #faction -- Displays Target NPC's Primary faction");
+		c->Message(Chat::White, "Usage: #faction Find [criteria | all] -- Displays factions name & id");
+		c->Message(Chat::White, "Usage: #faction Review [criteria | all] -- Review Targeted Players faction hits");
+		c->Message(Chat::White, "Usage: #faction Reset [id] -- Reset Targeted Players specified faction to base");
+		uint32 npcfac;
+		std::string npcname;
+		if (c->GetTarget() && c->GetTarget()->IsNPC()) {
+			npcfac = c->GetTarget()->CastToNPC()->GetPrimaryFaction();
+			npcname = c->GetTarget()->CastToNPC()->GetCleanName();
+			std::string blurb = fmt::format("( Target Npc: {} : has primary faction id: {} )", npcname, npcfac);
+			c->Message(Chat::Yellow, blurb.c_str());
+			c->Message(Chat::White, "Use: #setfaction [id] - to alter an NPC's faction");
+		}
+		return;
+	}
+
+	std::string faction_filter;
+	if (sep->arg[2]) {
+		faction_filter = str_tolower(sep->arg[2]);
+	}
+	if (strcasecmp(sep->arg[1], "find") == 0) {
+		std::string query;
+		if (strcasecmp(sep->arg[2], "all") == 0) {
+
+			query = "SELECT `id`,`name` FROM `faction_list`";
+		}
+		else {
+			query = fmt::format("SELECT `id`,`name` FROM `faction_list` WHERE `name` LIKE '%{}%'", faction_filter.c_str());
+		}
+		auto results = database.QueryDatabase(query);
+		if (!results.Success())
+			return;
+		if (results.RowCount() == 0) {
+			c->Message(Chat::Yellow, "No factions found with specified criteria");
+			return;
+		}
+		int _ctr = 0;
+		for (auto row = results.begin(); row != results.end(); ++row) {
+			auto    id = static_cast<uint32>(atoi(row[0]));
+			std::string name = row[1];
+			_ctr++;
+			c->Message(Chat::Yellow, "%s : id: %s", name.c_str(), std::to_string(id).c_str());
+		}
+		std::string response = _ctr > 0 ? fmt::format("Found {} matching factions", _ctr).c_str() : "No factions found.";
+		c->Message(Chat::Yellow, response.c_str());
+	}
+	if (strcasecmp(sep->arg[1], "review") == 0) {
+		if (!(c->GetTarget() && c->GetTarget()->IsClient())) {
+			c->Message(Chat::Red, "Player Target Required for faction review");
+			return;
+		}
+		uint32 charid = c->GetTarget()->CastToClient()->CharacterID();
+		std::string revquery;
+		if (strcasecmp(sep->arg[2], "all") == 0) {
+			revquery = fmt::format(
+				"SELECT id,`name`, current_value FROM faction_list INNER JOIN faction_values ON faction_list.id = faction_values.faction_id WHERE char_id = {}", charid);
+		}
+		else
+		{
+			revquery = fmt::format(
+				"SELECT id,`name`, current_value FROM faction_list INNER JOIN faction_values ON faction_list.id = faction_values.faction_id WHERE `name` like '%{}%' and char_id = {}", faction_filter.c_str(), charid);
+		}
+		auto revresults = database.QueryDatabase(revquery);
+		if (!revresults.Success())
+			return;
+		if (revresults.RowCount() == 0) {
+			c->Message(Chat::Yellow, "No faction hits found. All are at base level");
+			return;
+		}
+		int _ctr2 = 0;
+		for (auto rrow = revresults.begin(); rrow != revresults.end(); ++rrow) {
+			auto    f_id = static_cast<uint32>(atoi(rrow[0]));
+			std::string cname = rrow[1];
+			std::string fvalue = rrow[2];
+			_ctr2++;
+			std::string resetlink = fmt::format("#faction reset {}", f_id);
+			c->Message(Chat::Yellow, "Reset: %s         id: %s (%s)", EQEmu::SayLinkEngine::GenerateQuestSaylink(resetlink, false, cname.c_str()).c_str(), std::to_string(f_id).c_str(), fvalue.c_str());
+		}
+		std::string response = _ctr2 > 0 ? fmt::format("Found {} matching factions", _ctr2).c_str() : "No faction hits found.";
+		c->Message(Chat::Yellow, response.c_str());
+	}
+	else if (strcasecmp(sep->arg[1], "reset") == 0)
+	{
+		if (!(faction_filter == "")) {
+			if (c->GetTarget() && c->GetTarget()->IsClient())
+			{
+				if (!c->CastToClient()->GetFeigned() && c->CastToClient()->GetAggroCount() == 0)
+				{
+					uint32 charid = c->GetTarget()->CastToClient()->CharacterID();
+					uint32 factionid = atoi(faction_filter.c_str());
+
+					if (c->GetTarget()->CastToClient()->ReloadCharacterFaction(c->GetTarget()->CastToClient(), factionid, charid))
+						c->Message(Chat::Yellow, "faction %u was cleared.", factionid);
+					else
+						c->Message(Chat::Red, "An error occurred clearing faction %u", factionid);
+				}
+				else
+				{
+					c->Message(Chat::Red, "Cannot be in Combat");
+					return;
+				}
+			}
+			else {
+				c->Message(Chat::Red, "Player Target Required (whose not feigning death)");
+				return;
+			}
+		}
+		else
+			c->Message(Chat::Red, "No faction id entered");
+	}
+}
+
 void command_findzone(Client *c, const Seperator *sep)
 {
-	if(sep->arg[1][0] == 0) {
-		c->Message(0, "Usage: #findzone [search criteria]");
-        return;
-    }
+	if (sep->arg[1][0] == 0) {
+		c->Message(Chat::White, "Usage: #findzone [search criteria]");
+		c->Message(Chat::White, "Usage: #findzone expansion [expansion number]");
+		return;
+	}
 
-    std::string query;
-    int id = atoi((const char *)sep->arg[1]);
-    if (id == 0) { // If id evaluates to 0, then search as if user entered a string.
-	    auto escName = new char[strlen(sep->arg[1]) * 2 + 1];
-	    database.DoEscapeString(escName, sep->arg[1], strlen(sep->arg[1]));
+	std::string query;
+	int         id = atoi((const char *) sep->arg[1]);
 
-	    query = StringFormat("SELECT zoneidnumber, short_name, long_name FROM zone "
-				 "WHERE long_name RLIKE '%s' AND version = 0",
-				 escName);
-	    safe_delete_array(escName);
-    }
-    else // Otherwise, look for just that zoneidnumber.
-		query = StringFormat("SELECT zoneidnumber, short_name, long_name FROM zone "
-                            "WHERE zoneidnumber = %i AND version = 0",  id);
+	std::string arg1 = sep->arg[1];
 
-    auto results = database.QueryDatabase(query);
-    if (!results.Success()) {
-        c->Message (0, "Error querying database.");
-        c->Message (0, query.c_str());
-        return;
-    }
+	if (arg1 == "expansion") {
+		query = fmt::format(
+			"SELECT zoneidnumber, short_name, long_name, version FROM zone WHERE expansion = {}",
+			sep->arg[2]
+		);
+	}
+	else {
 
-    int count = 0;
-    const int maxrows = 20;
+		/**
+		 * If id evaluates to 0, then search as if user entered a string
+		 */
+		if (id == 0) {
+			query = fmt::format(
+				"SELECT zoneidnumber, short_name, long_name, version FROM zone WHERE long_name LIKE '%{}%'",
+				EscapeString(sep->arg[1])
+			);
+		}
+		else {
+			query = fmt::format(
+				"SELECT zoneidnumber, short_name, long_name, version FROM zone WHERE zoneidnumber = {}",
+				id
+			);
+		}
+	}
 
-    for(auto row = results.begin(); row != results.end(); ++row) {
-        if (++count > maxrows) {
-            c->Message (0, "%i zones shown. Too many results.",  maxrows);
-            break;
-        }
+	auto results = database.QueryDatabase(query);
+	if (!results.Success()) {
+		c->Message(Chat::White, "Error querying database.");
+		c->Message(Chat::White, query.c_str());
+		return;
+	}
 
-        c->Message (0, "  %s: %s, %s",  row[0], row[1], row[2]);
-    }
+	int       count   = 0;
+	const int maxrows = 100;
 
-    if (count <= maxrows)
-        c->Message (0, "Query complete. %i rows shown.",  count);
-    else if (count == 0)
-        c->Message (0, "No matches found for %s.",  sep->arg[1]);
+	for (auto row = results.begin(); row != results.end(); ++row) {
+		std::string zone_id    = row[0];
+		std::string short_name = row[1];
+		std::string long_name  = row[2];
+		int         version    = atoi(row[3]);
+
+		if (++count > maxrows) {
+			c->Message(Chat::White, "%i zones shown. Too many results.", maxrows);
+			break;
+		}
+
+		std::string command_zone   = EQEmu::SayLinkEngine::GenerateQuestSaylink("#zone " + short_name, false, "zone");
+		std::string command_gmzone = EQEmu::SayLinkEngine::GenerateQuestSaylink(
+			fmt::format("#gmzone {} {}", short_name, version),
+			false,
+			"gmzone"
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"[{}] [{}] [{}] Version ({}) [{}]",
+				(version == 0 ? command_zone : "zone"),
+				command_gmzone,
+				short_name,
+				version,
+				long_name
+			).c_str()
+		);
+	}
+
+	if (count <= maxrows) {
+		c->Message(
+			Chat::White,
+			"Query complete. %i rows shown. %s",
+			count,
+			(arg1 == "expansion" ? "(expansion search)" : ""));
+	}
+	else if (count == 0) {
+		c->Message(Chat::White, "No matches found for %s.", sep->arg[1]);
+	}
 }
 
 void command_viewnpctype(Client *c, const Seperator *sep)
 {
 	if (!sep->IsNumber(1))
-		c->Message(0, "Usage: #viewnpctype [npctype id]");
+		c->Message(Chat::White, "Usage: #viewnpctype [npctype id]");
 	else
 	{
 		uint32 npctypeid=atoi(sep->arg[1]);
 		const NPCType* npct = database.LoadNPCTypesData(npctypeid);
 		if (npct) {
-			c->Message(0, " NPCType Info, ");
-			c->Message(0, "  NPCTypeID: %u",  npct->npc_id);
-			c->Message(0, "  Name: %s",  npct->name);
-			c->Message(0, "  Level: %i",  npct->level);
-			c->Message(0, "  Race: %i",  npct->race);
-			c->Message(0, "  Class: %i",  npct->class_);
-			c->Message(0, "  MinDmg: %i",  npct->min_dmg);
-			c->Message(0, "  MaxDmg: %i",  npct->max_dmg);
-			c->Message(0, "  Special Abilities: %s",  npct->special_abilities);
-			c->Message(0, "  Spells: %i",  npct->npc_spells_id);
-			c->Message(0, "  Loot Table: %i",  npct->loottable_id);
-			c->Message(0, "  NPCFactionID: %i",  npct->npc_faction_id);
+			c->Message(Chat::White, " NPCType Info, ");
+			c->Message(Chat::White, "  NPCTypeID: %u",  npct->npc_id);
+			c->Message(Chat::White, "  Name: %s",  npct->name);
+			c->Message(Chat::White, "  Level: %i",  npct->level);
+			c->Message(Chat::White, "  Race: %i",  npct->race);
+			c->Message(Chat::White, "  Class: %i",  npct->class_);
+			c->Message(Chat::White, "  MinDmg: %i",  npct->min_dmg);
+			c->Message(Chat::White, "  MaxDmg: %i",  npct->max_dmg);
+			c->Message(Chat::White, "  Special Abilities: %s",  npct->special_abilities);
+			c->Message(Chat::White, "  Spells: %i",  npct->npc_spells_id);
+			c->Message(Chat::White, "  Loot Table: %i",  npct->loottable_id);
+			c->Message(Chat::White, "  NPCFactionID: %i",  npct->npc_faction_id);
 		}
 		else
-			c->Message(0, "NPC #%d not found",  npctypeid);
+			c->Message(Chat::White, "NPC #%d not found",  npctypeid);
 	}
 }
 
@@ -2964,27 +4221,42 @@ void command_reloadqst(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == 0)
 	{
-		c->Message(0, "Clearing quest memory cache.");
+		c->Message(Chat::White, "Clearing quest memory cache.");
 		entity_list.ClearAreas();
 		parse->ReloadQuests();
 	}
 	else
 	{
-		c->Message(0, "Clearing quest memory cache and stopping timers.");
+		c->Message(Chat::White, "Clearing quest memory cache and stopping timers.");
 		entity_list.ClearAreas();
 		parse->ReloadQuests(true);
 	}
 
 }
 
+void command_corpsefix(Client *c, const Seperator *sep)
+{
+	entity_list.CorpseFix(c);
+}
+
 void command_reloadworld(Client *c, const Seperator *sep)
 {
-	c->Message(0, "Reloading quest cache and repopping zones worldwide.");
+	int world_repop = atoi(sep->arg[1]);
+	if (world_repop == 0)
+		c->Message(Chat::White, "Reloading quest cache worldwide.");
+	else
+		c->Message(Chat::White, "Reloading quest cache and repopping zones worldwide.");
+	
 	auto pack = new ServerPacket(ServerOP_ReloadWorld, sizeof(ReloadWorld_Struct));
 	ReloadWorld_Struct* RW = (ReloadWorld_Struct*) pack->pBuffer;
-	RW->Option = ((atoi(sep->arg[1]) == 1) ? 1 : 0);
+	RW->Option = world_repop;
 	worldserver.SendPacket(pack);
 	safe_delete(pack);
+}
+
+void command_reloadmerchants(Client *c, const Seperator *sep) {
+	entity_list.ReloadMerchants();
+	c->Message(Chat::Yellow, "Reloading merchants.");
 }
 
 void command_reloadlevelmods(Client *c, const Seperator *sep)
@@ -2993,9 +4265,9 @@ void command_reloadlevelmods(Client *c, const Seperator *sep)
 	{
 		if(RuleB(Zone, LevelBasedEXPMods)){
 			zone->LoadLevelEXPMods();
-			c->Message(15, "Level based EXP Mods have been reloaded zonewide");
+			c->Message(Chat::Yellow, "Level based EXP Mods have been reloaded zonewide");
 		}else{
-			c->Message(15, "Level based EXP Mods are disabled in rules!");
+			c->Message(Chat::Yellow, "Level based EXP Mods are disabled in rules!");
 		}
 	}
 }
@@ -3003,15 +4275,15 @@ void command_reloadlevelmods(Client *c, const Seperator *sep)
 void command_reloadzps(Client *c, const Seperator *sep)
 {
 	database.LoadStaticZonePoints(&zone->zone_point_list, zone->GetShortName(), zone->GetInstanceVersion());
-	c->Message(0, "Reloading server zone_points.");
+	c->Message(Chat::White, "Reloading server zone_points.");
 }
 
 void command_zoneshutdown(Client *c, const Seperator *sep)
 {
 	if (!worldserver.Connected())
-		c->Message(0, "Error: World server disconnected");
+		c->Message(Chat::White, "Error: World server disconnected");
 	else if (sep->arg[1][0] == 0)
-		c->Message(0, "Usage: #zoneshutdown zoneshortname");
+		c->Message(Chat::White, "Usage: #zoneshutdown zoneshortname");
 	else {
 		auto pack = new ServerPacket(ServerOP_ZoneShutdown, sizeof(ServerZoneStateChange_struct));
 		ServerZoneStateChange_struct* s = (ServerZoneStateChange_struct *) pack->pBuffer;
@@ -3028,9 +4300,9 @@ void command_zoneshutdown(Client *c, const Seperator *sep)
 void command_zonebootup(Client *c, const Seperator *sep)
 {
 	if (!worldserver.Connected())
-		c->Message(0, "Error: World server disconnected");
+		c->Message(Chat::White, "Error: World server disconnected");
 	else if (sep->arg[2][0] == 0) {
-		c->Message(0, "Usage: #zonebootup ZoneServerID# zoneshortname");
+		c->Message(Chat::White, "Usage: #zonebootup ZoneServerID# zoneshortname");
 	}
 	else {
 		auto pack = new ServerPacket(ServerOP_ZoneBootup, sizeof(ServerZoneStateChange_struct));
@@ -3047,20 +4319,20 @@ void command_zonebootup(Client *c, const Seperator *sep)
 void command_kick(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == 0)
-		c->Message(0, "Usage: #kick [charname]");
+		c->Message(Chat::White, "Usage: #kick [charname]");
 	else {
 		Client* client = entity_list.GetClientByName(sep->arg[1]);
 		if (client != 0) {
 			if (client->Admin() <= c->Admin()) {
-				client->Message(0, "You have been kicked by %s", c->GetName());
+				client->Message(Chat::White, "You have been kicked by %s", c->GetName());
 				auto outapp = new EQApplicationPacket(OP_GMKick, 0);
 				client->QueuePacket(outapp);
-				client->Kick();
-				c->Message(0, "Kick: local: kicking %s",  sep->arg[1]);
+				client->Kick("Ordered kicked by command");
+				c->Message(Chat::White, "Kick: local: kicking %s",  sep->arg[1]);
 			}
 		}
 		else if (!worldserver.Connected())
-			c->Message(0, "Error: World server disconnected");
+			c->Message(Chat::White, "Error: World server disconnected");
 		else {
 			auto pack = new ServerPacket(ServerOP_KickPlayer, sizeof(ServerKickPlayer_Struct));
 			ServerKickPlayer_Struct* skp = (ServerKickPlayer_Struct*) pack->pBuffer;
@@ -3080,10 +4352,10 @@ void command_attack(Client *c, const Seperator *sep)
 		if (sictar)
 			c->GetTarget()->CastToNPC()->AddToHateList(sictar, 1, 0);
 		else
-			c->Message(0, "Error: %s not found",  sep->arg[1]);
+			c->Message(Chat::White, "Error: %s not found",  sep->arg[1]);
 	}
 	else
-		c->Message(0, "Usage: (needs NPC targeted) #attack targetname");
+		c->Message(Chat::White, "Usage: (needs NPC targeted) #attack targetname");
 }
 
 void command_lock(Client *c, const Seperator *sep)
@@ -3123,22 +4395,22 @@ void command_listpetition(Client *c, const Seperator *sep)
 	if (!results.Success())
         return;
 
-    Log(Logs::General, Logs::Normal, "Petition list requested by %s",  c->GetName());
+    LogInfo("Petition list requested by [{}]",  c->GetName());
 
     if (results.RowCount() == 0)
         return;
 
-    c->Message(13,"	ID : Character Name , Account Name");
+    c->Message(Chat::Red,"	ID : Character Name , Account Name");
 
     for (auto row = results.begin(); row != results.end(); ++row)
-        c->Message(15, " %s:	%s , %s ", row[0],row[1],row[2]);
+        c->Message(Chat::Yellow, " %s:	%s , %s ", row[0],row[1],row[2]);
 }
 
 void command_equipitem(Client *c, const Seperator *sep)
 {
 	uint32 slot_id = atoi(sep->arg[1]);
-	if (sep->IsNumber(1) && ((slot_id >= EQEmu::legacy::EQUIPMENT_BEGIN) && (slot_id <= EQEmu::legacy::EQUIPMENT_END) || (slot_id == EQEmu::inventory::slotPowerSource))) {
-		const EQEmu::ItemInstance* from_inst = c->GetInv().GetItem(EQEmu::inventory::slotCursor);
+	if (sep->IsNumber(1) && (slot_id >= EQEmu::invslot::EQUIPMENT_BEGIN && slot_id <= EQEmu::invslot::EQUIPMENT_END)) {
+		const EQEmu::ItemInstance* from_inst = c->GetInv().GetItem(EQEmu::invslot::slotCursor);
 		const EQEmu::ItemInstance* to_inst = c->GetInv().GetItem(slot_id); // added (desync issue when forcing stack to stack)
 		bool partialmove = false;
 		int16 movecount;
@@ -3146,7 +4418,7 @@ void command_equipitem(Client *c, const Seperator *sep)
 		if (from_inst && from_inst->IsClassCommon()) {
 			auto outapp = new EQApplicationPacket(OP_MoveItem, sizeof(MoveItem_Struct));
 			MoveItem_Struct* mi	= (MoveItem_Struct*)outapp->pBuffer;
-			mi->from_slot = EQEmu::inventory::slotCursor;
+			mi->from_slot = EQEmu::invslot::slotCursor;
 			mi->to_slot			= slot_id;
 			// mi->number_in_stack	= from_inst->GetCharges(); // replaced with con check for stacking
 
@@ -3167,7 +4439,7 @@ void command_equipitem(Client *c, const Seperator *sep)
 
 			if (partialmove) { // remove this con check if someone can figure out removing charges from cursor stack issue below
 				// mi->number_in_stack is always from_inst->GetCharges() when partialmove is false
-				c->Message(13, "Error: Partial stack added to existing stack exceeds allowable stacksize");
+				c->Message(Chat::Red, "Error: Partial stack added to existing stack exceeds allowable stacksize");
 				safe_delete(outapp);
 				return;
 			}
@@ -3185,7 +4457,7 @@ void command_equipitem(Client *c, const Seperator *sep)
 				//	di->to_slot				= 0xFFFFFFFF;
 				//	di->number_in_stack		= 0xFFFFFFFF;
 
-				//	c->Message(0, "Deleting %i charges from stack",  movecount); // debug line..delete
+				//	c->Message(Chat::White, "Deleting %i charges from stack",  movecount); // debug line..delete
 
 				//	for (int16 deletecount=0; deletecount < movecount; deletecount++)
 						// have to use 'movecount' because mi->number_in_stack is 'ENCODED' at this point (i.e., 99 charges returns 22...)
@@ -3195,19 +4467,19 @@ void command_equipitem(Client *c, const Seperator *sep)
 				//}
 			}
 			else {
-				c->Message(13, "Error: Unable to equip current item");
+				c->Message(Chat::Red, "Error: Unable to equip current item");
 			}
 			safe_delete(outapp);
 
 			// also send out a wear change packet?
 		}
 		else if (from_inst == nullptr)
-			c->Message(13, "Error: There is no item on your cursor");
+			c->Message(Chat::Red, "Error: There is no item on your cursor");
 		else
-			c->Message(13, "Error: Item on your cursor cannot be equipped");
+			c->Message(Chat::Red, "Error: Item on your cursor cannot be equipped");
 	}
 	else
-		c->Message(0, "Usage: #equipitem slotid[0-21] - equips the item on your cursor to the position");
+		c->Message(Chat::White, "Usage: #equipitem slotid[0-21] - equips the item on your cursor to the position");
 }
 
 void command_zonelock(Client *c, const Seperator *sep)
@@ -3227,7 +4499,7 @@ void command_zonelock(Client *c, const Seperator *sep)
 			worldserver.SendPacket(pack);
 		}
 		else
-			c->Message(0, "Usage: #zonelock lock [zonename]");
+			c->Message(Chat::White, "Usage: #zonelock lock [zonename]");
 	}
 	else if (strcasecmp(sep->arg[1], "unlock") == 0 && c->Admin() >= commandLockZones) {
 		uint16 tmp = database.GetZoneID(sep->arg[2]);
@@ -3237,15 +4509,15 @@ void command_zonelock(Client *c, const Seperator *sep)
 			worldserver.SendPacket(pack);
 		}
 		else
-			c->Message(0, "Usage: #zonelock unlock [zonename]");
+			c->Message(Chat::White, "Usage: #zonelock unlock [zonename]");
 	}
 	else {
-		c->Message(0, "#zonelock sub-commands");
-		c->Message(0, "  list");
+		c->Message(Chat::White, "#zonelock sub-commands");
+		c->Message(Chat::White, "  list");
 		if(c->Admin() >= commandLockZones)
 		{
-			c->Message(0, "  lock [zonename]");
-			c->Message(0, "  unlock [zonename]");
+			c->Message(Chat::White, "  lock [zonename]");
+			c->Message(Chat::White, "  unlock [zonename]");
 		}
 	}
 	safe_delete(pack);
@@ -3258,24 +4530,24 @@ void command_corpse(Client *c, const Seperator *sep)
 	if (strcasecmp(sep->arg[1], "DeletePlayerCorpses") == 0 && c->Admin() >= commandEditPlayerCorpses) {
 		int32 tmp = entity_list.DeletePlayerCorpses();
 		if (tmp >= 0)
-			c->Message(0, "%i corpses deleted.",  tmp);
+			c->Message(Chat::White, "%i corpses deleted.",  tmp);
 		else
-			c->Message(0, "DeletePlayerCorpses Error #%i",  tmp);
+			c->Message(Chat::White, "DeletePlayerCorpses Error #%i",  tmp);
 	}
 	else if (strcasecmp(sep->arg[1], "delete") == 0) {
 		if (target == 0 || !target->IsCorpse())
-			c->Message(0, "Error: Target the corpse you wish to delete");
+			c->Message(Chat::White, "Error: Target the corpse you wish to delete");
 		else if (target->IsNPCCorpse()) {
 
-			c->Message(0, "Depoping %s.",  target->GetName());
+			c->Message(Chat::White, "Depoping %s.",  target->GetName());
 			target->CastToCorpse()->Delete();
 		}
 		else if (c->Admin() >= commandEditPlayerCorpses) {
-			c->Message(0, "Deleting %s.",  target->GetName());
+			c->Message(Chat::White, "Deleting %s.",  target->GetName());
 			target->CastToCorpse()->Delete();
 		}
 		else
-			c->Message(0, "Insufficient status to delete player corpse.");
+			c->Message(Chat::White, "Insufficient status to delete player corpse.");
 	}
 	else if (strcasecmp(sep->arg[1], "ListNPC") == 0) {
 		entity_list.ListNPCCorpses(c);
@@ -3286,101 +4558,101 @@ void command_corpse(Client *c, const Seperator *sep)
 	else if (strcasecmp(sep->arg[1], "DeleteNPCCorpses") == 0) {
 		int32 tmp = entity_list.DeleteNPCCorpses();
 		if (tmp >= 0)
-			c->Message(0, "%d corpses deleted.",  tmp);
+			c->Message(Chat::White, "%d corpses deleted.",  tmp);
 		else
-			c->Message(0, "DeletePlayerCorpses Error #%d",  tmp);
+			c->Message(Chat::White, "DeletePlayerCorpses Error #%d",  tmp);
 	}
 	else if (strcasecmp(sep->arg[1], "charid") == 0 && c->Admin() >= commandEditPlayerCorpses) {
 		if (target == 0 || !target->IsPlayerCorpse())
-			c->Message(0, "Error: Target must be a player corpse.");
+			c->Message(Chat::White, "Error: Target must be a player corpse.");
 		else if (!sep->IsNumber(2))
-			c->Message(0, "Error: charid must be a number.");
+			c->Message(Chat::White, "Error: charid must be a number.");
 		else
-			c->Message(0, "Setting CharID=%u on PlayerCorpse '%s'",  target->CastToCorpse()->SetCharID(atoi(sep->arg[2])), target->GetName());
+			c->Message(Chat::White, "Setting CharID=%u on PlayerCorpse '%s'",  target->CastToCorpse()->SetCharID(atoi(sep->arg[2])), target->GetName());
 	}
 	else if (strcasecmp(sep->arg[1], "ResetLooter") == 0) {
 		if (target == 0 || !target->IsCorpse())
-			c->Message(0, "Error: Target the corpse you wish to reset");
+			c->Message(Chat::White, "Error: Target the corpse you wish to reset");
 		else
 			target->CastToCorpse()->ResetLooter();
 	}
 	else if (strcasecmp(sep->arg[1], "RemoveCash") == 0) {
 		if (target == 0 || !target->IsCorpse())
-			c->Message(0, "Error: Target the corpse you wish to remove the cash from");
+			c->Message(Chat::White, "Error: Target the corpse you wish to remove the cash from");
 		else if (!target->IsPlayerCorpse() || c->Admin() >= commandEditPlayerCorpses) {
-			c->Message(0, "Removing Cash from %s.",  target->GetName());
+			c->Message(Chat::White, "Removing Cash from %s.",  target->GetName());
 			target->CastToCorpse()->RemoveCash();
 		}
 		else
-			c->Message(0, "Insufficient status to modify player corpse.");
+			c->Message(Chat::White, "Insufficient status to modify player corpse.");
 	}
 	else if (strcasecmp(sep->arg[1], "InspectLoot") == 0) {
 		if (target == 0 || !target->IsCorpse())
-			c->Message(0, "Error: Target must be a corpse.");
+			c->Message(Chat::White, "Error: Target must be a corpse.");
 		else
 			target->CastToCorpse()->QueryLoot(c);
 	}
 	else if (strcasecmp(sep->arg[1], "lock") == 0) {
 		if (target == 0 || !target->IsCorpse())
-			c->Message(0, "Error: Target must be a corpse.");
+			c->Message(Chat::White, "Error: Target must be a corpse.");
 		else {
 			target->CastToCorpse()->Lock();
-			c->Message(0, "Locking %s...",  target->GetName());
+			c->Message(Chat::White, "Locking %s...",  target->GetName());
 		}
 	}
 	else if (strcasecmp(sep->arg[1], "unlock") == 0) {
 		if (target == 0 || !target->IsCorpse())
-			c->Message(0, "Error: Target must be a corpse.");
+			c->Message(Chat::White, "Error: Target must be a corpse.");
 		else {
 			target->CastToCorpse()->UnLock();
-			c->Message(0, "Unlocking %s...",  target->GetName());
+			c->Message(Chat::White, "Unlocking %s...",  target->GetName());
 		}
 	}
 	else if (strcasecmp(sep->arg[1], "depop") == 0) {
 		if (target == 0 || !target->IsPlayerCorpse())
-			c->Message(0, "Error: Target must be a player corpse.");
+			c->Message(Chat::White, "Error: Target must be a player corpse.");
 		else if (c->Admin() >= commandEditPlayerCorpses && target->IsPlayerCorpse()) {
-			c->Message(0, "Depoping %s.",  target->GetName());
+			c->Message(Chat::White, "Depoping %s.",  target->GetName());
 			target->CastToCorpse()->DepopPlayerCorpse();
 			if(!sep->arg[2][0] || atoi(sep->arg[2]) != 0)
 				target->CastToCorpse()->Bury();
 		}
 		else
-			c->Message(0, "Insufficient status to depop player corpse.");
+			c->Message(Chat::White, "Insufficient status to depop player corpse.");
 	}
 	else if (strcasecmp(sep->arg[1], "depopall") == 0) {
 		if (target == 0 || !target->IsClient())
-			c->Message(0, "Error: Target must be a player.");
+			c->Message(Chat::White, "Error: Target must be a player.");
 		else if (c->Admin() >= commandEditPlayerCorpses && target->IsClient()) {
-			c->Message(0, "Depoping %s\'s corpses.",  target->GetName());
+			c->Message(Chat::White, "Depoping %s\'s corpses.",  target->GetName());
 			target->CastToClient()->DepopAllCorpses();
 			if(!sep->arg[2][0] || atoi(sep->arg[2]) != 0)
 				target->CastToClient()->BuryPlayerCorpses();
 		}
 		else
-			c->Message(0, "Insufficient status to depop player corpse.");
+			c->Message(Chat::White, "Insufficient status to depop player corpse.");
 
 	}
 	else if (sep->arg[1][0] == 0 || strcasecmp(sep->arg[1], "help") == 0) {
-		c->Message(0, "#Corpse Sub-Commands:");
-		c->Message(0, "  DeleteNPCCorpses");
-		c->Message(0, "  Delete - Delete targetted corpse");
-		c->Message(0, "  ListNPC");
-		c->Message(0, "  ListPlayer");
-		c->Message(0, "  Lock - GM locks the corpse - cannot be looted by non-GM");
-		c->Message(0, "  UnLock");
-		c->Message(0, "  RemoveCash");
-		c->Message(0, "  InspectLoot");
-		c->Message(0, "  [to remove items from corpses, loot them]");
-		c->Message(0, "Lead-GM status required to delete/modify player corpses");
-		c->Message(0, "  DeletePlayerCorpses");
-		c->Message(0, "  CharID [charid] - change player corpse's owner");
-		c->Message(0, "  Depop [bury] - Depops single target corpse.");
-		c->Message(0, "  Depopall [bury] - Depops all target player's corpses.");
-		c->Message(0, "Set bury to 0 to skip burying the corpses.");
+		c->Message(Chat::White, "#Corpse Sub-Commands:");
+		c->Message(Chat::White, "  DeleteNPCCorpses");
+		c->Message(Chat::White, "  Delete - Delete targetted corpse");
+		c->Message(Chat::White, "  ListNPC");
+		c->Message(Chat::White, "  ListPlayer");
+		c->Message(Chat::White, "  Lock - GM locks the corpse - cannot be looted by non-GM");
+		c->Message(Chat::White, "  UnLock");
+		c->Message(Chat::White, "  RemoveCash");
+		c->Message(Chat::White, "  InspectLoot");
+		c->Message(Chat::White, "  [to remove items from corpses, loot them]");
+		c->Message(Chat::White, "Lead-GM status required to delete/modify player corpses");
+		c->Message(Chat::White, "  DeletePlayerCorpses");
+		c->Message(Chat::White, "  CharID [charid] - change player corpse's owner");
+		c->Message(Chat::White, "  Depop [bury] - Depops single target corpse.");
+		c->Message(Chat::White, "  Depopall [bury] - Depops all target player's corpses.");
+		c->Message(Chat::White, "Set bury to 0 to skip burying the corpses.");
 	}
 	else
-		c->Message(0, "Error, #corpse sub-command not found");
+		c->Message(Chat::White, "Error, #corpse sub-command not found");
 }
 
 void command_fixmob(Client *c, const Seperator *sep)
@@ -3389,9 +4661,9 @@ void command_fixmob(Client *c, const Seperator *sep)
 	const char* Usage = "Usage: #fixmob [race|gender|texture|helm|face|hair|haircolor|beard|beardcolor|heritage|tattoo|detail] [next|prev]";
 
 	if (!sep->arg[1])
-		c->Message(0,Usage);
+		c->Message(Chat::White,Usage);
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else
 	{
 
@@ -3593,7 +4865,7 @@ void command_fixmob(Client *c, const Seperator *sep)
 
 		if (ChangeType == nullptr)
 		{
-			c->Message(0,Usage);
+			c->Message(Chat::White,Usage);
 		}
 		else
 		{
@@ -3601,31 +4873,107 @@ void command_fixmob(Client *c, const Seperator *sep)
 										EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 										DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-			c->Message(0, "%s=%i",  ChangeType, ChangeSetting);
+			c->Message(Chat::White, "%s=%i",  ChangeType, ChangeSetting);
 		}
 	}
 }
 
 void command_gmspeed(Client *c, const Seperator *sep)
 {
-	bool state=atobool(sep->arg[1]);
-	Client *t=c;
+	bool   state = atobool(sep->arg[1]);
+	Client *t    = c;
 
-	if(c->GetTarget() && c->GetTarget()->IsClient())
-		t=c->GetTarget()->CastToClient();
-
-	if(sep->arg[1][0] != 0) {
-		database.SetGMSpeed(t->AccountID(), state?1:0);
-		c->Message(0, "Turning GMSpeed %s for %s (zone to take effect)",  state?"On":"Off", t->GetName());
+	if (c->GetTarget() && c->GetTarget()->IsClient()) {
+		t = c->GetTarget()->CastToClient();
 	}
-	else
-		c->Message(0, "Usage: #gmspeed [on/off]");
+
+	if (sep->arg[1][0] != 0) {
+		database.SetGMSpeed(t->AccountID(), state ? 1 : 0);
+		c->Message(Chat::White, "Turning GMSpeed %s for %s (zone to take effect)", state ? "On" : "Off", t->GetName());
+	}
+	else {
+		c->Message(Chat::White, "Usage: #gmspeed [on/off]");
+	}
+}
+
+void command_gmzone(Client *c, const Seperator *sep)
+{
+	if (!sep->arg[1]) {
+		c->Message(Chat::White, "Usage");
+		c->Message(Chat::White, "-------");
+		c->Message(Chat::White, "#gmzone [zone_short_name] [zone_version=0]");
+		return;
+	}
+
+	std::string zone_short_name_string = sep->arg[1];
+	const char  *zone_short_name       = sep->arg[1];
+	auto        zone_version           = static_cast<uint32>(sep->arg[2] ? atoi(sep->arg[2]) : 0);
+	std::string identifier             = "gmzone";
+	uint32      zone_id                = database.GetZoneID(zone_short_name);
+	uint32      duration               = 100000000;
+	uint16      instance_id            = 0;
+
+	if (zone_id == 0) {
+		c->Message(Chat::Red, "Invalid zone specified");
+		return;
+	}
+
+	if (sep->arg[3] && sep->arg[3][0]) {
+		identifier = sep->arg[3];
+	}
+
+	std::string bucket_key             = StringFormat("%s-%s-%u-instance", zone_short_name, identifier.c_str(), zone_version);
+	std::string existing_zone_instance = DataBucket::GetData(bucket_key);
+
+	if (existing_zone_instance.length() > 0) {
+		instance_id = std::stoi(existing_zone_instance);
+
+		c->Message(Chat::Yellow, "Found already created instance (%s) (%u)", zone_short_name, instance_id);
+	}
+
+	if (instance_id == 0) {
+		if (!database.GetUnusedInstanceID(instance_id)) {
+			c->Message(Chat::Red, "Server was unable to find a free instance id.");
+			return;
+		}
+
+		if (!database.CreateInstance(instance_id, zone_id, zone_version, duration)) {
+			c->Message(Chat::Red, "Server was unable to create a new instance.");
+			return;
+		}
+
+		c->Message(Chat::Yellow, "New private GM instance %s was created with id %lu.", zone_short_name, (unsigned long) instance_id);
+		DataBucket::SetData(bucket_key, std::to_string(instance_id));
+	}
+
+	if (instance_id > 0) {
+		float target_x   = -1, target_y = -1, target_z = -1;
+		int16 min_status = 0;
+		uint8 min_level  = 0;
+
+		if (!database.GetSafePoints(
+			zone_short_name,
+			zone_version,
+			&target_x,
+			&target_y,
+			&target_z,
+			&min_status,
+			&min_level
+		)) {
+			c->Message(Chat::Red, "Failed to find safe coordinates for specified zone");
+		}
+
+		c->Message(Chat::Yellow, "Zoning to private GM instance (%s) (%u)", zone_short_name, instance_id);
+
+		c->AssignToInstance(instance_id);
+		c->MovePC(zone_id, instance_id, target_x, target_y, target_z, 0, 1);
+	}
 }
 
 void command_title(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0]==0)
-		c->Message(0, "Usage: #title [remove|text] [1 = Create row in title table] - remove or set title to 'text'");
+		c->Message(Chat::White, "Usage: #title [remove|text] [1 = Create row in title table] - remove or set title to 'text'");
 	else {
 		bool Save = (atoi(sep->arg[2]) == 1);
 
@@ -3633,13 +4981,13 @@ void command_title(Client *c, const Seperator *sep)
 		if(!target_mob)
 			target_mob = c;
 		if(!target_mob->IsClient()) {
-			c->Message(13, "#title only works on players.");
+			c->Message(Chat::Red, "#title only works on players.");
 			return;
 		}
 		Client *t = target_mob->CastToClient();
 
 		if(strlen(sep->arg[1]) > 31) {
-			c->Message(13, "Title must be 31 characters or less.");
+			c->Message(Chat::Red, "Title must be 31 characters or less.");
 			return;
 		}
 
@@ -3660,13 +5008,13 @@ void command_title(Client *c, const Seperator *sep)
 		t->Save();
 
 		if(removed) {
-			c->Message(13, "%s's title has been removed.",  t->GetName(), sep->arg[1]);
+			c->Message(Chat::Red, "%s's title has been removed.",  t->GetName(), sep->arg[1]);
 			if(t != c)
-				t->Message(13, "Your title has been removed.",  sep->arg[1]);
+				t->Message(Chat::Red, "Your title has been removed.",  sep->arg[1]);
 		} else {
-			c->Message(13, "%s's title has been changed to '%s'.",  t->GetName(), sep->arg[1]);
+			c->Message(Chat::Red, "%s's title has been changed to '%s'.",  t->GetName(), sep->arg[1]);
 			if(t != c)
-				t->Message(13, "Your title has been changed to '%s'.",  sep->arg[1]);
+				t->Message(Chat::Red, "Your title has been changed to '%s'.",  sep->arg[1]);
 		}
 	}
 }
@@ -3675,7 +5023,7 @@ void command_title(Client *c, const Seperator *sep)
 void command_titlesuffix(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0]==0)
-		c->Message(0, "Usage: #titlesuffix [remove|text] [1 = create row in title table] - remove or set title suffix to 'text'");
+		c->Message(Chat::White, "Usage: #titlesuffix [remove|text] [1 = create row in title table] - remove or set title suffix to 'text'");
 	else {
 		bool Save = (atoi(sep->arg[2]) == 1);
 
@@ -3683,13 +5031,13 @@ void command_titlesuffix(Client *c, const Seperator *sep)
 		if(!target_mob)
 			target_mob = c;
 		if(!target_mob->IsClient()) {
-			c->Message(13, "#titlesuffix only works on players.");
+			c->Message(Chat::Red, "#titlesuffix only works on players.");
 			return;
 		}
 		Client *t = target_mob->CastToClient();
 
 		if(strlen(sep->arg[1]) > 31) {
-			c->Message(13, "Title suffix must be 31 characters or less.");
+			c->Message(Chat::Red, "Title suffix must be 31 characters or less.");
 			return;
 		}
 
@@ -3711,13 +5059,13 @@ void command_titlesuffix(Client *c, const Seperator *sep)
 		t->Save();
 
 		if(removed) {
-			c->Message(13, "%s's title suffix has been removed.",  t->GetName(), sep->arg[1]);
+			c->Message(Chat::Red, "%s's title suffix has been removed.",  t->GetName(), sep->arg[1]);
 			if(t != c)
-				t->Message(13, "Your title suffix has been removed.",  sep->arg[1]);
+				t->Message(Chat::Red, "Your title suffix has been removed.",  sep->arg[1]);
 		} else {
-			c->Message(13, "%s's title suffix has been changed to '%s'.",  t->GetName(), sep->arg[1]);
+			c->Message(Chat::Red, "%s's title suffix has been changed to '%s'.",  t->GetName(), sep->arg[1]);
 			if(t != c)
-				t->Message(13, "Your title suffix has been changed to '%s'.",  sep->arg[1]);
+				t->Message(Chat::Red, "Your title suffix has been changed to '%s'.",  sep->arg[1]);
 		}
 	}
 }
@@ -3725,53 +5073,53 @@ void command_titlesuffix(Client *c, const Seperator *sep)
 void command_spellinfo(Client *c, const Seperator *sep)
 {
 	if(sep->arg[1][0]==0)
-		c->Message(0, "Usage: #spellinfo [spell_id]");
+		c->Message(Chat::White, "Usage: #spellinfo [spell_id]");
 	else {
 		short int spell_id=atoi(sep->arg[1]);
 		const struct SPDat_Spell_Struct *s=&spells[spell_id];
-		c->Message(0, "Spell info for spell #%d:",  spell_id);
-		c->Message(0, "  name: %s",  s->name);
-		c->Message(0, "  player_1: %s",  s->player_1);
-		c->Message(0, "  teleport_zone: %s",  s->teleport_zone);
-		c->Message(0, "  you_cast: %s",  s->you_cast);
-		c->Message(0, "  other_casts: %s",  s->other_casts);
-		c->Message(0, "  cast_on_you: %s",  s->cast_on_you);
-		c->Message(0, "  spell_fades: %s",  s->spell_fades);
-		c->Message(0, "  range: %f",  s->range);
-		c->Message(0, "  aoerange: %f",  s->aoerange);
-		c->Message(0, "  pushback: %f",  s->pushback);
-		c->Message(0, "  pushup: %f",  s->pushup);
-		c->Message(0, "  cast_time: %d",  s->cast_time);
-		c->Message(0, "  recovery_time: %d",  s->recovery_time);
-		c->Message(0, "  recast_time: %d",  s->recast_time);
-		c->Message(0, "  buffdurationformula: %d",  s->buffdurationformula);
-		c->Message(0, "  buffduration: %d",  s->buffduration);
-		c->Message(0, "  AEDuration: %d",  s->AEDuration);
-		c->Message(0, "  mana: %d",  s->mana);
-		c->Message(0, "  base[12]: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",  s->base[0], s->base[1], s->base[2], s->base[3], s->base[4], s->base[5], s->base[6], s->base[7], s->base[8], s->base[9], s->base[10], s->base[11]);
-		c->Message(0, "  base22[12]: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",  s->base2[0], s->base2[1], s->base2[2], s->base2[3], s->base2[4], s->base2[5], s->base2[6], s->base2[7], s->base2[8], s->base2[9], s->base2[10], s->base2[11]);
-		c->Message(0, "  max[12]: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",  s->max[0], s->max[1], s->max[2], s->max[3], s->max[4], s->max[5], s->max[6], s->max[7], s->max[8], s->max[9], s->max[10], s->max[11]);
-		c->Message(0, "  components[4]: %d, %d, %d, %d",  s->components[0], s->components[1], s->components[2], s->components[3]);
-		c->Message(0, "  component_counts[4]: %d, %d, %d, %d",  s->component_counts[0], s->component_counts[1], s->component_counts[2], s->component_counts[3]);
-		c->Message(0, "  NoexpendReagent[4]: %d, %d, %d, %d",  s->NoexpendReagent[0], s->NoexpendReagent[1], s->NoexpendReagent[2], s->NoexpendReagent[3]);
-		c->Message(0, "  formula[12]: 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x",  s->formula[0], s->formula[1], s->formula[2], s->formula[3], s->formula[4], s->formula[5], s->formula[6], s->formula[7], s->formula[8], s->formula[9], s->formula[10], s->formula[11]);
-		c->Message(0, "  goodEffect: %d",  s->goodEffect);
-		c->Message(0, "  Activated: %d",  s->Activated);
-		c->Message(0, "  resisttype: %d",  s->resisttype);
-		c->Message(0, "  effectid[12]: 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x",  s->effectid[0], s->effectid[1], s->effectid[2], s->effectid[3], s->effectid[4], s->effectid[5], s->effectid[6], s->effectid[7], s->effectid[8], s->effectid[9], s->effectid[10], s->effectid[11]);
-		c->Message(0, "  targettype: %d",  s->targettype);
-		c->Message(0, "  basediff: %d",  s->basediff);
-		c->Message(0, "  skill: %d",  s->skill);
-		c->Message(0, "  zonetype: %d",  s->zonetype);
-		c->Message(0, "  EnvironmentType: %d",  s->EnvironmentType);
-		c->Message(0, "  TimeOfDay: %d",  s->TimeOfDay);
-		c->Message(0, "  classes[15]: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",
+		c->Message(Chat::White, "Spell info for spell #%d:",  spell_id);
+		c->Message(Chat::White, "  name: %s",  s->name);
+		c->Message(Chat::White, "  player_1: %s",  s->player_1);
+		c->Message(Chat::White, "  teleport_zone: %s",  s->teleport_zone);
+		c->Message(Chat::White, "  you_cast: %s",  s->you_cast);
+		c->Message(Chat::White, "  other_casts: %s",  s->other_casts);
+		c->Message(Chat::White, "  cast_on_you: %s",  s->cast_on_you);
+		c->Message(Chat::White, "  spell_fades: %s",  s->spell_fades);
+		c->Message(Chat::White, "  range: %f",  s->range);
+		c->Message(Chat::White, "  aoerange: %f",  s->aoerange);
+		c->Message(Chat::White, "  pushback: %f",  s->pushback);
+		c->Message(Chat::White, "  pushup: %f",  s->pushup);
+		c->Message(Chat::White, "  cast_time: %d",  s->cast_time);
+		c->Message(Chat::White, "  recovery_time: %d",  s->recovery_time);
+		c->Message(Chat::White, "  recast_time: %d",  s->recast_time);
+		c->Message(Chat::White, "  buffdurationformula: %d",  s->buffdurationformula);
+		c->Message(Chat::White, "  buffduration: %d",  s->buffduration);
+		c->Message(Chat::White, "  AEDuration: %d",  s->AEDuration);
+		c->Message(Chat::White, "  mana: %d",  s->mana);
+		c->Message(Chat::White, "  base[12]: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",  s->base[0], s->base[1], s->base[2], s->base[3], s->base[4], s->base[5], s->base[6], s->base[7], s->base[8], s->base[9], s->base[10], s->base[11]);
+		c->Message(Chat::White, "  base22[12]: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",  s->base2[0], s->base2[1], s->base2[2], s->base2[3], s->base2[4], s->base2[5], s->base2[6], s->base2[7], s->base2[8], s->base2[9], s->base2[10], s->base2[11]);
+		c->Message(Chat::White, "  max[12]: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",  s->max[0], s->max[1], s->max[2], s->max[3], s->max[4], s->max[5], s->max[6], s->max[7], s->max[8], s->max[9], s->max[10], s->max[11]);
+		c->Message(Chat::White, "  components[4]: %d, %d, %d, %d",  s->components[0], s->components[1], s->components[2], s->components[3]);
+		c->Message(Chat::White, "  component_counts[4]: %d, %d, %d, %d",  s->component_counts[0], s->component_counts[1], s->component_counts[2], s->component_counts[3]);
+		c->Message(Chat::White, "  NoexpendReagent[4]: %d, %d, %d, %d",  s->NoexpendReagent[0], s->NoexpendReagent[1], s->NoexpendReagent[2], s->NoexpendReagent[3]);
+		c->Message(Chat::White, "  formula[12]: 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x",  s->formula[0], s->formula[1], s->formula[2], s->formula[3], s->formula[4], s->formula[5], s->formula[6], s->formula[7], s->formula[8], s->formula[9], s->formula[10], s->formula[11]);
+		c->Message(Chat::White, "  goodEffect: %d",  s->goodEffect);
+		c->Message(Chat::White, "  Activated: %d",  s->Activated);
+		c->Message(Chat::White, "  resisttype: %d",  s->resisttype);
+		c->Message(Chat::White, "  effectid[12]: 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x",  s->effectid[0], s->effectid[1], s->effectid[2], s->effectid[3], s->effectid[4], s->effectid[5], s->effectid[6], s->effectid[7], s->effectid[8], s->effectid[9], s->effectid[10], s->effectid[11]);
+		c->Message(Chat::White, "  targettype: %d",  s->targettype);
+		c->Message(Chat::White, "  basediff: %d",  s->basediff);
+		c->Message(Chat::White, "  skill: %d",  s->skill);
+		c->Message(Chat::White, "  zonetype: %d",  s->zonetype);
+		c->Message(Chat::White, "  EnvironmentType: %d",  s->EnvironmentType);
+		c->Message(Chat::White, "  TimeOfDay: %d",  s->TimeOfDay);
+		c->Message(Chat::White, "  classes[15]: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",
 			s->classes[0], s->classes[1], s->classes[2], s->classes[3], s->classes[4],
 			s->classes[5], s->classes[6], s->classes[7], s->classes[8], s->classes[9],
 			s->classes[10], s->classes[11], s->classes[12], s->classes[13], s->classes[14]);
-		c->Message(0, "  CastingAnim: %d",  s->CastingAnim);
-		c->Message(0, "  SpellAffectIndex: %d",  s->SpellAffectIndex);
-		c->Message(0, " RecourseLink: %d",  s->RecourseLink);
+		c->Message(Chat::White, "  CastingAnim: %d",  s->CastingAnim);
+		c->Message(Chat::White, "  SpellAffectIndex: %d",  s->SpellAffectIndex);
+		c->Message(Chat::White, " RecourseLink: %d",  s->RecourseLink);
 	}
 }
 
@@ -3781,12 +5129,12 @@ void command_lastname(Client *c, const Seperator *sep)
 
 	if(c->GetTarget() && c->GetTarget()->IsClient())
 		t=c->GetTarget()->CastToClient();
-	Log(Logs::General, Logs::Normal, "#lastname request from %s for %s",  c->GetName(), t->GetName());
+	LogInfo("#lastname request from [{}] for [{}]",  c->GetName(), t->GetName());
 
 	if(strlen(sep->arg[1]) <= 70)
 		t->ChangeLastName(sep->arg[1]);
 	else
-		c->Message(0, "Usage: #lastname <lastname> where <lastname> is less than 70 chars long");
+		c->Message(Chat::White, "Usage: #lastname <lastname> where <lastname> is less than 70 chars long");
 }
 
 void command_memspell(Client *c, const Seperator *sep)
@@ -3796,20 +5144,20 @@ void command_memspell(Client *c, const Seperator *sep)
 
 	if (!(sep->IsNumber(1) && sep->IsNumber(2)))
 	{
-		c->Message(0, "Usage: #MemSpell slotid spellid");
+		c->Message(Chat::White, "Usage: #MemSpell slotid spellid");
 	}
 	else
 	{
 		slot = atoi(sep->arg[1]) - 1;
 		spell_id = atoi(sep->arg[2]);
-		if (slot > MAX_PP_MEMSPELL || spell_id >= SPDAT_RECORDS)
+		if (slot > EQEmu::spells::SPELL_GEM_COUNT || spell_id >= SPDAT_RECORDS)
 		{
-			c->Message(0, "Error: #MemSpell: Arguement out of range");
+			c->Message(Chat::White, "Error: #MemSpell: Arguement out of range");
 		}
 		else
 		{
 			c->MemSpell(spell_id, slot);
-			c->Message(0, "Spell slot changed, have fun!");
+			c->Message(Chat::White, "Spell slot changed, have fun!");
 		}
 	}
 }
@@ -3817,21 +5165,21 @@ void command_memspell(Client *c, const Seperator *sep)
 void command_save(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget() == 0)
-		c->Message(0, "Error: no target");
+		c->Message(Chat::White, "Error: no target");
 	else if (c->GetTarget()->IsClient()) {
 		if (c->GetTarget()->CastToClient()->Save(2))
-			c->Message(0, "%s successfully saved.",  c->GetTarget()->GetName());
+			c->Message(Chat::White, "%s successfully saved.",  c->GetTarget()->GetName());
 		else
-			c->Message(0, "Manual save for %s failed.",  c->GetTarget()->GetName());
+			c->Message(Chat::White, "Manual save for %s failed.",  c->GetTarget()->GetName());
 	}
 	else if (c->GetTarget()->IsPlayerCorpse()) {
 		if (c->GetTarget()->CastToMob()->Save())
-			c->Message(0, "%s successfully saved. (dbid=%u)",  c->GetTarget()->GetName(), c->GetTarget()->CastToCorpse()->GetCorpseDBID());
+			c->Message(Chat::White, "%s successfully saved. (dbid=%u)",  c->GetTarget()->GetName(), c->GetTarget()->CastToCorpse()->GetCorpseDBID());
 		else
-			c->Message(0, "Manual save for %s failed.",  c->GetTarget()->GetName());
+			c->Message(Chat::White, "Manual save for %s failed.",  c->GetTarget()->GetName());
 	}
 	else
-		c->Message(0, "Error: target not a Client/PlayerCorpse");
+		c->Message(Chat::White, "Error: target not a Client/PlayerCorpse");
 }
 
 void command_showstats(Client *c, const Seperator *sep)
@@ -3840,6 +5188,12 @@ void command_showstats(Client *c, const Seperator *sep)
 		c->GetTarget()->ShowStats(c);
 	else
 		c->ShowStats(c);
+}
+
+void command_showzonegloballoot(Client *c, const Seperator *sep)
+{
+	c->Message(Chat::White, "GlobalLoot for %s (%d:%d)", zone->GetShortName(), zone->GetZoneID(), zone->GetInstanceVersion());
+	zone->ShowZoneGlobalLoot(c);
 }
 
 void command_mystats(Client *c, const Seperator *sep)
@@ -3865,7 +5219,7 @@ void command_bind(Client *c, const Seperator *sep)
 		if (c->GetTarget()->IsClient())
 			c->GetTarget()->CastToClient()->SetBindPoint();
 		else
-			c->Message(0, "Error: target not a Player");
+			c->Message(Chat::White, "Error: target not a Player");
 	} else
 		c->SetBindPoint();
 }
@@ -3873,9 +5227,9 @@ void command_bind(Client *c, const Seperator *sep)
 void command_depop(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget() == 0 || !(c->GetTarget()->IsNPC() || c->GetTarget()->IsNPCCorpse()))
-		c->Message(0, "You must have a NPC target for this command. (maybe you meant #depopzone?)");
+		c->Message(Chat::White, "You must have a NPC target for this command. (maybe you meant #depopzone?)");
 	else {
-		c->Message(0, "Depoping '%s'.",  c->GetTarget()->GetName());
+		c->Message(Chat::White, "Depoping '%s'.",  c->GetTarget()->GetName());
 		c->GetTarget()->Depop();
 	}
 }
@@ -3883,12 +5237,57 @@ void command_depop(Client *c, const Seperator *sep)
 void command_depopzone(Client *c, const Seperator *sep)
 {
 	zone->Depop();
-	c->Message(0, "Zone depoped.");
+	c->Message(Chat::White, "Zone depoped.");
+}
+
+void command_devtools(Client *c, const Seperator *sep)
+{
+	std::string menu_commands_search;
+	std::string window_toggle_command;
+
+	/**
+	 * Search entity commands
+	 */
+	menu_commands_search += "[" + EQEmu::SayLinkEngine::GenerateQuestSaylink("#list npcs", false, "NPC") + "] ";
+	menu_commands_search += "[" + EQEmu::SayLinkEngine::GenerateQuestSaylink("#list players", false, "Players") + "] ";
+	menu_commands_search += "[" + EQEmu::SayLinkEngine::GenerateQuestSaylink("#list corpses", false, "Corpses") + "] ";
+	menu_commands_search += "[" + EQEmu::SayLinkEngine::GenerateQuestSaylink("#list doors", false, "Doors") + "] ";
+	menu_commands_search += "[" + EQEmu::SayLinkEngine::GenerateQuestSaylink("#list objects", false, "Objects") + "] ";
+
+	std::string dev_tools_window_key = StringFormat("%i-dev-tools-window-disabled", c->AccountID());
+
+	/**
+	 * Handle window toggle
+	 */
+	if (strcasecmp(sep->arg[1], "disable_window") == 0) {
+		DataBucket::SetData(dev_tools_window_key, "true");
+		c->SetDevToolsWindowEnabled(false);
+	}
+	if (strcasecmp(sep->arg[1], "enable_window") == 0) {
+		DataBucket::DeleteData(dev_tools_window_key);
+		c->SetDevToolsWindowEnabled(true);
+	}
+
+	/**
+	 * Show window status
+	 */
+	window_toggle_command = "Disabled [" + EQEmu::SayLinkEngine::GenerateQuestSaylink("#devtools enable_window", false, "Enable") + "] ";
+	if (c->IsDevToolsWindowEnabled()) {
+		window_toggle_command = "Enabled [" + EQEmu::SayLinkEngine::GenerateQuestSaylink("#devtools disable_window", false, "Disable") + "] ";
+	}
+
+	/**
+	 * Print menu
+	 */
+	c->Message(Chat::White, "| [Devtools] Window %s", window_toggle_command.c_str());
+	c->Message(Chat::White, "| [Devtools] Search %s", menu_commands_search.c_str());
 }
 
 void command_repop(Client *c, const Seperator *sep)
 {
 	int timearg = 1;
+	int delay = 0;
+
 	if (sep->arg[1] && strcasecmp(sep->arg[1], "force") == 0) {
 		timearg++;
 
@@ -3903,17 +5302,23 @@ void command_repop(Client *c, const Seperator *sep)
 			auto results = database.QueryDatabase(query);
 			iterator.Advance();
 		}
-		c->Message(0, "Zone depop: Force resetting spawn timers.");
+		c->Message(Chat::White, "Zone depop: Force resetting spawn timers.");
 	}
 
 	if (!sep->IsNumber(timearg)) {
-        c->Message(0, "Zone depoped. Repoping now.");
+        c->Message(Chat::White, "Zone depopped - repopping now.");
+
 		zone->Repop();
+
+		/* Force a spawn2 timer trigger so we don't delay actually spawning the NPC's */
+		zone->spawn2_timer.Trigger();
 		return;
 	}
 
-    c->Message(0, "Zone depoped. Repop in %i seconds",  atoi(sep->arg[timearg]));
-	zone->Repop(atoi(sep->arg[timearg])*1000);
+    c->Message(Chat::White, "Zone depoped. Repop in %i seconds",  atoi(sep->arg[timearg]));
+	zone->Repop(atoi(sep->arg[timearg]) * 1000);
+
+	zone->spawn2_timer.Trigger();
 }
 
 void command_repopclose(Client *c, const Seperator *sep)
@@ -3933,13 +5338,13 @@ void command_repopclose(Client *c, const Seperator *sep)
 			auto results = database.QueryDatabase(query);
 			iterator.Advance();
 		}
-		c->Message(0, "Zone depop: Force resetting spawn timers.");
+		c->Message(Chat::White, "Zone depop: Force resetting spawn timers.");
 	}
 	if (sep->IsNumber(1)) {
 		repop_distance = atoi(sep->arg[1]);
 	}
 
-	c->Message(0, "Zone depoped. Repopping NPC's within %i distance units", repop_distance);
+	c->Message(Chat::White, "Zone depoped. Repopping NPC's within %i distance units", repop_distance);
 	zone->RepopClose(c->GetPosition(), repop_distance);
 }
 
@@ -3967,7 +5372,7 @@ void command_spawnstatus(Client *c, const Seperator *sep)
 	}
 	else if(strcmp(sep->arg[1], "help") == 0)
 	{
-		c->Message(0, "Usage: #spawnstatus <[a]ll | [d]isabled | [e]nabled | {Spawn2 ID}>");
+		c->Message(Chat::White, "Usage: #spawnstatus <[a]ll | [d]isabled | [e]nabled | {Spawn2 ID}>");
 	}
 	else {
 		zone->SpawnStatus(c);
@@ -3986,7 +5391,7 @@ void command_zuwcoords(Client *c, const Seperator *sep)
 {
 	// modifys and resends zhdr packet
 	if(sep->arg[1][0]==0)
-		c->Message(0, "Usage: #zuwcoords <under world coords>");
+		c->Message(Chat::White, "Usage: #zuwcoords <under world coords>");
 	else {
 		zone->newzone_data.underworld = atof(sep->arg[1]);
 		//float newdata = atof(sep->arg[1]);
@@ -4001,7 +5406,7 @@ void command_zuwcoords(Client *c, const Seperator *sep)
 void command_zunderworld(Client *c, const Seperator *sep)
 {
 	if(sep->arg[1][0]==0)
-		c->Message(0, "Usage: #zunderworld <zcoord>");
+		c->Message(Chat::White, "Usage: #zunderworld <zcoord>");
 	else {
 		zone->newzone_data.underworld = atof(sep->arg[1]);
 	}
@@ -4011,7 +5416,7 @@ void command_zsafecoords(Client *c, const Seperator *sep)
 {
 	// modifys and resends zhdr packet
 	if(sep->arg[3][0]==0)
-		c->Message(0, "Usage: #zsafecoords <safe x> <safe y> <safe z>");
+		c->Message(Chat::White, "Usage: #zsafecoords <safe x> <safe y> <safe z>");
 	else {
 		zone->newzone_data.safe_x = atof(sep->arg[1]);
 		zone->newzone_data.safe_y = atof(sep->arg[2]);
@@ -4035,7 +5440,7 @@ void command_freeze(Client *c, const Seperator *sep)
 	if (c->GetTarget() != 0)
 		c->GetTarget()->SendAppearancePacket(AT_Anim, ANIM_FREEZE);
 	else
-		c->Message(0, "ERROR: Freeze requires a target.");
+		c->Message(Chat::White, "ERROR: Freeze requires a target.");
 }
 
 void command_unfreeze(Client *c, const Seperator *sep)
@@ -4043,7 +5448,106 @@ void command_unfreeze(Client *c, const Seperator *sep)
 	if (c->GetTarget() != 0)
 		c->GetTarget()->SendAppearancePacket(AT_Anim, ANIM_STAND);
 	else
-		c->Message(0, "ERROR: Unfreeze requires a target.");
+		c->Message(Chat::White, "ERROR: Unfreeze requires a target.");
+}
+
+void command_push(Client *c, const Seperator *sep)
+{
+	Mob *t = c;
+	if (c->GetTarget() != nullptr)
+		t = c->GetTarget();
+
+	if (!sep->arg[1] || !sep->IsNumber(1)) {
+		c->Message(Chat::White, "ERROR: Must provide at least a push back.");
+		return;
+	}
+
+	float back = atof(sep->arg[1]);
+	float up = 0.0f;
+
+	if (sep->arg[2] && sep->IsNumber(2))
+		up = atof(sep->arg[2]);
+
+	if (t->IsNPC()) {
+		t->IncDeltaX(back * g_Math.FastSin(c->GetHeading()));
+		t->IncDeltaY(back * g_Math.FastCos(c->GetHeading()));
+		t->IncDeltaZ(up);
+		t->SetForcedMovement(6);
+	} else if (t->IsClient()) {
+		// TODO: send packet to push
+	}
+}
+
+void command_proximity(Client *c, const Seperator *sep)
+{
+	if (!c->GetTarget() && !c->GetTarget()->IsNPC()) {
+		c->Message(Chat::White, "You must target an NPC");
+		return;
+	}
+
+	for (auto &iter : entity_list.GetNPCList()) {
+		auto        npc  = iter.second;
+		std::string name = npc->GetName();
+
+		if (name.find("Proximity") != std::string::npos) {
+			npc->Depop();
+		}
+	}
+
+	NPC *npc = c->GetTarget()->CastToNPC();
+
+	std::vector<FindPerson_Point> points;
+
+	FindPerson_Point p{};
+
+	if (npc->IsProximitySet()) {
+		glm::vec4 position;
+		position.w = npc->GetHeading();
+		position.x = npc->GetProximityMinX();
+		position.y = npc->GetProximityMinY();
+		position.z = npc->GetZ();
+
+		position.x = npc->GetProximityMinX();
+		position.y = npc->GetProximityMinY();
+		NPC::SpawnNodeNPC("Proximity", "", position);
+
+		position.x = npc->GetProximityMinX();
+		position.y = npc->GetProximityMaxY();
+		NPC::SpawnNodeNPC("Proximity", "", position);
+
+		position.x = npc->GetProximityMaxX();
+		position.y = npc->GetProximityMinY();
+		NPC::SpawnNodeNPC("Proximity", "", position);
+
+		position.x = npc->GetProximityMaxX();
+		position.y = npc->GetProximityMaxY();
+		NPC::SpawnNodeNPC("Proximity", "", position);
+
+		p.x = npc->GetProximityMinX();
+		p.y = npc->GetProximityMinY();
+		p.z = npc->GetZ();
+		points.push_back(p);
+
+		p.x = npc->GetProximityMinX();
+		p.y = npc->GetProximityMaxY();
+		points.push_back(p);
+
+		p.x = npc->GetProximityMaxX();
+		p.y = npc->GetProximityMaxY();
+		points.push_back(p);
+
+		p.x = npc->GetProximityMaxX();
+		p.y = npc->GetProximityMinY();
+		points.push_back(p);
+
+		p.x = npc->GetProximityMinX();
+		p.y = npc->GetProximityMinY();
+		points.push_back(p);
+	}
+
+	if (c->ClientVersion() >= EQEmu::versions::ClientVersion::RoF) {
+		c->SendPathPacket(points);
+	}
 }
 
 void command_pvp(Client *c, const Seperator *sep)
@@ -4056,10 +5560,10 @@ void command_pvp(Client *c, const Seperator *sep)
 
 	if(sep->arg[1][0] != 0) {
 		t->SetPVP(state);
-		c->Message(0, "%s now follows the ways of %s.",  t->GetName(), state?"discord":"order");
+		c->Message(Chat::White, "%s now follows the ways of %s.",  t->GetName(), state?"discord":"order");
 	}
 	else
-		c->Message(0, "Usage: #pvp [on/off]");
+		c->Message(Chat::White, "Usage: #pvp [on/off]");
 }
 
 void command_setxp(Client *c, const Seperator *sep)
@@ -4071,12 +5575,12 @@ void command_setxp(Client *c, const Seperator *sep)
 
 	if (sep->IsNumber(1)) {
 		if (atoi(sep->arg[1]) > 9999999)
-			c->Message(0, "Error: Value too high.");
+			c->Message(Chat::White, "Error: Value too high.");
 		else
 			t->AddEXP(atoi(sep->arg[1]));
 	}
 	else
-		c->Message(0, "Usage: #setxp number");
+		c->Message(Chat::White, "Usage: #setxp number");
 }
 
 void command_setpvppoints(Client *c, const Seperator *sep)
@@ -4088,7 +5592,7 @@ void command_setpvppoints(Client *c, const Seperator *sep)
 
 	if (sep->IsNumber(1)) {
 		if (atoi(sep->arg[1]) > 9999999)
-			c->Message(0, "Error: Value too high.");
+			c->Message(Chat::White, "Error: Value too high.");
 		else
 		{
 			t->SetPVPPoints(atoi(sep->arg[1]));
@@ -4097,7 +5601,7 @@ void command_setpvppoints(Client *c, const Seperator *sep)
 		}
 	}
 	else
-		c->Message(0, "Usage: #setpvppoints number");
+		c->Message(Chat::White, "Usage: #setpvppoints number");
 }
 
 void command_name(Client *c, const Seperator *sep)
@@ -4105,20 +5609,20 @@ void command_name(Client *c, const Seperator *sep)
 	Client *target;
 
 	if( (strlen(sep->arg[1]) == 0) || (!(c->GetTarget() && c->GetTarget()->IsClient())) )
-		c->Message(0, "Usage: #name newname (requires player target)");
+		c->Message(Chat::White, "Usage: #name newname (requires player target)");
 	else
 	{
 		target = c->GetTarget()->CastToClient();
 		char *oldname = strdup(target->GetName());
 		if(target->ChangeFirstName(sep->arg[1], c->GetName()))
 		{
-			c->Message(0, "Successfully renamed %s to %s",  oldname, sep->arg[1]);
+			c->Message(Chat::White, "Successfully renamed %s to %s",  oldname, sep->arg[1]);
 			// until we get the name packet working right this will work
-			c->Message(0, "Sending player to char select.");
-			target->Kick();
+			c->Message(Chat::White, "Sending player to char select.");
+			target->Kick("Name was changed");
 		}
 		else
-			c->Message(13, "ERROR: Unable to rename %s. Check that the new name '%s' isn't already taken.",  oldname, sep->arg[2]);
+			c->Message(Chat::Red, "ERROR: Unable to rename %s. Check that the new name '%s' isn't already taken.",  oldname, sep->arg[2]);
 		free(oldname);
 	}
 }
@@ -4129,38 +5633,101 @@ void command_tempname(Client *c, const Seperator *sep)
 	target = c->GetTarget();
 
 	if(!target)
-		c->Message(0, "Usage: #tempname newname (requires a target)");
+		c->Message(Chat::White, "Usage: #tempname newname (requires a target)");
 	else if(strlen(sep->arg[1]) > 0)
 	{
 		char *oldname = strdup(target->GetName());
 		target->TempName(sep->arg[1]);
-		c->Message(0, "Renamed %s to %s",  oldname, sep->arg[1]);
+		c->Message(Chat::White, "Renamed %s to %s",  oldname, sep->arg[1]);
 		free(oldname);
 	}
 	else {
 		target->TempName();
-		c->Message(0, "Restored the original name");
+		c->Message(Chat::White, "Restored the original name");
+	}
+}
+
+void command_petname(Client *c, const Seperator *sep)
+{
+	Mob *target;
+	target = c->GetTarget();
+
+	if(!target)
+		c->Message(Chat::White, "Usage: #petname newname (requires a target)");
+	else if(target->IsPet() && (target->GetOwnerID() == c->GetID()) && strlen(sep->arg[1]) > 0)
+	{
+		char *oldname = strdup(target->GetName());
+		target->TempName(sep->arg[1]);
+		c->Message(Chat::White, "Renamed %s to %s",  oldname, sep->arg[1]);
+		free(oldname);
+	}
+	else {
+		target->TempName();
+		c->Message(Chat::White, "Restored the original name");
 	}
 }
 
 void command_npcspecialattk(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget()==0 || c->GetTarget()->IsClient() || strlen(sep->arg[1]) <= 0 || strlen(sep->arg[2]) <= 0)
-		c->Message(0, "Usage: #npcspecialattk *flagchar* *permtag* (Flags are E(nrage) F(lurry) R(ampage) S(ummon), permtag is 1 = True, 0 = False).");
+		c->Message(Chat::White, "Usage: #npcspecialattk *flagchar* *permtag* (Flags are E(nrage) F(lurry) R(ampage) S(ummon), permtag is 1 = True, 0 = False).");
 	else {
 		c->GetTarget()->CastToNPC()->NPCSpecialAttacks(sep->arg[1],atoi(sep->arg[2]));
-		c->Message(0, "NPC Special Attack set.");
+		c->Message(Chat::White, "NPC Special Attack set.");
 	}
 }
 
 void command_kill(Client *c, const Seperator *sep)
 {
 	if (!c->GetTarget()) {
-		c->Message(0, "Error: #Kill: No target.");
+		c->Message(Chat::White, "Error: #Kill: No target.");
 	}
 	else
 		if (!c->GetTarget()->IsClient() || c->GetTarget()->CastToClient()->Admin() <= c->Admin())
 			c->GetTarget()->Kill();
+}
+
+void command_killallnpcs(Client *c, const Seperator *sep)
+{
+	std::string search_string;
+	if (sep->arg[1]) {
+		search_string = sep->arg[1];
+	}
+
+	int count = 0;
+	for (auto &itr : entity_list.GetMobList()) {
+		Mob *entity = itr.second;
+		if (!entity->IsNPC()) {
+			continue;
+		}
+
+		std::string entity_name = entity->GetName();
+
+		/**
+		 * Filter by name
+		 */
+		if (search_string.length() > 0 && entity_name.find(search_string) == std::string::npos) {
+			continue;
+		}
+
+		bool is_not_attackable =
+				 (
+					 entity->IsInvisible() ||
+					 !entity->IsAttackAllowed(c) ||
+					 entity->GetRace() == 127 ||
+					 entity->GetRace() == 240
+				 );
+
+		if (is_not_attackable) {
+			continue;
+		}
+
+		entity->Damage(c, 1000000000, 0, EQEmu::skills::SkillDragonPunch);
+
+		count++;
+	}
+
+	c->Message(Chat::Yellow, "Killed (%i) npc(s)", count);
 }
 
 void command_haste(Client *c, const Seperator *sep)
@@ -4173,23 +5740,23 @@ void command_haste(Client *c, const Seperator *sep)
 		c->SetExtraHaste(Haste);
 		// SetAttackTimer must be called to make this take effect, so player needs to change
 		// the primary weapon.
-		c->Message(0, "Haste set to %d%% - Need to re-equip primary weapon before it takes effect",  Haste);
+		c->Message(Chat::White, "Haste set to %d%% - Need to re-equip primary weapon before it takes effect",  Haste);
 	}
 	else
-		c->Message(0, "Usage: #haste [percentage]");
+		c->Message(Chat::White, "Usage: #haste [percentage]");
 }
 
 void command_damage(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget()==0)
-		c->Message(0, "Error: #Damage: No Target.");
+		c->Message(Chat::White, "Error: #Damage: No Target.");
 	else if (!sep->IsNumber(1)) {
-		c->Message(0, "Usage: #damage x");
+		c->Message(Chat::White, "Usage: #damage x");
 	}
 	else {
 		int32 nkdmg = atoi(sep->arg[1]);
 		if (nkdmg > 2100000000)
-			c->Message(0, "Enter a value less then 2,100,000,000.");
+			c->Message(Chat::White, "Enter a value less then 2,100,000,000.");
 		else
 			c->GetTarget()->Damage(c, nkdmg, SPELL_UNKNOWN, EQEmu::skills::SkillHandtoHand, false);
 	}
@@ -4197,7 +5764,7 @@ void command_damage(Client *c, const Seperator *sep)
 
 void command_zonespawn(Client *c, const Seperator *sep)
 {
-	c->Message(0, "This command is not yet implemented.");
+	c->Message(Chat::White, "This command is not yet implemented.");
 	return;
 
 /* this was kept from client.cpp verbatim (it was commented out) */
@@ -4246,7 +5813,7 @@ void command_npcspawn(Client *c, const Seperator *sep)
 				extra = 1;
 			}
 			database.NPCSpawnDB(0, zone->GetShortName(), zone->GetInstanceVersion(), c, target->CastToNPC(), extra);
-			c->Message(0, "%s created successfully!",  target->GetName());
+			c->Message(Chat::White, "%s created successfully!",  target->GetName());
 		}
 		else if (strcasecmp(sep->arg[1], "add") == 0) {
 			if (atoi(sep->arg[2]))
@@ -4259,42 +5826,42 @@ void command_npcspawn(Client *c, const Seperator *sep)
 				extra = 1200;
 			}
 			database.NPCSpawnDB(1, zone->GetShortName(), zone->GetInstanceVersion(), c, target->CastToNPC(), extra);
-			c->Message(0, "%s added successfully!",  target->GetName());
+			c->Message(Chat::White, "%s added successfully!",  target->GetName());
 		}
 		else if (strcasecmp(sep->arg[1], "update") == 0) {
 			database.NPCSpawnDB(2, zone->GetShortName(), zone->GetInstanceVersion(), c, target->CastToNPC());
-			c->Message(0, "%s updated!",  target->GetName());
+			c->Message(Chat::White, "%s updated!",  target->GetName());
 		}
 		else if (strcasecmp(sep->arg[1], "remove") == 0) {
 			database.NPCSpawnDB(3, zone->GetShortName(), zone->GetInstanceVersion(), c, target->CastToNPC());
-			c->Message(0, "%s removed successfully from database!",  target->GetName());
+			c->Message(Chat::White, "%s removed successfully from database!",  target->GetName());
 			target->Depop(false);
 		}
 		else if (strcasecmp(sep->arg[1], "delete") == 0) {
 			database.NPCSpawnDB(4, zone->GetShortName(), zone->GetInstanceVersion(), c, target->CastToNPC());
-			c->Message(0, "%s deleted from database!",  target->GetName());
+			c->Message(Chat::White, "%s deleted from database!",  target->GetName());
 			target->Depop(false);
 		}
 		else {
-			c->Message(0, "Error: #npcspawn: Invalid command.");
-			c->Message(0, "Usage: #npcspawn [create|add|update|remove|delete]");
+			c->Message(Chat::White, "Error: #npcspawn: Invalid command.");
+			c->Message(Chat::White, "Usage: #npcspawn [create|add|update|remove|delete]");
 		}
 	}
 	else
-		c->Message(0, "Error: #npcspawn: You must have a NPC targeted!");
+		c->Message(Chat::White, "Error: #npcspawn: You must have a NPC targeted!");
 }
 
 void command_spawnfix(Client *c, const Seperator *sep) {
 	Mob *targetMob = c->GetTarget();
 	if (!targetMob || !targetMob->IsNPC()) {
-		c->Message(0, "Error: #spawnfix: Need an NPC target.");
+		c->Message(Chat::White, "Error: #spawnfix: Need an NPC target.");
 		return;
     }
 
     Spawn2* s2 = targetMob->CastToNPC()->respawn2;
 
     if(!s2) {
-        c->Message(0, "#spawnfix FAILED -- cannot determine which spawn entry in the database this mob came from.");
+        c->Message(Chat::White, "#spawnfix FAILED -- cannot determine which spawn entry in the database this mob came from.");
         return;
     }
 
@@ -4302,12 +5869,12 @@ void command_spawnfix(Client *c, const Seperator *sep) {
                                     c->GetX(), c->GetY(), c->GetZ(), c->GetHeading(),s2->GetID());
     auto results = database.QueryDatabase(query);
     if (!results.Success()) {
-        c->Message(13, "Update failed! MySQL gave the following error:");
-        c->Message(13, results.ErrorMessage().c_str());
+        c->Message(Chat::Red, "Update failed! MySQL gave the following error:");
+        c->Message(Chat::Red, results.ErrorMessage().c_str());
         return;
     }
 
-    c->Message(0, "Updating coordinates successful.");
+    c->Message(Chat::White, "Updating coordinates successful.");
     targetMob->Depop(false);
 }
 
@@ -4315,31 +5882,81 @@ void command_loc(Client *c, const Seperator *sep)
 {
 	Mob *t=c->GetTarget()?c->GetTarget():c->CastToMob();
 
-	c->Message(0, "%s's Location (XYZ): %1.2f, %1.2f, %1.2f; heading=%1.1f",  t->GetName(), t->GetX(), t->GetY(), t->GetZ(), t->GetHeading());
+	c->Message(Chat::White, "%s's Location (XYZ): %1.2f, %1.2f, %1.2f; heading=%1.1f",  t->GetName(), t->GetX(), t->GetY(), t->GetZ(), t->GetHeading());
 }
 
 void command_goto(Client *c, const Seperator *sep)
 {
-	// goto function
-	if (sep->arg[1][0] == '\0' && c->GetTarget())
-		c->MovePC(zone->GetZoneID(), zone->GetInstanceID(), c->GetTarget()->GetX(), c->GetTarget()->GetY(), c->GetTarget()->GetZ(), c->GetTarget()->GetHeading());
-	else if (!(sep->IsNumber(1) && sep->IsNumber(2) && sep->IsNumber(3)))
-		c->Message(0, "Usage: #goto [x y z]");
-	else
-		c->MovePC(zone->GetZoneID(), zone->GetInstanceID(), atof(sep->arg[1]), atof(sep->arg[2]), atof(sep->arg[3]), 0.0f);
+	std::string arg1 = sep->arg[1];
+
+	bool goto_via_target_no_args = sep->arg[1][0] == '\0' && c->GetTarget();
+	bool goto_via_player_name    = !sep->IsNumber(1) && !arg1.empty();
+	bool goto_via_x_y_z          = sep->IsNumber(1) && sep->IsNumber(2) && sep->IsNumber(3);
+
+	if (goto_via_target_no_args) {
+		c->MovePC(
+			zone->GetZoneID(),
+			zone->GetInstanceID(),
+			c->GetTarget()->GetX(),
+			c->GetTarget()->GetY(),
+			c->GetTarget()->GetZ(),
+			c->GetTarget()->GetHeading()
+		);
+	}
+	else if (goto_via_player_name) {
+
+		/**
+		 * Find them in zone first
+		 */
+		const char  *player_name       = sep->arg[1];
+		std::string player_name_string = sep->arg[1];
+		Client      *client            = entity_list.GetClientByName(player_name);
+		if (client) {
+			c->MovePC(
+				zone->GetZoneID(),
+				zone->GetInstanceID(),
+				client->GetX(),
+				client->GetY(),
+				client->GetZ(),
+				client->GetHeading()
+			);
+
+			c->Message(Chat::Yellow, "Goto player '%s' same zone", player_name_string.c_str());
+		}
+		else if (c->GotoPlayer(player_name_string)) {
+			c->Message(Chat::Yellow, "Goto player '%s' different zone", player_name_string.c_str());
+		}
+		else {
+			c->Message(Chat::Yellow, "Player '%s' not found", player_name_string.c_str());
+		}
+	}
+	else if (goto_via_x_y_z) {
+		c->MovePC(
+			zone->GetZoneID(),
+			zone->GetInstanceID(),
+			atof(sep->arg[1]),
+			atof(sep->arg[2]),
+			atof(sep->arg[3]),
+			(sep->arg[4] ? atof(sep->arg[4]) : c->GetHeading())
+		);
+	}
+	else {
+		c->Message(Chat::White, "Usage: #goto [x y z] [h]");
+		c->Message(Chat::White, "Usage: #goto [player_name]");
+	}
 }
 
 void command_iteminfo(Client *c, const Seperator *sep)
 {
-	auto inst = c->GetInv()[EQEmu::inventory::slotCursor];
+	auto inst = c->GetInv()[EQEmu::invslot::slotCursor];
 	if (!inst) {
-		c->Message(13, "Error: You need an item on your cursor for this command");
+		c->Message(Chat::Red, "Error: You need an item on your cursor for this command");
 		return;
 	}
 	auto item = inst->GetItem();
 	if (!item) {
-		Log(Logs::General, Logs::Inventory, "(%s) Command #iteminfo processed an item with no data pointer");
-		c->Message(13, "Error: This item has no data reference");
+		LogInventory("([{}]) Command #iteminfo processed an item with no data pointer");
+		c->Message(Chat::Red, "Error: This item has no data reference");
 		return;
 	}
 
@@ -4347,43 +5964,41 @@ void command_iteminfo(Client *c, const Seperator *sep)
 	linker.SetLinkType(EQEmu::saylink::SayLinkItemInst);
 	linker.SetItemInst(inst);
 
-	auto item_link = linker.GenerateLink();
-
-	c->Message(0, "*** Item Info for [%s] ***", item_link.c_str());
-	c->Message(0, ">> ID: %u, ItemUseType: %u, ItemClassType: %u", item->ID, item->ItemType, item->ItemClass);
-	c->Message(0, ">> IDFile: '%s', IconID: %u", item->IDFile, item->Icon);
-	c->Message(0, ">> Size: %u, Weight: %u, Price: %u, LDoNPrice: %u", item->Size, item->Weight, item->Price, item->LDoNPrice);
-	c->Message(0, ">> Material: 0x%02X, Color: 0x%08X, Tint: 0x%08X, Light: 0x%02X", item->Material, item->Color, inst->GetColor(), item->Light);
-	c->Message(0, ">> IsLore: %s, LoreGroup: %u, Lore: '%s'", (item->LoreFlag ? "TRUE" : "FALSE"), item->LoreGroup, item->Lore);
-	c->Message(0, ">> NoDrop: %u, NoRent: %u, NoPet: %u, NoTransfer: %u, FVNoDrop: %u",
+	c->Message(Chat::White, "*** Item Info for [%s] ***", linker.GenerateLink().c_str());
+	c->Message(Chat::White, ">> ID: %u, ItemUseType: %u, ItemClassType: %u", item->ID, item->ItemType, item->ItemClass);
+	c->Message(Chat::White, ">> IDFile: '%s', IconID: %u", item->IDFile, item->Icon);
+	c->Message(Chat::White, ">> Size: %u, Weight: %u, Price: %u, LDoNPrice: %u", item->Size, item->Weight, item->Price, item->LDoNPrice);
+	c->Message(Chat::White, ">> Material: 0x%02X, Color: 0x%08X, Tint: 0x%08X, Light: 0x%02X", item->Material, item->Color, inst->GetColor(), item->Light);
+	c->Message(Chat::White, ">> IsLore: %s, LoreGroup: %u, Lore: '%s'", (item->LoreFlag ? "TRUE" : "FALSE"), item->LoreGroup, item->Lore);
+	c->Message(Chat::White, ">> NoDrop: %u, NoRent: %u, NoPet: %u, NoTransfer: %u, FVNoDrop: %u",
 		item->NoDrop, item->NoRent, (uint8)item->NoPet, (uint8)item->NoTransfer, item->FVNoDrop);
 
 	if (item->IsClassBook()) {
-		c->Message(0, "*** This item is a Book (filename:'%s') ***", item->Filename);
+		c->Message(Chat::White, "*** This item is a Book (filename:'%s') ***", item->Filename);
 	}
 	else if (item->IsClassBag()) {
-		c->Message(0, "*** This item is a Container (%u slots) ***", item->BagSlots);
+		c->Message(Chat::White, "*** This item is a Container (%u slots) ***", item->BagSlots);
 	}
 	else {
-		c->Message(0, "*** This item is Common ***");
-		c->Message(0, ">> Classes: %u, Races: %u, Slots: %u", item->Classes, item->Races, item->Slots);
-		c->Message(0, ">> ReqSkill: %u, ReqLevel: %u, RecLevel: %u", item->RecSkill, item->ReqLevel, item->RecLevel);
-		c->Message(0, ">> SkillModType: %u, SkillModValue: %i", item->SkillModType, item->SkillModValue);
-		c->Message(0, ">> BaneRaceType: %u, BaneRaceDamage: %u, BaneBodyType: %u, BaneBodyDamage: %i",
+		c->Message(Chat::White, "*** This item is Common ***");
+		c->Message(Chat::White, ">> Classes: %u, Races: %u, Slots: %u", item->Classes, item->Races, item->Slots);
+		c->Message(Chat::White, ">> ReqSkill: %u, ReqLevel: %u, RecLevel: %u", item->RecSkill, item->ReqLevel, item->RecLevel);
+		c->Message(Chat::White, ">> SkillModType: %u, SkillModValue: %i", item->SkillModType, item->SkillModValue);
+		c->Message(Chat::White, ">> BaneRaceType: %u, BaneRaceDamage: %u, BaneBodyType: %u, BaneBodyDamage: %i",
 			item->BaneDmgRace, item->BaneDmgRaceAmt, item->BaneDmgBody, item->BaneDmgAmt);
-		c->Message(0, ">> Magic: %s, SpellID: %i, ProcLevel: %u, Charges: %u, MaxCharges: %u",
+		c->Message(Chat::White, ">> Magic: %s, SpellID: %i, ProcLevel: %u, Charges: %u, MaxCharges: %u",
 			(item->Magic ? "TRUE" : "FALSE"), item->Click.Effect, item->Click.Level, inst->GetCharges(), item->MaxCharges);
-		c->Message(0, ">> EffectType: 0x%02X, CastTime: %.2f", (uint8)item->Click.Type, ((double)item->CastTime / 1000));
+		c->Message(Chat::White, ">> EffectType: 0x%02X, CastTime: %.2f", (uint8)item->Click.Type, ((double)item->CastTime / 1000));
 	}
 
 	if (c->Admin() >= 200)
-		c->Message(0, ">> MinStatus: %u", item->MinStatus);
+		c->Message(Chat::White, ">> MinStatus: %u", item->MinStatus);
 }
 
 void command_uptime(Client *c, const Seperator *sep)
 {
 	if (!worldserver.Connected())
-		c->Message(0, "Error: World server disconnected");
+		c->Message(Chat::White, "Error: World server disconnected");
 	else
 	{
 		auto pack = new ServerPacket(ServerOP_Uptime, sizeof(ServerUptime_Struct));
@@ -4401,36 +6016,40 @@ void command_flag(Client *c, const Seperator *sep)
 	if(sep->arg[2][0] == 0) {
 		if (!c->GetTarget() || (c->GetTarget() && c->GetTarget() == c)) {
 			c->UpdateAdmin();
-			c->Message(0, "Refreshed your admin flag from DB.");
+			c->Message(Chat::White, "Refreshed your admin flag from DB.");
 		} else if (c->GetTarget() && c->GetTarget() != c && c->GetTarget()->IsClient()) {
 			c->GetTarget()->CastToClient()->UpdateAdmin();
-			c->Message(0, "%s's admin flag has been refreshed.", c->GetTarget()->GetName());
-			c->GetTarget()->Message(0, "%s refreshed your admin flag.", c->GetName());
+			c->Message(Chat::White, "%s's admin flag has been refreshed.", c->GetTarget()->GetName());
+			c->GetTarget()->Message(Chat::White, "%s refreshed your admin flag.", c->GetName());
 		}
 	}
 	else if (!sep->IsNumber(1) || atoi(sep->arg[1]) < -2 || atoi(sep->arg[1]) > 255 || strlen(sep->arg[2]) == 0)
-		c->Message(0, "Usage: #flag [status] [acctname]");
+		c->Message(Chat::White, "Usage: #flag [status] [acctname]");
 
 	else if (c->Admin() < commandChangeFlags) {
-//this check makes banning players by less than this level
-//impossible, but i'll leave it in anyways
-		c->Message(0, "You may only refresh your own flag, doing so now.");
+		//this check makes banning players by less than this level
+		//impossible, but i'll leave it in anyways
+		c->Message(Chat::White, "You may only refresh your own flag, doing so now.");
 		c->UpdateAdmin();
 	}
 	else {
 		if (atoi(sep->arg[1]) > c->Admin())
-			c->Message(0, "You cannot set people's status to higher than your own");
+			c->Message(Chat::White, "You cannot set people's status to higher than your own");
 		else if (atoi(sep->arg[1]) < 0 && c->Admin() < commandBanPlayers)
-			c->Message(0, "You have too low of status to suspend/ban");
+			c->Message(Chat::White, "You have too low of status to suspend/ban");
 		else if (!database.SetAccountStatus(sep->argplus[2], atoi(sep->arg[1])))
-			c->Message(0, "Unable to set GM Flag.");
+			c->Message(Chat::White, "Unable to set GM Flag.");
 		else {
-			c->Message(0, "Set GM Flag on account.");
-			auto pack = new ServerPacket(ServerOP_FlagUpdate, 6);
-			*((uint32*) pack->pBuffer) = database.GetAccountIDByName(sep->argplus[2]);
-			*((int16*) &pack->pBuffer[4]) = atoi(sep->arg[1]);
-			worldserver.SendPacket(pack);
-			delete pack;
+			c->Message(Chat::White, "Set GM Flag on account.");
+
+			std::string user;
+			std::string loginserver;
+			ParseAccountString(sep->argplus[2], user, loginserver);
+
+			ServerPacket pack(ServerOP_FlagUpdate, 6);
+			*((uint32*) pack.pBuffer) = database.GetAccountIDByName(user.c_str(), loginserver.c_str());
+			*((int16*) &pack.pBuffer[4]) = atoi(sep->arg[1]);
+			worldserver.SendPacket(&pack);
 		}
 	}
 }
@@ -4443,12 +6062,12 @@ void command_time(Client *c, const Seperator *sep)
 		if(sep->IsNumber(2)) {
 			minutes=atoi(sep->arg[2]);
 		}
-		c->Message(13, "Setting world time to %s:%i (Timezone: 0)...",  sep->arg[1], minutes);
+		c->Message(Chat::Red, "Setting world time to %s:%i (Timezone: 0)...",  sep->arg[1], minutes);
 		zone->SetTime(atoi(sep->arg[1])+1, minutes);
-		Log(Logs::General, Logs::Zone_Server, "%s :: Setting world time to %s:%i (Timezone: 0)...", c->GetCleanName(), sep->arg[1], minutes);
+		LogInfo("{} :: Setting world time to {}:{} (Timezone: 0)...", c->GetCleanName(), sep->arg[1], minutes);
 	}
 	else {
-		c->Message(13, "To set the Time: #time HH [MM]");
+		c->Message(Chat::Red, "To set the Time: #time HH [MM]");
 		TimeOfDay_Struct eqTime;
 		zone->zone_time.GetCurrentEQTimeOfDay( time(0), &eqTime);
 		sprintf(timeMessage,"%02d:%s%d %s (Timezone: %ih %im)",
@@ -4459,8 +6078,8 @@ void command_time(Client *c, const Seperator *sep)
 			zone->zone_time.getEQTimeZoneHr(),
 			zone->zone_time.getEQTimeZoneMin()
 			);
-		c->Message(13, "It is now %s.", timeMessage);
-		Log(Logs::General, Logs::Zone_Server, "Current Time is: %s", timeMessage);
+		c->Message(Chat::Red, "It is now %s.", timeMessage);
+		LogInfo("Current Time is: {}", timeMessage);
 	}
 }
 
@@ -4470,14 +6089,14 @@ void command_guild(Client *c, const Seperator *sep)
 	Mob *target=c->GetTarget();
 
 	if (strcasecmp(sep->arg[1], "help") == 0) {
-		c->Message(0, "GM Guild commands:");
-		c->Message(0, "  #guild list - lists all guilds on the server");
-		c->Message(0, "  #guild create {guildleader charname or CharID} guildname");
-		c->Message(0, "  #guild delete guildID");
-		c->Message(0, "  #guild rename guildID newname");
-		c->Message(0, "  #guild set charname guildID    (0=no guild)");
-		c->Message(0, "  #guild setrank charname rank");
-		c->Message(0, "  #guild setleader guildID {guildleader charname or CharID}");
+		c->Message(Chat::White, "GM Guild commands:");
+		c->Message(Chat::White, "  #guild list - lists all guilds on the server");
+		c->Message(Chat::White, "  #guild create {guildleader charname or CharID} guildname");
+		c->Message(Chat::White, "  #guild delete guildID");
+		c->Message(Chat::White, "  #guild rename guildID newname");
+		c->Message(Chat::White, "  #guild set charname guildID    (0=no guild)");
+		c->Message(Chat::White, "  #guild setrank charname rank");
+		c->Message(Chat::White, "  #guild setleader guildID {guildleader charname or CharID}");
 	}
 	else if (strcasecmp(sep->arg[1], "status") == 0 || strcasecmp(sep->arg[1], "stat") == 0) {
 		Client* client = 0;
@@ -4486,24 +6105,24 @@ void command_guild(Client *c, const Seperator *sep)
 		else if (target != 0 && target->IsClient())
 			client = target->CastToClient();
 		if (client == 0)
-			c->Message(0, "You must target someone or specify a character name");
+			c->Message(Chat::White, "You must target someone or specify a character name");
 		else if ((client->Admin() >= minStatusToEditOtherGuilds && admin < minStatusToEditOtherGuilds) && client->GuildID() != c->GuildID()) // no peeping for GMs, make sure tell message stays the same
-			c->Message(0, "You must target someone or specify a character name.");
+			c->Message(Chat::White, "You must target someone or specify a character name.");
 		else {
 			if (client->IsInAGuild())
-				c->Message(0, "%s is not in a guild.",  client->GetName());
+				c->Message(Chat::White, "%s is not in a guild.",  client->GetName());
 			else if (guild_mgr.IsGuildLeader(client->GuildID(), client->CharacterID()))
-				c->Message(0, "%s is the leader of <%s> rank: %s",  client->GetName(), guild_mgr.GetGuildName(client->GuildID()), guild_mgr.GetRankName(client->GuildID(), client->GuildRank()));
+				c->Message(Chat::White, "%s is the leader of <%s> rank: %s",  client->GetName(), guild_mgr.GetGuildName(client->GuildID()), guild_mgr.GetRankName(client->GuildID(), client->GuildRank()));
 			else
-				c->Message(0, "%s is a member of <%s> rank: %s",  client->GetName(), guild_mgr.GetGuildName(client->GuildID()), guild_mgr.GetRankName(client->GuildID(), client->GuildRank()));
+				c->Message(Chat::White, "%s is a member of <%s> rank: %s",  client->GetName(), guild_mgr.GetGuildName(client->GuildID()), guild_mgr.GetRankName(client->GuildID(), client->GuildRank()));
 		}
 	}
 	else if (strcasecmp(sep->arg[1], "info") == 0) {
 		if (sep->arg[2][0] == 0 && c->IsInAGuild()) {
 			if (admin >= minStatusToEditOtherGuilds)
-				c->Message(0, "Usage: #guildinfo guild_id");
+				c->Message(Chat::White, "Usage: #guildinfo guild_id");
 			else
-				c->Message(0, "You're not in a guild");
+				c->Message(Chat::White, "You're not in a guild");
 		}
 		else {
 			uint32 tmp = GUILD_NONE;
@@ -4519,19 +6138,19 @@ void command_guild(Client *c, const Seperator *sep)
 	/*
 	else if (strcasecmp(sep->arg[1], "edit") == 0) {
 		if (c->GuildDBID() == 0)
-			c->Message(0, "You arent in a guild!");
+			c->Message(Chat::White, "You arent in a guild!");
 		else if (!sep->IsNumber(2))
-			c->Message(0, "Error: invalid rank #.");
+			c->Message(Chat::White, "Error: invalid rank #.");
 		else if (atoi(sep->arg[2]) < 0 || atoi(sep->arg[2]) > GUILD_MAX_RANK)
-			c->Message(0, "Error: invalid rank #.");
+			c->Message(Chat::White, "Error: invalid rank #.");
 		else if (!c->GuildRank() == 0)
-			c->Message(0, "You must be rank %s to use edit.",  guilds[c->GuildEQID()].rank[0].rankname);
+			c->Message(Chat::White, "You must be rank %s to use edit.",  guilds[c->GuildEQID()].rank[0].rankname);
 		else if (!worldserver.Connected())
-			c->Message(0, "Error: World server dirconnected");
+			c->Message(Chat::White, "Error: World server dirconnected");
 		else {
 			if (!helper_guild_edit(c, c->GuildDBID(), c->GuildEQID(), atoi(sep->arg[2]), sep->arg[3], sep->argplus[4])) {
-				c->Message(0, "  #guild edit rank title newtitle");
-				c->Message(0, "  #guild edit rank permission 0/1");
+				c->Message(Chat::White, "  #guild edit rank title newtitle");
+				c->Message(Chat::White, "  #guild edit rank permission 0/1");
 			}
 			else {
 				ServerPacket* pack = new ServerPacket(ServerOP_RefreshGuild, 5);
@@ -4544,20 +6163,20 @@ void command_guild(Client *c, const Seperator *sep)
 	}
 	else if (strcasecmp(sep->arg[1], "gmedit") == 0 && admin >= 100) {
 		if (!sep->IsNumber(2))
-			c->Message(0, "Error: invalid guilddbid.");
+			c->Message(Chat::White, "Error: invalid guilddbid.");
 		else if (!sep->IsNumber(3))
-			c->Message(0, "Error: invalid rank #.");
+			c->Message(Chat::White, "Error: invalid rank #.");
 		else if (atoi(sep->arg[3]) < 0 || atoi(sep->arg[3]) > GUILD_MAX_RANK)
-			c->Message(0, "Error: invalid rank #.");
+			c->Message(Chat::White, "Error: invalid rank #.");
 		else if (!worldserver.Connected())
-			c->Message(0, "Error: World server dirconnected");
+			c->Message(Chat::White, "Error: World server dirconnected");
 		else {
 			uint32 eqid = database.GetGuildEQID(atoi(sep->arg[2]));
 			if (eqid == GUILD_NONE)
-				c->Message(0, "Error: Guild not found");
+				c->Message(Chat::White, "Error: Guild not found");
 			else if (!helper_guild_edit(c, atoi(sep->arg[2]), eqid, atoi(sep->arg[3]), sep->arg[4], sep->argplus[5])) {
-				c->Message(0, "  #guild gmedit guilddbid rank title newtitle");
-				c->Message(0, "  #guild gmedit guilddbid rank permission 0/1");
+				c->Message(Chat::White, "  #guild gmedit guilddbid rank title newtitle");
+				c->Message(Chat::White, "  #guild gmedit guilddbid rank permission 0/1");
 			}
 			else {
 				ServerPacket* pack = new ServerPacket(ServerOP_RefreshGuild, 5);
@@ -4570,59 +6189,56 @@ void command_guild(Client *c, const Seperator *sep)
 	*/
 	else if (strcasecmp(sep->arg[1], "set") == 0) {
 		if (!sep->IsNumber(3))
-			c->Message(0, "Usage: #guild set charname guildgbid (0 = clear guildtag)");
+			c->Message(Chat::White, "Usage: #guild set charname guildgbid (0 = clear guildtag)");
 		else {
 			uint32 guild_id = atoi(sep->arg[3]);
 
 			if(guild_id == 0)
 				guild_id = GUILD_NONE;
 			else if(!guild_mgr.GuildExists(guild_id)) {
-				c->Message(13, "Guild %d does not exist.",  guild_id);
+				c->Message(Chat::Red, "Guild %d does not exist.",  guild_id);
 				return;
 			}
 
 			uint32 charid = database.GetCharacterID(sep->arg[2]);
 			if(charid == 0) {
-				c->Message(13, "Unable to find character '%s'",  charid);
+				c->Message(Chat::Red, "Unable to find character '%s'",  charid);
 				return;
 			}
 
 			//we could do the checking we need for guild_mgr.CheckGMStatus, but im lazy right now
 			if(admin < minStatusToEditOtherGuilds) {
-				c->Message(13, "Access denied.");
+				c->Message(Chat::Red, "Access denied.");
 				return;
 			}
 
 			if(guild_id == GUILD_NONE) {
-				Log(Logs::Detail, Logs::Guilds, "%s: Removing %s (%d) from guild with GM command.",  c->GetName(),
-					sep->arg[2], charid);
+				LogGuilds("[{}]: Removing [{}] ([{}]) from guild with GM command",  c->GetName(), sep->arg[2], charid);
 			} else {
-				Log(Logs::Detail, Logs::Guilds, "%s: Putting %s (%d) into guild %s (%d) with GM command.",  c->GetName(),
-					sep->arg[2], charid,
-					guild_mgr.GetGuildName(guild_id), guild_id);
+				LogGuilds("[{}]: Putting [{}] ([{}]) into guild [{}] ([{}]) with GM command",  c->GetName(), sep->arg[2], charid, guild_mgr.GetGuildName(guild_id), guild_id);
 			}
 
 			if(!guild_mgr.SetGuild(charid, guild_id, GUILD_MEMBER)) {
-				c->Message(13, "Error putting '%s' into guild %d",  sep->arg[2], guild_id);
+				c->Message(Chat::Red, "Error putting '%s' into guild %d",  sep->arg[2], guild_id);
 			} else {
-				c->Message(0, "%s has been put into guild %d",  sep->arg[2], guild_id);
+				c->Message(Chat::White, "%s has been put into guild %d",  sep->arg[2], guild_id);
 			}
 		}
 	}
 	/*else if (strcasecmp(sep->arg[1], "setdoor") == 0 && admin >= minStatusToEditOtherGuilds) {
 
 		if (!sep->IsNumber(2))
-			c->Message(0, "Usage: #guild setdoor guildEQid (0 = delete guilddoor)");
+			c->Message(Chat::White, "Usage: #guild setdoor guildEQid (0 = delete guilddoor)");
 		else {
 // guild doors
 			if((!guilds[atoi(sep->arg[2])].databaseID) && (atoi(sep->arg[2])!=0) )
 			{
 
-				c->Message(0, "These is no guild with this guildEQid");
+				c->Message(Chat::White, "These is no guild with this guildEQid");
 			}
 			else {
 				c->SetIsSettingGuildDoor(true);
-				c->Message(0, "Click on a door you want to become a guilddoor");
+				c->Message(Chat::White, "Click on a door you want to become a guilddoor");
 				c->SetSetGuildDoorID(atoi(sep->arg[2]));
 			}
 		}
@@ -4630,36 +6246,35 @@ void command_guild(Client *c, const Seperator *sep)
 	else if (strcasecmp(sep->arg[1], "setrank") == 0) {
 		int rank = atoi(sep->arg[3]);
 		if (!sep->IsNumber(3))
-			c->Message(0, "Usage: #guild setrank charname rank");
+			c->Message(Chat::White, "Usage: #guild setrank charname rank");
 		else if (rank < 0 || rank > GUILD_MAX_RANK)
-			c->Message(0, "Error: invalid rank #.");
+			c->Message(Chat::White, "Error: invalid rank #.");
 		else {
 			uint32 charid = database.GetCharacterID(sep->arg[2]);
 			if(charid == 0) {
-				c->Message(13, "Unable to find character '%s'",  charid);
+				c->Message(Chat::Red, "Unable to find character '%s'",  charid);
 				return;
 			}
 
 			//we could do the checking we need for guild_mgr.CheckGMStatus, but im lazy right now
 			if(admin < minStatusToEditOtherGuilds) {
-				c->Message(13, "Access denied.");
+				c->Message(Chat::Red, "Access denied.");
 				return;
 			}
 
-			Log(Logs::Detail, Logs::Guilds, "%s: Setting %s (%d)'s guild rank to %d with GM command.",  c->GetName(),
-				sep->arg[2], charid, rank);
+			LogGuilds("[{}]: Setting [{}] ([{}])'s guild rank to [{}] with GM command", c->GetName(), sep->arg[2], charid, rank);
 
 			if(!guild_mgr.SetGuildRank(charid, rank))
-				c->Message(13, "Error while setting rank %d on '%s'.",  rank, sep->arg[2]);
+				c->Message(Chat::Red, "Error while setting rank %d on '%s'.",  rank, sep->arg[2]);
 			else
-				c->Message(0, "%s has been set to rank %d",  sep->arg[2], rank);
+				c->Message(Chat::White, "%s has been set to rank %d",  sep->arg[2], rank);
 		}
 	}
 	else if (strcasecmp(sep->arg[1], "create") == 0) {
 		if (sep->arg[3][0] == 0)
-			c->Message(0, "Usage: #guild create {guildleader charname or CharID} guild name");
+			c->Message(Chat::White, "Usage: #guild create {guildleader charname or CharID} guild name");
 		else if (!worldserver.Connected())
-			c->Message(0, "Error: World server dirconnected");
+			c->Message(Chat::White, "Error: World server dirconnected");
 		else {
 			uint32 leader = 0;
 			if (sep->IsNumber(2)) {
@@ -4667,37 +6282,37 @@ void command_guild(Client *c, const Seperator *sep)
 			} else if((leader=database.GetCharacterID(sep->arg[2])) != 0) {
 				//got it from the db..
 			} else {
-				c->Message(13, "Unable to find char '%s'",  sep->arg[2]);
+				c->Message(Chat::Red, "Unable to find char '%s'",  sep->arg[2]);
 				return;
 			}
 			if (leader == 0) {
-				c->Message(0, "Guild leader not found.");
+				c->Message(Chat::White, "Guild leader not found.");
 				return;
 			}
 
 			uint32 tmp = guild_mgr.FindGuildByLeader(leader);
 			if (tmp != GUILD_NONE) {
-				c->Message(0, "Error: %s already is the leader of DB# %i '%s'.",  sep->arg[2], tmp, guild_mgr.GetGuildName(tmp));
+				c->Message(Chat::White, "Error: %s already is the leader of DB# %i '%s'.",  sep->arg[2], tmp, guild_mgr.GetGuildName(tmp));
 			}
 			else {
 
 				if(admin < minStatusToEditOtherGuilds) {
-					c->Message(13, "Access denied.");
+					c->Message(Chat::Red, "Access denied.");
 					return;
 				}
 
 				uint32 id = guild_mgr.CreateGuild(sep->argplus[3], leader);
 
-				Log(Logs::Detail, Logs::Guilds, "%s: Creating guild %s with leader %d with GM command. It was given id %lu.",  c->GetName(),
+				LogGuilds("[{}]: Creating guild [{}] with leader [{}] with GM command. It was given id [{}]",  c->GetName(),
 					sep->argplus[3], leader, (unsigned long)id);
 
 				if (id == GUILD_NONE)
-					c->Message(0, "Guild creation failed.");
+					c->Message(Chat::White, "Guild creation failed.");
 				else {
-					c->Message(0, "Guild created: Leader: %i, number %i: %s",  leader, id, sep->argplus[3]);
+					c->Message(Chat::White, "Guild created: Leader: %i, number %i: %s",  leader, id, sep->argplus[3]);
 
 					if(!guild_mgr.SetGuild(leader, id, GUILD_LEADER))
-						c->Message(0, "Unable to set guild leader's guild in the database. Your going to have to run #guild set");
+						c->Message(Chat::White, "Unable to set guild leader's guild in the database. Your going to have to run #guild set");
 				}
 
 			}
@@ -4705,77 +6320,77 @@ void command_guild(Client *c, const Seperator *sep)
 	}
 	else if (strcasecmp(sep->arg[1], "delete") == 0) {
 		if (!sep->IsNumber(2))
-			c->Message(0, "Usage: #guild delete guildID");
+			c->Message(Chat::White, "Usage: #guild delete guildID");
 		else if (!worldserver.Connected())
-			c->Message(0, "Error: World server dirconnected");
+			c->Message(Chat::White, "Error: World server dirconnected");
 		else {
 			uint32 id = atoi(sep->arg[2]);
 
 			if(!guild_mgr.GuildExists(id)) {
-				c->Message(0, "Guild %d does not exist!",  id);
+				c->Message(Chat::White, "Guild %d does not exist!",  id);
 				return;
 			}
 
 			if(admin < minStatusToEditOtherGuilds) {
 				//this person is not allowed to just edit any guild, check this guild's min status.
 				if(c->GuildID() != id) {
-					c->Message(13, "Access denied to edit other people's guilds");
+					c->Message(Chat::Red, "Access denied to edit other people's guilds");
 					return;
 				} else if(!guild_mgr.CheckGMStatus(id, admin)) {
-					c->Message(13, "Access denied to edit your guild with GM commands.");
+					c->Message(Chat::Red, "Access denied to edit your guild with GM commands.");
 					return;
 				}
 			}
 
-			Log(Logs::Detail, Logs::Guilds, "%s: Deleting guild %s (%d) with GM command.",  c->GetName(),
+			LogGuilds("[{}]: Deleting guild [{}] ([{}]) with GM command",  c->GetName(),
 				guild_mgr.GetGuildName(id), id);
 
 			if (!guild_mgr.DeleteGuild(id))
-				c->Message(0, "Guild delete failed.");
+				c->Message(Chat::White, "Guild delete failed.");
 			else {
-				c->Message(0, "Guild %d deleted.",  id);
+				c->Message(Chat::White, "Guild %d deleted.",  id);
 			}
 		}
 	}
 	else if (strcasecmp(sep->arg[1], "rename") == 0) {
 		if ((!sep->IsNumber(2)) || sep->arg[3][0] == 0)
-			c->Message(0, "Usage: #guild rename guildID newname");
+			c->Message(Chat::White, "Usage: #guild rename guildID newname");
 		else if (!worldserver.Connected())
-			c->Message(0, "Error: World server dirconnected");
+			c->Message(Chat::White, "Error: World server dirconnected");
 		else {
 			uint32 id = atoi(sep->arg[2]);
 
 			if(!guild_mgr.GuildExists(id)) {
-				c->Message(0, "Guild %d does not exist!",  id);
+				c->Message(Chat::White, "Guild %d does not exist!",  id);
 				return;
 			}
 
 			if(admin < minStatusToEditOtherGuilds) {
 				//this person is not allowed to just edit any guild, check this guild's min status.
 				if(c->GuildID() != id) {
-					c->Message(13, "Access denied to edit other people's guilds");
+					c->Message(Chat::Red, "Access denied to edit other people's guilds");
 					return;
 				} else if(!guild_mgr.CheckGMStatus(id, admin)) {
-					c->Message(13, "Access denied to edit your guild with GM commands.");
+					c->Message(Chat::Red, "Access denied to edit your guild with GM commands.");
 					return;
 				}
 			}
 
-			Log(Logs::Detail, Logs::Guilds, "%s: Renaming guild %s (%d) to '%s' with GM command.",  c->GetName(),
+			LogGuilds("[{}]: Renaming guild [{}] ([{}]) to [{}] with GM command",  c->GetName(),
 				guild_mgr.GetGuildName(id), id, sep->argplus[3]);
 
 			if (!guild_mgr.RenameGuild(id, sep->argplus[3]))
-				c->Message(0, "Guild rename failed.");
+				c->Message(Chat::White, "Guild rename failed.");
 			else {
-				c->Message(0, "Guild %d renamed to %s",  id, sep->argplus[3]);
+				c->Message(Chat::White, "Guild %d renamed to %s",  id, sep->argplus[3]);
 			}
 		}
 	}
 	else if (strcasecmp(sep->arg[1], "setleader") == 0) {
 		if (sep->arg[3][0] == 0 || !sep->IsNumber(2))
-			c->Message(0, "Usage: #guild setleader guild_id {guildleader charname or CharID}");
+			c->Message(Chat::White, "Usage: #guild setleader guild_id {guildleader charname or CharID}");
 		else if (!worldserver.Connected())
-			c->Message(0, "Error: World server dirconnected");
+			c->Message(Chat::White, "Error: World server dirconnected");
 		else {
 			uint32 leader = 0;
 			if (sep->IsNumber(2)) {
@@ -4783,55 +6398,55 @@ void command_guild(Client *c, const Seperator *sep)
 			} else if((leader=database.GetCharacterID(sep->arg[2])) != 0) {
 				//got it from the db..
 			} else {
-				c->Message(13, "Unable to find char '%s'",  sep->arg[2]);
+				c->Message(Chat::Red, "Unable to find char '%s'",  sep->arg[2]);
 				return;
 			}
 
 			uint32 tmpdb = guild_mgr.FindGuildByLeader(leader);
 			if (leader == 0)
-				c->Message(0, "New leader not found.");
+				c->Message(Chat::White, "New leader not found.");
 			else if (tmpdb != 0) {
-				c->Message(0, "Error: %s already is the leader of guild # %i",  sep->arg[2], tmpdb);
+				c->Message(Chat::White, "Error: %s already is the leader of guild # %i",  sep->arg[2], tmpdb);
 			}
 			else {
 				uint32 id = atoi(sep->arg[2]);
 
 				if(!guild_mgr.GuildExists(id)) {
-					c->Message(0, "Guild %d does not exist!",  id);
+					c->Message(Chat::White, "Guild %d does not exist!",  id);
 					return;
 				}
 
 				if(admin < minStatusToEditOtherGuilds) {
 					//this person is not allowed to just edit any guild, check this guild's min status.
 					if(c->GuildID() != id) {
-						c->Message(13, "Access denied to edit other people's guilds");
+						c->Message(Chat::Red, "Access denied to edit other people's guilds");
 						return;
 					} else if(!guild_mgr.CheckGMStatus(id, admin)) {
-						c->Message(13, "Access denied to edit your guild with GM commands.");
+						c->Message(Chat::Red, "Access denied to edit your guild with GM commands.");
 						return;
 					}
 				}
 
-				Log(Logs::Detail, Logs::Guilds, "%s: Setting leader of guild %s (%d) to %d with GM command.",  c->GetName(),
+				LogGuilds("[{}]: Setting leader of guild [{}] ([{}]) to [{}] with GM command",  c->GetName(),
 					guild_mgr.GetGuildName(id), id, leader);
 
 				if(!guild_mgr.SetGuildLeader(id, leader))
-					c->Message(0, "Guild leader change failed.");
+					c->Message(Chat::White, "Guild leader change failed.");
 				else {
-					c->Message(0, "Guild leader changed: guild # %d, Leader: %s",  id, sep->argplus[3]);
+					c->Message(Chat::White, "Guild leader changed: guild # %d, Leader: %s",  id, sep->argplus[3]);
 				}
 			}
 		}
 	}
 	else if (strcasecmp(sep->arg[1], "list") == 0) {
 		if(admin < minStatusToEditOtherGuilds) {
-			c->Message(13, "Access denied.");
+			c->Message(Chat::Red, "Access denied.");
 			return;
 		}
 		guild_mgr.ListGuilds(c);
 	}
 	else {
-		c->Message(0, "Unknown guild command, try #guild help");
+		c->Message(Chat::White, "Unknown guild command, try #guild help");
 	}
 }
 /*
@@ -4849,12 +6464,12 @@ bool helper_guild_edit(Client *c, uint32 dbid, uint32 eqid, uint8 rank, const ch
 
 	if (strcasecmp(what, "title") == 0) {
 		if (strlen(value) > 100)
-			c->Message(0, "Error: Title has a maxium length of 100 characters.");
+			c->Message(Chat::White, "Error: Title has a maxium length of 100 characters.");
 		else
 			strcpy(grl.rankname, value);
 	}
 	else if (rank == 0)
-		c->Message(0, "Error: Rank 0's permissions can not be changed.");
+		c->Message(Chat::White, "Error: Rank 0's permissions can not be changed.");
 	else {
 		if (!(strlen(value) == 1 && (value[0] == '0' || value[0] == '1')))
 
@@ -4877,17 +6492,17 @@ bool helper_guild_edit(Client *c, uint32 dbid, uint32 eqid, uint8 rank, const ch
 		else if (strcasecmp(what, "warpeace") == 0)
 			grl.warpeace = (value[0] == '1');
 		else
-			c->Message(0, "Error: Permission name not recognized.");
+			c->Message(Chat::White, "Error: Permission name not recognized.");
 	}
 	if (!database.EditGuild(dbid, rank, &grl))
-		c->Message(0, "Error: database.EditGuild() failed");
+		c->Message(Chat::White, "Error: database.EditGuild() failed");
 	return true;
 }*/
 
 void command_zonestatus(Client *c, const Seperator *sep)
 {
 	if (!worldserver.Connected())
-		c->Message(0, "Error: World server disconnected");
+		c->Message(Chat::White, "Error: World server disconnected");
 	else {
 		auto pack = new ServerPacket(ServerOP_ZoneStatus, strlen(c->GetName()) + 2);
 		memset(pack->pBuffer, (uint8) c->Admin(), 1);
@@ -4900,28 +6515,166 @@ void command_zonestatus(Client *c, const Seperator *sep)
 void command_doanim(Client *c, const Seperator *sep)
 {
 	if (!sep->IsNumber(1))
-		c->Message(0, "Usage: #DoAnim [number]");
+		c->Message(Chat::White, "Usage: #DoAnim [number]");
 	else
 		if (c->Admin() >= commandDoAnimOthers)
 			if (c->GetTarget() == 0)
-				c->Message(0, "Error: You need a target.");
+				c->Message(Chat::White, "Error: You need a target.");
 			else
 				c->GetTarget()->DoAnim(atoi(sep->arg[1]),atoi(sep->arg[2]));
 		else
 			c->DoAnim(atoi(sep->arg[1]),atoi(sep->arg[2]));
 }
 
+void command_editmassrespawn(Client* c, const Seperator* sep)
+{
+	if (strcasecmp(sep->arg[1], "usage") == 0) {
+		c->Message(Chat::White, "#editmassrespawn [exact_match: =]npc_type_name new_respawn_seconds (apply)");
+		return;
+	}
+
+	std::string search_npc_type;
+	if (sep->arg[1]) {
+		search_npc_type = sep->arg[1];
+	}
+
+	int change_respawn_seconds = 0;
+	if (sep->arg[2] && sep->IsNumber(2)) {
+		change_respawn_seconds = atoi(sep->arg[2]);
+	}
+
+	bool change_apply = false;
+	if (sep->arg[3] && strcasecmp(sep->arg[3], "apply") == 0) {
+		change_apply = true;
+	}
+
+	std::string search_encapsulator = "%";
+	if (search_npc_type[0] == '=') {
+
+		search_npc_type = search_npc_type.substr(1);
+		search_encapsulator = "";
+	}
+
+	std::string query = fmt::format(
+		SQL(
+			SELECT npc_types.id, spawn2.spawngroupID, spawn2.id, npc_types.name, spawn2.respawntime
+			FROM spawn2
+			INNER JOIN spawnentry ON spawn2.spawngroupID = spawnentry.spawngroupID
+			INNER JOIN npc_types ON spawnentry.npcID = npc_types.id
+			WHERE spawn2.zone LIKE '{}'
+			AND spawn2.version = '{}'
+			AND npc_types.name LIKE '{}{}{}'
+			ORDER BY npc_types.id, spawn2.spawngroupID, spawn2.id
+		),
+		zone->GetShortName(),
+		zone->GetInstanceVersion(),
+		search_encapsulator,
+		search_npc_type,
+		search_encapsulator
+	);
+
+	std::string status = "(Searching)";
+	if (change_apply) {
+		status = "(Applying)";
+	}
+
+	int results_count = 0;
+
+	auto results = database.QueryDatabase(query);
+	if (results.Success() && results.RowCount()) {
+
+		results_count = results.RowCount();
+
+		for (auto row : results) {
+			c->Message(
+				Chat::Yellow,
+				fmt::format(
+					"NPC (npcid:{}) (sgid:{}) (s2id:{}) [{}] Respawn: Current [{}] New [{}] {}",
+					row[0],
+					row[1],
+					row[2],
+					row[3],
+					row[4],
+					change_respawn_seconds,
+					status
+				).c_str()
+			);
+		}
+
+		c->Message(Chat::Yellow, "Found (%i) NPC's that match this search...", results_count);
+
+		if (change_respawn_seconds > 0) {
+
+			if (change_apply) {
+				
+				results = database.QueryDatabase(
+					fmt::format(
+						SQL(
+							UPDATE spawn2
+							SET respawntime = '{}'
+							WHERE id IN (
+								SELECT spawn2.id
+								FROM spawn2
+								INNER JOIN spawnentry ON spawn2.spawngroupID = spawnentry.spawngroupID
+								INNER JOIN npc_types ON spawnentry.npcID = npc_types.id
+								WHERE spawn2.zone LIKE '{}'
+								AND spawn2.version = '{}'
+								AND npc_types.name LIKE '{}{}{}'
+							)
+						),
+						change_respawn_seconds,
+						zone->GetShortName(),
+						zone->GetInstanceVersion(),
+						search_encapsulator,
+						search_npc_type,
+						search_encapsulator
+					)
+				);
+
+				if (results.Success()) {
+
+					c->Message(Chat::Yellow, "Changes applied to (%i) NPC 'Spawn2' entries", results_count);
+					zone->Repop();
+				}
+				else {
+
+					c->Message(Chat::Yellow, "Found (0) NPC's that match this search...");
+				}
+			}
+			else {
+
+				std::string saylink = fmt::format(
+					"#editmassrespawn {}{} {} apply",
+					(search_encapsulator.empty() ? "=" : ""),
+					search_npc_type,
+					change_respawn_seconds
+				);
+
+				c->Message(
+					Chat::Yellow, "To apply these changes, click <%s> or type [%s]",
+					EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Apply").c_str(),
+					saylink.c_str()
+				);
+			}
+		}
+	}
+	else {
+
+		c->Message(Chat::Yellow, "Found (0) NPC's that match this search...");
+	}
+}
+
 void command_randomfeatures(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!target)
-		c->Message(0,"Error: This command requires a target");
+		c->Message(Chat::White,"Error: This command requires a target");
 	else
 	{
 		if (target->RandomizeFeatures())
-			c->Message(0,"Features Randomized");
+			c->Message(Chat::White,"Features Randomized");
 		else
-			c->Message(0,"This command requires a Playable Race as the target");
+			c->Message(Chat::White,"This command requires a Playable Race as the target");
 	}
 }
 
@@ -4929,9 +6682,9 @@ void command_face(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #face [number of face]");
+		c->Message(Chat::White,"Usage: #face [number of face]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -4952,49 +6705,49 @@ void command_face(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Face = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Face = %i",  atoi(sep->arg[1]));
 	}
 }
 
 void command_findaliases(Client *c, const Seperator *sep)
 {
 	if (!sep->arg[1][0]) {
-		c->Message(0, "Usage: #findaliases [alias | command]");
+		c->Message(Chat::White, "Usage: #findaliases [alias | command]");
 		return;
 	}
 
 	auto find_iter = commandaliases.find(sep->arg[1]);
 	if (find_iter == commandaliases.end()) {
-		c->Message(15, "No commands or aliases match '%s'", sep->arg[1]);
+		c->Message(Chat::Yellow, "No commands or aliases match '%s'", sep->arg[1]);
 		return;
 	}
 
 	auto command_iter = commandlist.find(find_iter->second);
 	if (find_iter->second.empty() || command_iter == commandlist.end()) {
-		c->Message(0, "An unknown condition occurred...");
+		c->Message(Chat::White, "An unknown condition occurred...");
 		return;
 	}
 
-	c->Message(0, "Available command aliases for '%s':", command_iter->first.c_str());
+	c->Message(Chat::White, "Available command aliases for '%s':", command_iter->first.c_str());
 
 	int commandaliasesshown = 0;
 	for (auto alias_iter = commandaliases.begin(); alias_iter != commandaliases.end(); ++alias_iter) {
 		if (strcasecmp(find_iter->second.c_str(), alias_iter->second.c_str()) || c->Admin() < command_iter->second->access)
 			continue;
 
-		c->Message(0, "%c%s", COMMAND_CHAR, alias_iter->first.c_str());
+		c->Message(Chat::White, "%c%s", COMMAND_CHAR, alias_iter->first.c_str());
 		++commandaliasesshown;
 	}
-	c->Message(0, "%d command alias%s listed.", commandaliasesshown, commandaliasesshown != 1 ? "es" : "");
+	c->Message(Chat::White, "%d command alias%s listed.", commandaliasesshown, commandaliasesshown != 1 ? "es" : "");
 }
 
 void command_details(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #details [number of drakkin detail]");
+		c->Message(Chat::White,"Usage: #details [number of drakkin detail]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -5015,7 +6768,7 @@ void command_details(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Details = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Details = %i",  atoi(sep->arg[1]));
 	}
 }
 
@@ -5023,9 +6776,9 @@ void command_heritage(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #heritage [number of Drakkin heritage]");
+		c->Message(Chat::White,"Usage: #heritage [number of Drakkin heritage]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -5046,7 +6799,7 @@ void command_heritage(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Heritage = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Heritage = %i",  atoi(sep->arg[1]));
 	}
 }
 
@@ -5054,9 +6807,9 @@ void command_tattoo(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #tattoo [number of Drakkin tattoo]");
+		c->Message(Chat::White,"Usage: #tattoo [number of Drakkin tattoo]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -5077,7 +6830,7 @@ void command_tattoo(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Tattoo = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Tattoo = %i",  atoi(sep->arg[1]));
 	}
 }
 
@@ -5085,9 +6838,9 @@ void command_helm(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #helm [number of helm texture]");
+		c->Message(Chat::White,"Usage: #helm [number of helm texture]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -5108,7 +6861,7 @@ void command_helm(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Helm = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Helm = %i",  atoi(sep->arg[1]));
 	}
 }
 
@@ -5116,9 +6869,9 @@ void command_hair(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #hair [number of hair style]");
+		c->Message(Chat::White,"Usage: #hair [number of hair style]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -5139,7 +6892,7 @@ void command_hair(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Hair = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Hair = %i",  atoi(sep->arg[1]));
 	}
 }
 
@@ -5147,9 +6900,9 @@ void command_haircolor(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #haircolor [number of hair color]");
+		c->Message(Chat::White,"Usage: #haircolor [number of hair color]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -5170,7 +6923,7 @@ void command_haircolor(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Hair Color = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Hair Color = %i",  atoi(sep->arg[1]));
 	}
 }
 
@@ -5178,9 +6931,9 @@ void command_beard(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #beard [number of beard style]");
+		c->Message(Chat::White,"Usage: #beard [number of beard style]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -5201,7 +6954,7 @@ void command_beard(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Beard = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Beard = %i",  atoi(sep->arg[1]));
 	}
 }
 
@@ -5209,9 +6962,9 @@ void command_beardcolor(Client *c, const Seperator *sep)
 {
 	Mob *target=c->GetTarget();
 	if (!sep->IsNumber(1))
-		c->Message(0,"Usage: #beardcolor [number of beard color]");
+		c->Message(Chat::White,"Usage: #beardcolor [number of beard color]");
 	else if (!target)
-		c->Message(0,"Error: this command requires a target");
+		c->Message(Chat::White,"Error: this command requires a target");
 	else {
 		uint16 Race = target->GetRace();
 		uint8 Gender = target->GetGender();
@@ -5232,79 +6985,111 @@ void command_beardcolor(Client *c, const Seperator *sep)
 									EyeColor1, EyeColor2, HairStyle, LuclinFace, Beard, 0xFF,
 									DrakkinHeritage, DrakkinTattoo, DrakkinDetails);
 
-		c->Message(0,"Beard Color = %i",  atoi(sep->arg[1]));
+		c->Message(Chat::White,"Beard Color = %i",  atoi(sep->arg[1]));
 	}
 }
 
 void command_scribespells(Client *c, const Seperator *sep)
 {
-	uint8 max_level, min_level;
-	uint16 book_slot, curspell, count;
-	Client *t=c;
+	Client *t = c;
+	if (c->GetTarget() && c->GetTarget()->IsClient() && c->GetGM())
+		t = c->GetTarget()->CastToClient();
 
-	if(c->GetTarget() && c->GetTarget()->IsClient() && c->GetGM())
-		t=c->GetTarget()->CastToClient();
-
-	if(!sep->arg[1][0])
-	{
-		c->Message(0, "FORMAT: #scribespells <max level> <min level>");
+	if(sep->argnum < 1 || !sep->IsNumber(1)) {
+		c->Message(Chat::White, "FORMAT: #scribespells <max level> <min level>");
 		return;
 	}
 
-	max_level = (uint8)atoi(sep->arg[1]);
-	if (!c->GetGM() && max_level > RuleI(Character, MaxLevel))
-		max_level = RuleI(Character, MaxLevel);	//default to Character:MaxLevel if we're not a GM & it's higher than the max level
-	min_level = sep->arg[2][0] ? (uint8)atoi(sep->arg[2]) : 1;	//default to 1 if there isn't a 2nd argument
-	if (!c->GetGM() && min_level > RuleI(Character, MaxLevel))
-		min_level = RuleI(Character, MaxLevel);	//default to Character:MaxLevel if we're not a GM & it's higher than the max level
+	uint8 max_level = (uint8)atol(sep->arg[1]);
+	if (!c->GetGM() && max_level > (uint8)RuleI(Character, MaxLevel))
+		max_level = (uint8)RuleI(Character, MaxLevel); // default to Character:MaxLevel if we're not a GM & it's higher than the max level
 
+	uint8 min_level = (sep->IsNumber(2) ? (uint8)atol(sep->arg[2]) : 1); // default to 1 if there isn't a 2nd argument
+	if (!c->GetGM() && min_level > (uint8)RuleI(Character, MaxLevel))
+		min_level = (uint8)RuleI(Character, MaxLevel); // default to Character:MaxLevel if we're not a GM & it's higher than the max level
 
-	if(max_level < 1 || min_level < 1)
-	{
-		c->Message(0, "ERROR: Level must be greater than 1.");
+	if(max_level < 1 || min_level < 1) {
+		c->Message(Chat::White, "ERROR: Level must be greater than 1.");
 		return;
 	}
 	if (min_level > max_level) {
-		c->Message(0, "Error: Min Level must be less than or equal to Max Level.");
+		c->Message(Chat::White, "ERROR: Min Level must be less than or equal to Max Level.");
 		return;
 	}
 
-	t->Message(0, "Scribing spells to spellbook.");
+	t->Message(Chat::White, "Scribing spells to spellbook.");
 	if(t != c)
-		c->Message(0, "Scribing spells for %s.",  t->GetName());
-	Log(Logs::General, Logs::Normal, "Scribe spells request for %s from %s, levels: %u -> %u",  t->GetName(), c->GetName(), min_level, max_level);
+		c->Message(Chat::White, "Scribing spells for %s.",  t->GetName());
+	LogInfo("Scribe spells request for [{}] from [{}], levels: [{}] -> [{}]",  t->GetName(), c->GetName(), min_level, max_level);
 
-	for(curspell = 0, book_slot = t->GetNextAvailableSpellBookSlot(), count = 0; curspell < SPDAT_RECORDS && book_slot < MAX_PP_SPELLBOOK; curspell++, book_slot = t->GetNextAvailableSpellBookSlot(book_slot))
-	{
-		if
-		(
-			spells[curspell].classes[WARRIOR] != 0 && // check if spell exists
-			spells[curspell].classes[t->GetPP().class_-1] <= max_level &&	//maximum level
-			spells[curspell].classes[t->GetPP().class_-1] >= min_level &&	//minimum level
-			spells[curspell].skill != 52
-		)
-		{
-			if (book_slot == -1) {	//no more book slots
-				t->Message(13, "Unable to scribe spell %s (%u) to spellbook: no more spell book slots available.",  spells[curspell].name, curspell);
-				if (t != c)
-					c->Message(13, "Error scribing spells: %s ran out of spell book slots on spell %s (%u)",  t->GetName(), spells[curspell].name, curspell);
-				break;
-			}
-			if(!IsDiscipline(curspell) && !t->HasSpellScribed(curspell)) {	//isn't a discipline & we don't already have it scribed
-				t->ScribeSpell(curspell, book_slot);
-				count++;
-			}
+	int book_slot = t->GetNextAvailableSpellBookSlot();
+	int spell_id = 0;
+	int count = 0;
+
+	for ( ; spell_id < SPDAT_RECORDS && book_slot < EQEmu::spells::SPELLBOOK_SIZE; ++spell_id) {
+		if (book_slot == -1) {
+			t->Message(
+				13,
+				"Unable to scribe spell %s (%i) to spellbook: no more spell book slots available.",
+				((spell_id >= 0 && spell_id < SPDAT_RECORDS) ? spells[spell_id].name : "Out-of-range"),
+				spell_id
+			);
+			if (t != c)
+				c->Message(
+					13,
+					"Error scribing spells: %s ran out of spell book slots on spell %s (%i)",
+					t->GetName(),
+					((spell_id >= 0 && spell_id < SPDAT_RECORDS) ? spells[spell_id].name : "Out-of-range"),
+					spell_id
+				);
+
+			break;
 		}
+		if (spell_id < 0 || spell_id >= SPDAT_RECORDS) {
+			c->Message(Chat::Red, "FATAL ERROR: Spell id out-of-range (id: %i, min: 0, max: %i)", spell_id, SPDAT_RECORDS);
+			return;
+		}
+		if (book_slot < 0 || book_slot >= EQEmu::spells::SPELLBOOK_SIZE) {
+			c->Message(Chat::Red, "FATAL ERROR: Book slot out-of-range (slot: %i, min: 0, max: %i)", book_slot, EQEmu::spells::SPELLBOOK_SIZE);
+			return;
+		}
+
+		while (true) {
+			if (spells[spell_id].classes[WARRIOR] == 0) // check if spell exists
+				break;
+			if (spells[spell_id].classes[t->GetPP().class_ - 1] > max_level) // maximum level
+				break;
+			if (spells[spell_id].classes[t->GetPP().class_ - 1] < min_level) // minimum level
+				break;
+			if (spells[spell_id].skill == 52)
+				break;
+
+			uint16 spell_id_ = (uint16)spell_id;
+			if ((spell_id_ != spell_id) || (spell_id != spell_id_)) {
+				c->Message(Chat::Red, "FATAL ERROR: Type conversion data loss with spell_id (%i != %u)", spell_id, spell_id_);
+				return;
+			}
+
+			if (!IsDiscipline(spell_id_) && !t->HasSpellScribed(spell_id)) { // isn't a discipline & we don't already have it scribed
+				t->ScribeSpell(spell_id_, book_slot);
+				++count;
+			}
+
+			break;
+		}
+
+		book_slot = t->GetNextAvailableSpellBookSlot(book_slot);
 	}
 
 	if (count > 0) {
-		t->Message(0, "Successfully scribed %u spells.",  count);
+		t->Message(Chat::White, "Successfully scribed %i spells.",  count);
 		if (t != c)
-			c->Message(0, "Successfully scribed %u spells for %s.",  count, t->GetName());
-	} else {
-		t->Message(0, "No spells scribed.");
+			c->Message(Chat::White, "Successfully scribed %i spells for %s.",  count, t->GetName());
+	}
+	else {
+		t->Message(Chat::White, "No spells scribed.");
 		if (t != c)
-			c->Message(0, "No spells scribed for %s.",  t->GetName());
+			c->Message(Chat::White, "No spells scribed for %s.",  t->GetName());
 	}
 }
 
@@ -5317,19 +7102,19 @@ void command_scribespell(Client *c, const Seperator *sep) {
 		t=c->GetTarget()->CastToClient();
 
 	if(!sep->arg[1][0]) {
-		c->Message(0, "FORMAT: #scribespell <spellid>");
+		c->Message(Chat::White, "FORMAT: #scribespell <spellid>");
 		return;
 	}
 
 	spell_id = atoi(sep->arg[1]);
 
 	if(IsValidSpell(spell_id)) {
-		t->Message(0, "Scribing spell: %s (%i) to spellbook.",  spells[spell_id].name, spell_id);
+		t->Message(Chat::White, "Scribing spell: %s (%i) to spellbook.",  spells[spell_id].name, spell_id);
 
 		if(t != c)
-			c->Message(0, "Scribing spell: %s (%i) for %s.",  spells[spell_id].name, spell_id, t->GetName());
+			c->Message(Chat::White, "Scribing spell: %s (%i) for %s.",  spells[spell_id].name, spell_id, t->GetName());
 
-		Log(Logs::General, Logs::Normal, "Scribe spell: %s (%i) request for %s from %s.",  spells[spell_id].name, spell_id, t->GetName(), c->GetName());
+		LogInfo("Scribe spell: [{}] ([{}]) request for [{}] from [{}]",  spells[spell_id].name, spell_id, t->GetName(), c->GetName());
 
 		if (spells[spell_id].classes[WARRIOR] != 0 && spells[spell_id].skill != 52 && spells[spell_id].classes[t->GetPP().class_ - 1] > 0 && !IsDiscipline(spell_id)) {
 			book_slot = t->GetNextAvailableSpellBookSlot();
@@ -5337,17 +7122,17 @@ void command_scribespell(Client *c, const Seperator *sep) {
 			if(book_slot >= 0 && t->FindSpellBookSlotBySpellID(spell_id) < 0)
 				t->ScribeSpell(spell_id, book_slot);
 			else {
-				t->Message(13, "Unable to scribe spell: %s (%i) to your spellbook.",  spells[spell_id].name, spell_id);
+				t->Message(Chat::Red, "Unable to scribe spell: %s (%i) to your spellbook.",  spells[spell_id].name, spell_id);
 
 				if(t != c)
-					c->Message(13, "Unable to scribe spell: %s (%i) for %s.",  spells[spell_id].name, spell_id, t->GetName());
+					c->Message(Chat::Red, "Unable to scribe spell: %s (%i) for %s.",  spells[spell_id].name, spell_id, t->GetName());
 			}
 		}
 		else
-			c->Message(13, "Your target can not scribe this spell.");
+			c->Message(Chat::Red, "Your target can not scribe this spell.");
 	}
 	else
-		c->Message(13, "Spell ID: %i is an unknown spell and cannot be scribed.",  spell_id);
+		c->Message(Chat::Red, "Spell ID: %i is an unknown spell and cannot be scribed.",  spell_id);
 }
 
 void command_unscribespell(Client *c, const Seperator *sep) {
@@ -5359,7 +7144,7 @@ void command_unscribespell(Client *c, const Seperator *sep) {
 		t=c->GetTarget()->CastToClient();
 
 	if(!sep->arg[1][0]) {
-		c->Message(0, "FORMAT: #unscribespell <spellid>");
+		c->Message(Chat::White, "FORMAT: #unscribespell <spellid>");
 		return;
 	}
 
@@ -5371,18 +7156,18 @@ void command_unscribespell(Client *c, const Seperator *sep) {
 		if(book_slot >= 0) {
 			t->UnscribeSpell(book_slot);
 
-			t->Message(0, "Unscribing spell: %s (%i) from spellbook.",  spells[spell_id].name, spell_id);
+			t->Message(Chat::White, "Unscribing spell: %s (%i) from spellbook.",  spells[spell_id].name, spell_id);
 
 			if(t != c)
-				c->Message(0, "Unscribing spell: %s (%i) for %s.",  spells[spell_id].name, spell_id, t->GetName());
+				c->Message(Chat::White, "Unscribing spell: %s (%i) for %s.",  spells[spell_id].name, spell_id, t->GetName());
 
-			Log(Logs::General, Logs::Normal, "Unscribe spell: %s (%i) request for %s from %s.",  spells[spell_id].name, spell_id, t->GetName(), c->GetName());
+			LogInfo("Unscribe spell: [{}] ([{}]) request for [{}] from [{}]",  spells[spell_id].name, spell_id, t->GetName(), c->GetName());
 		}
 		else {
-			t->Message(13, "Unable to unscribe spell: %s (%i) from your spellbook. This spell is not scribed.",  spells[spell_id].name, spell_id);
+			t->Message(Chat::Red, "Unable to unscribe spell: %s (%i) from your spellbook. This spell is not scribed.",  spells[spell_id].name, spell_id);
 
 			if(t != c)
-				c->Message(13, "Unable to unscribe spell: %s (%i) for %s due to spell not scribed.",  spells[spell_id].name, spell_id, t->GetName());
+				c->Message(Chat::Red, "Unable to unscribe spell: %s (%i) for %s due to spell not scribed.",  spells[spell_id].name, spell_id, t->GetName());
 		}
 	}
 }
@@ -5401,7 +7186,7 @@ void command_untraindisc(Client *c, const Seperator *sep) {
 	Client *t = c;
 	if (c->GetTarget() && c->GetTarget()->IsClient() && c->GetGM())
 		t = c->GetTarget()->CastToClient();
-	
+
 	for (int i = 0; i < MAX_PP_DISCIPLINES; i++) {
 		if (t->GetPP().disciplines.values[i] == atoi(sep->arg[1])) {
 			t->UntrainDisc(i, 1);
@@ -5414,7 +7199,7 @@ void command_untraindiscs(Client *c, const Seperator *sep) {
 	Client *t = c;
 	if (c->GetTarget() && c->GetTarget()->IsClient() && c->GetGM())
 		t = c->GetTarget()->CastToClient();
-	
+
 	t->UntrainDiscAll();
 }
 
@@ -5423,7 +7208,7 @@ void command_wpinfo(Client *c, const Seperator *sep)
 	Mob *t=c->GetTarget();
 
 	if (t == nullptr || !t->IsNPC()) {
-		c->Message(0,"You must target an NPC to use this.");
+		c->Message(Chat::White,"You must target an NPC to use this.");
 		return;
 	}
 
@@ -5433,46 +7218,53 @@ void command_wpinfo(Client *c, const Seperator *sep)
 
 void command_wpadd(Client *c, const Seperator *sep)
 {
-	int	type1=0,
-		type2=0,
-		pause=0;	// Defaults for a new grid
+	int type1 = 0,
+		type2 = 0,
+		pause = 0;    // Defaults for a new grid
 
-	Mob *t=c->GetTarget();
-	if (t && t->IsNPC())
-	{
-		Spawn2* s2info = t->CastToNPC()->respawn2;
+	Mob *target = c->GetTarget();
+	if (target && target->IsNPC()) {
+		Spawn2 *s2info = target->CastToNPC()->respawn2;
 
-		if(s2info == nullptr)	// Can't figure out where this mob's spawn came from... maybe a dynamic mob created by #spawn
+		if (s2info ==
+			nullptr)    // Can't figure out where this mob's spawn came from... maybe a dynamic mob created by #spawn
 		{
-			c->Message(0,"#wpadd FAILED -- Can't determine which spawn record in the database this mob came from!");
+			c->Message(
+				Chat::White,
+				"#wpadd FAILED -- Can't determine which spawn record in the database this mob came from!"
+			);
 			return;
 		}
 
-		if (sep->arg[1][0])
-		{
-			if (atoi(sep->arg[1]) >= 0)
-				pause=atoi(sep->arg[1]);
-			else
-			{
-				c->Message(0,"Usage: #wpadd [pause] [-h]");
+		if (sep->arg[1][0]) {
+			if (atoi(sep->arg[1]) >= 0) {
+				pause = atoi(sep->arg[1]);
+			}
+			else {
+				c->Message(Chat::White, "Usage: #wpadd [pause] [-h]");
 				return;
 			}
 		}
 		auto position = c->GetPosition();
-		if (strcmp("-h",sep->arg[2]) != 0)
+		if (strcmp("-h", sep->arg[2]) != 0) {
 			position.w = -1;
+		}
 
 		uint32 tmp_grid = database.AddWPForSpawn(c, s2info->GetID(), position, pause, type1, type2, zone->GetZoneID());
-		if (tmp_grid)
-			t->CastToNPC()->SetGrid(tmp_grid);
+		if (tmp_grid) {
+			target->CastToNPC()->SetGrid(tmp_grid);
+		}
 
-		t->CastToNPC()->AssignWaypoints(t->CastToNPC()->GetGrid());
-		c->Message(0,"Waypoint added. Use #wpinfo to see waypoints for this NPC (may need to #repop first).");
+		target->CastToNPC()->AssignWaypoints(target->CastToNPC()->GetGrid());
+		c->Message(
+			Chat::White,
+			"Waypoint added. Use #wpinfo to see waypoints for this NPC (may need to #repop first)."
+		);
 	}
-	else
-		c->Message(0,"You must target an NPC to use this.");
+	else {
+		c->Message(Chat::White, "You must target an NPC to use this.");
+	}
 }
-
 
 void command_interrupt(Client *c, const Seperator *sep)
 {
@@ -5493,20 +7285,20 @@ void command_summonitem(Client *c, const Seperator *sep)
 	std::string cmd_msg = sep->msg;
 	size_t link_open = cmd_msg.find('\x12');
 	size_t link_close = cmd_msg.find_last_of('\x12');
-	if (link_open != link_close && (cmd_msg.length() - link_open) > EQEmu::legacy::TEXT_LINK_BODY_LENGTH) {
+	if (link_open != link_close && (cmd_msg.length() - link_open) > EQEmu::constants::SAY_LINK_BODY_SIZE) {
 		EQEmu::SayLinkBody_Struct link_body;
-		EQEmu::saylink::DegenerateLinkBody(link_body, cmd_msg.substr(link_open + 1, EQEmu::legacy::TEXT_LINK_BODY_LENGTH));
+		EQEmu::saylink::DegenerateLinkBody(link_body, cmd_msg.substr(link_open + 1, EQEmu::constants::SAY_LINK_BODY_SIZE));
 		itemid = link_body.item_id;
 	}
 	else if (!sep->IsNumber(1)) {
-		c->Message(0, "Usage: #summonitem [item id | link] [charges], charges are optional");
+		c->Message(Chat::White, "Usage: #summonitem [item id | link] [charges], charges are optional");
 		return;
 	}
 	else {
 		itemid = atoi(sep->arg[1]);
 	}
 	if (!itemid) {
-		c->Message(0, "A valid item id number is required (derived: 0)");
+		c->Message(Chat::White, "A valid item id number is required (derived: 0)");
 		return;
 	}
 
@@ -5517,7 +7309,7 @@ void command_summonitem(Client *c, const Seperator *sep)
 	}
 
 	if (item_status > c->Admin())
-		c->Message(13, "Error: Insufficient status to summon this item.");
+		c->Message(Chat::Red, "Error: Insufficient status to summon this item.");
 	else if (sep->argnum == 2 && sep->IsNumber(2))
 		c->SummonItem(itemid, atoi(sep->arg[2]));
 	else if (sep->argnum == 3)
@@ -5535,17 +7327,17 @@ void command_summonitem(Client *c, const Seperator *sep)
 	else {
 		c->SummonItem(itemid);
 	}
-	
+
 }
 
 void command_giveitem(Client *c, const Seperator *sep)
 {
 	if (!sep->IsNumber(1)) {
-		c->Message(13, "Usage: #summonitem [item id] [charges], charges are optional");
+		c->Message(Chat::Red, "Usage: #summonitem [item id] [charges], charges are optional");
 	} else if(c->GetTarget() == nullptr) {
-		c->Message(13, "You must target a client to give the item to.");
+		c->Message(Chat::Red, "You must target a client to give the item to.");
 	} else if(!c->GetTarget()->IsClient()) {
-		c->Message(13, "You can only give items to players with this command.");
+		c->Message(Chat::Red, "You can only give items to players with this command.");
 	} else {
 		Client *t = c->GetTarget()->CastToClient();
 		uint32 itemid = atoi(sep->arg[1]);
@@ -5556,7 +7348,7 @@ void command_giveitem(Client *c, const Seperator *sep)
 		}
 
 		if (item_status > c->Admin())
-			c->Message(13, "Error: Insufficient status to summon this item.");
+			c->Message(Chat::Red, "Error: Insufficient status to summon this item.");
 		else if (sep->argnum==2 && sep->IsNumber(2))
 			t->SummonItem(itemid, atoi(sep->arg[2]));
 		else if (sep->argnum==3)
@@ -5580,31 +7372,30 @@ void command_giveitem(Client *c, const Seperator *sep)
 void command_givemoney(Client *c, const Seperator *sep)
 {
 	if (!sep->IsNumber(1)) {	//as long as the first one is a number, we'll just let atoi convert the rest to 0 or a number
-		c->Message(13, "Usage: #Usage: #givemoney [pp] [gp] [sp] [cp]");
+		c->Message(Chat::Red, "Usage: #Usage: #givemoney [pp] [gp] [sp] [cp]");
 	}
 	else if(c->GetTarget() == nullptr) {
-		c->Message(13, "You must target a player to give money to.");
+		c->Message(Chat::Red, "You must target a player to give money to.");
 	}
 	else if(!c->GetTarget()->IsClient()) {
-		c->Message(13, "You can only give money to players with this command.");
+		c->Message(Chat::Red, "You can only give money to players with this command.");
 	}
 	else {
 		//TODO: update this to the client, otherwise the client doesn't show any weight change until you zone, move an item, etc
 		c->GetTarget()->CastToClient()->AddMoneyToPP(atoi(sep->arg[4]), atoi(sep->arg[3]), atoi(sep->arg[2]), atoi(sep->arg[1]), true);
-		c->Message(0, "Added %i Platinum, %i Gold, %i Silver, and %i Copper to %s's inventory.",  atoi(sep->arg[1]), atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]), c->GetTarget()->GetName());
+		c->Message(Chat::White, "Added %i Platinum, %i Gold, %i Silver, and %i Copper to %s's inventory.",  atoi(sep->arg[1]), atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]), c->GetTarget()->GetName());
 	}
 }
 
 void command_itemsearch(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == 0)
-		c->Message(0, "Usage: #itemsearch [search string]");
+		c->Message(Chat::White, "Usage: #itemsearch [search string]");
 	else
 	{
 		const char *search_criteria=sep->argplus[1];
 
 		const EQEmu::ItemData* item = nullptr;
-		std::string item_link;
 		EQEmu::SayLinkEngine linker;
 		linker.SetLinkType(EQEmu::saylink::SayLinkItemData);
 
@@ -5613,12 +7404,10 @@ void command_itemsearch(Client *c, const Seperator *sep)
 			if (item) {
 				linker.SetItemData(item);
 
-				item_link = linker.GenerateLink();
-
-				c->Message(0, "%u: %s",  item->ID, item_link.c_str());
+				c->Message(Chat::White, "%u: %s",  item->ID, linker.GenerateLink().c_str());
 			}
 			else {
-				c->Message(0, "Item #%s not found",  search_criteria);
+				c->Message(Chat::White, "Item #%s not found",  search_criteria);
 			}
 
 			return;
@@ -5638,9 +7427,7 @@ void command_itemsearch(Client *c, const Seperator *sep)
 			if (pdest != nullptr) {
 				linker.SetItemData(item);
 
-				item_link = linker.GenerateLink();
-
-				c->Message(0, "%u: %s",  item->ID, item_link.c_str());
+				c->Message(Chat::White, "%u: %s",  item->ID, linker.GenerateLink().c_str());
 
 				++count;
 			}
@@ -5650,9 +7437,9 @@ void command_itemsearch(Client *c, const Seperator *sep)
 		}
 
 		if (count == 50)
-			c->Message(0, "50 items shown...too many results.");
+			c->Message(Chat::White, "50 items shown...too many results.");
 		else
-			c->Message(0, "%i items found",  count);
+			c->Message(Chat::White, "%i items found",  count);
 
 	}
 }
@@ -5670,7 +7457,7 @@ void command_setaaxp(Client *c, const Seperator *sep)
 			t->SetLeadershipEXP(atoi(sep->arg[2]), atoi(sep->arg[3]));
 		}
 	} else
-		c->Message(0, "Usage: #setaaxp <new AA XP value> (<new Group AA XP value> <new Raid XP value>)");
+		c->Message(Chat::White, "Usage: #setaaxp <new AA XP value> (<new Group AA XP value> <new Raid XP value>)");
 }
 
 void command_setaapts(Client *c, const Seperator *sep)
@@ -5681,23 +7468,23 @@ void command_setaapts(Client *c, const Seperator *sep)
 		t=c->GetTarget()->CastToClient();
 
 	if(sep->arg[1][0] == '\0' || sep->arg[2][0] == '\0')
-		c->Message(0, "Usage: #setaapts <AA|group|raid> <new AA points value>");
+		c->Message(Chat::White, "Usage: #setaapts <AA|group|raid> <new AA points value>");
 	else if(atoi(sep->arg[2]) <= 0 || atoi(sep->arg[2]) > 5000)
-		c->Message(0, "You must have a number greater than 0 for points and no more than 5000.");
+		c->Message(Chat::White, "You must have a number greater than 0 for points and no more than 5000.");
 	else if(!strcasecmp(sep->arg[1], "group")) {
 		t->GetPP().group_leadership_points = atoi(sep->arg[2]);
 		t->GetPP().group_leadership_exp = 0;
-		t->Message(MT_Experience, "Setting Group AA points to %u", t->GetPP().group_leadership_points);
+		t->Message(Chat::Experience, "Setting Group AA points to %u", t->GetPP().group_leadership_points);
 		t->SendLeadershipEXPUpdate();
 	} else if(!strcasecmp(sep->arg[1], "raid")) {
 		t->GetPP().raid_leadership_points = atoi(sep->arg[2]);
 		t->GetPP().raid_leadership_exp = 0;
-		t->Message(MT_Experience, "Setting Raid AA points to %u", t->GetPP().raid_leadership_points);
+		t->Message(Chat::Experience, "Setting Raid AA points to %u", t->GetPP().raid_leadership_points);
 		t->SendLeadershipEXPUpdate();
 	} else {
 		t->GetPP().aapoints = atoi(sep->arg[2]);
 		t->GetPP().expAA = 0;
-		t->Message(MT_Experience, "Setting personal AA points to %u", t->GetPP().aapoints);
+		t->Message(Chat::Experience, "Setting personal AA points to %u", t->GetPP().aapoints);
 		t->SendAlternateAdvancementStats();
 	}
 }
@@ -5710,9 +7497,9 @@ void command_setcrystals(Client *c, const Seperator *sep)
 		t=c->GetTarget()->CastToClient();
 
 	if(sep->arg[1][0] == '\0' || sep->arg[2][0] == '\0')
-		c->Message(0, "Usage: #setcrystals <radiant|ebon> <new crystal count value>");
+		c->Message(Chat::White, "Usage: #setcrystals <radiant|ebon> <new crystal count value>");
 	else if(atoi(sep->arg[2]) <= 0 || atoi(sep->arg[2]) > 100000)
-		c->Message(0, "You must have a number greater than 0 for crystals and no more than 100000.");
+		c->Message(Chat::White, "You must have a number greater than 0 for crystals and no more than 100000.");
 	else if(!strcasecmp(sep->arg[1], "radiant"))
 	{
 		t->SetRadiantCrystals(atoi(sep->arg[2]));
@@ -5727,7 +7514,7 @@ void command_setcrystals(Client *c, const Seperator *sep)
 	}
 	else
 	{
-		c->Message(0, "Usage: #setcrystals <radiant|ebon> <new crystal count value>");
+		c->Message(Chat::White, "Usage: #setcrystals <radiant|ebon> <new crystal count value>");
 	}
 }
 
@@ -5747,14 +7534,14 @@ void command_stun(Client *c, const Seperator *sep)
 			t->CastToNPC()->Stun(duration);
 	}
 	else
-		c->Message(0, "Usage: #stun [duration]");
+		c->Message(Chat::White, "Usage: #stun [duration]");
 }
 
 
 void command_ban(Client *c, const Seperator *sep)
 {
 if(sep->arg[1][0] == 0 || sep->arg[2][0] == 0) {
-		c->Message(0, "Usage: #ban <charname> <message>");
+		c->Message(Chat::White, "Usage: #ban <charname> <message>");
 		return;
 	}
 
@@ -5776,12 +7563,12 @@ if(sep->arg[1][0] == 0 || sep->arg[2][0] == 0) {
     }
 
     if(message.length() == 0) {
-        c->Message(0, "Usage: #ban <charname> <message>");
+        c->Message(Chat::White, "Usage: #ban <charname> <message>");
         return;
     }
 
     if(account_id == 0) {
-        c->Message(13, "Character does not exist.");
+        c->Message(Chat::Red, "Character does not exist.");
         return;
     }
 
@@ -5789,7 +7576,7 @@ if(sep->arg[1][0] == 0 || sep->arg[2][0] == 0) {
                                     "WHERE id = %i",  EscapeString(message).c_str(), account_id);
     auto results = database.QueryDatabase(query);
 
-    c->Message(13, "Account number %i with the character %s has been banned with message: \"%s\"",  account_id, sep->arg[1], message.c_str());
+    c->Message(Chat::Red, "Account number %i with the character %s has been banned with message: \"%s\"",  account_id, sep->arg[1], message.c_str());
 
     ServerPacket flagUpdatePack(ServerOP_FlagUpdate, 6);
     *((uint32*)&flagUpdatePack.pBuffer[0]) = account_id;
@@ -5814,7 +7601,7 @@ if(sep->arg[1][0] == 0 || sep->arg[2][0] == 0) {
 void command_suspend(Client *c, const Seperator *sep)
 {
 	if((sep->arg[1][0] == 0) || (sep->arg[2][0] == 0)) {
-		c->Message(0, "Usage: #suspend <charname> <days> (Specify 0 days to lift the suspension immediately) <message>");
+		c->Message(Chat::White, "Usage: #suspend <charname> <days> (Specify 0 days to lift the suspension immediately) <message>");
 		return;
     }
 
@@ -5841,7 +7628,7 @@ void command_suspend(Client *c, const Seperator *sep)
         }
 
         if(message.length() == 0) {
-            c->Message(0, "Usage: #suspend <charname> <days>(Specify 0 days to lift the suspension immediately) <message>");
+            c->Message(Chat::White, "Usage: #suspend <charname> <days>(Specify 0 days to lift the suspension immediately) <message>");
             return;
         }
     }
@@ -5852,7 +7639,7 @@ void command_suspend(Client *c, const Seperator *sep)
     safe_delete_array(escName);
 
     if (accountID <= 0) {
-        c->Message(13,"Character does not exist.");
+        c->Message(Chat::Red,"Character does not exist.");
         return;
     }
 
@@ -5862,9 +7649,9 @@ void command_suspend(Client *c, const Seperator *sep)
     auto results = database.QueryDatabase(query);
 
     if(duration)
-        c->Message(13,"Account number %i with the character %s has been temporarily suspended for %i day(s).",  accountID, sep->arg[1], duration);
+        c->Message(Chat::Red,"Account number %i with the character %s has been temporarily suspended for %i day(s).",  accountID, sep->arg[1], duration);
     else
-        c->Message(13,"Account number %i with the character %s is no longer suspended.",  accountID, sep->arg[1]);
+        c->Message(Chat::Red,"Account number %i with the character %s is no longer suspended.",  accountID, sep->arg[1]);
 
     Client *bannedClient = entity_list.GetClientByName(sep->arg[1]);
 
@@ -5889,12 +7676,12 @@ void command_ipban(Client *c, const Seperator *sep)
 {
 	if(sep->arg[1] == 0)
 	{
-		c->Message(0, "Usage: #ipban [xxx.xxx.xxx.xxx]");
+		c->Message(Chat::White, "Usage: #ipban [xxx.xxx.xxx.xxx]");
 	} else {
 		if(database.AddBannedIP(sep->arg[1], c->GetName())) {
-			c->Message(0, "%s has been successfully added to the Banned_IPs table by %s", sep->arg[1], c->GetName());
+			c->Message(Chat::White, "%s has been successfully added to the banned_ips table by %s", sep->arg[1], c->GetName());
 		} else {
-			c->Message(0, "IPBan Failed (IP address is possibly already in the table?)");
+			c->Message(Chat::White, "IPBan Failed (IP address is possibly already in the table?)");
 		}
 	}
 }
@@ -5902,13 +7689,13 @@ void command_ipban(Client *c, const Seperator *sep)
 void command_revoke(Client *c, const Seperator *sep)
 {
 	if(sep->arg[1][0] == 0 || sep->arg[2][0] == 0) {
-		c->Message(0, "Usage: #revoke [charname] [1/0]");
+		c->Message(Chat::White, "Usage: #revoke [charname] [1/0]");
 		return;
 	}
 
     uint32 characterID = database.GetAccountIDByChar(sep->arg[1]);
     if(characterID == 0) {
-        c->Message(13,"Character does not exist.");
+        c->Message(Chat::Red,"Character does not exist.");
         return;
     }
 
@@ -5916,16 +7703,16 @@ void command_revoke(Client *c, const Seperator *sep)
     std::string query = StringFormat("UPDATE account SET revoked = %d WHERE id = %i",  flag, characterID);
     auto results = database.QueryDatabase(query);
 
-    c->Message(13,"%s account number %i with the character %s.",  flag? "Revoking": "Unrevoking",  characterID, sep->arg[1]);
+    c->Message(Chat::Red,"%s account number %i with the character %s.",  flag? "Revoking": "Unrevoking",  characterID, sep->arg[1]);
 
     Client* revokee = entity_list.GetClientByAccID(characterID);
     if(revokee) {
-        c->Message(0, "Found %s in this zone.",  revokee->GetName());
+        c->Message(Chat::White, "Found %s in this zone.",  revokee->GetName());
         revokee->SetRevoked(flag);
         return;
     }
 
-	c->Message(13, "#revoke: Couldn't find %s in this zone, passing request to worldserver.", sep->arg[1]);
+	c->Message(Chat::Red, "#revoke: Couldn't find %s in this zone, passing request to worldserver.", sep->arg[1]);
 
 	auto outapp = new ServerPacket(ServerOP_Revoke, sizeof(RevokeStruct));
 	RevokeStruct *revoke = (RevokeStruct *)outapp->pBuffer;
@@ -5936,10 +7723,100 @@ void command_revoke(Client *c, const Seperator *sep)
 	safe_delete(outapp);
 }
 
+void command_roambox(Client *c, const Seperator *sep)
+{
+	std::string arg1  = sep->arg[1];
+
+	Mob *target = c->GetTarget();
+	if (!target || !target->IsNPC()) {
+		c->Message(Chat::Red, "You need a valid NPC target for this command");
+		return;
+	}
+
+	NPC *npc           = dynamic_cast<NPC *>(target);
+	int spawn_group_id = npc->GetSpawnGroupId();
+	if (spawn_group_id <= 0) {
+		c->Message(Chat::Red, "NPC needs a valid SpawnGroup!");
+		return;
+	}
+
+	if (arg1 == "set") {
+		int box_size = (sep->arg[2] ? atoi(sep->arg[2]) : 0);
+		int delay = (sep->arg[3] ? atoi(sep->arg[3]) : 15000);
+		if (box_size > 0) {
+			std::string query = fmt::format(
+				SQL(
+					UPDATE spawngroup SET
+					dist = {},
+					min_x = {},
+					max_x = {},
+					min_y = {},
+					max_y = {},
+					delay = {}
+					WHERE id = {}
+				),
+				(box_size / 2),
+				npc->GetX() - (box_size / 2),
+				npc->GetX() + (box_size / 2),
+				npc->GetY() - (box_size / 2),
+				npc->GetY() + (box_size / 2),
+				delay,
+				spawn_group_id
+			);
+
+			database.QueryDatabase(query);
+
+			c->Message(
+				Chat::Yellow,
+				"NPC (%s) Roam Box set to box size of [%i] SpawnGroupId [%i] delay [%i]",
+				npc->GetCleanName(),
+				box_size,
+				spawn_group_id,
+				delay
+			);
+
+			return;
+		}
+
+		c->Message(Chat::Red, "Box size must be set!");
+	}
+
+	if (arg1 == "remove") {
+		std::string query = fmt::format(
+			SQL(
+				UPDATE spawngroup SET
+				dist = 0,
+				min_x = 0,
+				max_x = 0,
+				min_y = 0,
+				max_y = 0,
+				delay = 0
+					WHERE id = {}
+			),
+			spawn_group_id
+		);
+
+		database.QueryDatabase(query);
+
+		c->Message(
+			Chat::Yellow,
+			"NPC (%s) Roam Box has been removed from SpawnGroupID [%i]",
+			npc->GetCleanName(),
+			spawn_group_id
+		);
+
+		return;
+	}
+
+	c->Message(Chat::Yellow, "> Command Usage");
+	c->Message(Chat::Yellow, "#roambox set box_size [delay = 0]");
+	c->Message(Chat::Yellow, "#roambox remove");
+}
+
 void command_oocmute(Client *c, const Seperator *sep)
 {
 	if(sep->arg[1][0] == 0 || !(sep->arg[1][0] == '1' || sep->arg[1][0] == '0'))
-		c->Message(0, "Usage: #oocmute [1/0]");
+		c->Message(Chat::White, "Usage: #oocmute [1/0]");
 	else {
 		auto outapp = new ServerPacket(ServerOP_OOCMute, 1);
 		*(outapp->pBuffer) = atoi(sep->arg[1]);
@@ -5950,17 +7827,16 @@ void command_oocmute(Client *c, const Seperator *sep)
 
 void command_checklos(Client *c, const Seperator *sep)
 {
-	if(c->GetTarget())
-	{
-//		if(c->CheckLos(c->GetTarget()))
-		if(c->CheckLosFN(c->GetTarget()))
-			c->Message(0, "You have LOS to %s",  c->GetTarget()->GetName());
-		else
-			c->Message(0, "You do not have LOS to %s",  c->GetTarget()->GetName());
+	if (c->GetTarget()) {
+		if (c->CheckLosFN(c->GetTarget())) {
+			c->Message(Chat::White, "You have LOS to %s", c->GetTarget()->GetName());
+		}
+		else {
+			c->Message(Chat::White, "You do not have LOS to %s", c->GetTarget()->GetName());
+		}
 	}
-	else
-	{
-		c->Message(0, "ERROR: Target required");
+	else {
+		c->Message(Chat::White, "ERROR: Target required");
 	}
 }
 
@@ -5973,17 +7849,17 @@ void command_set_adventure_points(Client *c, const Seperator *sep)
 
 	if(!sep->arg[1][0])
 	{
-		c->Message(0, "Usage: #setadventurepoints [points] [theme]");
+		c->Message(Chat::White, "Usage: #setadventurepoints [points] [theme]");
 		return;
 	}
 
 	if(!sep->IsNumber(1) || !sep->IsNumber(2))
 	{
-		c->Message(0, "Usage: #setadventurepoints [points] [theme]");
+		c->Message(Chat::White, "Usage: #setadventurepoints [points] [theme]");
 		return;
 	}
 
-	c->Message(0, "Updating adventure points for %s",  t->GetName());
+	c->Message(Chat::White, "Updating adventure points for %s",  t->GetName());
 	t->UpdateLDoNPoints(atoi(sep->arg[1]), atoi(sep->arg[2]));
 }
 
@@ -5995,7 +7871,7 @@ void command_npcsay(Client *c, const Seperator *sep)
 	}
 	else
 	{
-		c->Message(0, "Usage: #npcsay message (requires NPC target");
+		c->Message(Chat::White, "Usage: #npcsay message (requires NPC target");
 	}
 }
 
@@ -6007,13 +7883,13 @@ void command_npcshout(Client *c, const Seperator *sep)
 	}
 	else
 	{
-		c->Message(0, "Usage: #npcshout message (requires NPC target");
+		c->Message(Chat::White, "Usage: #npcshout message (requires NPC target");
 	}
 }
 
 void command_timers(Client *c, const Seperator *sep) {
 	if(!c->GetTarget() || !c->GetTarget()->IsClient()) {
-		c->Message(0,"Need a player target for timers.");
+		c->Message(Chat::White,"Need a player target for timers.");
 		return;
 	}
 	Client *them = c->GetTarget()->CastToClient();
@@ -6021,12 +7897,12 @@ void command_timers(Client *c, const Seperator *sep) {
 	std::vector< std::pair<pTimerType, PersistentTimer *> > res;
 	them->GetPTimers().ToVector(res);
 
-	c->Message(0,"Timers for target:");
+	c->Message(Chat::White,"Timers for target:");
 
 	int r;
 	int l = res.size();
 	for(r = 0; r < l; r++) {
-		c->Message(0,"Timer %d: %d seconds remain.",  res[r].first, res[r].second->GetRemainingTime());
+		c->Message(Chat::White,"Timer %d: %d seconds remain.",  res[r].first, res[r].second->GetRemainingTime());
 	}
 }
 
@@ -6038,587 +7914,784 @@ void command_npcemote(Client *c, const Seperator *sep)
 	}
 	else
 	{
-		c->Message(0, "Usage: #npcemote message (requires NPC target");
+		c->Message(Chat::White, "Usage: #npcemote message (requires NPC target");
+	}
+}
+
+void command_npceditmass(Client *c, const Seperator *sep)
+{
+	if (strcasecmp(sep->arg[1], "usage") == 0) {
+		c->Message(Chat::White, "#npceditmass search_column [exact_match: =]search_value change_column change_value (apply)");
+		return;
+	}
+	
+	std::string query = SQL(
+		SELECT
+				COLUMN_NAME
+		FROM
+		INFORMATION_SCHEMA.COLUMNS
+		WHERE
+			table_name = 'npc_types'
+		AND
+		COLUMN_NAME != 'id'
+	);
+
+	std::string search_column, search_value, change_column, change_value;
+	if (sep->arg[1]) {
+		search_column = sep->arg[1];
+	}
+	if (sep->arg[2]) {
+		search_value = sep->arg[2];
+	}
+	if (sep->arg[3]) {
+		change_column = sep->arg[3];
+	}
+	if (sep->arg[4]) {
+		change_value = sep->arg[4];
+	}
+
+	bool valid_change_column = false;
+	bool valid_search_column = false;
+	auto results             = database.QueryDatabase(query);
+
+	std::vector <std::string> possible_column_options;
+
+	for (auto row = results.begin(); row != results.end(); ++row) {
+		if (row[0] == change_column) {
+			valid_change_column = true;
+		}
+		if (row[0] == search_column) {
+			valid_search_column = true;
+		}
+
+		possible_column_options.push_back(row[0]);
+	}
+
+	std::string options_glue = ", ";
+
+	if (!valid_search_column) {
+		c->Message(Chat::Red, "You must specify a valid search column. [%s] is not valid", search_column.c_str());
+		c->Message(Chat::Yellow, "Possible columns [%s]", implode(options_glue, possible_column_options).c_str());
+		return;
+	}
+
+	if (!valid_change_column) {
+		c->Message(Chat::Red, "You must specify a valid change column. [%s] is not valid", change_column.c_str());
+		c->Message(Chat::Yellow, "Possible columns [%s]", implode(options_glue, possible_column_options).c_str());
+		return;
+	}
+
+	if (!valid_search_column || !valid_change_column) {
+		c->Message(Chat::Red, "One requested column is invalid");
+		return;
+	}
+
+	query = fmt::format(
+		SQL(
+			select
+			id,
+			name,
+			{0},
+			{1}
+				from
+				npc_types
+				where
+				id IN(
+					select
+				spawnentry.npcID
+				from
+					spawnentry
+				join spawn2 on spawn2.spawngroupID = spawnentry.spawngroupID
+				where
+				spawn2.zone = '{2}' and spawn2.version = {3}
+			)
+		),
+		search_column,
+		change_column,
+		zone->GetShortName(),
+		zone->GetInstanceVersion()
+	);
+
+	std::string status = "(Searching)";
+
+	if (strcasecmp(sep->arg[5], "apply") == 0) {
+		status = "(Applying)";
+	}
+
+	std::vector <std::string> npc_ids;
+
+	bool exact_match = false;
+	if (search_value[0] == '=') {
+		exact_match = true;
+		search_value = search_value.substr(1);
+	}
+
+	int found_count = 0;
+	results = database.QueryDatabase(query);
+	for (auto row = results.begin(); row != results.end(); ++row) {
+
+		std::string npc_id                      = row[0];
+		std::string npc_name                    = row[1];
+		std::string search_column_value         = str_tolower(row[2]);
+		std::string change_column_current_value = row[3];
+
+		if (exact_match) {
+			if (search_column_value.compare(search_value) != 0) {
+				continue;
+			}
+		}
+		else {
+			if (search_column_value.find(search_value) == std::string::npos) {
+				continue;
+			}
+		}
+		
+		c->Message(
+			Chat::Yellow,
+			fmt::format(
+				"NPC ({0}) [{1}] ({2}) [{3}] Current ({4}) [{5}] New [{6}] {7}",
+				npc_id,
+				npc_name,
+				search_column,
+				search_column_value,
+				change_column,
+				change_column_current_value,
+				change_value,
+				status
+			).c_str()
+		);
+
+		npc_ids.push_back(npc_id);
+
+		found_count++;
+	}
+
+	std::string saylink = fmt::format(
+		"#npceditmass {} {}{} {} {} apply",
+		search_column,
+		(exact_match ? "=" : ""),
+		search_value,
+		change_column,
+		change_value
+	);
+
+	if (strcasecmp(sep->arg[5], "apply") == 0) {
+		std::string npc_ids_string = implode(",", npc_ids);
+		if (npc_ids_string.empty()) {
+			c->Message(Chat::Red, "Error: Ran into an unknown error compiling NPC IDs");
+			return;
+		}
+
+		database.QueryDatabase(
+			fmt::format(
+				"UPDATE `npc_types` SET {} = '{}' WHERE id IN ({})",
+				change_column,
+				change_value,
+				npc_ids_string
+			)
+		);
+
+		c->Message(Chat::Yellow, "Changes applied to (%i) NPC's", found_count);
+		zone->Repop();
+	}
+	else {
+		c->Message(Chat::Yellow, "Found (%i) NPC's that match this search...", found_count);
+
+		if (found_count > 0) {
+			c->Message(
+				Chat::Yellow, "To apply these changes, click <%s> or type [%s]",
+				EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Apply").c_str(),
+				saylink.c_str()
+			);
+		}
 	}
 }
 
 void command_npcedit(Client *c, const Seperator *sep)
 {	if (!c->GetTarget() || !c->GetTarget()->IsNPC()) {
-		c->Message(0, "Error: Must have NPC targeted");
+		c->Message(Chat::White, "Error: Must have NPC targeted");
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "help") == 0) {
 
-		c->Message(0, "Help File for #npcedit. Syntax for commands are:");
-		c->Message(0, "#npcedit Name - Sets an NPC's name");
-		c->Message(0, "#npcedit Lastname - Sets an NPC's lastname");
-		c->Message(0, "#npcedit Level - Sets an NPC's level");
-		c->Message(0, "#npcedit Maxlevel - Sets an NPC's maximum level");
-		c->Message(0, "#npcedit Race - Sets an NPC's race");
-		c->Message(0, "#npcedit Class - Sets an NPC's class");
-		c->Message(0, "#npcedit Bodytype - Sets an NPC's bodytype");
-		c->Message(0, "#npcedit HP - Sets an NPC's hitpoints");
-		c->Message(0, "#npcedit Gender - Sets an NPC's gender");
-		c->Message(0, "#npcedit Texture - Sets an NPC's texture");
-		c->Message(0, "#npcedit Helmtexture - Sets an NPC's helmet texture");
-		c->Message(0, "#npcedit Armtexture - Sets an NPC's arm texture");
-		c->Message(0, "#npcedit Bracertexture - Sets an NPC's bracer texture");
-		c->Message(0, "#npcedit Handtexture - Sets an NPC's hand texture");
-		c->Message(0, "#npcedit Legtexture - Sets an NPC's leg texture");
-		c->Message(0, "#npcedit Feettexture - Sets an NPC's feettexture");
-		c->Message(0, "#npcedit Herosforgemodel - Sets an NPC's Hero's Forge Model");
-		c->Message(0, "#npcedit Size - Sets an NPC's size");
-		c->Message(0, "#npcedit Hpregen - Sets an NPC's hitpoint regen rate per tick");
-		c->Message(0, "#npcedit Manaregen - Sets an NPC's mana regen rate per tick");
-		c->Message(0, "#npcedit Loottable - Sets the loottable ID for an NPC ");
-		c->Message(0, "#npcedit Merchantid - Sets the merchant ID for an NPC");
-		c->Message(0, "#npcedit alt_currency_id - Sets the Alternate Currency ID for an alterative currency Merchant");
-		c->Message(0, "#npcedit npc_spells_effects_id - Sets the NPC Spell Effects ID");
-		c->Message(0, "#npcedit adventure_template_id - Sets the NPC's Adventure Template ID");
-		c->Message(0, "#npcedit trap_template - Sets the NPC's Trap Template ID");
-		c->Message(0, "#npcedit special_abilities - Sets the NPC's Special Abilities");
-		c->Message(0, "#npcedit Spell - Sets the npc spells list ID for an NPC");
-		c->Message(0, "#npcedit Faction - Sets the NPC's faction id");
-		c->Message(0, "#npcedit Damage - Sets an NPC's damage");
-		c->Message(0, "#npcedit Meleetype - Sets an NPC's melee types");
-		c->Message(0, "#npcedit Rangedtype - Sets an NPC's ranged type");
-		c->Message(0, "#npcedit Ammoidfile - Sets an NPC's ammo id file");
-		c->Message(0, "#npcedit Aggroradius - Sets an NPC's aggro radius");
-		c->Message(0, "#npcedit Assistradius - Sets an NPC's assist radius");
-		c->Message(0, "#npcedit Social - Set to 1 if an NPC should assist others on its faction");
-		c->Message(0, "#npcedit Runspeed - Sets an NPC's run speed");
-		c->Message(0, "#npcedit Walkspeed - Sets an NPC's walk speed");
-		c->Message(0, "#npcedit AGI - Sets an NPC's Agility");
-		c->Message(0, "#npcedit CHA - Sets an NPC's Charisma");
-		c->Message(0, "#npcedit DEX - Sets an NPC's Dexterity");
-		c->Message(0, "#npcedit INT - Sets an NPC's Intelligence");
-		c->Message(0, "#npcedit STA - Sets an NPC's Stamina");
-		c->Message(0, "#npcedit STR - Sets an NPC's Strength");
-		c->Message(0, "#npcedit WIS - Sets an NPC's Wisdom");
-		c->Message(0, "#npcedit MR - Sets an NPC's Magic Resistance");
-		c->Message(0, "#npcedit PR - Sets an NPC's Poison Resistance");
-		c->Message(0, "#npcedit DR - Sets an NPC's Disease Resistance");
-		c->Message(0, "#npcedit FR - Sets an NPC's Fire Resistance");
-		c->Message(0, "#npcedit CR - Sets an NPC's Cold Resistance");
-		c->Message(0, "#npcedit Corrup - Sets an NPC's Corruption Resistance");
-		c->Message(0, "#npcedit PhR - Sets and NPC's Physical Resistance");
-		c->Message(0, "#npcedit Seeinvis - Sets an NPC's ability to see invis");
-		c->Message(0, "#npcedit Seeinvisundead - Sets an NPC's ability to see through invis vs. undead");
-		c->Message(0, "#npcedit Seehide - Sets an NPC's ability to see through hide");
-		c->Message(0, "#npcedit Seeimprovedhide - Sets an NPC's ability to see through improved hide");
-		c->Message(0, "#npcedit AC - Sets an NPC's Armor Class");
-		c->Message(0, "#npcedit ATK - Sets an NPC's Attack");
-		c->Message(0, "#npcedit Accuracy - Sets an NPC's Accuracy");
-		c->Message(0, "#npcedit Avoidance - Sets an NPC's Avoidance");
-		c->Message(0, "#npcedit npcaggro - Sets an NPC's npc_aggro flag");
-		c->Message(0, "#npcedit qglobal - Sets an NPC's quest global flag");
-		c->Message(0, "#npcedit spawn_limit - Sets an NPC's spawn limit counter");
-		c->Message(0, "#npcedit Attackspeed - Sets an NPC's attack speed modifier");
-		c->Message(0, "#npcedit Attackdelay - Sets an NPC's attack delay");
-		c->Message(0, "#npcedit Attackcount - Sets an NPC's attack count");
-		c->Message(0, "#npcedit findable - Sets an NPC's findable flag");
-		c->Message(0, "#npcedit trackable - Sets an NPC's trackable flag");
-		c->Message(0, "#npcedit weapon - Sets an NPC's primary and secondary weapon model");
-		c->Message(0, "#npcedit featuresave - Saves all current facial features to the database");
-		c->Message(0, "#npcedit color - Sets an NPC's red, green, and blue armor tint");
-		c->Message(0, "#npcedit armortint_id - Set an NPC's Armor tint ID");
-		c->Message(0, "#npcedit setanimation - Set an NPC's animation on spawn (Stored in spawn2 table)");
-		c->Message(0, "#npcedit scalerate - Set an NPC's scaling rate");
-		c->Message(0, "#npcedit healscale - Set an NPC's heal scaling rate");
-		c->Message(0, "#npcedit spellscale - Set an NPC's spell scaling rate");
-		c->Message(0, "#npcedit no_target - Set an NPC's ability to be targeted with the target hotkey");
-		c->Message(0, "#npcedit version - Set an NPC's version");
-		c->Message(0, "#npcedit slow_mitigation - Set an NPC's slow mitigation");
+		c->Message(Chat::White, "Help File for #npcedit. Syntax for commands are:");
+		c->Message(Chat::White, "#npcedit Name - Sets an NPC's name");
+		c->Message(Chat::White, "#npcedit Lastname - Sets an NPC's lastname");
+		c->Message(Chat::White, "#npcedit Level - Sets an NPC's level");
+		c->Message(Chat::White, "#npcedit Maxlevel - Sets an NPC's maximum level");
+		c->Message(Chat::White, "#npcedit Race - Sets an NPC's race");
+		c->Message(Chat::White, "#npcedit Class - Sets an NPC's class");
+		c->Message(Chat::White, "#npcedit Bodytype - Sets an NPC's bodytype");
+		c->Message(Chat::White, "#npcedit HP - Sets an NPC's hitpoints");
+		c->Message(Chat::White, "#npcedit Gender - Sets an NPC's gender");
+		c->Message(Chat::White, "#npcedit Texture - Sets an NPC's texture");
+		c->Message(Chat::White, "#npcedit Helmtexture - Sets an NPC's helmet texture");
+		c->Message(Chat::White, "#npcedit Armtexture - Sets an NPC's arm texture");
+		c->Message(Chat::White, "#npcedit Bracertexture - Sets an NPC's bracer texture");
+		c->Message(Chat::White, "#npcedit Handtexture - Sets an NPC's hand texture");
+		c->Message(Chat::White, "#npcedit Legtexture - Sets an NPC's leg texture");
+		c->Message(Chat::White, "#npcedit Feettexture - Sets an NPC's feettexture");
+		c->Message(Chat::White, "#npcedit Herosforgemodel - Sets an NPC's Hero's Forge Model");
+		c->Message(Chat::White, "#npcedit Size - Sets an NPC's size");
+		c->Message(Chat::White, "#npcedit Hpregen - Sets an NPC's hitpoint regen rate per tick");
+		c->Message(Chat::White, "#npcedit Manaregen - Sets an NPC's mana regen rate per tick");
+		c->Message(Chat::White, "#npcedit Loottable - Sets the loottable ID for an NPC ");
+		c->Message(Chat::White, "#npcedit Merchantid - Sets the merchant ID for an NPC");
+		c->Message(Chat::White, "#npcedit alt_currency_id - Sets the Alternate Currency ID for an alterative currency Merchant");
+		c->Message(Chat::White, "#npcedit npc_spells_effects_id - Sets the NPC Spell Effects ID");
+		c->Message(Chat::White, "#npcedit adventure_template_id - Sets the NPC's Adventure Template ID");
+		c->Message(Chat::White, "#npcedit trap_template - Sets the NPC's Trap Template ID");
+		c->Message(Chat::White, "#npcedit special_abilities - Sets the NPC's Special Abilities");
+		c->Message(Chat::White, "#npcedit Spell - Sets the npc spells list ID for an NPC");
+		c->Message(Chat::White, "#npcedit Faction - Sets the NPC's faction id");
+		c->Message(Chat::White, "#npcedit Damage - Sets an NPC's damage");
+		c->Message(Chat::White, "#npcedit Meleetype - Sets an NPC's melee types");
+		c->Message(Chat::White, "#npcedit Rangedtype - Sets an NPC's ranged type");
+		c->Message(Chat::White, "#npcedit Ammoidfile - Sets an NPC's ammo id file");
+		c->Message(Chat::White, "#npcedit Aggroradius - Sets an NPC's aggro radius");
+		c->Message(Chat::White, "#npcedit Assistradius - Sets an NPC's assist radius");
+		c->Message(Chat::White, "#npcedit Social - Set to 1 if an NPC should assist others on its faction");
+		c->Message(Chat::White, "#npcedit Runspeed - Sets an NPC's run speed");
+		c->Message(Chat::White, "#npcedit Walkspeed - Sets an NPC's walk speed");
+		c->Message(Chat::White, "#npcedit AGI - Sets an NPC's Agility");
+		c->Message(Chat::White, "#npcedit CHA - Sets an NPC's Charisma");
+		c->Message(Chat::White, "#npcedit DEX - Sets an NPC's Dexterity");
+		c->Message(Chat::White, "#npcedit INT - Sets an NPC's Intelligence");
+		c->Message(Chat::White, "#npcedit STA - Sets an NPC's Stamina");
+		c->Message(Chat::White, "#npcedit STR - Sets an NPC's Strength");
+		c->Message(Chat::White, "#npcedit WIS - Sets an NPC's Wisdom");
+		c->Message(Chat::White, "#npcedit MR - Sets an NPC's Magic Resistance");
+		c->Message(Chat::White, "#npcedit PR - Sets an NPC's Poison Resistance");
+		c->Message(Chat::White, "#npcedit DR - Sets an NPC's Disease Resistance");
+		c->Message(Chat::White, "#npcedit FR - Sets an NPC's Fire Resistance");
+		c->Message(Chat::White, "#npcedit CR - Sets an NPC's Cold Resistance");
+		c->Message(Chat::White, "#npcedit Corrup - Sets an NPC's Corruption Resistance");
+		c->Message(Chat::White, "#npcedit PhR - Sets and NPC's Physical Resistance");
+		c->Message(Chat::White, "#npcedit Seeinvis - Sets an NPC's ability to see invis");
+		c->Message(Chat::White, "#npcedit Seeinvisundead - Sets an NPC's ability to see through invis vs. undead");
+		c->Message(Chat::White, "#npcedit Seehide - Sets an NPC's ability to see through hide");
+		c->Message(Chat::White, "#npcedit Seeimprovedhide - Sets an NPC's ability to see through improved hide");
+		c->Message(Chat::White, "#npcedit AC - Sets an NPC's Armor Class");
+		c->Message(Chat::White, "#npcedit ATK - Sets an NPC's Attack");
+		c->Message(Chat::White, "#npcedit Accuracy - Sets an NPC's Accuracy");
+		c->Message(Chat::White, "#npcedit Avoidance - Sets an NPC's Avoidance");
+		c->Message(Chat::White, "#npcedit npcaggro - Sets an NPC's npc_aggro flag");
+		c->Message(Chat::White, "#npcedit qglobal - Sets an NPC's quest global flag");
+		c->Message(Chat::White, "#npcedit spawn_limit - Sets an NPC's spawn limit counter");
+		c->Message(Chat::White, "#npcedit Attackspeed - Sets an NPC's attack speed modifier");
+		c->Message(Chat::White, "#npcedit Attackdelay - Sets an NPC's attack delay");
+		c->Message(Chat::White, "#npcedit Attackcount - Sets an NPC's attack count");
+		c->Message(Chat::White, "#npcedit findable - Sets an NPC's findable flag");
+		c->Message(Chat::White, "#npcedit trackable - Sets an NPC's trackable flag");
+		c->Message(Chat::White, "#npcedit weapon - Sets an NPC's primary and secondary weapon model");
+		c->Message(Chat::White, "#npcedit featuresave - Saves all current facial features to the database");
+		c->Message(Chat::White, "#npcedit color - Sets an NPC's red, green, and blue armor tint");
+		c->Message(Chat::White, "#npcedit armortint_id - Set an NPC's Armor tint ID");
+		c->Message(Chat::White, "#npcedit setanimation - Set an NPC's animation on spawn (Stored in spawn2 table)");
+		c->Message(Chat::White, "#npcedit scalerate - Set an NPC's scaling rate");
+		c->Message(Chat::White, "#npcedit healscale - Set an NPC's heal scaling rate");
+		c->Message(Chat::White, "#npcedit spellscale - Set an NPC's spell scaling rate");
+		c->Message(Chat::White, "#npcedit no_target - Set an NPC's ability to be targeted with the target hotkey");
+		c->Message(Chat::White, "#npcedit version - Set an NPC's version");
+		c->Message(Chat::White, "#npcedit slow_mitigation - Set an NPC's slow mitigation");
+		c->Message(Chat::White, "#npcedit flymode - Set an NPC's flymode [0 = ground, 1 = flying, 2 = levitate, 3 = water, 4 = floating]");
 
 	}
 
 	uint32 npcTypeID = c->GetTarget()->CastToNPC()->GetNPCTypeID();
 	if (strcasecmp(sep->arg[1], "name") == 0) {
-        c->Message(15,"NPCID %u now has the name %s.", npcTypeID, sep->argplus[2]);
+        c->Message(Chat::Yellow,"NPCID %u now has the name %s.", npcTypeID, sep->argplus[2]);
 		std::string query = StringFormat("UPDATE npc_types SET name = '%s' WHERE id = %i",  sep->argplus[2],npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "lastname") == 0) {
-        c->Message(15,"NPCID %u now has the lastname %s.", npcTypeID, sep->argplus[2]);
-		std::string query = StringFormat("UPDATE npc_types SET lastname = '%s' WHERE id = %i",  sep->argplus[2],npcTypeID);
+        c->Message(Chat::Yellow,"NPCID %u now has the lastname %s.", npcTypeID, sep->argplus[2]);
+		std::string query = StringFormat("UPDATE npc_types SET lastname = '%s' WHERE id = %i", sep->argplus[2],npcTypeID);
+		database.QueryDatabase(query);
+		return;
+	}
+
+	if (strcasecmp(sep->arg[1], "flymode") == 0) {
+        c->Message(Chat::Yellow,"NPCID %u now has flymode [%s]", npcTypeID, sep->argplus[2]);
+		std::string query = StringFormat("UPDATE npc_types SET flymode = '%s' WHERE id = %i",  sep->argplus[2],npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "race") == 0) {
-        c->Message(15,"NPCID %u now has the race %i.", npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has the race %i.", npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET race = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "class") == 0) {
-        c->Message(15,"NPCID %u is now class %i.", npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u is now class %i.", npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET class = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "bodytype") == 0) {
-        c->Message(15,"NPCID %u now has type %i bodytype.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has type %i bodytype.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET bodytype = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "hp") == 0) {
-        c->Message(15,"NPCID %u now has %i Hitpoints.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Hitpoints.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET hp = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "gender") == 0) {
-        c->Message(15,"NPCID %u is now gender %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u is now gender %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET gender = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "texture") == 0) {
-        c->Message(15,"NPCID %u now uses texture %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses texture %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET texture = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "helmtexture") == 0) {
-        c->Message(15,"NPCID %u now uses helmtexture %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses helmtexture %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET helmtexture = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "armtexture") == 0) {
-        c->Message(15,"NPCID %u now uses armtexture %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses armtexture %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET armtexture = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "bracertexture") == 0) {
-        c->Message(15,"NPCID %u now uses bracertexture %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses bracertexture %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET bracertexture = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "handtexture") == 0) {
-        c->Message(15,"NPCID %u now uses handtexture %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses handtexture %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET handtexture = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "legtexture") == 0) {
-        c->Message(15,"NPCID %u now uses legtexture %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses legtexture %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET legtexture = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "feettexture") == 0) {
-        c->Message(15,"NPCID %u now uses feettexture %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses feettexture %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET feettexture = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "herosforgemodel") == 0) {
-        c->Message(15,"NPCID %u now uses herosforgemodel %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses herosforgemodel %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET herosforgemodel = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "size") == 0) {
-        c->Message(15,"NPCID %u is now size %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u is now size %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET size = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "hpregen") == 0) {
-        c->Message(15,"NPCID %u now regens %i hitpoints per tick.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now regens %i hitpoints per tick.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET hp_regen_rate = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "manaregen") == 0) {
-        c->Message(15,"NPCID %u now regens %i mana per tick.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now regens %i mana per tick.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET mana_regen_rate = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
     if (strcasecmp(sep->arg[1], "loottable") == 0) {
-        c->Message(15,"NPCID %u is now on loottable_id %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u is now on loottable_id %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET loottable_id = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "merchantid") == 0) {
-        c->Message(15,"NPCID %u is now merchant_id %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u is now merchant_id %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET merchant_id = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "alt_currency_id") == 0) {
-        c->Message(15,"NPCID %u now has field 'alt_currency_id' set to %s.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has field 'alt_currency_id' set to %s.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET alt_currency_id = '%s' WHERE id = %i",  sep->argplus[2],npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "npc_spells_effects_id") == 0) {
-        c->Message(15,"NPCID %u now has field 'npc_spells_effects_id' set to %s.",  npcTypeID, sep->argplus[2]);
+        c->Message(Chat::Yellow,"NPCID %u now has field 'npc_spells_effects_id' set to %s.",  npcTypeID, sep->argplus[2]);
 		std::string query = StringFormat("UPDATE npc_types SET npc_spells_effects_id = '%s' WHERE id = %i",  sep->argplus[2],npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "adventure_template_id") == 0) {
-        c->Message(15,"NPCID %u now has field 'adventure_template_id' set to %s.",  npcTypeID, sep->argplus[2]);
+        c->Message(Chat::Yellow,"NPCID %u now has field 'adventure_template_id' set to %s.",  npcTypeID, sep->argplus[2]);
 		std::string query = StringFormat("UPDATE npc_types SET adventure_template_id = '%s' WHERE id = %i",  sep->argplus[2],npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "trap_template") == 0) {
-        c->Message(15,"NPCID %u now has field 'trap_template' set to %s.",  npcTypeID, sep->argplus[2]);
+        c->Message(Chat::Yellow,"NPCID %u now has field 'trap_template' set to %s.",  npcTypeID, sep->argplus[2]);
 		std::string query = StringFormat("UPDATE npc_types SET trap_template = '%s' WHERE id = %i",  sep->argplus[2],npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "special_abilities") == 0) {
-        c->Message(15,"NPCID %u now has field 'special_abilities' set to %s.",  npcTypeID, sep->argplus[2]);
+        c->Message(Chat::Yellow,"NPCID %u now has field 'special_abilities' set to %s.",  npcTypeID, sep->argplus[2]);
 		std::string query = StringFormat("UPDATE npc_types SET special_abilities = '%s' WHERE id = %i",  sep->argplus[2],npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "spell") == 0) {
-        c->Message(15,"NPCID %u now uses spell list %i",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now uses spell list %i",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET npc_spells_id = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "faction") == 0) {
-        c->Message(15,"NPCID %u is now faction %i",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u is now faction %i",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET npc_faction_id = %i WHERE id = %i",  atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "damage") == 0) {
-        c->Message(15,"NPCID %u now hits from %i to %i",  npcTypeID, atoi(sep->arg[2]), atoi(sep->arg[3]));
+        c->Message(Chat::Yellow,"NPCID %u now hits from %i to %i",  npcTypeID, atoi(sep->arg[2]), atoi(sep->arg[3]));
 		std::string query = StringFormat("UPDATE npc_types SET mindmg = %i, maxdmg = %i WHERE id = %i",  atoi(sep->arg[2]), atoi(sep->arg[3]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "meleetype") == 0) {
-        c->Message(15,"NPCID %u now has a primary melee type of %i and a secondary melee type of %i.",  npcTypeID, atoi(sep->arg[2]), atoi(sep->arg[3]));
+        c->Message(Chat::Yellow,"NPCID %u now has a primary melee type of %i and a secondary melee type of %i.",  npcTypeID, atoi(sep->arg[2]), atoi(sep->arg[3]));
 		std::string query = StringFormat("UPDATE npc_types SET prim_melee_type = %i, sec_melee_type = %i WHERE id = %i",  atoi(sep->arg[2]), atoi(sep->arg[3]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "rangedtype") == 0) {
-        c->Message(15,"NPCID %u now has a ranged type of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a ranged type of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET ranged_type = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "ammoidfile") == 0) {
-        c->Message(15,"NPCID %u's ammo id file is now %i",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u's ammo id file is now %i",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET ammoidfile = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "aggroradius") == 0) {
-        c->Message(15,"NPCID %u now has an aggro radius of %i",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has an aggro radius of %i",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET aggroradius = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "assistradius") == 0) {
-        c->Message(15,"NPCID %u now has an assist radius of %i",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has an assist radius of %i",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET assistradius = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "social") == 0) {
-        c->Message(15,"NPCID %u social status is now %i",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u social status is now %i",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET social = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "runspeed") == 0) {
-        c->Message(15,"NPCID %u now runs at %f",  npcTypeID, atof(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now runs at %f",  npcTypeID, atof(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET runspeed = %f WHERE id = %i",  atof(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "walkspeed") == 0) {
-        c->Message(15,"NPCID %u now walks at %f",  npcTypeID, atof(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now walks at %f",  npcTypeID, atof(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET walkspeed = %f WHERE id = %i",  atof(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "AGI") == 0) {
-        c->Message(15,"NPCID %u now has %i Agility.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Agility.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET AGI = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "CHA") == 0) {
-        c->Message(15,"NPCID %u now has %i Charisma.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Charisma.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET CHA = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "DEX") == 0) {
-        c->Message(15,"NPCID %u now has %i Dexterity.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Dexterity.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET DEX = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "INT") == 0) {
-        c->Message(15,"NPCID %u now has %i Intelligence.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Intelligence.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET _INT = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "STA") == 0) {
-        c->Message(15,"NPCID %u now has %i Stamina.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Stamina.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET STA = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "STR") == 0) {
-        c->Message(15,"NPCID %u now has %i Strength.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Strength.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET STR = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "WIS") == 0) {
-        c->Message(15,"NPCID %u now has a Magic Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a Magic Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET WIS = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "MR") == 0) {
-        c->Message(15,"NPCID %u now has a Magic Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a Magic Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET MR = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "DR") == 0) {
-        c->Message(15,"NPCID %u now has a Disease Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a Disease Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET DR = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "CR") == 0) {
-        c->Message(15,"NPCID %u now has a Cold Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a Cold Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET CR = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
     if (strcasecmp(sep->arg[1], "FR") == 0) {
-        c->Message(15,"NPCID %u now has a Fire Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a Fire Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET FR = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
     if (strcasecmp(sep->arg[1], "PR") == 0) {
-        c->Message(15,"NPCID %u now has a Poison Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a Poison Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET PR = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "Corrup") == 0) {
-        c->Message(15,"NPCID %u now has a Corruption Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a Corruption Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET corrup = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "PhR") == 0) {
-        c->Message(15,"NPCID %u now has a Physical Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a Physical Resistance of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET PhR = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "seeinvis") == 0) {
-        c->Message(15,"NPCID %u now has seeinvis set to %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has seeinvis set to %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET see_invis = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "seeinvisundead") == 0) {
-        c->Message(15,"NPCID %u now has seeinvisundead set to %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has seeinvisundead set to %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET see_invis_undead = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "seehide") == 0) {
-        c->Message(15,"NPCID %u now has seehide set to %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has seehide set to %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET see_hide = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "seeimprovedhide") == 0) {
-        c->Message(15,"NPCID %u now has seeimprovedhide set to %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has seeimprovedhide set to %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET see_improved_hide = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "AC") == 0) {
-        c->Message(15,"NPCID %u now has %i Armor Class.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Armor Class.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET ac = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "ATK") == 0) {
-        c->Message(15,"NPCID %u now has %i Attack.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Attack.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET atk = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "Accuracy") == 0) {
-        c->Message(15,"NPCID %u now has %i Accuracy.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Accuracy.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET accuracy = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "Avoidance") == 0) {
-        c->Message(15,"NPCID %u now has %i Avoidance.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i Avoidance.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET avoidance = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "level") == 0) {
-        c->Message(15,"NPCID %u is now level %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u is now level %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET level = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "maxlevel") == 0) {
-        c->Message(15,"NPCID %u now has a maximum level of %i.",  npcTypeID, atoi(sep->argplus[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a maximum level of %i.",  npcTypeID, atoi(sep->argplus[2]));
 		std::string query = StringFormat("UPDATE npc_types SET maxlevel = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "qglobal") == 0) {
-        c->Message(15,"Quest globals have been %s for NPCID %u",  atoi(sep->arg[2]) == 0 ? "disabled" : "enabled",  npcTypeID);
+        c->Message(Chat::Yellow,"Quest globals have been %s for NPCID %u",  atoi(sep->arg[2]) == 0 ? "disabled" : "enabled",  npcTypeID);
 		std::string query = StringFormat("UPDATE npc_types SET qglobal = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "npcaggro") == 0) {
-        c->Message(15,"NPCID %u will now %s other NPCs with negative faction npc_value",  npcTypeID, atoi(sep->arg[2]) == 0? "not aggro": "aggro");
+        c->Message(Chat::Yellow,"NPCID %u will now %s other NPCs with negative faction npc_value",  npcTypeID, atoi(sep->arg[2]) == 0? "not aggro": "aggro");
 		std::string query = StringFormat("UPDATE npc_types SET npc_aggro = %i WHERE id = %i",  atoi(sep->argplus[2]) == 0? 0: 1, npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "spawn_limit") == 0) {
-        c->Message(15,"NPCID %u now has a spawn limit of %i",  npcTypeID, atoi(sep->arg[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a spawn limit of %i",  npcTypeID, atoi(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET spawn_limit = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "Attackspeed") == 0) {
-        c->Message(15,"NPCID %u now has attack_speed set to %f",  npcTypeID, atof(sep->arg[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has attack_speed set to %f",  npcTypeID, atof(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET attack_speed = %f WHERE id = %i",  atof(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "Attackdelay") == 0) {
-		c->Message(15,"NPCID %u now has attack_delay set to %i", npcTypeID,atoi(sep->arg[2]));
+		c->Message(Chat::Yellow,"NPCID %u now has attack_delay set to %i", npcTypeID,atoi(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET attack_delay = %i WHERE id = %i", atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "Attackcount") == 0) {
-		c->Message(15,"NPCID %u now has attack_count set to %i", npcTypeID,atoi(sep->arg[2]));
+		c->Message(Chat::Yellow,"NPCID %u now has attack_count set to %i", npcTypeID,atoi(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET attack_count = %i WHERE id = %i", atoi(sep->argplus[2]),npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "findable") == 0) {
-        c->Message(15,"NPCID %u is now %s",  npcTypeID, atoi(sep->arg[2]) == 0? "not findable": "findable");
+        c->Message(Chat::Yellow,"NPCID %u is now %s",  npcTypeID, atoi(sep->arg[2]) == 0? "not findable": "findable");
 		std::string query = StringFormat("UPDATE npc_types SET findable = %i WHERE id = %i",  atoi(sep->argplus[2]) == 0? 0: 1, npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "trackable") == 0) {
-        c->Message(15,"NPCID %u is now %s",  npcTypeID, atoi(sep->arg[2]) == 0? "not trackable": "trackable");
+        c->Message(Chat::Yellow,"NPCID %u is now %s",  npcTypeID, atoi(sep->arg[2]) == 0? "not trackable": "trackable");
 		std::string query = StringFormat("UPDATE npc_types SET trackable = %i WHERE id = %i",  atoi(sep->argplus[2]) == 0? 0: 1, npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "weapon") == 0) {
-        c->Message(15,"NPCID %u will have item graphic %i set to his primary and item graphic %i set to his secondary on repop.",   npcTypeID, atoi(sep->arg[2]), atoi(sep->arg[3]));
+        c->Message(Chat::Yellow,"NPCID %u will have item graphic %i set to his primary and item graphic %i set to his secondary on repop.",   npcTypeID, atoi(sep->arg[2]), atoi(sep->arg[3]));
 		std::string query = StringFormat("UPDATE npc_types SET d_melee_texture1 = %i, d_melee_texture2 = %i WHERE id = %i",  atoi(sep->arg[2]), atoi(sep->arg[3]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "featuresave") == 0) {
-        c->Message(15,"NPCID %u saved with all current facial feature settings",  npcTypeID);
+        c->Message(Chat::Yellow,"NPCID %u saved with all current facial feature settings",  npcTypeID);
         Mob* target = c->GetTarget();
 		std::string query = StringFormat("UPDATE npc_types "
                                         "SET luclin_haircolor = %i, luclin_beardcolor = %i, "
@@ -6636,14 +8709,14 @@ void command_npcedit(Client *c, const Seperator *sep)
 	}
 
 	if (strcasecmp(sep->arg[1], "color") == 0) {
-        c->Message(15,"NPCID %u now has %i red, %i green, and %i blue tinting on their armor.",  npcTypeID, atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]));
+        c->Message(Chat::Yellow,"NPCID %u now has %i red, %i green, and %i blue tinting on their armor.",  npcTypeID, atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]));
 		std::string query = StringFormat("UPDATE npc_types SET armortint_red = %i, armortint_green = %i, armortint_blue = %i WHERE id = %i",  atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "armortint_id") == 0) {
-        c->Message(15,"NPCID %u now has field 'armortint_id' set to %s",  npcTypeID, sep->arg[2]);
+        c->Message(Chat::Yellow,"NPCID %u now has field 'armortint_id' set to %s",  npcTypeID, sep->arg[2]);
 		std::string query = StringFormat("UPDATE npc_types SET armortint_id = '%s' WHERE id = %i",  sep->argplus[2], npcTypeID);
 		database.QueryDatabase(query);
 		return;
@@ -6663,14 +8736,16 @@ void command_npcedit(Client *c, const Seperator *sep)
 			if((strcasecmp(sep->arg[2], "loot" ) == 0) || atoi(sep->arg[2]) == 4)
 				animation = 4; //Looting Animation
 		} else {
-			c->Message(0, "You must specifiy an animation stand, sit, crouch, dead, loot (0-4)");
-			c->Message(0, "Example: #npcedit setanimation sit");
-			c->Message(0, "Example: #npcedit setanimation 0");
+			c->Message(Chat::White, "You must specifiy an animation stand, sit, crouch, dead, loot (0-4)");
+			c->Message(Chat::White, "Example: #npcedit setanimation sit");
+			c->Message(Chat::White, "Example: #npcedit setanimation 0");
 			return;
 		}
 
-		c->Message(15,"NPCID %u now has the animation set to %i on spawn with spawngroup %i",  npcTypeID, animation, c->GetTarget()->CastToNPC()->GetSp2() );
-		std::string query = StringFormat("UPDATE spawn2 SET animation = %i " "WHERE spawngroupID = %i",  animation, c->GetTarget()->CastToNPC()->GetSp2());
+		c->Message(Chat::Yellow,"NPCID %u now has the animation set to %i on spawn with spawngroup %i",  npcTypeID, animation,
+				   c->GetTarget()->CastToNPC()->GetSpawnGroupId() );
+		std::string query = StringFormat("UPDATE spawn2 SET animation = %i " "WHERE spawngroupID = %i",  animation,
+										 c->GetTarget()->CastToNPC()->GetSpawnGroupId());
 		database.QueryDatabase(query);
 
 		c->GetTarget()->SetAppearance(EmuAppearance(animation));
@@ -6678,49 +8753,49 @@ void command_npcedit(Client *c, const Seperator *sep)
 	}
 
 	if (strcasecmp(sep->arg[1], "scalerate") == 0) {
-        c->Message(15,"NPCID %u now has a scaling rate of %i.",  npcTypeID, atoi(sep->arg[2]));
+        c->Message(Chat::Yellow,"NPCID %u now has a scaling rate of %i.",  npcTypeID, atoi(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET scalerate = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "healscale") == 0) {
-        c->Message(15, "NPCID %u now has a heal scaling rate of %i.",  npcTypeID, atoi(sep->arg[2]));
+        c->Message(Chat::Yellow, "NPCID %u now has a heal scaling rate of %i.",  npcTypeID, atoi(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET healscale = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "spellscale") == 0) {
-        c->Message(15, "NPCID %u now has a spell scaling rate of %i.",  npcTypeID, atoi(sep->arg[2]));
+        c->Message(Chat::Yellow, "NPCID %u now has a spell scaling rate of %i.",  npcTypeID, atoi(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET spellscale = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "no_target") == 0) {
-        c->Message(15, "NPCID %u is now %s.",  npcTypeID, atoi(sep->arg[2]) == 0? "targetable": "untargetable");
+        c->Message(Chat::Yellow, "NPCID %u is now %s.",  npcTypeID, atoi(sep->arg[2]) == 0? "targetable": "untargetable");
 		std::string query = StringFormat("UPDATE npc_types SET no_target_hotkey = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "version") == 0) {
-        c->Message(15, "NPCID %u is now version %i.",  npcTypeID, atoi(sep->arg[2]));
+        c->Message(Chat::Yellow, "NPCID %u is now version %i.",  npcTypeID, atoi(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET version = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "slow_mitigation") == 0) {
-        c->Message(15, "NPCID %u's slow mitigation limit is now %i.",  npcTypeID, atoi(sep->arg[2]));
+        c->Message(Chat::Yellow, "NPCID %u's slow mitigation limit is now %i.",  npcTypeID, atoi(sep->arg[2]));
 		std::string query = StringFormat("UPDATE npc_types SET slow_mitigation = %i WHERE id = %i",  atoi(sep->argplus[2]), npcTypeID);
 		database.QueryDatabase(query);
 		return;
 	}
 
 	if((sep->arg[1][0] == 0 || strcasecmp(sep->arg[1],"*")==0) || ((c->GetTarget()==0) || (c->GetTarget()->IsClient())))
-		c->Message(0, "Type #npcedit help for more info");
+		c->Message(Chat::White, "Type #npcedit help for more info");
 
 }
 
@@ -6747,21 +8822,21 @@ void command_profilereset(Client *c, const Seperator *sep) {
 void command_opcode(Client *c, const Seperator *sep) {
 	if(!strcasecmp(sep->arg[1], "reload" )) {
 		ReloadAllPatches();
-		c->Message(0, "Opcodes for all patches have been reloaded");
+		c->Message(Chat::White, "Opcodes for all patches have been reloaded");
 	}
 }
 
 void command_qglobal(Client *c, const Seperator *sep) {
 	//In-game switch for qglobal column
 	if(sep->arg[1][0] == 0) {
-		c->Message(0, "Syntax: #qglobal [on/off/view]. Requires NPC target.");
+		c->Message(Chat::White, "Syntax: #qglobal [on/off/view]. Requires NPC target.");
 		return;
 	}
 
 	Mob *target = c->GetTarget();
 
 	if(!target || !target->IsNPC()) {
-		c->Message(13, "NPC Target Required!");
+		c->Message(Chat::Red, "NPC Target Required!");
 		return;
 	}
 
@@ -6770,11 +8845,11 @@ void command_qglobal(Client *c, const Seperator *sep) {
                                         target->GetNPCTypeID());
         auto results = database.QueryDatabase(query);
 		if(!results.Success()) {
-			c->Message(15, "Could not update database.");
+			c->Message(Chat::Yellow, "Could not update database.");
 			return;
 		}
 
-        c->Message(15, "Success! Changes take effect on zone reboot.");
+        c->Message(Chat::Yellow, "Success! Changes take effect on zone reboot.");
 		return;
 	}
 
@@ -6783,336 +8858,33 @@ void command_qglobal(Client *c, const Seperator *sep) {
                                         target->GetNPCTypeID());
         auto results = database.QueryDatabase(query);
 		if(!results.Success()) {
-			c->Message(15, "Could not update database.");
+			c->Message(Chat::Yellow, "Could not update database.");
 			return;
 		}
 
-        c->Message(15, "Success! Changes take effect on zone reboot.");
+        c->Message(Chat::Yellow, "Success! Changes take effect on zone reboot.");
 		return;
 	}
 
 	if(!strcasecmp(sep->arg[1], "view")) {
 		const NPCType *type = database.LoadNPCTypesData(target->GetNPCTypeID());
 		if(!type)
-			c->Message(15, "Invalid NPC type.");
+			c->Message(Chat::Yellow, "Invalid NPC type.");
 		else if(type->qglobal)
-			c->Message(15, "This NPC has quest globals active.");
+			c->Message(Chat::Yellow, "This NPC has quest globals active.");
 		else
-			c->Message(15, "This NPC has quest globals disabled.");
+			c->Message(Chat::Yellow, "This NPC has quest globals disabled.");
 		return;
 	}
 
-    c->Message(15, "Invalid action specified.");
+    c->Message(Chat::Yellow, "Invalid action specified.");
 }
 
 void command_path(Client *c, const Seperator *sep)
 {
-	if(sep->arg[1][0] == '\0' || !strcasecmp(sep->arg[1], "help"))
-	{
-		c->Message(0, "Syntax: #path shownodes: Spawns a npc to represent every npc node.");
-		c->Message(0, "#path info node_id: Gives information about node info (requires shownode target).");
-		c->Message(0, "#path dump file_name: Dumps the current zone->pathing to a file of your naming.");
-		c->Message(0, "#path add [requested_id]: Adds a node at your current location will try to take the requested id if possible.");
-		c->Message(0, "#path connect connect_to_id [is_teleport] [door_id]: Connects the currently targeted node to connect_to_id's node and connects that node back (requires shownode target).");
-		c->Message(0, "#path sconnect connect_to_id [is_teleport] [door_id]: Connects the currently targeted node to connect_to_id's node (requires shownode target).");
-		c->Message(0, "#path qconnect [set]: short cut connect, connects the targeted node to the node you set with #path qconnect set (requires shownode target).");
-		c->Message(0, "#path disconnect [all]/disconnect_from_id: Disconnects the currently targeted node to disconnect from disconnect from id's node (requires shownode target), if passed all as the second argument it will disconnect this node from every other node.");
-		c->Message(0, "#path move: Moves your targeted node to your current position");
-		c->Message(0, "#path process file_name: processes the map file and tries to automatically generate a rudimentary path setup and then dumps the current zone->pathing to a file of your naming.");
-		c->Message(0, "#path resort [nodes]: resorts the connections/nodes after you've manually altered them so they'll work.");
-		return;
+	if (zone->pathing) {
+		zone->pathing->DebugCommand(c, sep);
 	}
-	if(!strcasecmp(sep->arg[1], "shownodes"))
-	{
-		if(zone->pathing)
-			zone->pathing->SpawnPathNodes();
-
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "info"))
-	{
-		if(zone->pathing)
-		{
-			zone->pathing->NodeInfo(c);
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "dump"))
-	{
-		if(zone->pathing)
-		{
-			if(sep->arg[2][0] == '\0')
-				return;
-
-			zone->pathing->DumpPath(sep->arg[2]);
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "add"))
-	{
-		if(zone->pathing)
-		{
-			float px = c->GetX();
-			float py = c->GetY();
-			float pz = c->GetZ();
-			float best_z;
-
-			if(zone->zonemap)
-			{
-				glm::vec3 loc(px, py, pz);
-				best_z = zone->zonemap->FindBestZ(loc, nullptr);
-			}
-			else
-			{
-				best_z = pz;
-			}
-			int32 res = zone->pathing->AddNode(px, py, pz, best_z, atoi(sep->arg[2]));
-			if(res >= 0)
-			{
-				c->Message(0, "Added Path Node: %i",  res);
-			}
-			else
-			{
-				c->Message(0, "Failed to add Path Node");
-			}
-		}
-		else
-		{
-			zone->pathing = new PathManager();
-			float px = c->GetX();
-			float py = c->GetY();
-			float pz = c->GetZ();
-			float best_z;
-
-			if(zone->zonemap)
-			{
-				glm::vec3 loc(px, py, pz);
-				best_z = zone->zonemap->FindBestZ(loc, nullptr);
-			}
-			else
-			{
-				best_z = pz;
-			}
-			int32 res = zone->pathing->AddNode(px, py, pz, best_z, atoi(sep->arg[2]));
-			if(res >= 0)
-			{
-				c->Message(0, "Added Path Node: %i",  res);
-			}
-			else
-			{
-				c->Message(0, "Failed to add Path Node");
-			}
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "remove"))
-	{
-		if(zone->pathing)
-		{
-			if(zone->pathing->DeleteNode(c))
-			{
-				c->Message(0, "Removed Node.");
-			}
-			else
-			{
-				c->Message(0, "Unable to Remove Node.");
-			}
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "connect"))
-	{
-		if(zone->pathing)
-		{
-			zone->pathing->ConnectNodeToNode(c, atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]));
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "sconnect"))
-	{
-		if(zone->pathing)
-		{
-			zone->pathing->ConnectNode(c, atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]));
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "qconnect"))
-	{
-		if(zone->pathing)
-		{
-			if(!strcasecmp(sep->arg[2], "set"))
-			{
-				zone->pathing->QuickConnect(c, true);
-			}
-			else
-			{
-				zone->pathing->QuickConnect(c, false);
-			}
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "disconnect"))
-	{
-		if(zone->pathing)
-		{
-			if(!strcasecmp(sep->arg[2], "all"))
-			{
-				zone->pathing->DisconnectAll(c);
-			}
-			else
-			{
-				zone->pathing->DisconnectNodeToNode(c, atoi(sep->arg[2]));
-			}
-		}
-		return;
-	}
-
-
-	if(!strcasecmp(sep->arg[1], "move"))
-	{
-		if(zone->pathing)
-		{
-			zone->pathing->MoveNode(c);
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "process"))
-	{
-		if(zone->pathing)
-		{
-			if(sep->arg[2][0] == '\0')
-				return;
-
-			zone->pathing->ProcessNodesAndSave(sep->arg[2]);
-			c->Message(0, "Path processed...");
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "resort"))
-	{
-		if(zone->pathing)
-		{
-			if(!strcasecmp(sep->arg[2], "nodes"))
-			{
-				zone->pathing->SortNodes();
-				c->Message(0, "Nodes resorted...");
-			}
-			else
-			{
-				zone->pathing->ResortConnections();
-				c->Message(0, "Connections resorted...");
-			}
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "hazard"))
-	{
-		if(zone->pathing)
-		{
-			if(c && c->GetTarget())
-			{
-				if (zone->pathing->NoHazardsAccurate(glm::vec3(c->GetX(), c->GetY(), c->GetZ()),
-					glm::vec3(c->GetTarget()->GetX(), c->GetTarget()->GetY(), c->GetTarget()->GetZ())))
-				{
-					c->Message(0, "No hazards.");
-				}
-				else
-				{
-					c->Message(0, "Hazard Detected...");
-				}
-			}
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "print"))
-	{
-		if(zone->pathing)
-		{
-			zone->pathing->PrintPathing();
-		}
-		return;
-	}
-
-	if(!strcasecmp(sep->arg[1], "showneighbours") || !strcasecmp(sep->arg[1], "showneighbors"))
-	{
-		if(!c->GetTarget())
-		{
-			c->Message(0, "First #path shownodes to spawn the pathnodes, and then target one of them.");
-			return;
-		}
-		if(zone->pathing)
-		{
-			zone->pathing->ShowPathNodeNeighbours(c);
-			return;
-		}
-	}
-	if(!strcasecmp(sep->arg[1], "meshtest"))
-	{
-		if(zone->pathing)
-		{
-			if(!strcasecmp(sep->arg[2], "simple"))
-			{
-				c->Message(0, "You may go linkdead. Results will be in the log file.");
-				zone->pathing->SimpleMeshTest();
-				return;
-			}
-			else
-			{
-				c->Message(0, "You may go linkdead. Results will be in the log file.");
-				zone->pathing->MeshTest();
-				return;
-			}
-		}
-	}
-
-	if(!strcasecmp(sep->arg[1], "allspawns"))
-	{
-		if(zone->pathing)
-		{
-			c->Message(0, "You may go linkdead. Results will be in the log file.");
-			entity_list.FindPathsToAllNPCs();
-			return;
-		}
-	}
-
-	if(!strcasecmp(sep->arg[1], "nearest"))
-	{
-		if(!c->GetTarget() || !c->GetTarget()->IsMob())
-		{
-			c->Message(0, "You must target something.");
-			return;
-		}
-
-		if(zone->pathing)
-		{
-			Mob *m = c->GetTarget();
-
-			glm::vec3 Position(m->GetX(), m->GetY(), m->GetZ());
-
-			int Node = zone->pathing->FindNearestPathNode(Position);
-
-			if(Node == -1)
-				c->Message(0, "Unable to locate a path node within range.");
-			else
-				c->Message(0, "Nearest path node is %i",  Node);
-
-			return;
-		}
-	}
-
-	c->Message(0, "Unknown path command.");
 }
 
 void Client::Undye() {
@@ -7140,7 +8912,91 @@ void command_undye(Client *c, const Seperator *sep)
 	}
 	else
 	{
-		c->Message(0, "ERROR: Client target required");
+		c->Message(Chat::White, "ERROR: Client target required");
+	}
+}
+
+void command_ucs(Client *c, const Seperator *sep)
+{
+	if (!c)
+		return;
+
+	LogInfo("Character [{}] attempting ucs reconnect while ucs server is [{}] available",
+		c->GetName(), (zone->IsUCSServerAvailable() ? "" : "un"));
+
+	if (zone->IsUCSServerAvailable()) {
+		EQApplicationPacket* outapp = nullptr;
+		std::string buffer;
+
+		std::string MailKey = database.GetMailKey(c->CharacterID(), true);
+		EQEmu::versions::UCSVersion ConnectionType = EQEmu::versions::ucsUnknown;
+
+		// chat server packet
+		switch (c->ClientVersion()) {
+		case EQEmu::versions::ClientVersion::Titanium:
+			ConnectionType = EQEmu::versions::ucsTitaniumChat;
+			break;
+		case EQEmu::versions::ClientVersion::SoF:
+			ConnectionType = EQEmu::versions::ucsSoFCombined;
+			break;
+		case EQEmu::versions::ClientVersion::SoD:
+			ConnectionType = EQEmu::versions::ucsSoDCombined;
+			break;
+		case EQEmu::versions::ClientVersion::UF:
+			ConnectionType = EQEmu::versions::ucsUFCombined;
+			break;
+		case EQEmu::versions::ClientVersion::RoF:
+			ConnectionType = EQEmu::versions::ucsRoFCombined;
+			break;
+		case EQEmu::versions::ClientVersion::RoF2:
+			ConnectionType = EQEmu::versions::ucsRoF2Combined;
+			break;
+		default:
+			ConnectionType = EQEmu::versions::ucsUnknown;
+			break;
+		}
+
+		buffer = StringFormat("%s,%i,%s.%s,%c%s",
+			Config->ChatHost.c_str(),
+			Config->ChatPort,
+			Config->ShortName.c_str(),
+			c->GetName(),
+			ConnectionType,
+			MailKey.c_str()
+		);
+
+		outapp = new EQApplicationPacket(OP_SetChatServer, (buffer.length() + 1));
+		memcpy(outapp->pBuffer, buffer.c_str(), buffer.length());
+		outapp->pBuffer[buffer.length()] = '\0';
+
+		c->QueuePacket(outapp);
+		safe_delete(outapp);
+
+		// mail server packet
+		switch (c->ClientVersion()) {
+		case EQEmu::versions::ClientVersion::Titanium:
+			ConnectionType = EQEmu::versions::ucsTitaniumMail;
+			break;
+		default:
+			// retain value from previous switch
+			break;
+		}
+
+		buffer = StringFormat("%s,%i,%s.%s,%c%s",
+			Config->MailHost.c_str(),
+			Config->MailPort,
+			Config->ShortName.c_str(),
+			c->GetName(),
+			ConnectionType,
+			MailKey.c_str()
+		);
+
+		outapp = new EQApplicationPacket(OP_SetChatServer2, (buffer.length() + 1));
+		memcpy(outapp->pBuffer, buffer.c_str(), buffer.length());
+		outapp->pBuffer[buffer.length()] = '\0';
+
+		c->QueuePacket(outapp);
+		safe_delete(outapp);
 	}
 }
 
@@ -7148,7 +9004,7 @@ void command_undyeme(Client *c, const Seperator *sep)
 {
 	if(c) {
 		c->Undye();
-		c->Message(13, "Dye removed from all slots. Please zone for the process to complete.");
+		c->Message(Chat::Red, "Dye removed from all slots. Please zone for the process to complete.");
 	}
 }
 
@@ -7163,23 +9019,23 @@ void command_ginfo(Client *c, const Seperator *sep)
 
 	Group *g = t->GetGroup();
 	if(!g) {
-		c->Message(0, "This client is not in a group");
+		c->Message(Chat::White, "This client is not in a group");
 		return;
 	}
 
-	c->Message(0, "Player: %s is in Group #%lu: with %i members",  t->GetName(), (unsigned long)g->GetID(), g->GroupCount());
+	c->Message(Chat::White, "Player: %s is in Group #%lu: with %i members",  t->GetName(), (unsigned long)g->GetID(), g->GroupCount());
 
 	uint32 r;
 	for(r = 0; r < MAX_GROUP_MEMBERS; r++) {
 		if(g->members[r] == nullptr) {
 			if(g->membername[r][0] == '\0')
 				continue;
-			c->Message(0, "...Zoned Member: %s, Roles: %s %s %s",  g->membername[r],
+			c->Message(Chat::White, "...Zoned Member: %s, Roles: %s %s %s",  g->membername[r],
 				(g->MemberRoles[r] & RoleAssist) ? "Assist" : "",
 				(g->MemberRoles[r] & RoleTank) ? "Tank" : "",
 				(g->MemberRoles[r] & RolePuller) ? "Puller" : "");
 		} else {
-			c->Message(0, "...In-Zone Member: %s (0x%x) Roles: %s %s %s",  g->membername[r], g->members[r],
+			c->Message(Chat::White, "...In-Zone Member: %s (0x%x) Roles: %s %s %s",  g->membername[r], g->members[r],
 				(g->MemberRoles[r] & RoleAssist) ? "Assist" : "",
 				(g->MemberRoles[r] & RoleTank) ? "Tank" : "",
 				(g->MemberRoles[r] & RolePuller) ? "Puller" : "");
@@ -7191,18 +9047,18 @@ void command_ginfo(Client *c, const Seperator *sep)
 void command_hp(Client *c, const Seperator *sep)
 {
 	c->SendHPUpdate();
-	c->SendManaUpdatePacket();
+	c->CheckManaEndUpdate();
 }
 
 void command_aggro(Client *c, const Seperator *sep)
 {
 	if(c->GetTarget() == nullptr || !c->GetTarget()->IsNPC()) {
-		c->Message(0, "Error: you must have an NPC target.");
+		c->Message(Chat::White, "Error: you must have an NPC target.");
 		return;
 	}
 	float d = atof(sep->arg[1]);
 	if(d == 0.0f) {
-		c->Message(13, "Error: distance argument required.");
+		c->Message(Chat::Red, "Error: distance argument required.");
 		return;
 	}
 	bool verbose = false;
@@ -7218,20 +9074,18 @@ void command_pf(Client *c, const Seperator *sep)
 	if(c->GetTarget())
 	{
 		Mob *who = c->GetTarget();
-		c->Message(0, "POS: (%.2f, %.2f, %.2f)",  who->GetX(), who->GetY(), who->GetZ());
-		c->Message(0, "WP: %s (%d/%d)",  to_string(who->GetCurrentWayPoint()).c_str(), who->IsNPC()?who->CastToNPC()->GetMaxWp():-1);
-		c->Message(0, "TAR: (%.2f, %.2f, %.2f)",  who->GetTarX(), who->GetTarY(), who->GetTarZ());
-		c->Message(0, "TARV: (%.2f, %.2f, %.2f)",  who->GetTarVX(), who->GetTarVY(), who->GetTarVZ());
-		c->Message(0, "|TV|=%.2f index=%d",  who->GetTarVector(), who->GetTarNDX());
-		c->Message(0, "pause=%d RAspeed=%d",  who->GetCWPP(), who->GetRunAnimSpeed());
+		c->Message(Chat::White, "POS: (%.2f, %.2f, %.2f)",  who->GetX(), who->GetY(), who->GetZ());
+		c->Message(Chat::White, "WP: %s (%d/%d)",  to_string(who->GetCurrentWayPoint()).c_str(), who->IsNPC()?who->CastToNPC()->GetMaxWp():-1);
+		c->Message(Chat::White, "pause=%d RAspeed=%d",  who->GetCWPP(), who->GetRunAnimSpeed());
+		//who->DumpMovement(c);
 	} else {
-		c->Message(0, "ERROR: target required");
+		c->Message(Chat::White, "ERROR: target required");
 	}
 }
 
 void command_bestz(Client *c, const Seperator *sep) {
 	if (zone->zonemap == nullptr) {
-		c->Message(0,"Map not loaded for this zone");
+		c->Message(Chat::White,"Map not loaded for this zone");
 	} else {
 		glm::vec3 me;
 		me.x = c->GetX();
@@ -7243,18 +9097,18 @@ void command_bestz(Client *c, const Seperator *sep) {
 
 		float best_z = zone->zonemap->FindBestZ(me, &hit);
 
-		if (best_z != -999999)
+		if (best_z != BEST_Z_INVALID)
 		{
-			c->Message(0, "Z is %.3f at (%.3f, %.3f).",  best_z, me.x, me.y);
+			c->Message(Chat::White, "Z is %.3f at (%.3f, %.3f).",  best_z, me.x, me.y);
 		}
 		else
 		{
-			c->Message(0, "Found no Z.");
+			c->Message(Chat::White, "Found no Z.");
 		}
 	}
 
 	if(zone->watermap == nullptr) {
-		c->Message(0,"Water Region Map not loaded for this zone");
+		c->Message(Chat::White,"Water Region Map not loaded for this zone");
 	} else {
 		WaterRegionType RegionType;
 		float z;
@@ -7263,28 +9117,28 @@ void command_bestz(Client *c, const Seperator *sep) {
 			z=c->GetTarget()->GetZ();
 			auto position = glm::vec3(c->GetTarget()->GetX(), c->GetTarget()->GetY(), z);
 			RegionType = zone->watermap->ReturnRegionType(position);
-			c->Message(0,"InWater returns %d",  zone->watermap->InWater(position));
-			c->Message(0,"InLava returns %d",  zone->watermap->InLava(position));
+			c->Message(Chat::White,"InWater returns %d",  zone->watermap->InWater(position));
+			c->Message(Chat::White,"InLava returns %d",  zone->watermap->InLava(position));
 
 		}
 		else {
 			z=c->GetZ();
 			auto position = glm::vec3(c->GetX(), c->GetY(), z);
 			RegionType = zone->watermap->ReturnRegionType(position);
-			c->Message(0,"InWater returns %d",  zone->watermap->InWater(position));
-			c->Message(0,"InLava returns %d",  zone->watermap->InLava(position));
+			c->Message(Chat::White,"InWater returns %d",  zone->watermap->InWater(position));
+			c->Message(Chat::White,"InLava returns %d",  zone->watermap->InLava(position));
 
 		}
 
 		switch(RegionType) {
-			case RegionTypeNormal:	{ c->Message(0,"There is nothing special about the region you are in!"); break; }
-			case RegionTypeWater:	{ c->Message(0,"You/your target are in Water."); break; }
-			case RegionTypeLava:	{ c->Message(0,"You/your target are in Lava."); break; }
-			case RegionTypeVWater:	{ c->Message(0,"You/your target are in VWater (Icy Water?)."); break; }
-			case RegionTypePVP:	{ c->Message(0, "You/your target are in a pvp enabled area."); break; }
-			case RegionTypeSlime:	{ c->Message(0, "You/your target are in slime."); break; }
-			case RegionTypeIce:	{ c->Message(0, "You/your target are in ice."); break; }
-			default: c->Message(0,"You/your target are in an unknown region type.");
+			case RegionTypeNormal:	{ c->Message(Chat::White,"There is nothing special about the region you are in!"); break; }
+			case RegionTypeWater:	{ c->Message(Chat::White,"You/your target are in Water."); break; }
+			case RegionTypeLava:	{ c->Message(Chat::White,"You/your target are in Lava."); break; }
+			case RegionTypeVWater:	{ c->Message(Chat::White,"You/your target are in VWater (Icy Water?)."); break; }
+			case RegionTypePVP:	{ c->Message(Chat::White, "You/your target are in a pvp enabled area."); break; }
+			case RegionTypeSlime:	{ c->Message(Chat::White, "You/your target are in slime."); break; }
+			case RegionTypeIce:	{ c->Message(Chat::White, "You/your target are in ice."); break; }
+			default: c->Message(Chat::White,"You/your target are in an unknown region type.");
 		}
 	}
 
@@ -7293,7 +9147,7 @@ void command_bestz(Client *c, const Seperator *sep) {
 
 
 void command_reloadstatic(Client *c, const Seperator *sep) {
-	c->Message(0, "Reloading zone static data...");
+	c->Message(Chat::White, "Reloading zone static data...");
 	zone->ReloadStaticData();
 }
 
@@ -7312,13 +9166,13 @@ void command_flags(Client *c, const Seperator *sep) {
 void command_flagedit(Client *c, const Seperator *sep) {
 	//super-command for editing zone flags
 	if(sep->arg[1][0] == '\0' || !strcasecmp(sep->arg[1], "help")) {
-		c->Message(0, "Syntax: #flagedit [lockzone|unlockzone|listzones|give|take].");
-		c->Message(0, "...lockzone [zone id/short] [flag name] - Set the specified flag name on the zone, locking the zone");
-		c->Message(0, "...unlockzone [zone id/short] - Removes the flag requirement from the specified zone");
-		c->Message(0, "...listzones - List all zones which require a flag, and their flag's name");
-		c->Message(0, "...give [zone id/short] - Give your target the zone flag for the specified zone.");
-		c->Message(0, "...take [zone id/short] - Take the zone flag for the specified zone away from your target");
-		c->Message(0, "...Note: use #flags to view flags on a person");
+		c->Message(Chat::White, "Syntax: #flagedit [lockzone|unlockzone|listzones|give|take].");
+		c->Message(Chat::White, "...lockzone [zone id/short] [flag name] - Set the specified flag name on the zone, locking the zone");
+		c->Message(Chat::White, "...unlockzone [zone id/short] - Removes the flag requirement from the specified zone");
+		c->Message(Chat::White, "...listzones - List all zones which require a flag, and their flag's name");
+		c->Message(Chat::White, "...give [zone id/short] - Give your target the zone flag for the specified zone.");
+		c->Message(Chat::White, "...take [zone id/short] - Take the zone flag for the specified zone away from your target");
+		c->Message(Chat::White, "...Note: use #flags to view flags on a person");
 		return;
 	}
 
@@ -7331,13 +9185,13 @@ void command_flagedit(Client *c, const Seperator *sep) {
 			}
 		}
 		if(zoneid < 1) {
-			c->Message(13, "zone required. see help.");
+			c->Message(Chat::Red, "zone required. see help.");
 			return;
 		}
 
 		char flag_name[128];
 		if(sep->argplus[3][0] == '\0') {
-			c->Message(13, "flag name required. see help.");
+			c->Message(Chat::Red, "flag name required. see help.");
 			return;
 		}
 		database.DoEscapeString(flag_name, sep->argplus[3], 64);
@@ -7348,11 +9202,11 @@ void command_flagedit(Client *c, const Seperator *sep) {
                                         flag_name, zoneid, zone->GetInstanceVersion());
         auto results = database.QueryDatabase(query);
 		if(!results.Success()) {
-			c->Message(13, "Error updating zone: %s",  results.ErrorMessage().c_str());
+			c->Message(Chat::Red, "Error updating zone: %s",  results.ErrorMessage().c_str());
 			return;
 		}
 
-        c->Message(15, "Success! Zone %s now requires a flag, named %s",  database.GetZoneName(zoneid), flag_name);
+        c->Message(Chat::Yellow, "Success! Zone %s now requires a flag, named %s",  database.GetZoneName(zoneid), flag_name);
         return;
 	}
 
@@ -7366,7 +9220,7 @@ void command_flagedit(Client *c, const Seperator *sep) {
 		}
 
 		if(zoneid < 1) {
-			c->Message(13, "zone required. see help.");
+			c->Message(Chat::Red, "zone required. see help.");
 			return;
 		}
 
@@ -7375,11 +9229,11 @@ void command_flagedit(Client *c, const Seperator *sep) {
                                         zoneid, zone->GetInstanceVersion());
         auto results = database.QueryDatabase(query);
 		if(!results.Success()) {
-			c->Message(15, "Error updating zone: %s",  results.ErrorMessage().c_str());
+			c->Message(Chat::Yellow, "Error updating zone: %s",  results.ErrorMessage().c_str());
 			return;
 		}
 
-        c->Message(15, "Success! Zone %s no longer requires a flag.",  database.GetZoneName(zoneid));
+        c->Message(Chat::Yellow, "Success! Zone %s no longer requires a flag.",  database.GetZoneName(zoneid));
         return;
 	}
 
@@ -7391,9 +9245,9 @@ void command_flagedit(Client *c, const Seperator *sep) {
             return;
         }
 
-        c->Message(0, "Zones which require flags:");
+        c->Message(Chat::White, "Zones which require flags:");
         for (auto row = results.begin(); row != results.end(); ++row)
-            c->Message(0, "Zone %s (%s,%s) version %s requires key %s",  row[2], row[0], row[1], row[3], row[4]);
+            c->Message(Chat::White, "Zone %s (%s,%s) version %s requires key %s",  row[2], row[0], row[1], row[3], row[4]);
 
         return;
 	}
@@ -7407,13 +9261,13 @@ void command_flagedit(Client *c, const Seperator *sep) {
 			}
 		}
 		if(zoneid < 1) {
-			c->Message(13, "zone required. see help.");
+			c->Message(Chat::Red, "zone required. see help.");
 			return;
 		}
 
 		Mob *t = c->GetTarget();
 		if(t == nullptr || !t->IsClient()) {
-			c->Message(13, "client target required");
+			c->Message(Chat::Red, "client target required");
 			return;
 		}
 
@@ -7430,13 +9284,13 @@ void command_flagedit(Client *c, const Seperator *sep) {
 			}
 		}
 		if(zoneid < 1) {
-			c->Message(13, "zone required. see help.");
+			c->Message(Chat::Red, "zone required. see help.");
 			return;
 		}
 
 		Mob *t = c->GetTarget();
 		if(t == nullptr || !t->IsClient()) {
-			c->Message(13, "client target required");
+			c->Message(Chat::Red, "client target required");
 			return;
 		}
 
@@ -7444,7 +9298,7 @@ void command_flagedit(Client *c, const Seperator *sep) {
 		return;
 	}
 
-    c->Message(15, "Invalid action specified. use '#flagedit help' for help");
+    c->Message(Chat::Yellow, "Invalid action specified. use '#flagedit help' for help");
 }
 
 void command_serverrules(Client *c, const Seperator *sep)
@@ -7458,7 +9312,7 @@ void command_acceptrules(Client *c, const Seperator *sep)
 	{
 		database.SetAgreementFlag(c->AccountID());
 		c->SendAppearancePacket(AT_Anim, ANIM_STAND);
-		c->Message(0,"It is recorded you have agreed to the rules.");
+		c->Message(Chat::White,"It is recorded you have agreed to the rules.");
 	}
 }
 
@@ -7470,7 +9324,7 @@ void command_guildcreate(Client *c, const Seperator *sep)
 	}
 	else
 	{
-		c->Message(0,"Guild name must be more than 4 characters and less than 16.");
+		c->Message(Chat::White,"Guild name must be more than 4 characters and less than 16.");
 	}
 }
 
@@ -7487,17 +9341,17 @@ void command_guildlist(Client *c, const Seperator *sep)
 		tmp->ApprovedMembers(c);
 	}
 	else
-		c->Message(0,"Could not find reference id.");
+		c->Message(Chat::White,"Could not find reference id.");
 }
 
 void command_hatelist(Client *c, const Seperator *sep) {
 	Mob *target = c->GetTarget();
 	if(target == nullptr) {
-		c->Message(0, "Error: you must have a target.");
+		c->Message(Chat::White, "Error: you must have a target.");
 		return;
 	}
 
-	c->Message(0, "Display hate list for %s..",  target->GetName());
+	c->Message(Chat::White, "Display hate list for %s..",  target->GetName());
 	target->PrintHateListToClient(c);
 }
 
@@ -7505,142 +9359,142 @@ void command_hatelist(Client *c, const Seperator *sep) {
 void command_rules(Client *c, const Seperator *sep) {
 	//super-command for managing rules settings
 	if(sep->arg[1][0] == '\0' || !strcasecmp(sep->arg[1], "help")) {
-		c->Message(0, "Syntax: #rules [subcommand].");
-		c->Message(0, "-- Rule Set Manipulation --");
-		c->Message(0, "...listsets - List avaliable rule sets");
-		c->Message(0, "...current - gives the name of the ruleset currently running in this zone");
-		c->Message(0, "...reload - Reload the selected ruleset in this zone");
-		c->Message(0, "...switch (ruleset name) - Change the selected ruleset and load it");
-		c->Message(0, "...load (ruleset name) - Load a ruleset in just this zone without changing the selected set");
+		c->Message(Chat::White, "Syntax: #rules [subcommand].");
+		c->Message(Chat::White, "-- Rule Set Manipulation --");
+		c->Message(Chat::White, "...listsets - List avaliable rule sets");
+		c->Message(Chat::White, "...current - gives the name of the ruleset currently running in this zone");
+		c->Message(Chat::White, "...reload - Reload the selected ruleset in this zone");
+		c->Message(Chat::White, "...switch (ruleset name) - Change the selected ruleset and load it");
+		c->Message(Chat::White, "...load (ruleset name) - Load a ruleset in just this zone without changing the selected set");
 //too lazy to write this right now:
-//		c->Message(0, "...wload (ruleset name) - Load a ruleset in all zones without changing the selected set");
-		c->Message(0, "...store [ruleset name] - Store the running ruleset as the specified name");
-		c->Message(0, "---------------------");
-		c->Message(0, "-- Running Rule Manipulation --");
-		c->Message(0, "...reset - Reset all rules to their default values");
-		c->Message(0, "...get [rule] - Get the specified rule's local value");
-		c->Message(0, "...set (rule) (value) - Set the specified rule to the specified value locally only");
-		c->Message(0, "...setdb (rule) (value) - Set the specified rule to the specified value locally and in the DB");
-		c->Message(0, "...list [catname] - List all rules in the specified category (or all categiries if omitted)");
-		c->Message(0, "...values [catname] - List the value of all rules in the specified category");
+//		c->Message(Chat::White, "...wload (ruleset name) - Load a ruleset in all zones without changing the selected set");
+		c->Message(Chat::White, "...store [ruleset name] - Store the running ruleset as the specified name");
+		c->Message(Chat::White, "---------------------");
+		c->Message(Chat::White, "-- Running Rule Manipulation --");
+		c->Message(Chat::White, "...reset - Reset all rules to their default values");
+		c->Message(Chat::White, "...get [rule] - Get the specified rule's local value");
+		c->Message(Chat::White, "...set (rule) (value) - Set the specified rule to the specified value locally only");
+		c->Message(Chat::White, "...setdb (rule) (value) - Set the specified rule to the specified value locally and in the DB");
+		c->Message(Chat::White, "...list [catname] - List all rules in the specified category (or all categiries if omitted)");
+		c->Message(Chat::White, "...values [catname] - List the value of all rules in the specified category");
 		return;
 	}
 
 	if(!strcasecmp(sep->arg[1], "current")) {
-		c->Message(0, "Currently running ruleset '%s' (%d)",  RuleManager::Instance()->GetActiveRuleset(),
+		c->Message(Chat::White, "Currently running ruleset '%s' (%d)",  RuleManager::Instance()->GetActiveRuleset(),
 			RuleManager::Instance()->GetActiveRulesetID());
 	} else if(!strcasecmp(sep->arg[1], "listsets")) {
 		std::map<int, std::string> sets;
 		if(!RuleManager::Instance()->ListRulesets(&database, sets)) {
-			c->Message(13, "Failed to list rule sets!");
+			c->Message(Chat::Red, "Failed to list rule sets!");
 			return;
 		}
 
-		c->Message(0, "Avaliable rule sets:");
+		c->Message(Chat::White, "Avaliable rule sets:");
 		std::map<int, std::string>::iterator cur, end;
 		cur = sets.begin();
 		end = sets.end();
 		for(; cur != end; ++cur) {
-			c->Message(0, "(%d) %s",  cur->first, cur->second.c_str());
+			c->Message(Chat::White, "(%d) %s",  cur->first, cur->second.c_str());
 		}
 	} else if(!strcasecmp(sep->arg[1], "reload")) {
-		RuleManager::Instance()->LoadRules(&database, RuleManager::Instance()->GetActiveRuleset());
-		c->Message(0, "The active ruleset (%s (%d)) has been reloaded",  RuleManager::Instance()->GetActiveRuleset(),
+		RuleManager::Instance()->LoadRules(&database, RuleManager::Instance()->GetActiveRuleset(), true);
+		c->Message(Chat::White, "The active ruleset (%s (%d)) has been reloaded",  RuleManager::Instance()->GetActiveRuleset(),
 			RuleManager::Instance()->GetActiveRulesetID());
 	} else if(!strcasecmp(sep->arg[1], "switch")) {
 		//make sure this is a valid rule set..
 		int rsid = RuleManager::Instance()->GetRulesetID(&database, sep->arg[2]);
 		if(rsid < 0) {
-			c->Message(13, "Unknown rule set '%s'",  sep->arg[2]);
+			c->Message(Chat::Red, "Unknown rule set '%s'",  sep->arg[2]);
 			return;
 		}
 		if(!database.SetVariable("RuleSet",  sep->arg[2])) {
-			c->Message(13, "Failed to update variables table to change selected rule set");
+			c->Message(Chat::Red, "Failed to update variables table to change selected rule set");
 			return;
 		}
 
 		//TODO: we likely want to reload this ruleset everywhere...
-		RuleManager::Instance()->LoadRules(&database, sep->arg[2]);
+		RuleManager::Instance()->LoadRules(&database, sep->arg[2], true);
 
-		c->Message(0, "The selected ruleset has been changed to (%s (%d)) and reloaded locally",  sep->arg[2], rsid);
+		c->Message(Chat::White, "The selected ruleset has been changed to (%s (%d)) and reloaded locally",  sep->arg[2], rsid);
 	} else if(!strcasecmp(sep->arg[1], "load")) {
 		//make sure this is a valid rule set..
 		int rsid = RuleManager::Instance()->GetRulesetID(&database, sep->arg[2]);
 		if(rsid < 0) {
-			c->Message(13, "Unknown rule set '%s'",  sep->arg[2]);
+			c->Message(Chat::Red, "Unknown rule set '%s'",  sep->arg[2]);
 			return;
 		}
-		RuleManager::Instance()->LoadRules(&database, sep->arg[2]);
-		c->Message(0, "Loaded ruleset '%s' (%d) locally",  sep->arg[2], rsid);
+		RuleManager::Instance()->LoadRules(&database, sep->arg[2], true);
+		c->Message(Chat::White, "Loaded ruleset '%s' (%d) locally",  sep->arg[2], rsid);
 	} else if(!strcasecmp(sep->arg[1], "store")) {
 		if(sep->argnum == 1) {
 			//store current rule set.
 			RuleManager::Instance()->SaveRules(&database);
-			c->Message(0, "Rules saved");
+			c->Message(Chat::White, "Rules saved");
 		} else if(sep->argnum == 2) {
 			RuleManager::Instance()->SaveRules(&database, sep->arg[2]);
 			int prersid = RuleManager::Instance()->GetActiveRulesetID();
 			int rsid = RuleManager::Instance()->GetRulesetID(&database, sep->arg[2]);
 			if(rsid < 0) {
-				c->Message(13, "Unable to query ruleset ID after store, it most likely failed.");
+				c->Message(Chat::Red, "Unable to query ruleset ID after store, it most likely failed.");
 			} else {
-				c->Message(0, "Stored rules as ruleset '%s' (%d)",  sep->arg[2], rsid);
+				c->Message(Chat::White, "Stored rules as ruleset '%s' (%d)",  sep->arg[2], rsid);
 				if(prersid != rsid) {
-					c->Message(0, "Rule set %s (%d) is now active in this zone",  sep->arg[2], rsid);
+					c->Message(Chat::White, "Rule set %s (%d) is now active in this zone",  sep->arg[2], rsid);
 				}
 			}
 		} else {
-			c->Message(13, "Invalid argument count, see help.");
+			c->Message(Chat::Red, "Invalid argument count, see help.");
 			return;
 		}
 	} else if(!strcasecmp(sep->arg[1], "reset")) {
-		RuleManager::Instance()->ResetRules();
-		c->Message(0, "The running ruleset has been set to defaults");
+		RuleManager::Instance()->ResetRules(true);
+		c->Message(Chat::White, "The running ruleset has been set to defaults");
 
 	} else if(!strcasecmp(sep->arg[1], "get")) {
 		if(sep->argnum != 2) {
-			c->Message(13, "Invalid argument count, see help.");
+			c->Message(Chat::Red, "Invalid argument count, see help.");
 			return;
 		}
 		std::string value;
 		if(!RuleManager::Instance()->GetRule(sep->arg[2], value))
-			c->Message(13, "Unable to find rule %s",  sep->arg[2]);
+			c->Message(Chat::Red, "Unable to find rule %s",  sep->arg[2]);
 		else
-			c->Message(0, "%s - %s",  sep->arg[2], value.c_str());
+			c->Message(Chat::White, "%s - %s",  sep->arg[2], value.c_str());
 
 	} else if(!strcasecmp(sep->arg[1], "set")) {
 		if(sep->argnum != 3) {
-			c->Message(13, "Invalid argument count, see help.");
+			c->Message(Chat::Red, "Invalid argument count, see help.");
 			return;
 		}
-		if(!RuleManager::Instance()->SetRule(sep->arg[2], sep->arg[3])) {
-			c->Message(13, "Failed to modify rule");
+		if(!RuleManager::Instance()->SetRule(sep->arg[2], sep->arg[3], nullptr, false, true)) {
+			c->Message(Chat::Red, "Failed to modify rule");
 		} else {
-			c->Message(0, "Rule modified locally.");
+			c->Message(Chat::White, "Rule modified locally.");
 		}
 	} else if(!strcasecmp(sep->arg[1], "setdb")) {
 		if(sep->argnum != 3) {
-			c->Message(13, "Invalid argument count, see help.");
+			c->Message(Chat::Red, "Invalid argument count, see help.");
 			return;
 		}
-		if(!RuleManager::Instance()->SetRule(sep->arg[2], sep->arg[3], &database, true)) {
-			c->Message(13, "Failed to modify rule");
+		if(!RuleManager::Instance()->SetRule(sep->arg[2], sep->arg[3], &database, true, true)) {
+			c->Message(Chat::Red, "Failed to modify rule");
 		} else {
-			c->Message(0, "Rule modified locally and in the database.");
+			c->Message(Chat::White, "Rule modified locally and in the database.");
 		}
 	} else if(!strcasecmp(sep->arg[1], "list")) {
 		if(sep->argnum == 1) {
 			std::vector<const char *> rule_list;
 			if(!RuleManager::Instance()->ListCategories(rule_list)) {
-				c->Message(13, "Failed to list categories!");
+				c->Message(Chat::Red, "Failed to list categories!");
 				return;
 			}
-			c->Message(0, "Rule Categories:");
+			c->Message(Chat::White, "Rule Categories:");
 			std::vector<const char *>::iterator cur, end;
 			cur = rule_list.begin();
 			end = rule_list.end();
 			for(; cur != end; ++cur) {
-				c->Message(0, " %s",  *cur);
+				c->Message(Chat::White, " %s",  *cur);
 			}
 		} else if(sep->argnum == 2) {
 			const char *catfilt = nullptr;
@@ -7648,22 +9502,22 @@ void command_rules(Client *c, const Seperator *sep) {
 				catfilt = sep->arg[2];
 			std::vector<const char *> rule_list;
 			if(!RuleManager::Instance()->ListRules(catfilt, rule_list)) {
-				c->Message(13, "Failed to list rules!");
+				c->Message(Chat::Red, "Failed to list rules!");
 				return;
 			}
-			c->Message(0, "Rules in category %s:",  sep->arg[2]);
+			c->Message(Chat::White, "Rules in category %s:",  sep->arg[2]);
 			std::vector<const char *>::iterator cur, end;
 			cur = rule_list.begin();
 			end = rule_list.end();
 			for(; cur != end; ++cur) {
-				c->Message(0, " %s",  *cur);
+				c->Message(Chat::White, " %s",  *cur);
 			}
 		} else {
-			c->Message(13, "Invalid argument count, see help.");
+			c->Message(Chat::Red, "Invalid argument count, see help.");
 		}
 	} else if(!strcasecmp(sep->arg[1], "values")) {
 		if(sep->argnum != 2) {
-			c->Message(13, "Invalid argument count, see help.");
+			c->Message(Chat::Red, "Invalid argument count, see help.");
 			return;
 		} else {
 			const char *catfilt = nullptr;
@@ -7671,21 +9525,21 @@ void command_rules(Client *c, const Seperator *sep) {
 				catfilt = sep->arg[2];
 			std::vector<const char *> rule_list;
 			if(!RuleManager::Instance()->ListRules(catfilt, rule_list)) {
-				c->Message(13, "Failed to list rules!");
+				c->Message(Chat::Red, "Failed to list rules!");
 				return;
 			}
-			c->Message(0, "Rules & values in category %s:",  sep->arg[2]);
+			c->Message(Chat::White, "Rules & values in category %s:",  sep->arg[2]);
 			std::vector<const char *>::iterator cur, end;
 			cur = rule_list.begin();
 			end = rule_list.end();
 			for(std::string tmp_value; cur != end; ++cur) {
 				if (RuleManager::Instance()->GetRule(*cur, tmp_value))
-					c->Message(0, " %s - %s",  *cur, tmp_value.c_str());
+					c->Message(Chat::White, " %s - %s",  *cur, tmp_value.c_str());
 			}
 		}
 
 	} else {
-		c->Message(15, "Invalid action specified. use '#rules help' for help");
+		c->Message(Chat::Yellow, "Invalid action specified. use '#rules help' for help");
 	}
 }
 
@@ -7693,15 +9547,15 @@ void command_rules(Client *c, const Seperator *sep) {
 void command_task(Client *c, const Seperator *sep) {
 	//super-command for managing tasks
 	if(sep->arg[1][0] == '\0' || !strcasecmp(sep->arg[1], "help")) {
-		c->Message(0, "Syntax: #task [subcommand].");
-		c->Message(0, "-- Task System Commands --");
-		c->Message(0, "...show - List active tasks for a client");
-		c->Message(0, "...update <TaskID> <ActivityID> [Count]");
-		c->Message(0, "...reloadall - Reload all Task information from the database");
-		c->Message(0, "...reload task <TaskID> - Reload Task and Activity informnation for a single task");
-		c->Message(0, "...reload lists - Reload goal/reward list information");
-		c->Message(0, "...reload prox - Reload proximity information");
-		c->Message(0, "...reload sets - Reload task set information");
+		c->Message(Chat::White, "Syntax: #task [subcommand].");
+		c->Message(Chat::White, "-- Task System Commands --");
+		c->Message(Chat::White, "...show - List active tasks for a client");
+		c->Message(Chat::White, "...update <TaskID> <ActivityID> [Count]");
+		c->Message(Chat::White, "...reloadall - Reload all Task information from the database");
+		c->Message(Chat::White, "...reload task <TaskID> - Reload Task and Activity informnation for a single task");
+		c->Message(Chat::White, "...reload lists - Reload goal/reward list information");
+		c->Message(Chat::White, "...reload prox - Reload proximity information");
+		c->Message(Chat::White, "...reload sets - Reload task set information");
 		return;
 	}
 
@@ -7725,51 +9579,51 @@ void command_task(Client *c, const Seperator *sep) {
 				if(Count <= 0)
 					Count = 1;
 			}
-			c->Message(15, "Updating Task %i, Activity %i, Count %i",  TaskID, ActivityID, Count);
+			c->Message(Chat::Yellow, "Updating Task %i, Activity %i, Count %i",  TaskID, ActivityID, Count);
 			c->UpdateTaskActivity(TaskID, ActivityID, Count);
 		}
 		return;
 	}
 	if(!strcasecmp(sep->arg[1], "reloadall")) {
-		c->Message(15, "Sending reloadtasks to world");
+		c->Message(Chat::Yellow, "Sending reloadtasks to world");
 		worldserver.SendReloadTasks(RELOADTASKS);
-		c->Message(15, "Back again");
+		c->Message(Chat::Yellow, "Back again");
 		return;
 	}
 
 	if(!strcasecmp(sep->arg[1], "reload")) {
 		if(sep->arg[2][0] != '\0') {
 			if(!strcasecmp(sep->arg[2], "lists")) {
-				c->Message(15, "Sending reload lists to world");
+				c->Message(Chat::Yellow, "Sending reload lists to world");
 				worldserver.SendReloadTasks(RELOADTASKGOALLISTS);
-				c->Message(15, "Back again");
+				c->Message(Chat::Yellow, "Back again");
 				return;
 			}
 			if(!strcasecmp(sep->arg[2], "prox")) {
-				c->Message(15, "Sending reload proximities to world");
+				c->Message(Chat::Yellow, "Sending reload proximities to world");
 				worldserver.SendReloadTasks(RELOADTASKPROXIMITIES);
-				c->Message(15, "Back again");
+				c->Message(Chat::Yellow, "Back again");
 				return;
 			}
 			if(!strcasecmp(sep->arg[2], "sets")) {
-				c->Message(15, "Sending reload task sets to world");
+				c->Message(Chat::Yellow, "Sending reload task sets to world");
 				worldserver.SendReloadTasks(RELOADTASKSETS);
-				c->Message(15, "Back again");
+				c->Message(Chat::Yellow, "Back again");
 				return;
 			}
 			if(!strcasecmp(sep->arg[2], "task") && (sep->arg[3][0] != '\0')) {
 				int TaskID = atoi(sep->arg[3]);
 				if((TaskID > 0) && (TaskID < MAXTASKS)) {
-					c->Message(15, "Sending reload task %i to world");
+					c->Message(Chat::Yellow, "Sending reload task %i to world");
 					worldserver.SendReloadTasks(RELOADTASKS, TaskID);
-					c->Message(15, "Back again");
+					c->Message(Chat::Yellow, "Back again");
 					return;
 				}
 			}
 		}
 
 	}
-	c->Message(0, "Unable to interpret command. Type #task help");
+	c->Message(Chat::White, "Unable to interpret command. Type #task help");
 
 }
 void command_reloadtitles(Client *c, const Seperator *sep)
@@ -7777,84 +9631,103 @@ void command_reloadtitles(Client *c, const Seperator *sep)
 	auto pack = new ServerPacket(ServerOP_ReloadTitles, 0);
 	worldserver.SendPacket(pack);
 	safe_delete(pack);
-	c->Message(15, "Player Titles Reloaded.");
+	c->Message(Chat::Yellow, "Player Titles Reloaded.");
 
 }
 
 void command_traindisc(Client *c, const Seperator *sep)
 {
-	uint8 max_level, min_level;
-	uint16 curspell, count;
-	Client *t=c;
+	Client *t = c;
+	if (c->GetTarget() && c->GetTarget()->IsClient() && c->GetGM())
+		t = c->GetTarget()->CastToClient();
 
-	if(c->GetTarget() && c->GetTarget()->IsClient() && c->GetGM())
-		t=c->GetTarget()->CastToClient();
-
-	if(!sep->arg[1][0])
-	{
-		c->Message(0, "FORMAT: #traindisc <max level> <min level>");
+	if (sep->argnum < 1 || !sep->IsNumber(1)) {
+		c->Message(Chat::White, "FORMAT: #traindisc <max level> <min level>");
 		return;
 	}
 
-	max_level = (uint8)atoi(sep->arg[1]);
-	if (!c->GetGM() && max_level > RuleI(Character, MaxLevel))
-		max_level = RuleI(Character, MaxLevel);	//default to Character:MaxLevel if we're not a GM & it's higher than the max level
-	min_level = sep->arg[2][0] ? (uint8)atoi(sep->arg[2]) : 1;	//default to 1 if there isn't a 2nd argument
-	if (!c->GetGM() && min_level > RuleI(Character, MaxLevel))
-		min_level = RuleI(Character, MaxLevel);	//default to Character:MaxLevel if we're not a GM & it's higher than the max level
+	uint8 max_level = (uint8)atol(sep->arg[1]);
+	if (!c->GetGM() && max_level >(uint8)RuleI(Character, MaxLevel))
+		max_level = (uint8)RuleI(Character, MaxLevel); // default to Character:MaxLevel if we're not a GM & it's higher than the max level
 
-	if(max_level < 1 || min_level < 1)
-	{
-		c->Message(0, "ERROR: Level must be greater than 1.");
+	uint8 min_level = (sep->IsNumber(2) ? (uint8)atol(sep->arg[2]) : 1); // default to 1 if there isn't a 2nd argument
+	if (!c->GetGM() && min_level > (uint8)RuleI(Character, MaxLevel))
+		min_level = (uint8)RuleI(Character, MaxLevel); // default to Character:MaxLevel if we're not a GM & it's higher than the max level
+
+	if(max_level < 1 || min_level < 1) {
+		c->Message(Chat::White, "ERROR: Level must be greater than 1.");
 		return;
 	}
 	if (min_level > max_level) {
-		c->Message(0, "Error: Min Level must be less than or equal to Max Level.");
+		c->Message(Chat::White, "Error: Min Level must be less than or equal to Max Level.");
 		return;
 	}
 
-	t->Message(0, "Training disciplines");
+	t->Message(Chat::White, "Training disciplines");
 	if(t != c)
-		c->Message(0, "Training disciplines for %s.",  t->GetName());
-	Log(Logs::General, Logs::Normal, "Train disciplines request for %s from %s, levels: %u -> %u",  t->GetName(), c->GetName(), min_level, max_level);
+		c->Message(Chat::White, "Training disciplines for %s.",  t->GetName());
+	LogInfo("Train disciplines request for [{}] from [{}], levels: [{}] -> [{}]",  t->GetName(), c->GetName(), min_level, max_level);
 
-	for(curspell = 0, count = 0; curspell < SPDAT_RECORDS; curspell++)
-	{
-		if
-		(
-			spells[curspell].classes[WARRIOR] != 0 && // check if spell exists
-			spells[curspell].classes[t->GetPP().class_-1] <= max_level &&	//maximum level
-			spells[curspell].classes[t->GetPP().class_-1] >= min_level &&	//minimum level
-			spells[curspell].skill != 52
-		)
-		{
-			if(IsDiscipline(curspell)){
-				//we may want to come up with a function like Client::GetNextAvailableSpellBookSlot() to help speed this up a little
-				for(int r = 0; r < MAX_PP_DISCIPLINES; r++) {
-					if(t->GetPP().disciplines.values[r] == curspell) {
-						t->Message(13, "You already know this discipline.");
-						break;	//continue the 1st loop
-					} else if(t->GetPP().disciplines.values[r] == 0) {
-						t->GetPP().disciplines.values[r] = curspell;
-						database.SaveCharacterDisc(t->CharacterID(), r, curspell);
-						t->SendDisciplineUpdate();
-						t->Message(0, "You have learned a new discipline!");
-						count++;	//success counter
-						break;	//continue the 1st loop
-					}	//if we get to this point, there's already a discipline in this slot, so we continue onto the next slot
-				}
+	int spell_id = 0;
+	int count = 0;
+
+	bool change = false;
+
+	for( ; spell_id < SPDAT_RECORDS; ++spell_id) {
+		if (spell_id < 0 || spell_id >= SPDAT_RECORDS) {
+			c->Message(Chat::Red, "FATAL ERROR: Spell id out-of-range (id: %i, min: 0, max: %i)", spell_id, SPDAT_RECORDS);
+			return;
+		}
+
+		while (true) {
+			if (spells[spell_id].classes[WARRIOR] == 0) // check if spell exists
+				break;
+			if (spells[spell_id].classes[t->GetPP().class_ - 1] > max_level) // maximum level
+				break;
+			if (spells[spell_id].classes[t->GetPP().class_ - 1] < min_level) // minimum level
+				break;
+			if (spells[spell_id].skill == 52)
+				break;
+
+			uint16 spell_id_ = (uint16)spell_id;
+			if ((spell_id_ != spell_id) || (spell_id != spell_id_)) {
+				c->Message(Chat::Red, "FATAL ERROR: Type conversion data loss with spell_id (%i != %u)", spell_id, spell_id_);
+				return;
 			}
+
+			if (!IsDiscipline(spell_id_))
+				break;
+
+			for (uint32 r = 0; r < MAX_PP_DISCIPLINES; ++r) {
+				if (t->GetPP().disciplines.values[r] == spell_id_) {
+					t->Message(Chat::Red, "You already know this discipline.");
+					break; // continue the 1st loop
+				}
+				else if (t->GetPP().disciplines.values[r] == 0) {
+					t->GetPP().disciplines.values[r] = spell_id_;
+					database.SaveCharacterDisc(t->CharacterID(), r, spell_id_);
+					change = true;
+					t->Message(Chat::White, "You have learned a new discipline!");
+					++count; // success counter
+					break; // continue the 1st loop
+				} // if we get to this point, there's already a discipline in this slot, so we continue onto the next slot
+			}
+
+			break;
 		}
 	}
 
+	if (change)
+		t->SendDisciplineUpdate();
+
 	if (count > 0) {
-		t->Message(0, "Successfully trained %u disciplines.",  count);
+		t->Message(Chat::White, "Successfully trained %u disciplines.",  count);
 		if (t != c)
-			c->Message(0, "Successfully trained %u disciplines for %s.",  count, t->GetName());
+			c->Message(Chat::White, "Successfully trained %u disciplines for %s.",  count, t->GetName());
 	} else {
-		t->Message(0, "No disciplines trained.");
+		t->Message(Chat::White, "No disciplines trained.");
 		if (t != c)
-			c->Message(0, "No disciplines trained for %s.",  t->GetName());
+			c->Message(Chat::White, "No disciplines trained for %s.",  t->GetName());
 	}
 }
 
@@ -7868,7 +9741,7 @@ void command_setgraveyard(Client *c, const Seperator *sep)
 		t=c->GetTarget()->CastToClient();
 
 	if(!sep->arg[1][0]) {
-		c->Message(0, "Usage: #setgraveyard [zonename]");
+		c->Message(Chat::White, "Usage: #setgraveyard [zonename]");
 		return;
 	}
 
@@ -7878,21 +9751,21 @@ void command_setgraveyard(Client *c, const Seperator *sep)
 		graveyard_id = database.CreateGraveyardRecord(zoneid, t->GetPosition());
 
 		if(graveyard_id > 0) {
-			c->Message(0, "Successfuly added a new record for this graveyard!");
+			c->Message(Chat::White, "Successfuly added a new record for this graveyard!");
 			if(database.AddGraveyardIDToZone(zoneid, graveyard_id) > 0) {
-				c->Message(0, "Successfuly added this new graveyard for the zone %s.",  sep->arg[1]);
+				c->Message(Chat::White, "Successfuly added this new graveyard for the zone %s.",  sep->arg[1]);
 				// TODO: Set graveyard data to the running zone process.
-				c->Message(0, "Done!");
+				c->Message(Chat::White, "Done!");
 			}
 			else
-				c->Message(0, "Unable to add this new graveyard to the zone %s.",  sep->arg[1]);
+				c->Message(Chat::White, "Unable to add this new graveyard to the zone %s.",  sep->arg[1]);
 		}
 		else {
-			c->Message(0, "Unable to create a new graveyard record in the database.");
+			c->Message(Chat::White, "Unable to create a new graveyard record in the database.");
 		}
 	}
 	else {
-		c->Message(0, "Unable to retrieve a ZoneID for the zone: %s",  sep->arg[1]);
+		c->Message(Chat::White, "Unable to retrieve a ZoneID for the zone: %s",  sep->arg[1]);
 	}
 
 	return;
@@ -7904,7 +9777,7 @@ void command_deletegraveyard(Client *c, const Seperator *sep)
 	uint32 graveyard_id = 0;
 
 	if(!sep->arg[1][0]) {
-		c->Message(0, "Usage: #deletegraveyard [zonename]");
+		c->Message(Chat::White, "Usage: #deletegraveyard [zonename]");
 		return;
 	}
 
@@ -7913,15 +9786,15 @@ void command_deletegraveyard(Client *c, const Seperator *sep)
 
 	if(zoneid > 0 && graveyard_id > 0) {
 		if(database.DeleteGraveyard(zoneid, graveyard_id))
-			c->Message(0, "Successfuly deleted graveyard %u for zone %s.",  graveyard_id, sep->arg[1]);
+			c->Message(Chat::White, "Successfuly deleted graveyard %u for zone %s.",  graveyard_id, sep->arg[1]);
 		else
-			c->Message(0, "Unable to delete graveyard %u for zone %s.",  graveyard_id, sep->arg[1]);
+			c->Message(Chat::White, "Unable to delete graveyard %u for zone %s.",  graveyard_id, sep->arg[1]);
 	}
 	else {
 		if(zoneid <= 0)
-			c->Message(0, "Unable to retrieve a ZoneID for the zone: %s",  sep->arg[1]);
+			c->Message(Chat::White, "Unable to retrieve a ZoneID for the zone: %s",  sep->arg[1]);
 		else if(graveyard_id <= 0)
-			c->Message(0, "Unable to retrieve a valid GraveyardID for the zone: %s",  sep->arg[1]);
+			c->Message(Chat::White, "Unable to retrieve a valid GraveyardID for the zone: %s",  sep->arg[1]);
 	}
 
 	return;
@@ -7934,14 +9807,14 @@ void command_summonburiedplayercorpse(Client *c, const Seperator *sep)
 	if(c->GetTarget() && c->GetTarget()->IsClient() && c->GetGM())
 		t = c->GetTarget()->CastToClient();
 	else {
-		c->Message(0, "You must first select a target!");
+		c->Message(Chat::White, "You must first select a target!");
 		return;
 	}
 
 	Corpse* PlayerCorpse = database.SummonBuriedCharacterCorpses(t->CharacterID(), t->GetZoneID(), zone->GetInstanceID(), t->GetPosition());
 
 	if(!PlayerCorpse)
-		c->Message(0, "Your target doesn't have any buried corpses.");
+		c->Message(Chat::White, "Your target doesn't have any buried corpses.");
 
 	return;
 }
@@ -7953,16 +9826,16 @@ void command_getplayerburiedcorpsecount(Client *c, const Seperator *sep)
 	if(c->GetTarget() && c->GetTarget()->IsClient() && c->GetGM())
 		t = c->GetTarget()->CastToClient();
 	else {
-		c->Message(0, "You must first select a target!");
+		c->Message(Chat::White, "You must first select a target!");
 		return;
 	}
 
 	uint32 CorpseCount = database.GetCharacterBuriedCorpseCount(t->CharacterID());
 
 	if(CorpseCount > 0)
-		c->Message(0, "Your target has a total of %u buried corpses.",  CorpseCount);
+		c->Message(Chat::White, "Your target has a total of %u buried corpses.",  CorpseCount);
 	else
-		c->Message(0, "Your target doesn't have any buried corpses.");
+		c->Message(Chat::White, "Your target doesn't have any buried corpses.");
 
 	return;
 }
@@ -7987,7 +9860,7 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
 
     if (strcasecmp(sep->arg[1], "maketype") == 0) {
         if(!target || !target->IsNPC()) {
-            c->Message(0, "Target Required!");
+            c->Message(Chat::White, "Target Required!");
             return;
         }
 
@@ -7997,7 +9870,7 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
 
     if (strcasecmp(sep->arg[1], "makegroup") == 0) {
         if(!sep->arg[2]) {
-            c->Message(0, "Format: #advnpdspawn makegroup <name> [spawn limit] [dist] [max x] [min x] [max y] [min y] [delay]");
+            c->Message(Chat::White, "Format: #advnpdspawn makegroup <name> [spawn limit] [dist] [max x] [min x] [max y] [min y] [delay]");
             return;
         }
 
@@ -8014,18 +9887,18 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
                                         (sep->arg[9]? atoi(sep->arg[9]): 0));
         auto results = database.QueryDatabase(query);
         if (!results.Success()) {
-            c->Message(0, "Invalid Arguments -- MySQL gave the following error:");
-            c->Message(13, results.ErrorMessage().c_str());
+            c->Message(Chat::White, "Invalid Arguments -- MySQL gave the following error:");
+            c->Message(Chat::Red, results.ErrorMessage().c_str());
             return;
         }
 
-        c->Message(0, "Group ID %i created successfully!",  results.LastInsertedID());
+        c->Message(Chat::White, "Group ID %i created successfully!",  results.LastInsertedID());
         return;
     }
 
 	if (strcasecmp(sep->arg[1], "addgroupentry") == 0) {
         if(!atoi(sep->arg[2]) || !atoi(sep->arg[3]) || !atoi(sep->arg[4])) {
-            c->Message(0, "Format: #advnpdspawn addgroupentry <spawnggroupID> <npcID> <chance>");
+            c->Message(Chat::White, "Format: #advnpdspawn addgroupentry <spawnggroupID> <npcID> <chance>");
             return;
         }
 
@@ -8034,19 +9907,19 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
                                         atoi(sep->arg[2]), atoi(sep->arg[3]), atoi(sep->arg[4]));
         auto results = database.QueryDatabase(query);
         if (!results.Success()) {
-            c->Message(0, "Invalid Arguments -- MySQL gave the following error:");
-            c->Message(13, results.ErrorMessage().c_str());
+            c->Message(Chat::White, "Invalid Arguments -- MySQL gave the following error:");
+            c->Message(Chat::Red, results.ErrorMessage().c_str());
             return;
         }
 
-        c->Message(0, "NPC %i added to group %i with %i chance!",  atoi(sep->arg[3]), atoi(sep->arg[2]), atoi(sep->arg[4]) );
+        c->Message(Chat::White, "NPC %i added to group %i with %i chance!",  atoi(sep->arg[3]), atoi(sep->arg[2]), atoi(sep->arg[4]) );
 
         return;
     }
 
     if (strcasecmp(sep->arg[1], "editgroupbox") == 0) {
         if(!atof(sep->arg[2]) || !atof(sep->arg[3]) || !atof(sep->arg[4]) || !atof(sep->arg[5]) || !atof(sep->arg[6]) || !atof(sep->arg[7]) || !atof(sep->arg[8])) {
-            c->Message(0, "Format: #advnpdspawn editgroupbox <spawngroupID> <dist> <max x> <min x> <max y> <min y> <delay>");
+            c->Message(Chat::White, "Format: #advnpdspawn editgroupbox <spawngroupID> <dist> <max x> <min x> <max y> <min y> <delay>");
             return;
         }
 
@@ -8057,19 +9930,19 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
                                         atoi(sep->arg[2]));
         auto results = database.QueryDatabase(query);
         if (!results.Success()) {
-            c->Message(0, "Invalid Arguments -- MySQL gave the following error:");
-            c->Message(13, results.ErrorMessage().c_str());
+            c->Message(Chat::White, "Invalid Arguments -- MySQL gave the following error:");
+            c->Message(Chat::Red, results.ErrorMessage().c_str());
             return;
         }
 
-        c->Message(0, "Group ID %i created successfully!",  results.LastInsertedID());
+        c->Message(Chat::White, "Group ID %i created successfully!",  results.LastInsertedID());
 
         return;
     }
 
 	if (strcasecmp(sep->arg[1], "cleargroupbox") == 0) {
         if(!atoi(sep->arg[2])) {
-            c->Message(0, "Format: #advnpdspawn cleargroupbox <spawngroupID>");
+            c->Message(Chat::White, "Format: #advnpdspawn cleargroupbox <spawngroupID>");
             return;
         }
 
@@ -8079,44 +9952,44 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
                                         "WHERE id = '%i' ",  atoi(sep->arg[2]));
         auto results = database.QueryDatabase(query);
         if (!results.Success()) {
-            c->Message(0, "Invalid Arguments -- MySQL gave the following error:");
-            c->Message(13, results.ErrorMessage().c_str());
+            c->Message(Chat::White, "Invalid Arguments -- MySQL gave the following error:");
+            c->Message(Chat::Red, results.ErrorMessage().c_str());
             return;
         }
 
-        c->Message(0, "Group ID %i created successfully!",  results.LastInsertedID());
+        c->Message(Chat::White, "Group ID %i created successfully!",  results.LastInsertedID());
 
         return;
     }
 
 	if (strcasecmp(sep->arg[1], "addgroupspawn") == 0 && atoi(sep->arg[2])!=0) {
         database.NPCSpawnDB(5, zone->GetShortName(), zone->GetInstanceVersion(), c, 0, atoi(sep->arg[2]));
-        c->Message(0, "Mob of group %i added successfully!",  atoi(sep->arg[2]));
+        c->Message(Chat::White, "Mob of group %i added successfully!",  atoi(sep->arg[2]));
         return;
     }
 
 	if (strcasecmp(sep->arg[1], "removegroupspawn") == 0) {
         if (!target || !target->IsNPC()) {
-            c->Message(0, "Error: Need an NPC target.");
+            c->Message(Chat::White, "Error: Need an NPC target.");
             return;
         }
 
         Spawn2* s2 = target->CastToNPC()->respawn2;
 
         if(!s2) {
-            c->Message(0, "removegroupspawn FAILED -- cannot determine which spawn entry in the database this mob came from.");
+            c->Message(Chat::White, "removegroupspawn FAILED -- cannot determine which spawn entry in the database this mob came from.");
             return;
         }
 
         std::string query = StringFormat("DELETE FROM spawn2 WHERE id = '%i'",  s2->GetID());
         auto results = database.QueryDatabase(query);
         if(!results.Success()) {
-            c->Message(13, "Update failed! MySQL gave the following error:");
-            c->Message(13, results.ErrorMessage().c_str());
+            c->Message(Chat::Red, "Update failed! MySQL gave the following error:");
+            c->Message(Chat::Red, results.ErrorMessage().c_str());
             return;
         }
 
-        c->Message(0, "Spawnpoint Removed successfully.");
+        c->Message(Chat::White, "Spawnpoint Removed successfully.");
         target->Depop(false);
 
         return;
@@ -8124,14 +9997,14 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
 
 	if (strcasecmp(sep->arg[1], "movespawn") == 0) {
         if (!target || !target->IsNPC()) {
-            c->Message(0, "Error: Need an NPC target.");
+            c->Message(Chat::White, "Error: Need an NPC target.");
             return;
         }
 
         Spawn2* s2 = target->CastToNPC()->respawn2;
 
         if(!s2) {
-            c->Message(0, "movespawn FAILED -- cannot determine which spawn entry in the database this mob came from.");
+            c->Message(Chat::White, "movespawn FAILED -- cannot determine which spawn entry in the database this mob came from.");
             return;
         }
 
@@ -8140,22 +10013,20 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
                                         c->GetX(), c->GetY(), c->GetZ(), c->GetHeading(),s2->GetID());
         auto results = database.QueryDatabase(query);
         if (!results.Success()) {
-            c->Message(13, "Update failed! MySQL gave the following error:");
-            c->Message(13, results.ErrorMessage().c_str());
+            c->Message(Chat::Red, "Update failed! MySQL gave the following error:");
+            c->Message(Chat::Red, results.ErrorMessage().c_str());
             return;
         }
 
-        c->Message(0, "Updating coordinates successful.");
-        target->CastToNPC()->GMMove(c->GetX(), c->GetY(), c->GetZ(), c->GetHeading());
-        target->CastToNPC()->SaveGuardSpot(true);
-        target->SendPosition();
+        c->Message(Chat::White, "Updating coordinates successful.");
+        target->GMMove(c->GetX(), c->GetY(), c->GetZ(), c->GetHeading());
 
         return;
     }
 
 	if (strcasecmp(sep->arg[1], "editrespawn") == 0) {
         if (!target || !target->IsNPC()) {
-            c->Message(0, "Error: Need an NPC target.");
+            c->Message(Chat::White, "Error: Need an NPC target.");
             return;
         }
 
@@ -8164,7 +10035,7 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
         uint32 new_rs = 0;
         uint32 new_var = s2->GetVariance();
         if(!sep->IsNumber(2)) {
-            c->Message(0, "editrespawn FAILED -- cannot set respawn to be 0");
+            c->Message(Chat::White, "editrespawn FAILED -- cannot set respawn to be 0");
             return;
         }
 
@@ -8174,7 +10045,7 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
             new_var = atoi(sep->arg[3]);
 
         if(!s2) {
-            c->Message(0, "editrespawn FAILED -- cannot determine which spawn entry in the database this mob came from.");
+            c->Message(Chat::White, "editrespawn FAILED -- cannot determine which spawn entry in the database this mob came from.");
             return;
         }
 
@@ -8182,12 +10053,12 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
                                         "WHERE id = '%i'",  new_rs, new_var, s2->GetID());
         auto results = database.QueryDatabase(query);
         if (!results.Success()) {
-            c->Message(13, "Update failed! MySQL gave the following error:");
-            c->Message(13, results.ErrorMessage().c_str());
+            c->Message(Chat::Red, "Update failed! MySQL gave the following error:");
+            c->Message(Chat::Red, results.ErrorMessage().c_str());
             return;
         }
 
-        c->Message(0, "Updating respawn timer successful.");
+        c->Message(Chat::White, "Updating respawn timer successful.");
         s2->SetRespawnTimer(new_rs);
         s2->SetVariance(new_var);
 
@@ -8196,27 +10067,28 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
 
 	if (strcasecmp(sep->arg[1], "setversion") == 0) {
         if (!target || !target->IsNPC()) {
-            c->Message(0, "Error: Need an NPC target.");
+            c->Message(Chat::White, "Error: Need an NPC target.");
             return;
         }
 
         if(!sep->IsNumber(2)) {
-            c->Message(0, "setversion FAILED -- You must set a version number");
+            c->Message(Chat::White, "setversion FAILED -- You must set a version number");
             return;
         }
 
         int16 version = atoi(sep->arg[2]);
         std::string query = StringFormat("UPDATE spawn2 SET version = %i "
                                         "WHERE spawngroupID = '%i'",
-                                        version, c->GetTarget()->CastToNPC()->GetSp2());
+                                        version, c->GetTarget()->CastToNPC()->GetSpawnGroupId());
         auto results = database.QueryDatabase(query);
         if (!results.Success()) {
-            c->Message(13, "Update failed! MySQL gave the following error:");
-            c->Message(13, results.ErrorMessage().c_str());
+            c->Message(Chat::Red, "Update failed! MySQL gave the following error:");
+            c->Message(Chat::Red, results.ErrorMessage().c_str());
             return;
         }
 
-        c->Message(0, "Version change to %i was successful from SpawnGroupID %i",  version, c->GetTarget()->CastToNPC()->GetSp2());
+        c->Message(Chat::White, "Version change to %i was successful from SpawnGroupID %i",  version,
+				   c->GetTarget()->CastToNPC()->GetSpawnGroupId());
         c->GetTarget()->Depop(false);
 
         return;
@@ -8224,13 +10096,13 @@ void command_advnpcspawn(Client *c, const Seperator *sep)
 
 	if (strcasecmp(sep->arg[1], "testload") == 0 && atoi(sep->arg[2])!=0) {
         database.LoadSpawnGroupsByID(atoi(sep->arg[2]),&zone->spawn_group_list);
-        c->Message(0, "Group %i loaded successfully!",  atoi(sep->arg[2]));
+        c->Message(Chat::White, "Group %i loaded successfully!",  atoi(sep->arg[2]));
         return;
     }
 
-    c->Message(0, "Error: #advnpcspawn: Invalid command.");
-    c->Message(0, "Usage: #advnpcspawn [maketype|makegroup|addgroupentry|addgroupspawn|setversion]");
-    c->Message(0, "Usage: #advnpcspawn [removegroupspawn|movespawn|editrespawn|editgroupbox|cleargroupbox]");
+    c->Message(Chat::White, "Error: #advnpcspawn: Invalid command.");
+    c->Message(Chat::White, "Usage: #advnpcspawn [maketype|makegroup|addgroupentry|addgroupspawn|setversion]");
+    c->Message(Chat::White, "Usage: #advnpcspawn [removegroupspawn|movespawn|editrespawn|editgroupbox|cleargroupbox]");
 }
 
 void command_aggrozone(Client *c, const Seperator *sep) {
@@ -8244,7 +10116,7 @@ void command_aggrozone(Client *c, const Seperator *sep) {
 
 	uint32 hate = atoi(sep->arg[1]); //should default to 0 if we don't enter anything
 	entity_list.AggroZone(m, hate);
-	c->Message(0, "Train to you! Last chance to go invulnerable...");
+	c->Message(Chat::White, "Train to you! Last chance to go invulnerable...");
 }
 
 void command_modifynpcstat(Client *c, const Seperator *sep)
@@ -8254,8 +10126,8 @@ void command_modifynpcstat(Client *c, const Seperator *sep)
 
 	if(sep->arg[1][0] == '\0')
 	{
-		c->Message(0, "usage #modifynpcstat arg value");
-		c->Message(0, "Args: ac, str, sta, agi, dex, wis, _int, cha, max_hp, mr, fr, cr, pr, dr, runspeed, special_attacks, "
+		c->Message(Chat::White, "usage #modifynpcstat arg value");
+		c->Message(Chat::White, "Args: ac, str, sta, agi, dex, wis, _int, cha, max_hp, mr, fr, cr, pr, dr, runspeed, special_attacks, "
 			"attack_speed, atk, accuracy, trackable, min_hit, max_hit, see_invis_undead, see_hide, see_improved_hide, "
 			"hp_regen, mana_regen, aggro, assist, slow_mitigation, loottable_id, healscale, spellscale");
 		return;
@@ -8285,22 +10157,22 @@ void command_instance(Client *c, const Seperator *sep)
 
 	if(strcasecmp(sep->arg[1], "help") == 0)
 	{
-		c->Message(0, "#instance usage:");
-		c->Message(0, "#instance create zone_id version duration - Creates an instance of version 'version' in the "
+		c->Message(Chat::White, "#instance usage:");
+		c->Message(Chat::White, "#instance create zone_id version duration - Creates an instance of version 'version' in the "
 			"zone with id matching zone_id, will last for duration seconds.");
-		c->Message(0, "#instance destroy instance_id - Destroys the instance with id matching instance_id.");
-		c->Message(0, "#instance add instance_id player_name - adds the player 'player_name' to the instance "
+		c->Message(Chat::White, "#instance destroy instance_id - Destroys the instance with id matching instance_id.");
+		c->Message(Chat::White, "#instance add instance_id player_name - adds the player 'player_name' to the instance "
 			"with id matching instance_id.");
-		c->Message(0, "#instance remove instance_id player_name - removes the player 'player_name' from the "
+		c->Message(Chat::White, "#instance remove instance_id player_name - removes the player 'player_name' from the "
 			"instance with id matching instance_id.");
-		c->Message(0, "#instance list player_name - lists all the instances 'player_name' is apart of.");
+		c->Message(Chat::White, "#instance list player_name - lists all the instances 'player_name' is apart of.");
 		return;
 	}
 	else if(strcasecmp(sep->arg[1], "create") == 0)
 	{
 		if(!sep->IsNumber(3) || !sep->IsNumber(4))
 		{
-			c->Message(0, "#instance create zone_id version duration - Creates an instance of version 'version' in the "
+			c->Message(Chat::White, "#instance create zone_id version duration - Creates an instance of version 'version' in the "
 				"zone with id matching zone_id, will last for duration seconds.");
 			return;
 		}
@@ -8323,42 +10195,42 @@ void command_instance(Client *c, const Seperator *sep)
 
 		if(!zn)
 		{
-			c->Message(0, "Zone with id %lu was not found by the server.",  (unsigned long)zone_id);
+			c->Message(Chat::White, "Zone with id %lu was not found by the server.",  (unsigned long)zone_id);
 			return;
 		}
 
 		uint16 id = 0;
 		if(!database.GetUnusedInstanceID(id))
 		{
-			c->Message(0, "Server was unable to find a free instance id.");
+			c->Message(Chat::White, "Server was unable to find a free instance id.");
 			return;
 		}
 
 		if(!database.CreateInstance(id, zone_id, version, duration))
 		{
-			c->Message(0, "Server was unable to create a new instance.");
+			c->Message(Chat::White, "Server was unable to create a new instance.");
 			return;
 		}
 
-		c->Message(0, "New instance %s was created with id %lu.",  zn, (unsigned long)id);
+		c->Message(Chat::White, "New instance %s was created with id %lu.",  zn, (unsigned long)id);
 	}
 	else if(strcasecmp(sep->arg[1], "destroy") == 0)
 	{
 		if(!sep->IsNumber(2))
 		{
-			c->Message(0, "#instance destroy instance_id - Destroys the instance with id matching instance_id.");
+			c->Message(Chat::White, "#instance destroy instance_id - Destroys the instance with id matching instance_id.");
 			return;
 		}
 
 		uint16 id = atoi(sep->arg[2]);
 		database.DeleteInstance(id);
-		c->Message(0, "Destroyed instance with id %lu.",  (unsigned long)id);
+		c->Message(Chat::White, "Destroyed instance with id %lu.",  (unsigned long)id);
 	}
 	else if(strcasecmp(sep->arg[1], "add") == 0)
 	{
 		if(!sep->IsNumber(2))
 		{
-			c->Message(0, "#instance add instance_id player_name - adds the player 'player_name' to the instance "
+			c->Message(Chat::White, "#instance add instance_id player_name - adds the player 'player_name' to the instance "
 				"with id matching instance_id.");
 			return;
 		}
@@ -8368,13 +10240,13 @@ void command_instance(Client *c, const Seperator *sep)
 
 		if(id <= 0 || charid <= 0)
 		{
-			c->Message(0, "Must enter a valid instance id and player name.");
+			c->Message(Chat::White, "Must enter a valid instance id and player name.");
 			return;
 		}
 
 		if(!database.CheckInstanceExists(id))
 		{
-			c->Message(0, "Instance does not exist.");
+			c->Message(Chat::White, "Instance does not exist.");
 			return;
 		}
 
@@ -8385,23 +10257,23 @@ void command_instance(Client *c, const Seperator *sep)
 		{
 			if(database.AddClientToInstance(id, charid))
 			{
-				c->Message(0, "Added client to instance.");
+				c->Message(Chat::White, "Added client to instance.");
 			}
 			else
 			{
-				c->Message(0, "Failed to add client to instance.");
+				c->Message(Chat::White, "Failed to add client to instance.");
 			}
 		}
 		else
 		{
-			c->Message(0, "Client was already saved to %u which has uses the same zone and version as that instance.",  cur_id);
+			c->Message(Chat::White, "Client was already saved to %u which has uses the same zone and version as that instance.",  cur_id);
 		}
 	}
 	else if(strcasecmp(sep->arg[1], "remove") == 0)
 	{
 		if(!sep->IsNumber(2))
 		{
-			c->Message(0, "#instance remove instance_id player_name - removes the player 'player_name' from the "
+			c->Message(Chat::White, "#instance remove instance_id player_name - removes the player 'player_name' from the "
 				"instance with id matching instance_id.");
 			return;
 		}
@@ -8411,16 +10283,16 @@ void command_instance(Client *c, const Seperator *sep)
 
 		if(id <= 0 || charid <= 0)
 		{
-			c->Message(0, "Must enter a valid instance id and player name.");
+			c->Message(Chat::White, "Must enter a valid instance id and player name.");
 		}
 
 		if(database.RemoveClientFromInstance(id, charid))
 		{
-			c->Message(0, "Removed client from instance.");
+			c->Message(Chat::White, "Removed client from instance.");
 		}
 		else
 		{
-			c->Message(0, "Failed to remove client from instance.");
+			c->Message(Chat::White, "Failed to remove client from instance.");
 		}
 	}
 	else if(strcasecmp(sep->arg[1], "list") == 0)
@@ -8430,7 +10302,7 @@ void command_instance(Client *c, const Seperator *sep)
 		{
 			if(c->GetTarget() == nullptr || (c->GetTarget() && !c->GetTarget()->IsClient()))
 			{
-				c->Message(0, "Character not found.");
+				c->Message(Chat::White, "Character not found.");
 				return;
 			}
 			else
@@ -8441,16 +10313,16 @@ void command_instance(Client *c, const Seperator *sep)
 	}
 	else
 	{
-		c->Message(0, "Invalid Argument.");
-		c->Message(0, "#instance usage:");
-		c->Message(0, "#instance create zone_id version duration - Creates an instance of version 'version' in the "
+		c->Message(Chat::White, "Invalid Argument.");
+		c->Message(Chat::White, "#instance usage:");
+		c->Message(Chat::White, "#instance create zone_id version duration - Creates an instance of version 'version' in the "
 			"zone with id matching zone_id, will last for duration seconds.");
-		c->Message(0, "#instance destroy instance_id - Destroys the instance with id matching instance_id.");
-		c->Message(0, "#instance add instance_id player_name - adds the player 'player_name' to the instance "
+		c->Message(Chat::White, "#instance destroy instance_id - Destroys the instance with id matching instance_id.");
+		c->Message(Chat::White, "#instance add instance_id player_name - adds the player 'player_name' to the instance "
 			"with id matching instance_id.");
-		c->Message(0, "#instance remove instance_id player_name - removes the player 'player_name' from the "
+		c->Message(Chat::White, "#instance remove instance_id player_name - removes the player 'player_name' from the "
 			"instance with id matching instance_id.");
-		c->Message(0, "#instance list player_name - lists all the instances 'player_name' is apart of.");
+		c->Message(Chat::White, "#instance list player_name - lists all the instances 'player_name' is apart of.");
 		return;
 	}
 }
@@ -8462,8 +10334,8 @@ void command_setstartzone(Client *c, const Seperator *sep)
 	if(c->GetTarget() && c->GetTarget()->IsClient() && sep->arg[1][0] != 0)
 		target = c->GetTarget()->CastToClient();
 	else {
-		c->Message(0, "Usage: (needs PC target) #setstartzone zonename");
-		c->Message(0, "Optional Usage: Use '#setstartzone reset' or '#setstartzone 0' to clear a starting zone. Player can select a starting zone using /setstartcity");
+		c->Message(Chat::White, "Usage: (needs PC target) #setstartzone zonename");
+		c->Message(Chat::White, "Optional Usage: Use '#setstartzone reset' or '#setstartzone 0' to clear a starting zone. Player can select a starting zone using /setstartcity");
 		return;
 	}
 
@@ -8476,7 +10348,7 @@ void command_setstartzone(Client *c, const Seperator *sep)
 	else {
 		startzone = database.GetZoneID(sep->arg[1]);
 		if(startzone == 0) {
-			c->Message(0, "Unable to locate zone '%s'",  sep->arg[1]);
+			c->Message(Chat::White, "Unable to locate zone '%s'",  sep->arg[1]);
 			return;
 		}
 	}
@@ -8488,23 +10360,77 @@ void command_netstats(Client *c, const Seperator *sep)
 {
 	if(c)
 	{
-		if(c->GetTarget() && c->GetTarget()->IsClient())
-		{
-			c->Message(0, "Sent:");
-			c->Message(0, "Total: %u, per second: %u",  c->GetTarget()->CastToClient()->Connection()->GetBytesSent(),
-				c->GetTarget()->CastToClient()->Connection()->GetBytesSentPerSecond());
-			c->Message(0, "Recieved:");
-			c->Message(0, "Total: %u, per second: %u",  c->GetTarget()->CastToClient()->Connection()->GetBytesRecieved(),
-				c->GetTarget()->CastToClient()->Connection()->GetBytesRecvPerSecond());
+		auto client = c;
+		if (c->GetTarget() && c->GetTarget()->IsClient()) {
+			client = c->GetTarget()->CastToClient();
+		}
 
+		if (strcasecmp(sep->arg[1], "reset") == 0) {
+			auto connection = c->Connection();
+			c->Message(Chat::White, "Resetting client stats (packet loss will not read correctly after reset).");
+			connection->ResetStats();
+			return;
 		}
-		else
-		{
-			c->Message(0, "Sent:");
-			c->Message(0, "Total: %u, per second: %u",  c->Connection()->GetBytesSent(), c->Connection()->GetBytesSentPerSecond());
-			c->Message(0, "Recieved:");
-			c->Message(0, "Total: %u, per second: %u",  c->Connection()->GetBytesRecieved(), c->Connection()->GetBytesRecvPerSecond());
+
+		auto connection = c->Connection();
+		auto opts = connection->GetManager()->GetOptions();
+		auto eqs_stats = connection->GetStats();
+		auto &stats = eqs_stats.DaybreakStats;
+		auto now = EQ::Net::Clock::now();
+		auto sec_since_stats_reset = std::chrono::duration_cast<std::chrono::duration<double>>(now - stats.created).count();
+
+		c->Message(Chat::White, "Netstats:");
+		c->Message(Chat::White, "--------------------------------------------------------------------");
+		c->Message(Chat::White, "Sent Bytes: %u (%.2f/sec)", stats.sent_bytes, stats.sent_bytes / sec_since_stats_reset);
+		c->Message(Chat::White, "Recv Bytes: %u (%.2f/sec)", stats.recv_bytes, stats.recv_bytes / sec_since_stats_reset);
+		c->Message(Chat::White, "Bytes Before Encode (Sent): %u, Compression Rate: %.2f%%", stats.bytes_before_encode,
+			static_cast<double>(stats.bytes_before_encode - stats.sent_bytes) / static_cast<double>(stats.bytes_before_encode) * 100.0);
+		c->Message(Chat::White, "Bytes After Decode (Recv): %u, Compression Rate: %.2f%%", stats.bytes_after_decode,
+			static_cast<double>(stats.bytes_after_decode - stats.recv_bytes) / static_cast<double>(stats.bytes_after_decode) * 100.0);
+		c->Message(Chat::White, "Min Ping: %u", stats.min_ping);
+		c->Message(Chat::White, "Max Ping: %u", stats.max_ping);
+		c->Message(Chat::White, "Last Ping: %u", stats.last_ping);
+		c->Message(Chat::White, "Average Ping: %u", stats.avg_ping);
+		c->Message(Chat::White, "--------------------------------------------------------------------");
+		c->Message(Chat::White, "(Realtime) Recv Packets: %u (%.2f/sec)", stats.recv_packets, stats.recv_packets / sec_since_stats_reset);
+		c->Message(Chat::White, "(Realtime) Sent Packets: %u (%.2f/sec)", stats.sent_packets, stats.sent_packets / sec_since_stats_reset);
+		c->Message(Chat::White, "(Sync) Recv Packets: %u", stats.sync_recv_packets);
+		c->Message(Chat::White, "(Sync) Sent Packets: %u", stats.sync_sent_packets);
+		c->Message(Chat::White, "(Sync) Remote Recv Packets: %u", stats.sync_remote_recv_packets);
+		c->Message(Chat::White, "(Sync) Remote Sent Packets: %u", stats.sync_remote_sent_packets);
+		c->Message(Chat::White, "Packet Loss In: %.2f%%", 100.0 * (1.0 - static_cast<double>(stats.sync_recv_packets) / static_cast<double>(stats.sync_remote_sent_packets)));
+		c->Message(Chat::White, "Packet Loss Out: %.2f%%", 100.0 * (1.0 - static_cast<double>(stats.sync_remote_recv_packets) / static_cast<double>(stats.sync_sent_packets)));
+		c->Message(Chat::White, "--------------------------------------------------------------------");
+		c->Message(Chat::White, "Resent Packets: %u (%.2f/sec)", stats.resent_packets, stats.resent_packets / sec_since_stats_reset);
+		c->Message(Chat::White, "Resent Fragments: %u (%.2f/sec)", stats.resent_fragments, stats.resent_fragments / sec_since_stats_reset);
+		c->Message(Chat::White, "Resent Non-Fragments: %u (%.2f/sec)", stats.resent_full, stats.resent_full / sec_since_stats_reset);
+		c->Message(Chat::White, "Dropped Datarate Packets: %u (%.2f/sec)", stats.dropped_datarate_packets, stats.dropped_datarate_packets / sec_since_stats_reset);
+
+		if (opts.daybreak_options.outgoing_data_rate > 0.0) {
+			c->Message(Chat::White, "Outgoing Link Saturation %.2f%% (%.2fkb/sec)", 100.0 * (1.0 - ((opts.daybreak_options.outgoing_data_rate - stats.datarate_remaining) / opts.daybreak_options.outgoing_data_rate)), opts.daybreak_options.outgoing_data_rate);
 		}
+
+		if (strcasecmp(sep->arg[1], "full") == 0) {
+			c->Message(Chat::White, "--------------------------------------------------------------------");
+			c->Message(Chat::White, "Sent Packet Types");
+			for (auto i = 0; i < _maxEmuOpcode; ++i) {
+				auto cnt = eqs_stats.SentCount[i];
+				if (cnt > 0) {
+					c->Message(Chat::White, "%s: %u (%.2f / sec)", OpcodeNames[i], cnt, cnt / sec_since_stats_reset);
+				}
+			}
+
+			c->Message(Chat::White, "--------------------------------------------------------------------");
+			c->Message(Chat::White, "Recv Packet Types");
+			for (auto i = 0; i < _maxEmuOpcode; ++i) {
+				auto cnt = eqs_stats.RecvCount[i];
+				if (cnt > 0) {
+					c->Message(Chat::White, "%s: %u (%.2f / sec)", OpcodeNames[i], cnt, cnt / sec_since_stats_reset);
+				}
+			}
+		}
+
+		c->Message(Chat::White, "--------------------------------------------------------------------");
 	}
 }
 
@@ -8517,7 +10443,7 @@ void command_object(Client *c, const Seperator *sep)
 	const char *usage_string = "Usage: #object List|Add|Edit|Move|Rotate|Save|Copy|Delete|Undo";
 
 	if ((!sep) || (sep->argnum == 0)) {
-		c->Message(0, usage_string);
+		c->Message(Chat::White, usage_string);
 		return;
 	}
 
@@ -8550,7 +10476,7 @@ void command_object(Client *c, const Seperator *sep)
 		// Insufficient or invalid args
 		if ((sep->argnum < 2) || (sep->arg[2][0] < '0') ||
 		    ((sep->arg[2][0] > '9') && ((sep->arg[2][0] & 0xDF) != 'A'))) {
-			c->Message(0, "Usage: #object List All|(radius)");
+			c->Message(Chat::White, "Usage: #object List All|(radius)");
 			return;
 		}
 
@@ -8560,9 +10486,9 @@ void command_object(Client *c, const Seperator *sep)
 			radius = 500; // Invalid radius. Default to 500 units.
 
 		if (radius == 0)
-			c->Message(0, "Objects within this zone:");
+			c->Message(Chat::White, "Objects within this zone:");
 		else
-			c->Message(0, "Objects within %u units of your current location:", radius);
+			c->Message(Chat::White, "Objects within %u units of your current location:", radius);
 
 		std::string query;
 		if (radius)
@@ -8587,7 +10513,7 @@ void command_object(Client *c, const Seperator *sep)
 
 		auto results = database.QueryDatabase(query);
 		if (!results.Success()) {
-			c->Message(0, "Error in objects query");
+			c->Message(Chat::White, "Error in objects query");
 			return;
 		}
 
@@ -8614,27 +10540,27 @@ void command_object(Client *c, const Seperator *sep)
 				if (od.size == 0) // Unknown08 field is optional Size parameter for static objects
 					od.size = 100; // Static object default Size is 100%
 
-				c->Message(0, "- STATIC Object (%s): id %u, x %.1f, y %.1f, z %.1f, h %.1f, model %s, "
+				c->Message(Chat::White, "- STATIC Object (%s): id %u, x %.1f, y %.1f, z %.1f, h %.1f, model %s, "
 					      "size %u, solidtype %u, incline %u",
 					   (od.object_type == 0) ? "locked" : "unlocked", id, od.x, od.y, od.z,
 					   od.heading, od.object_name, od.size, od.solidtype, od.unknown020);
 				break;
 
 			case OT_DROPPEDITEM: // Ground Spawn
-				c->Message(0, "- TEMPORARY Object: id %u, x %.1f, y %.1f, z %.1f, h %.1f, itemid %u, "
+				c->Message(Chat::White, "- TEMPORARY Object: id %u, x %.1f, y %.1f, z %.1f, h %.1f, itemid %u, "
 					      "model %s, icon %u",
 					   id, od.x, od.y, od.z, od.heading, itemid, od.object_name, icon);
 				break;
 
 			default: // All others == Tradeskill Objects
-				c->Message(0, "- TRADESKILL Object: id %u, x %.1f, y %.1f, z %.1f, h %.1f, model %s, "
+				c->Message(Chat::White, "- TRADESKILL Object: id %u, x %.1f, y %.1f, z %.1f, h %.1f, model %s, "
 					      "type %u, icon %u",
 					   id, od.x, od.y, od.z, od.heading, od.object_name, od.object_type, icon);
 				break;
 			}
 		}
 
-		c->Message(0, "%u object%s found", results.RowCount(), (results.RowCount() == 1) ? "" : "s");
+		c->Message(Chat::White, "%u object%s found", results.RowCount(), (results.RowCount() == 1) ? "" : "s");
 		return;
 	}
 
@@ -8642,10 +10568,10 @@ void command_object(Client *c, const Seperator *sep)
 		// Insufficient or invalid arguments
 		if ((sep->argnum < 3) ||
 		    ((sep->arg[3][0] == '\0') && (sep->arg[4][0] < '0') && (sep->arg[4][0] > '9'))) {
-			c->Message(0, "Usage: (Static Object): #object Add [ObjectID] 0 Model [SizePercent] "
+			c->Message(Chat::White, "Usage: (Static Object): #object Add [ObjectID] 0 Model [SizePercent] "
 				      "[SolidType] [Incline]");
-			c->Message(0, "Usage: (Tradeskill Object): #object Add [ObjectID] TypeNum Model Icon");
-			c->Message(0, "- Notes: Model must start with a letter, max length 16. SolidTypes = 0 (Solid), "
+			c->Message(Chat::White, "Usage: (Tradeskill Object): #object Add [ObjectID] TypeNum Model Icon");
+			c->Message(Chat::White, "- Notes: Model must start with a letter, max length 16. SolidTypes = 0 (Solid), "
 				      "1 (Sometimes Non-Solid)");
 			return;
 		}
@@ -8687,7 +10613,7 @@ void command_object(Client *c, const Seperator *sep)
 			break;
 
 		case 1: // Ground Spawn
-			c->Message(0, "ERROR: Object Type 1 is used for temporarily spawned ground spawns and dropped "
+			c->Message(Chat::White, "ERROR: Object Type 1 is used for temporarily spawned ground spawns and dropped "
 				      "items, which are not supported with #object. See the 'ground_spawns' table in "
 				      "the database.");
 			return;
@@ -8696,7 +10622,7 @@ void command_object(Client *c, const Seperator *sep)
 			icon = ((sep->argnum - col) > 3) ? atoi(sep->arg[4 + col]) : 0;
 
 			if (icon == 0) {
-				c->Message(0, "ERROR: Required property 'Icon' not specified for Tradeskill Object");
+				c->Message(Chat::White, "ERROR: Required property 'Icon' not specified for Tradeskill Object");
 				return;
 			}
 
@@ -8706,7 +10632,7 @@ void command_object(Client *c, const Seperator *sep)
 		od.x = c->GetX();
 		od.y = c->GetY();
 		od.z = c->GetZ() - (c->GetSize() * 0.625f);
-		od.heading = c->GetHeading() * 2.0f; // GetHeading() is half of actual. Compensate by doubling.
+		od.heading = c->GetHeading();
 
 		std::string query;
 		if (id) {
@@ -8725,7 +10651,7 @@ void command_object(Client *c, const Seperator *sep)
 				id = 0;
 
 			if (id == 0) {
-				c->Message(0, "ERROR: An object already exists with the id %u", atoi(sep->arg[2]));
+				c->Message(Chat::White, "ERROR: An object already exists with the id %u", atoi(sep->arg[2]));
 				return;
 			}
 		}
@@ -8734,9 +10660,9 @@ void command_object(Client *c, const Seperator *sep)
 		// Verify no other objects already in this spot (accidental double-click of Hotkey?)
 		query = StringFormat(
 		    "SELECT COUNT(*) FROM object WHERE zoneid = %u "
-		    "AND version=%u AND (posx BETWEEN %.1f AND %.1f) "
-		    "AND (posy BETWEEN %.1f AND %.1f) "
-		    "AND (posz BETWEEN %.1f AND %.1f)",
+		    "AND version=%u AND (xpos BETWEEN %.1f AND %.1f) "
+		    "AND (ypos BETWEEN %.1f AND %.1f) "
+		    "AND (zpos BETWEEN %.1f AND %.1f)",
 		    zone->GetZoneID(), zone->GetInstanceVersion(), od.x - 0.2f,
 		    od.x + 0.2f,	       // Yes, we're actually using a bounding box instead of a radius.
 		    od.y - 0.2f, od.y + 0.2f,  // Much less processing power used this way.
@@ -8753,7 +10679,7 @@ void command_object(Client *c, const Seperator *sep)
 			objectsFound = 1;
 
 		if (objectsFound) {
-			c->Message(0, "ERROR: Object already at this location.");
+			c->Message(Chat::White, "ERROR: Object already at this location.");
 			return;
 		}
 
@@ -8774,7 +10700,7 @@ void command_object(Client *c, const Seperator *sep)
 		strupr(od.object_name); // Model names are always upper-case.
 
 		if ((od.object_name[0] < 'A') || (od.object_name[0] > 'Z')) {
-			c->Message(0, "ERROR: Model name must start with a letter.");
+			c->Message(Chat::White, "ERROR: Model name must start with a letter.");
 			return;
 		}
 
@@ -8811,19 +10737,17 @@ void command_object(Client *c, const Seperator *sep)
 
 		// Bump player back to avoid getting stuck inside new object
 
-		// GetHeading() returns half of the actual heading, for some reason, so we'll double it here for
-		// computation
-		x2 = 10.0f * sin(c->GetHeading() * 2.0f / 256.0f * 3.14159265f);
-		y2 = 10.0f * cos(c->GetHeading() * 2.0f / 256.0f * 3.14159265f);
-		c->MovePC(c->GetX() - x2, c->GetY() - y2, c->GetZ(), c->GetHeading() * 2);
+		x2 = 10.0f * sin(c->GetHeading() / 256.0f * 3.14159265f);
+		y2 = 10.0f * cos(c->GetHeading() / 256.0f * 3.14159265f);
+		c->MovePC(c->GetX() - x2, c->GetY() - y2, c->GetZ(), c->GetHeading());
 
-		c->Message(0, "Spawning object with tentative id %u at location (%.1f, %.1f, %.1f heading %.1f). Use "
+		c->Message(Chat::White, "Spawning object with tentative id %u at location (%.1f, %.1f, %.1f heading %.1f). Use "
 			      "'#object Save' to save to database when satisfied with placement.",
 			   id, od.x, od.y, od.z, od.heading);
 
 		// Temporary Static Object
 		if (od.object_type == staticType)
-			c->Message(0, "- Note: Static Object will act like a tradeskill container and will not reflect "
+			c->Message(Chat::White, "- Note: Static Object will act like a tradeskill container and will not reflect "
 				      "size, solidtype, or incline values until you commit with '#object Save', after "
 				      "which it will be unchangeable until you use '#object Edit' and zone back in.");
 
@@ -8833,9 +10757,9 @@ void command_object(Client *c, const Seperator *sep)
 	if (strcasecmp(sep->arg[1], "edit") == 0) {
 
 		if ((sep->argnum < 2) || ((id = atoi(sep->arg[2])) < 1)) {
-			c->Message(0, "Usage: #object Edit (ObjectID) [PropertyName] [NewValue]");
-			c->Message(0, "- Static Object (Type 0) Properties: model, type, size, solidtype, incline");
-			c->Message(0, "- Tradeskill Object (Type 2+) Properties: model, type, icon");
+			c->Message(Chat::White, "Usage: #object Edit (ObjectID) [PropertyName] [NewValue]");
+			c->Message(Chat::White, "- Static Object (Type 0) Properties: model, type, size, solidtype, incline");
+			c->Message(Chat::White, "- Tradeskill Object (Type 2+) Properties: model, type, icon");
 
 			return;
 		}
@@ -8847,7 +10771,7 @@ void command_object(Client *c, const Seperator *sep)
 			// Yep, looks like we can make real-time changes.
 			if (sep->argnum < 4) {
 				// Or not. '#object Edit (ObjectID)' called without PropertyName and NewValue
-				c->Message(0, "Note: Object %u already unlocked and ready for changes", id);
+				c->Message(Chat::White, "Note: Object %u already unlocked and ready for changes", id);
 				return;
 			}
 		} else {
@@ -8855,7 +10779,7 @@ void command_object(Client *c, const Seperator *sep)
 			std::string query = StringFormat("SELECT zoneid, version, type FROM object WHERE id = %u", id);
 			auto results = database.QueryDatabase(query);
 			if (!results.Success() || results.RowCount() == 0) {
-				c->Message(0, "ERROR: Object %u not found", id);
+				c->Message(Chat::White, "ERROR: Object %u not found", id);
 				return;
 			}
 
@@ -8867,13 +10791,13 @@ void command_object(Client *c, const Seperator *sep)
 
 			// Object not in this zone?
 			if (od.zone_id != zone->GetZoneID()) {
-				c->Message(0, "ERROR: Object %u not in this zone.", id);
+				c->Message(Chat::White, "ERROR: Object %u not in this zone.", id);
 				return;
 			}
 
 			// Object not in this instance?
 			if (od.zone_instance != zone->GetInstanceVersion()) {
-				c->Message(0, "ERROR: Object %u not part of this instance version.", id);
+				c->Message(Chat::White, "ERROR: Object %u not part of this instance version.", id);
 				return;
 			}
 
@@ -8884,23 +10808,23 @@ void command_object(Client *c, const Seperator *sep)
 
 				database.QueryDatabase(query);
 
-				c->Message(0, "Static Object %u unlocked for editing. You must zone out and back in to "
+				c->Message(Chat::White, "Static Object %u unlocked for editing. You must zone out and back in to "
 					      "make your changes, then commit them with '#object Save'.",
 					   id);
 				if (sep->argnum >= 4)
-					c->Message(0, "NOTE: The change you specified has not been applied, since the "
+					c->Message(Chat::White, "NOTE: The change you specified has not been applied, since the "
 						      "static object had not been unlocked for editing yet.");
 				return;
 
 			case OT_DROPPEDITEM:
-				c->Message(0, "ERROR: Object %u is a temporarily spawned ground spawn or dropped item, "
+				c->Message(Chat::White, "ERROR: Object %u is a temporarily spawned ground spawn or dropped item, "
 					      "which cannot be manipulated with #object. See the 'ground_spawns' table "
 					      "in the database.",
 					   id);
 				return;
 
 			case staticType:
-				c->Message(0, "ERROR: Object %u has been unlocked for editing, but you must zone out "
+				c->Message(Chat::White, "ERROR: Object %u has been unlocked for editing, but you must zone out "
 					      "and back in for your client to refresh its object table before you can "
 					      "make changes to it.",
 					   id);
@@ -8908,7 +10832,7 @@ void command_object(Client *c, const Seperator *sep)
 
 			default:
 				// Unknown error preventing us from seeing the object in the zone.
-				c->Message(0, "ERROR: Unknown problem attempting to manipulate object %u", id);
+				c->Message(Chat::White, "ERROR: Unknown problem attempting to manipulate object %u", id);
 				return;
 			}
 		}
@@ -8925,7 +10849,7 @@ void command_object(Client *c, const Seperator *sep)
 		if (strcmp(sep->arg[3], "model") == 0) {
 
 			if ((sep->arg[4][0] < 'A') || (sep->arg[4][0] > 'Z')) {
-				c->Message(0, "ERROR: Model names must begin with a letter.");
+				c->Message(Chat::White, "ERROR: Model names must begin with a letter.");
 				return;
 			}
 
@@ -8933,10 +10857,10 @@ void command_object(Client *c, const Seperator *sep)
 
 			o->SetObjectData(&od);
 
-			c->Message(0, "Object %u now being rendered with model '%s'", id, od.object_name);
+			c->Message(Chat::White, "Object %u now being rendered with model '%s'", id, od.object_name);
 		} else if (strcmp(sep->arg[3], "type") == 0) {
 			if ((sep->arg[4][0] < '0') || (sep->arg[4][0] > '9')) {
-				c->Message(0, "ERROR: Invalid type number");
+				c->Message(Chat::White, "ERROR: Invalid type number");
 				return;
 			}
 
@@ -8946,20 +10870,20 @@ void command_object(Client *c, const Seperator *sep)
 			case 0:
 				// Convert Static Object to temporary changeable type
 				od.object_type = staticType;
-				c->Message(0, "Note: Static Object will still act like tradeskill object and will not "
+				c->Message(Chat::White, "Note: Static Object will still act like tradeskill object and will not "
 					      "reflect size, solidtype, or incline settings until committed to the "
 					      "database with '#object Save', after which it will be unchangeable until "
 					      "it is unlocked again with '#object Edit'.");
 				break;
 
 			case OT_DROPPEDITEM:
-				c->Message(0, "ERROR: Object Type 1 is used for temporarily spawned ground spawns and "
+				c->Message(Chat::White, "ERROR: Object Type 1 is used for temporarily spawned ground spawns and "
 					      "dropped items, which are not supported with #object. See the "
 					      "'ground_spawns' table in the database.");
 				return;
 
 			default:
-				c->Message(0, "Object %u changed to Tradeskill Object Type %u", id, od.object_type);
+				c->Message(Chat::White, "Object %u changed to Tradeskill Object Type %u", id, od.object_type);
 				break;
 			}
 
@@ -8973,7 +10897,7 @@ void command_object(Client *c, const Seperator *sep)
 			}
 
 			if ((sep->arg[4][0] < '0') || (sep->arg[4][0] > '9')) {
-				c->Message(0, "ERROR: Invalid size specified. Please enter a number.");
+				c->Message(Chat::White, "ERROR: Invalid size specified. Please enter a number.");
 				return;
 			}
 
@@ -8983,47 +10907,47 @@ void command_object(Client *c, const Seperator *sep)
 			if (od.size == 0) // 0 == unspecified == 100%
 				od.size = 100;
 
-			c->Message(0, "Static Object %u set to %u%% size. Size will take effect when you commit to the "
+			c->Message(Chat::White, "Static Object %u set to %u%% size. Size will take effect when you commit to the "
 				      "database with '#object Save', after which the object will be unchangeable until "
 				      "you unlock it again with '#object Edit' and zone out and back in.",
 				   id, od.size);
 		} else if (strcmp(sep->arg[3], "solidtype") == 0) {
 
 			if (od.object_type != staticType) {
-				c->Message(0, "ERROR: Object %u is not a Static Object and does not support the "
+				c->Message(Chat::White, "ERROR: Object %u is not a Static Object and does not support the "
 					      "SolidType property",
 					   id);
 				return;
 			}
 
 			if ((sep->arg[4][0] < '0') || (sep->arg[4][0] > '9')) {
-				c->Message(0, "ERROR: Invalid solidtype specified. Please enter a number.");
+				c->Message(Chat::White, "ERROR: Invalid solidtype specified. Please enter a number.");
 				return;
 			}
 
 			od.solidtype = atoi(sep->arg[4]);
 			o->SetObjectData(&od);
 
-			c->Message(0, "Static Object %u set to SolidType %u. Change will take effect when you commit "
+			c->Message(Chat::White, "Static Object %u set to SolidType %u. Change will take effect when you commit "
 				      "to the database with '#object Save'. Support for this property is on a "
 				      "per-model basis, mostly seen in smaller objects such as chests and tables.",
 					  id, od.solidtype);
 		} else if (strcmp(sep->arg[3], "icon") == 0) {
 
 			if ((od.object_type < 2) || (od.object_type == staticType)) {
-				c->Message(0, "ERROR: Object %u is not a Tradeskill Object and does not support the "
+				c->Message(Chat::White, "ERROR: Object %u is not a Tradeskill Object and does not support the "
 					      "Icon property",
 					   id);
 				return;
 			}
 
 			if ((icon = atoi(sep->arg[4])) == 0) {
-				c->Message(0, "ERROR: Invalid Icon specified. Please enter an icon number.");
+				c->Message(Chat::White, "ERROR: Invalid Icon specified. Please enter an icon number.");
 				return;
 			}
 
 			o->SetIcon(icon);
-			c->Message(0, "Tradeskill Object %u icon set to %u", id, icon);
+			c->Message(Chat::White, "Tradeskill Object %u icon set to %u", id, icon);
 		} else if (strcmp(sep->arg[3], "incline") == 0) {
 			if (od.object_type != staticType) {
 				c->Message(
@@ -9043,12 +10967,12 @@ void command_object(Client *c, const Seperator *sep)
 			od.unknown020 = atoi(sep->arg[4]);
 			o->SetObjectData(&od);
 
-			c->Message(0, "Static Object %u set to %u incline. Incline will take effect when you commit to "
+			c->Message(Chat::White, "Static Object %u set to %u incline. Incline will take effect when you commit to "
 				      "the database with '#object Save', after which the object will be unchangeable "
 				      "until you unlock it again with '#object Edit' and zone out and back in.",
 				   id, od.unknown020);
 		} else {
-			c->Message(0, "ERROR: Unrecognized property name: %s", sep->arg[3]);
+			c->Message(Chat::White, "ERROR: Unrecognized property name: %s", sep->arg[3]);
 			return;
 		}
 
@@ -9071,7 +10995,7 @@ void command_object(Client *c, const Seperator *sep)
 		    ((id = atoi(sep->arg[2])) == 0) || // ID not specified
 		    (((sep->arg[3][0] < '0') || (sep->arg[3][0] > '9')) && ((sep->arg[3][0] & 0xDF) != 'T') &&
 		     (sep->arg[3][0] != '-') && (sep->arg[3][0] != '.'))) { // Location argument not specified correctly
-			c->Message(0, "Usage: #object Move (ObjectID) ToMe|(x y z [h])");
+			c->Message(Chat::White, "Usage: #object Move (ObjectID) ToMe|(x y z [h])");
 			return;
 		}
 
@@ -9079,7 +11003,7 @@ void command_object(Client *c, const Seperator *sep)
 			std::string query = StringFormat("SELECT zoneid, version, type FROM object WHERE id = %u", id);
 			auto results = database.QueryDatabase(query);
 			if (!results.Success() || results.RowCount() == 0) {
-				c->Message(0, "ERROR: Object %u not found", id);
+				c->Message(Chat::White, "ERROR: Object %u not found", id);
 				return;
 			}
 
@@ -9089,38 +11013,38 @@ void command_object(Client *c, const Seperator *sep)
 			od.object_type = atoi(row[2]);
 
 			if (od.zone_id != zone->GetZoneID()) {
-				c->Message(0, "ERROR: Object %u is not in this zone", id);
+				c->Message(Chat::White, "ERROR: Object %u is not in this zone", id);
 				return;
 			}
 
 			if (od.zone_instance != zone->GetInstanceVersion()) {
-				c->Message(0, "ERROR: Object %u is not in this instance version", id);
+				c->Message(Chat::White, "ERROR: Object %u is not in this instance version", id);
 				return;
 			}
 
 			switch (od.object_type) {
 			case 0:
-				c->Message(0, "ERROR: Object %u is not yet unlocked for editing. Use '#object Edit' "
+				c->Message(Chat::White, "ERROR: Object %u is not yet unlocked for editing. Use '#object Edit' "
 					      "then zone out and back in to move it.",
 					   id);
 				return;
 
 			case staticType:
-				c->Message(0, "ERROR: Object %u has been unlocked for editing, but you must zone out "
+				c->Message(Chat::White, "ERROR: Object %u has been unlocked for editing, but you must zone out "
 					      "and back in before your client sees the change and will allow you to "
 					      "move it.",
 					   id);
 				return;
 
 			case 1:
-				c->Message(0, "ERROR: Object %u is a temporary spawned object and cannot be "
+				c->Message(Chat::White, "ERROR: Object %u is a temporary spawned object and cannot be "
 					      "manipulated with #object. See the 'ground_spawns' table in the "
 					      "database.",
 					   id);
 				return;
 
 			default:
-				c->Message(0, "ERROR: Object %u not located in zone.", id);
+				c->Message(Chat::White, "ERROR: Object %u not located in zone.", id);
 				return;
 			}
 		}
@@ -9133,14 +11057,13 @@ void command_object(Client *c, const Seperator *sep)
 			       (c->GetSize() *
 				0.625f); // Compensate for #loc bumping up Z coordinate by 62.5% of character's size.
 
-			o->SetHeading(c->GetHeading() * 2.0f); // Compensate for GetHeading() returning half of actual
+			o->SetHeading(c->GetHeading());
 
 			// Bump player back to avoid getting stuck inside object
 
-			// GetHeading() returns half of the actual heading, for some reason
-			x2 = 10.0f * sin(c->GetHeading() * 2.0f / 256.0f * 3.14159265f);
-			y2 = 10.0f * cos(c->GetHeading() * 2.0f / 256.0f * 3.14159265f);
-			c->MovePC(c->GetX() - x2, c->GetY() - y2, c->GetZ(), c->GetHeading() * 2.0f);
+			x2 = 10.0f * std::sin(c->GetHeading() / 256.0f * 3.14159265f);
+			y2 = 10.0f * std::cos(c->GetHeading() / 256.0f * 3.14159265f);
+			c->MovePC(c->GetX() - x2, c->GetY() - y2, c->GetZ(), c->GetHeading());
 		} // Move to x, y, z [h]
 		else {
 			od.x = atof(sep->arg[3]);
@@ -9176,12 +11099,12 @@ void command_object(Client *c, const Seperator *sep)
 	if (strcasecmp(sep->arg[1], "rotate") == 0) {
 		// Insufficient or invalid arguments
 		if ((sep->argnum < 3) || ((id = atoi(sep->arg[2])) == 0)) {
-			c->Message(0, "Usage: #object Rotate (ObjectID) (Heading, 0-512)");
+			c->Message(Chat::White, "Usage: #object Rotate (ObjectID) (Heading, 0-512)");
 			return;
 		}
 
 		if ((o = entity_list.FindObject(id)) == nullptr) {
-			c->Message(0, "ERROR: Object %u not found in zone, or is a static object not yet unlocked with "
+			c->Message(Chat::White, "ERROR: Object %u not found in zone, or is a static object not yet unlocked with "
 				      "'#object Edit' for editing.",
 				   id);
 			return;
@@ -9205,7 +11128,7 @@ void command_object(Client *c, const Seperator *sep)
 	if (strcasecmp(sep->arg[1], "save") == 0) {
 		// Insufficient or invalid arguments
 		if ((sep->argnum < 2) || ((id = atoi(sep->arg[2])) == 0)) {
-			c->Message(0, "Usage: #object Save (ObjectID)");
+			c->Message(Chat::White, "Usage: #object Save (ObjectID)");
 			return;
 		}
 
@@ -9233,36 +11156,36 @@ void command_object(Client *c, const Seperator *sep)
 			// Object not found in zone. Can't save an object we can't see.
 
 			if (bNewObject) {
-				c->Message(0, "ERROR: Object %u not found", id);
+				c->Message(Chat::White, "ERROR: Object %u not found", id);
 				return;
 			}
 
 			if (od.zone_id != zone->GetZoneID()) {
-				c->Message(0, "ERROR: Wrong Object ID. %u is not part of this zone.", id);
+				c->Message(Chat::White, "ERROR: Wrong Object ID. %u is not part of this zone.", id);
 				return;
 			}
 
 			if (od.zone_instance != zone->GetInstanceVersion()) {
-				c->Message(0, "ERROR: Wrong Object ID. %u is not part of this instance version.", id);
+				c->Message(Chat::White, "ERROR: Wrong Object ID. %u is not part of this instance version.", id);
 				return;
 			}
 
 			if (od.object_type == 0) {
-				c->Message(0, "ERROR: Static Object %u has already been committed. Use '#object Edit "
+				c->Message(Chat::White, "ERROR: Static Object %u has already been committed. Use '#object Edit "
 					      "%u' and zone out and back in to make changes.",
 					   id, id);
 				return;
 			}
 
 			if (od.object_type == 1) {
-				c->Message(0, "ERROR: Object %u is a temporarily spawned ground spawn or dropped item, "
+				c->Message(Chat::White, "ERROR: Object %u is a temporarily spawned ground spawn or dropped item, "
 					      "which is not supported with #object. See the 'ground_spawns' table in "
 					      "the database.",
 					   id);
 				return;
 			}
 
-			c->Message(0, "ERROR: Object %u not found.", id);
+			c->Message(Chat::White, "ERROR: Object %u not found.", id);
 			return;
 		}
 
@@ -9315,28 +11238,28 @@ void command_object(Client *c, const Seperator *sep)
 
 		results = database.QueryDatabase(query);
 		if (!results.Success()) {
-			c->Message(0, "Database Error: %s", results.ErrorMessage().c_str());
+			c->Message(Chat::White, "Database Error: %s", results.ErrorMessage().c_str());
 			return;
 		}
 
 		if (results.RowsAffected() == 0) {
 			// No change made, but no error message given
-			c->Message(0, "Database Error: Could not save change to Object %u", id);
+			c->Message(Chat::White, "Database Error: Could not save change to Object %u", id);
 			return;
 		}
 
 		if (bNewObject) {
 			if (newid == results.LastInsertedID()) {
-				c->Message(0, "Saved new Object %u to database", id);
+				c->Message(Chat::White, "Saved new Object %u to database", id);
 				return;
 			}
 
-			c->Message(0, "Saved Object. NOTE: Database returned a new ID number for object: %u", newid);
+			c->Message(Chat::White, "Saved Object. NOTE: Database returned a new ID number for object: %u", newid);
 			id = newid;
 			return;
 		}
 
-		c->Message(0, "Saved changes to Object %u", id);
+		c->Message(Chat::White, "Saved changes to Object %u", id);
 		newid = id;
 
 		if (od.object_type == 0) {
@@ -9410,7 +11333,7 @@ void command_object(Client *c, const Seperator *sep)
 			entity_list.QueueClients(0, app);
 			safe_delete(app);
 
-			c->Message(0, "NOTE: Object %u is now a static object, and is unchangeable. To make future "
+			c->Message(Chat::White, "NOTE: Object %u is now a static object, and is unchangeable. To make future "
 				      "changes, use '#object Edit' to convert it to a changeable form, then zone out "
 				      "and back in.",
 				   id);
@@ -9422,15 +11345,15 @@ void command_object(Client *c, const Seperator *sep)
 		// Insufficient or invalid arguments
 		if ((sep->argnum < 3) ||
 		    (((sep->arg[2][0] & 0xDF) != 'A') && ((sep->arg[2][0] < '0') || (sep->arg[2][0] > '9')))) {
-			c->Message(0, "Usage: #object Copy All|(ObjectID) (InstanceVersion)");
-			c->Message(0, "- Note: Only objects saved in the database can be copied to another instance.");
+			c->Message(Chat::White, "Usage: #object Copy All|(ObjectID) (InstanceVersion)");
+			c->Message(Chat::White, "- Note: Only objects saved in the database can be copied to another instance.");
 			return;
 		}
 
 		od.zone_instance = atoi(sep->arg[3]);
 
 		if (od.zone_instance == zone->GetInstanceVersion()) {
-			c->Message(0, "ERROR: Source and destination instance versions are the same.");
+			c->Message(Chat::White, "ERROR: Source and destination instance versions are the same.");
 			return;
 		}
 
@@ -9447,11 +11370,11 @@ void command_object(Client *c, const Seperator *sep)
 					 od.zone_instance, zone->GetZoneID(), zone->GetInstanceVersion());
 			auto results = database.QueryDatabase(query);
 			if (!results.Success()) {
-				c->Message(0, "Database Error: %s", results.ErrorMessage().c_str());
+				c->Message(Chat::White, "Database Error: %s", results.ErrorMessage().c_str());
 				return;
 			}
 
-			c->Message(0, "Copied %u object%s into instance version %u", results.RowCount(),
+			c->Message(Chat::White, "Copied %u object%s into instance version %u", results.RowCount(),
 				   (results.RowCount() == 1) ? "" : "s", od.zone_instance);
 			return;
 		}
@@ -9467,7 +11390,7 @@ void command_object(Client *c, const Seperator *sep)
 						 od.zone_instance, id, zone->GetZoneID(), zone->GetInstanceVersion());
 		auto results = database.QueryDatabase(query);
 		if (results.Success() && results.RowsAffected() > 0) {
-			c->Message(0, "Copied Object %u into instance version %u", id, od.zone_instance);
+			c->Message(Chat::White, "Copied Object %u into instance version %u", id, od.zone_instance);
 			return;
 		}
 
@@ -9475,7 +11398,7 @@ void command_object(Client *c, const Seperator *sep)
 
 		// got an error message
 		if (!results.Success()) {
-			c->Message(0, "Database Error: %s", results.ErrorMessage().c_str());
+			c->Message(Chat::White, "Database Error: %s", results.ErrorMessage().c_str());
 			return;
 		}
 
@@ -9487,25 +11410,25 @@ void command_object(Client *c, const Seperator *sep)
 			return;
 
 		if (results.RowCount() == 0) {
-			c->Message(0, "ERROR: Object %u not found", id);
+			c->Message(Chat::White, "ERROR: Object %u not found", id);
 			return;
 		}
 
 		auto row = results.begin();
 		// Wrong ZoneID?
 		if (atoi(row[0]) != zone->GetZoneID()) {
-			c->Message(0, "ERROR: Object %u is not part of this zone.", id);
+			c->Message(Chat::White, "ERROR: Object %u is not part of this zone.", id);
 			return;
 		}
 
 		// Wrong Instance Version?
 		if (atoi(row[1]) != zone->GetInstanceVersion()) {
-			c->Message(0, "ERROR: Object %u is not part of this instance version.", id);
+			c->Message(Chat::White, "ERROR: Object %u is not part of this instance version.", id);
 			return;
 		}
 
 		// Well, NO clue at this point. Just let 'em know something screwed up.
-		c->Message(0, "ERROR: Unknown database error copying Object %u to instance version %u", id,
+		c->Message(Chat::White, "ERROR: Unknown database error copying Object %u to instance version %u", id,
 			   od.zone_instance);
 		return;
 	}
@@ -9513,7 +11436,7 @@ void command_object(Client *c, const Seperator *sep)
 	if (strcasecmp(sep->arg[1], "delete") == 0) {
 
 		if ((sep->argnum < 2) || ((id = atoi(sep->arg[2])) <= 0)) {
-			c->Message(0, "Usage: #object Delete (ObjectID) -- NOTE: Object deletions are permanent and "
+			c->Message(Chat::White, "Usage: #object Delete (ObjectID) -- NOTE: Object deletions are permanent and "
 				      "cannot be undone!");
 			return;
 		}
@@ -9537,7 +11460,7 @@ void command_object(Client *c, const Seperator *sep)
 							 id, zone->GetZoneID(), zone->GetInstanceVersion());
 			auto results = database.QueryDatabase(query);
 
-			c->Message(0, "Object %u deleted", id);
+			c->Message(Chat::White, "Object %u deleted", id);
 			return;
 		}
 
@@ -9551,7 +11474,7 @@ void command_object(Client *c, const Seperator *sep)
 			return;
 
 		if (results.RowCount() == 0) {
-			c->Message(0, "ERROR: Object %u not found in this zone or instance!", id);
+			c->Message(Chat::White, "ERROR: Object %u not found in this zone or instance!", id);
 			return;
 		}
 
@@ -9564,13 +11487,13 @@ void command_object(Client *c, const Seperator *sep)
 					     id, zone->GetZoneID(), zone->GetInstanceVersion());
 			results = database.QueryDatabase(query);
 
-			c->Message(0, "Object %u deleted. NOTE: This static object will remain for anyone currently in "
+			c->Message(Chat::White, "Object %u deleted. NOTE: This static object will remain for anyone currently in "
 				      "the zone until they next zone out and in.",
 				   id);
 			return;
 
 		case 1: // Temporary Spawn
-			c->Message(0, "ERROR: Object %u is a temporarily spawned ground spawn or dropped item, which "
+			c->Message(Chat::White, "ERROR: Object %u is a temporarily spawned ground spawn or dropped item, which "
 				      "is not supported with #object. See the 'ground_spawns' table in the database.",
 				   id);
 			return;
@@ -9582,7 +11505,7 @@ void command_object(Client *c, const Seperator *sep)
 	if (strcasecmp(sep->arg[1], "undo") == 0) {
 		// Insufficient or invalid arguments
 		if ((sep->argnum < 2) || ((id = atoi(sep->arg[2])) == 0)) {
-			c->Message(0, "Usage: #object Undo (ObjectID) -- Reload object from database, undoing any "
+			c->Message(Chat::White, "Usage: #object Undo (ObjectID) -- Reload object from database, undoing any "
 				      "changes you have made");
 			return;
 		}
@@ -9590,13 +11513,13 @@ void command_object(Client *c, const Seperator *sep)
 		o = entity_list.FindObject(id);
 
 		if (!o) {
-			c->Message(0, "ERROR: Object %u not found in zone in a manipulable form. No changes to undo.",
+			c->Message(Chat::White, "ERROR: Object %u not found in zone in a manipulable form. No changes to undo.",
 				   id);
 			return;
 		}
 
 		if (o->GetType() == OT_DROPPEDITEM) {
-			c->Message(0, "ERROR: Object %u is a temporary spawned item and cannot be manipulated with "
+			c->Message(Chat::White, "ERROR: Object %u is a temporary spawned item and cannot be manipulated with "
 				      "#object. See the 'ground_spawns' table in the database.",
 				   id);
 			return;
@@ -9616,7 +11539,7 @@ void command_object(Client *c, const Seperator *sep)
 						 id);
 		auto results = database.QueryDatabase(query);
 		if (!results.Success() || results.RowCount() == 0) {
-			c->Message(0, "Database Error: %s", results.ErrorMessage().c_str());
+			c->Message(Chat::White, "Database Error: %s", results.ErrorMessage().c_str());
 			return;
 		}
 
@@ -9641,11 +11564,11 @@ void command_object(Client *c, const Seperator *sep)
 		o = new Object(id, od.object_type, icon, od, nullptr);
 		entity_list.AddObject(o, true);
 
-		c->Message(0, "Object %u reloaded from database.", id);
+		c->Message(Chat::White, "Object %u reloaded from database.", id);
 		return;
 	}
 
-	c->Message(0, usage_string);
+	c->Message(Chat::White, usage_string);
 }
 
 void command_showspellslist(Client *c, const Seperator *sep)
@@ -9653,12 +11576,12 @@ void command_showspellslist(Client *c, const Seperator *sep)
 	Mob *target = c->GetTarget();
 
 	if (!target) {
-		c->Message(0, "Must target an NPC.");
+		c->Message(Chat::White, "Must target an NPC.");
 		return;
 	}
 
 	if (!target->IsNPC()) {
-		c->Message(0, "%s is not an NPC.",  target->GetName());
+		c->Message(Chat::White, "%s is not an NPC.",  target->GetName());
 		return;
 	}
 
@@ -9670,7 +11593,7 @@ void command_showspellslist(Client *c, const Seperator *sep)
 void command_raidloot(Client *c, const Seperator *sep)
 {
 	if(!sep->arg[1][0]) {
-		c->Message(0, "Usage: #raidloot [LEADER/GROUPLEADER/SELECTED/ALL]");
+		c->Message(Chat::White, "Usage: #raidloot [LEADER/GROUPLEADER/SELECTED/ALL]");
 		return;
 	}
 
@@ -9683,7 +11606,7 @@ void command_raidloot(Client *c, const Seperator *sep)
 			{
 				if(r->members[x].IsRaidLeader == 0)
 				{
-					c->Message(0, "You must be the raid leader to use this command.");
+					c->Message(Chat::White, "You must be the raid leader to use this command.");
 				}
 				else
 				{
@@ -9694,32 +11617,32 @@ void command_raidloot(Client *c, const Seperator *sep)
 
 		if(strcasecmp(sep->arg[1], "LEADER") == 0)
 		{
-			c->Message(15, "Loot type changed to: 1");
+			c->Message(Chat::Yellow, "Loot type changed to: 1");
 			r->ChangeLootType(1);
 		}
 		else if(strcasecmp(sep->arg[1], "GROUPLEADER") == 0)
 		{
-			c->Message(15, "Loot type changed to: 2");
+			c->Message(Chat::Yellow, "Loot type changed to: 2");
 			r->ChangeLootType(2);
 		}
 		else if(strcasecmp(sep->arg[1], "SELECTED") == 0)
 		{
-			c->Message(15, "Loot type changed to: 3");
+			c->Message(Chat::Yellow, "Loot type changed to: 3");
 			r->ChangeLootType(3);
 		}
 		else if(strcasecmp(sep->arg[1], "ALL") == 0)
 		{
-			c->Message(15, "Loot type changed to: 4");
+			c->Message(Chat::Yellow, "Loot type changed to: 4");
 			r->ChangeLootType(4);
 		}
 		else
 		{
-			c->Message(0, "Usage: #raidloot [LEADER/GROUPLEADER/SELECTED/ALL]");
+			c->Message(Chat::White, "Usage: #raidloot [LEADER/GROUPLEADER/SELECTED/ALL]");
 		}
 	}
 	else
 	{
-		c->Message(0, "You must be in a raid to use that command.");
+		c->Message(Chat::White, "You must be in a raid to use that command.");
 	}
 }
 
@@ -9727,7 +11650,7 @@ void command_emoteview(Client *c, const Seperator *sep)
 {
 	if(!c->GetTarget() || !c->GetTarget()->IsNPC())
 	{
-		c->Message(0, "You must target a NPC to view their emotes.");
+		c->Message(Chat::White, "You must target a NPC to view their emotes.");
 		return;
 	}
 
@@ -9743,22 +11666,22 @@ void command_emoteview(Client *c, const Seperator *sep)
 			NPC_Emote_Struct* nes = iterator.GetData();
 			if(emoteid == nes->emoteid)
 			{
-				c->Message(0, "EmoteID: %i Event: %i Type: %i Text: %s",  nes->emoteid, nes->event_, nes->type, nes->text);
+				c->Message(Chat::White, "EmoteID: %i Event: %i Type: %i Text: %s",  nes->emoteid, nes->event_, nes->type, nes->text);
 				count++;
 			}
 			iterator.Advance();
 		}
 		if (count == 0)
-			c->Message(0, "No emotes found.");
+			c->Message(Chat::White, "No emotes found.");
 		else
-			c->Message(0, "%i emote(s) found",  count);
+			c->Message(Chat::White, "%i emote(s) found",  count);
 	}
 }
 
 void command_emotesearch(Client *c, const Seperator *sep)
 {
 	if (sep->arg[1][0] == 0)
-		c->Message(0, "Usage: #emotesearch [search string or emoteid]");
+		c->Message(Chat::White, "Usage: #emotesearch [search string or emoteid]");
 	else
 	{
 		const char *search_criteria=sep->argplus[1];
@@ -9774,15 +11697,15 @@ void command_emotesearch(Client *c, const Seperator *sep)
 			NPC_Emote_Struct* nes = iterator.GetData();
 				if(emoteid == nes->emoteid)
 				{
-					c->Message(0, "EmoteID: %i Event: %i Type: %i Text: %s",  nes->emoteid, nes->event_, nes->type, nes->text);
+					c->Message(Chat::White, "EmoteID: %i Event: %i Type: %i Text: %s",  nes->emoteid, nes->event_, nes->type, nes->text);
 					count++;
 				}
 				iterator.Advance();
 			}
 			if (count == 0)
-				c->Message(0, "No emotes found.");
+				c->Message(Chat::White, "No emotes found.");
 			else
-				c->Message(0, "%i emote(s) found",  count);
+				c->Message(Chat::White, "%i emote(s) found",  count);
 		}
 		else
 		{
@@ -9802,7 +11725,7 @@ void command_emotesearch(Client *c, const Seperator *sep)
 			pdest = strstr(sText, sCriteria);
 				if (pdest != nullptr)
 				{
-					c->Message(0, "EmoteID: %i Event: %i Type: %i Text: %s",  nes->emoteid, nes->event_, nes->type, nes->text);
+					c->Message(Chat::White, "EmoteID: %i Event: %i Type: %i Text: %s",  nes->emoteid, nes->event_, nes->type, nes->text);
 					count++;
 				}
 				if (count == 50)
@@ -9811,9 +11734,9 @@ void command_emotesearch(Client *c, const Seperator *sep)
 				iterator.Advance();
 			}
 			if (count == 50)
-				c->Message(0, "50 emotes shown...too many results.");
+				c->Message(Chat::White, "50 emotes shown...too many results.");
 			else
-				c->Message(0, "%i emote(s) found",  count);
+				c->Message(Chat::White, "%i emote(s) found",  count);
 		}
 	}
 }
@@ -9822,7 +11745,7 @@ void command_reloademote(Client *c, const Seperator *sep)
 {
 	zone->NPCEmoteList.Clear();
 	zone->LoadNPCEmotes(&zone->NPCEmoteList);
-	c->Message(0, "NPC emotes reloaded.");
+	c->Message(Chat::White, "NPC emotes reloaded.");
 }
 
 void command_globalview(Client *c, const Seperator *sep)
@@ -9866,14 +11789,14 @@ void command_globalview(Client *c, const Seperator *sep)
 		auto iter = globalMap.begin();
 		uint32 gcount = 0;
 
-		c->Message(0, "Name, Value");
+		c->Message(Chat::White, "Name, Value");
 		while(iter != globalMap.end())
 		{
-			c->Message(0, "%s %s",  (*iter).name.c_str(), (*iter).value.c_str());
+			c->Message(Chat::White, "%s %s",  (*iter).name.c_str(), (*iter).value.c_str());
 			++iter;
 			++gcount;
 		}
-		c->Message(0, "%u globals loaded.",  gcount);
+		c->Message(Chat::White, "%u globals loaded.",  gcount);
 	}
 	else
 	{
@@ -9899,14 +11822,14 @@ void command_globalview(Client *c, const Seperator *sep)
 		auto iter = globalMap.begin();
 		uint32 gcount = 0;
 
-		c->Message(0, "Name, Value");
+		c->Message(Chat::White, "Name, Value");
 		while(iter != globalMap.end())
 		{
-			c->Message(0, "%s %s",  (*iter).name.c_str(), (*iter).value.c_str());
+			c->Message(Chat::White, "%s %s",  (*iter).name.c_str(), (*iter).value.c_str());
 			++iter;
 			++gcount;
 		}
-		c->Message(0, "%u globals loaded.",  gcount);
+		c->Message(Chat::White, "%u globals loaded.",  gcount);
 	}
 }
 
@@ -9914,7 +11837,7 @@ void command_distance(Client *c, const Seperator *sep) {
 	if(c && c->GetTarget()) {
 		Mob* target = c->GetTarget();
 
-		c->Message(0, "Your target, %s, is %1.1f units from you.",  c->GetTarget()->GetName(), Distance(c->GetPosition(), target->GetPosition()));
+		c->Message(Chat::White, "Your target, %s, is %1.1f units from you.",  c->GetTarget()->GetName(), Distance(c->GetPosition(), target->GetPosition()));
 	}
 }
 
@@ -9958,24 +11881,24 @@ void command_max_all_skills(Client *c, const Seperator *sep)
 void command_showbonusstats(Client *c, const Seperator *sep)
 {
 	if (c->GetTarget() == 0)
-		c->Message(0, "ERROR: No target!");
+		c->Message(Chat::White, "ERROR: No target!");
 	else if (!c->GetTarget()->IsMob() && !c->GetTarget()->IsClient())
-		c->Message(0, "ERROR: Target is not a Mob or Player!");
+		c->Message(Chat::White, "ERROR: Target is not a Mob or Player!");
 	else {
 		bool bAll = false;
 		if(sep->arg[1][0] == '\0' || strcasecmp(sep->arg[1], "all") == 0)
 			bAll = true;
 		if (bAll || (strcasecmp(sep->arg[1], "item")==0)) {
-			c->Message(0, "Target Item Bonuses:");
-			c->Message(0, "  Accuracy: %i%%   Divine Save: %i%%", c->GetTarget()->GetItemBonuses().Accuracy, c->GetTarget()->GetItemBonuses().DivineSaveChance);
-			c->Message(0, "  Flurry: %i%%     HitChance: %i%%", c->GetTarget()->GetItemBonuses().FlurryChance, c->GetTarget()->GetItemBonuses().HitChance / 15);
+			c->Message(Chat::White, "Target Item Bonuses:");
+			c->Message(Chat::White, "  Accuracy: %i%%   Divine Save: %i%%", c->GetTarget()->GetItemBonuses().Accuracy, c->GetTarget()->GetItemBonuses().DivineSaveChance);
+			c->Message(Chat::White, "  Flurry: %i%%     HitChance: %i%%", c->GetTarget()->GetItemBonuses().FlurryChance, c->GetTarget()->GetItemBonuses().HitChance / 15);
 		}
 		if (bAll || (strcasecmp(sep->arg[1], "spell")==0)) {
-			c->Message(0, "  Target Spell Bonuses:");
-			c->Message(0, "  Accuracy: %i%%   Divine Save: %i%%", c->GetTarget()->GetSpellBonuses().Accuracy, c->GetTarget()->GetSpellBonuses().DivineSaveChance);
-			c->Message(0, "  Flurry: %i%%     HitChance: %i%% ", c->GetTarget()->GetSpellBonuses().FlurryChance, c->GetTarget()->GetSpellBonuses().HitChance / 15);
+			c->Message(Chat::White, "  Target Spell Bonuses:");
+			c->Message(Chat::White, "  Accuracy: %i%%   Divine Save: %i%%", c->GetTarget()->GetSpellBonuses().Accuracy, c->GetTarget()->GetSpellBonuses().DivineSaveChance);
+			c->Message(Chat::White, "  Flurry: %i%%     HitChance: %i%% ", c->GetTarget()->GetSpellBonuses().FlurryChance, c->GetTarget()->GetSpellBonuses().HitChance / 15);
 		}
-		c->Message(0, "  Effective Casting Level: %i", c->GetTarget()->GetCasterLevel(0));
+		c->Message(Chat::White, "  Effective Casting Level: %i", c->GetTarget()->GetCasterLevel(0));
 	}
 }
 
@@ -9985,7 +11908,7 @@ void command_reloadallrules(Client *c, const Seperator *sep)
 	{
 		auto pack = new ServerPacket(ServerOP_ReloadRules, 0);
 		worldserver.SendPacket(pack);
-		c->Message(13, "Successfully sent the packet to world to reload rules globally. (including world)");
+		c->Message(Chat::Red, "Successfully sent the packet to world to reload rules globally. (including world)");
 		safe_delete(pack);
 
 	}
@@ -9997,7 +11920,7 @@ void command_reloadworldrules(Client *c, const Seperator *sep)
 	{
 		auto pack = new ServerPacket(ServerOP_ReloadRulesWorld, 0);
 		worldserver.SendPacket(pack);
-		c->Message(13, "Successfully sent the packet to world to reload rules. (only world)");
+		c->Message(Chat::Red, "Successfully sent the packet to world to reload rules. (only world)");
 		safe_delete(pack);
 	}
 }
@@ -10013,11 +11936,11 @@ void command_camerashake(Client *c, const Seperator *sep)
 			scss->duration = atoi(sep->arg[1]);
 			scss->intensity = atoi(sep->arg[2]);
 			worldserver.SendPacket(pack);
-			c->Message(13, "Successfully sent the packet to world! Shake it, world, shake it!");
+			c->Message(Chat::Red, "Successfully sent the packet to world! Shake it, world, shake it!");
 			safe_delete(pack);
 		}
 		else {
-			c->Message(13, "Usage -- #camerashake [duration], [intensity [1-10])");
+			c->Message(Chat::Red, "Usage -- #camerashake [duration], [intensity [1-10])");
 		}
 	}
 	return;
@@ -10029,7 +11952,7 @@ void command_disarmtrap(Client *c, const Seperator *sep)
 
 	if(!target)
 	{
-		c->Message(13, "You must have a target.");
+		c->Message(Chat::Red, "You must have a target.");
 		return;
 	}
 
@@ -10039,13 +11962,13 @@ void command_disarmtrap(Client *c, const Seperator *sep)
 		{
 			if(DistanceSquaredNoZ(c->GetPosition(), target->GetPosition()) > RuleI(Adventure, LDoNTrapDistanceUse))
 			{
-				c->Message(13, "%s is too far away.",  target->GetCleanName());
+				c->Message(Chat::Red, "%s is too far away.",  target->GetCleanName());
 				return;
 			}
 			c->HandleLDoNDisarm(target->CastToNPC(), c->GetSkill(EQEmu::skills::SkillDisarmTraps), LDoNTypeMechanical);
 		}
 		else
-			c->Message(13, "You do not have the disarm trap skill.");
+			c->Message(Chat::Red, "You do not have the disarm trap skill.");
 	}
 }
 
@@ -10054,7 +11977,7 @@ void command_sensetrap(Client *c, const Seperator *sep)
 	Mob * target = c->GetTarget();
 	if(!target)
 	{
-		c->Message(13, "You must have a target.");
+		c->Message(Chat::Red, "You must have a target.");
 		return;
 	}
 
@@ -10064,13 +11987,13 @@ void command_sensetrap(Client *c, const Seperator *sep)
 		{
 			if(DistanceSquaredNoZ(c->GetPosition(), target->GetPosition()) > RuleI(Adventure, LDoNTrapDistanceUse))
 			{
-				c->Message(13, "%s is too far away.",  target->GetCleanName());
+				c->Message(Chat::Red, "%s is too far away.",  target->GetCleanName());
 				return;
 			}
 			c->HandleLDoNSenseTraps(target->CastToNPC(), c->GetSkill(EQEmu::skills::SkillSenseTraps), LDoNTypeMechanical);
 		}
 		else
-			c->Message(13, "You do not have the sense traps skill.");
+			c->Message(Chat::Red, "You do not have the sense traps skill.");
 	}
 }
 
@@ -10079,7 +12002,7 @@ void command_picklock(Client *c, const Seperator *sep)
 	Mob * target = c->GetTarget();
 	if(!target)
 	{
-		c->Message(13, "You must have a target.");
+		c->Message(Chat::Red, "You must have a target.");
 		return;
 	}
 
@@ -10089,30 +12012,92 @@ void command_picklock(Client *c, const Seperator *sep)
 		{
 			if(DistanceSquaredNoZ(c->GetPosition(), target->GetPosition()) > RuleI(Adventure, LDoNTrapDistanceUse))
 			{
-				c->Message(13, "%s is too far away.",  target->GetCleanName());
+				c->Message(Chat::Red, "%s is too far away.",  target->GetCleanName());
 				return;
 			}
 			c->HandleLDoNPickLock(target->CastToNPC(), c->GetSkill(EQEmu::skills::SkillPickLock), LDoNTypeMechanical);
 		}
 		else
-			c->Message(13, "You do not have the pick locks skill.");
+			c->Message(Chat::Red, "You do not have the pick locks skill.");
 	}
+}
+
+void command_profanity(Client *c, const Seperator *sep)
+{
+	std::string arg1(sep->arg[1]);
+
+	while (true) {
+		if (arg1.compare("list") == 0) {
+			// do nothing
+		}
+		else if (arg1.compare("clear") == 0) {
+			EQEmu::ProfanityManager::DeleteProfanityList(&database);
+			auto pack = new ServerPacket(ServerOP_RefreshCensorship);
+			worldserver.SendPacket(pack);
+			safe_delete(pack);
+		}
+		else if (arg1.compare("add") == 0) {
+			if (!EQEmu::ProfanityManager::AddProfanity(&database, sep->arg[2]))
+				c->Message(Chat::Red, "Could not add '%s' to the profanity list.", sep->arg[2]);
+			auto pack = new ServerPacket(ServerOP_RefreshCensorship);
+			worldserver.SendPacket(pack);
+			safe_delete(pack);
+		}
+		else if (arg1.compare("del") == 0) {
+			if (!EQEmu::ProfanityManager::RemoveProfanity(&database, sep->arg[2]))
+				c->Message(Chat::Red, "Could not delete '%s' from the profanity list.", sep->arg[2]);
+			auto pack = new ServerPacket(ServerOP_RefreshCensorship);
+			worldserver.SendPacket(pack);
+			safe_delete(pack);
+		}
+		else if (arg1.compare("reload") == 0) {
+			if (!EQEmu::ProfanityManager::UpdateProfanityList(&database))
+				c->Message(Chat::Red, "Could not reload the profanity list.");
+			auto pack = new ServerPacket(ServerOP_RefreshCensorship);
+			worldserver.SendPacket(pack);
+			safe_delete(pack);
+		}
+		else {
+			break;
+		}
+
+		std::string popup;
+		const auto &list = EQEmu::ProfanityManager::GetProfanityList();
+		for (const auto &iter : list) {
+			popup.append(iter);
+			popup.append("<br>");
+		}
+		if (list.empty())
+			popup.append("** Censorship Inactive **<br>");
+		else
+			popup.append("** End of List **<br>");
+
+		c->SendPopupToClient("Profanity List", popup.c_str());
+
+		return;
+	}
+
+	c->Message(Chat::White, "Usage: #profanity [list] - shows profanity list");
+	c->Message(Chat::White, "Usage: #profanity [clear] - deletes all entries");
+	c->Message(Chat::White, "Usage: #profanity [add] [<word>] - adds entry");
+	c->Message(Chat::White, "Usage: #profanity [del] [<word>] - deletes entry");
+	c->Message(Chat::White, "Usage: #profanity [reload] - reloads profanity list");
 }
 
 void command_mysql(Client *c, const Seperator *sep)
 {
 	if(!sep->arg[1][0] || !sep->arg[2][0]) {
-		c->Message(0, "Usage: #mysql query \"Query here\"");
+		c->Message(Chat::White, "Usage: #mysql query \"Query here\"");
 		return;
 	}
 
 	if (strcasecmp(sep->arg[1], "help") == 0) {
-		c->Message(0, "MYSQL In-Game CLI Interface:");
-		c->Message(0, "Example: #mysql query \"Query goes here quoted\" -s -h");
-		c->Message(0, "To use 'like \"%%something%%\" replace the %% with #");
-		c->Message(0, "Example: #mysql query \"select * from table where name like \"#something#\"");
-		c->Message(0, "-s - Spaces select entries apart");
-		c->Message(0, "-h - Colors every other select result");
+		c->Message(Chat::White, "MYSQL In-Game CLI Interface:");
+		c->Message(Chat::White, "Example: #mysql query \"Query goes here quoted\" -s -h");
+		c->Message(Chat::White, "To use 'like \"%%something%%\" replace the %% with #");
+		c->Message(Chat::White, "Example: #mysql query \"select * from table where name like \"#something#\"");
+		c->Message(Chat::White, "-s - Spaces select entries apart");
+		c->Message(Chat::White, "-h - Colors every other select result");
 		return;
 	}
 
@@ -10126,7 +12111,7 @@ void command_mysql(Client *c, const Seperator *sep)
 				case 's': optionS = true; break;
 				case 'h': optionH = true; break;
 				default:
-                    c->Message(15, "%s, there is no option '%c'",  c->GetName(), sep->arg[argnum][1]);
+                    c->Message(Chat::Yellow, "%s, there is no option '%c'",  c->GetName(), sep->arg[argnum][1]);
                     return;
 			}
 			++argnum;
@@ -10149,7 +12134,7 @@ void command_mysql(Client *c, const Seperator *sep)
             query.insert(pos, "%%");
             pos = query.find('#');
         }
-        c->Message(15, "---Running query: '%s'",  query.c_str());
+        c->Message(Chat::Yellow, "---Running query: '%s'",  query.c_str());
 
         for (auto row = results.begin(); row != results.end(); ++row) {
             std::stringstream lineText;
@@ -10168,7 +12153,7 @@ void command_mysql(Client *c, const Seperator *sep)
             lineVec.push_back(lineText.str());
 
             if(optionS) //This provides spacing for the space switch
-                c->Message(0, " ");
+                c->Message(Chat::White, " ");
             if(optionH) //This option will highlight every other row
                 highlightTextIndex = 1 - highlightTextIndex;
 
@@ -10193,11 +12178,11 @@ void command_xtargets(Client *c, const Seperator *sep)
 
 		if((NewMax < 5) || (NewMax > XTARGET_HARDCAP))
 		{
-			c->Message(13, "Number of XTargets must be between 5 and %i",  XTARGET_HARDCAP);
+			c->Message(Chat::Red, "Number of XTargets must be between 5 and %i",  XTARGET_HARDCAP);
 			return;
 		}
 		t->SetMaxXTargets(NewMax);
-		c->Message(0, "Max number of XTargets set to %i",  NewMax);
+		c->Message(Chat::White, "Max number of XTargets set to %i",  NewMax);
 	}
 	else
 		t->ShowXTargets(c);
@@ -10208,11 +12193,11 @@ void command_zopp(Client *c, const Seperator *sep)
 	if (!c)
 		return;
 	else if (sep->argnum < 3 || sep->argnum > 4)
-		c->Message(0, "Usage: #zopp [trade/summon] [slot id] [item id] [*charges]");
+		c->Message(Chat::White, "Usage: #zopp [trade/summon] [slot id] [item id] [*charges]");
 	else if (!strcasecmp(sep->arg[1], "trade") == 0 && !strcasecmp(sep->arg[1], "t") == 0 && !strcasecmp(sep->arg[1], "summon") == 0 && !strcasecmp(sep->arg[1], "s") == 0)
-		c->Message(0, "Usage: #zopp [trade/summon] [slot id] [item id] [*charges]");
+		c->Message(Chat::White, "Usage: #zopp [trade/summon] [slot id] [item id] [*charges]");
 	else if (!sep->IsNumber(2) || !sep->IsNumber(3) || (sep->argnum == 4 && !sep->IsNumber(4)))
-		c->Message(0, "Usage: #zopp [trade/summon] [slot id] [item id] [*charges]");
+		c->Message(Chat::White, "Usage: #zopp [trade/summon] [slot id] [item id] [*charges]");
 	else {
 		ItemPacketType packettype;
 
@@ -10230,7 +12215,7 @@ void command_zopp(Client *c, const Seperator *sep)
 		const EQEmu::ItemData* FakeItem = database.GetItem(itemid);
 
 		if (!FakeItem) {
-			c->Message(13, "Error: Item [%u] is not a valid item id.",  itemid);
+			c->Message(Chat::Red, "Error: Item [%u] is not a valid item id.",  itemid);
 			return;
 		}
 
@@ -10240,18 +12225,18 @@ void command_zopp(Client *c, const Seperator *sep)
 			item_status = static_cast<int16>(item->MinStatus);
 		}
 		if (item_status > c->Admin()) {
-			c->Message(13, "Error: Insufficient status to use this command.");
+			c->Message(Chat::Red, "Error: Insufficient status to use this command.");
 			return;
 		}
 
 		if (charges < 0 || charges > FakeItem->StackSize) {
-			c->Message(13, "Warning: The specified charge count does not meet expected criteria!");
-			c->Message(0, "Processing request..results may cause unpredictable behavior.");
+			c->Message(Chat::Red, "Warning: The specified charge count does not meet expected criteria!");
+			c->Message(Chat::White, "Processing request..results may cause unpredictable behavior.");
 		}
 
 		EQEmu::ItemInstance* FakeItemInst = database.CreateItem(FakeItem, charges);
 		c->SendItemPacket(slotid, FakeItemInst, packettype);
-		c->Message(0, "Sending zephyr op packet to client - [%s] %s (%u) with %i %s to slot %i.",
+		c->Message(Chat::White, "Sending zephyr op packet to client - [%s] %s (%u) with %i %s to slot %i.",
 			   packettype == ItemPacketTrade ? "Trade" : "Summon",  FakeItem->Name, itemid, charges,
 			   std::abs(charges == 1) ? "charge" : "charges",  slotid);
 		safe_delete(FakeItemInst);
@@ -10275,17 +12260,17 @@ void command_questerrors(Client *c, const Seperator *sep)
 {
 	std::list<std::string> err;
 	parse->GetErrors(err);
-	c->Message(0, "Current Quest Errors:");
+	c->Message(Chat::White, "Current Quest Errors:");
 
 	auto iter = err.begin();
 	int i = 0;
 	while(iter != err.end()) {
 		if(i >= 30) {
-			c->Message(0, "Maximum of 30 Errors shown...");
+			c->Message(Chat::White, "Maximum of 30 Errors shown...");
 			break;
 		}
 
-		c->Message(0, iter->c_str());
+		c->Message(Chat::White, iter->c_str());
 		++i;
 		++iter;
 	}
@@ -10300,20 +12285,20 @@ void command_enablerecipe(Client *c, const Seperator *sep)
 			recipe_id = atoi(sep->arg[1]);
 		}
 		else {
-			c->Message(0, "Invalid number of arguments.\nUsage: #enablerecipe recipe_id");
+			c->Message(Chat::White, "Invalid number of arguments.\nUsage: #enablerecipe recipe_id");
 			return;
 		}
 		if (recipe_id > 0) {
 			success = database.EnableRecipe(recipe_id);
 			if (success) {
-				c->Message(0, "Recipe enabled.");
+				c->Message(Chat::White, "Recipe enabled.");
 			}
 			else {
-				c->Message(0, "Recipe not enabled.");
+				c->Message(Chat::White, "Recipe not enabled.");
 			}
 		}
 		else {
-			c->Message(0, "Invalid recipe id.\nUsage: #enablerecipe recipe_id");
+			c->Message(Chat::White, "Invalid recipe id.\nUsage: #enablerecipe recipe_id");
 		}
 	}
 }
@@ -10327,20 +12312,20 @@ void command_disablerecipe(Client *c, const Seperator *sep)
 			recipe_id = atoi(sep->arg[1]);
 		}
 		else {
-			c->Message(0, "Invalid number of arguments.\nUsage: #disablerecipe recipe_id");
+			c->Message(Chat::White, "Invalid number of arguments.\nUsage: #disablerecipe recipe_id");
 			return;
 		}
 		if (recipe_id > 0) {
 			success = database.DisableRecipe(recipe_id);
 			if (success) {
-				c->Message(0, "Recipe disabled.");
+				c->Message(Chat::White, "Recipe disabled.");
 			}
 			else {
-				c->Message(0, "Recipe not disabled.");
+				c->Message(Chat::White, "Recipe not disabled.");
 			}
 		}
 		else {
-			c->Message(0, "Invalid recipe id.\nUsage: #disablerecipe recipe_id");
+			c->Message(Chat::White, "Invalid recipe id.\nUsage: #disablerecipe recipe_id");
 		}
 	}
 }
@@ -10350,13 +12335,13 @@ void command_npctype_cache(Client *c, const Seperator *sep)
 	if (sep->argnum > 0) {
 		for (int i = 0; i < sep->argnum; ++i) {
 			if (strcasecmp(sep->arg[i + 1], "all") == 0) {
-				c->Message(0, "Clearing all npc types from the cache.");
+				c->Message(Chat::White, "Clearing all npc types from the cache.");
 				zone->ClearNPCTypeCache(-1);
 			}
 			else {
 				int id = atoi(sep->arg[i + 1]);
 				if (id > 0) {
-					c->Message(0, "Clearing npc type %d from the cache.",  id);
+					c->Message(Chat::White, "Clearing npc type %d from the cache.",  id);
 					zone->ClearNPCTypeCache(id);
 					return;
 				}
@@ -10364,9 +12349,9 @@ void command_npctype_cache(Client *c, const Seperator *sep)
 		}
 	}
 	else {
-		c->Message(0, "Usage:");
-		c->Message(0, "#npctype_cache [npctype_id] ...");
-		c->Message(0, "#npctype_cache all");
+		c->Message(Chat::White, "Usage:");
+		c->Message(Chat::White, "#npctype_cache [npctype_id] ...");
+		c->Message(Chat::White, "#npctype_cache all");
 	}
 }
 
@@ -10374,7 +12359,7 @@ void command_merchantopenshop(Client *c, const Seperator *sep)
 {
 	Mob *merchant = c->GetTarget();
 	if (!merchant || merchant->GetClass() != MERCHANT) {
-		c->Message(0, "You must target a merchant to open their shop.");
+		c->Message(Chat::White, "You must target a merchant to open their shop.");
 		return;
 	}
 
@@ -10385,7 +12370,7 @@ void command_merchantcloseshop(Client *c, const Seperator *sep)
 {
 	Mob *merchant = c->GetTarget();
 	if (!merchant || merchant->GetClass() != MERCHANT) {
-		c->Message(0, "You must target a merchant to close their shop.");
+		c->Message(Chat::White, "You must target a merchant to close their shop.");
 		return;
 	}
 
@@ -10398,38 +12383,52 @@ void command_shownumhits(Client *c, const Seperator *sep)
 	return;
 }
 
+void command_shownpcgloballoot(Client *c, const Seperator *sep)
+{
+	auto tar = c->GetTarget();
+
+	if (!tar || !tar->IsNPC()) {
+		c->Message(Chat::White, "You must target an NPC to use this command.");
+		return;
+	}
+
+	auto npc = tar->CastToNPC();
+	c->Message(Chat::White, "GlobalLoot for %s (%d)", npc->GetName(), npc->GetNPCTypeID());
+	zone->ShowNPCGlobalLoot(c, npc);
+}
+
 void command_tune(Client *c, const Seperator *sep)
 {
 	//Work in progress - Kayen
 
 	if(sep->arg[1][0] == '\0' || !strcasecmp(sep->arg[1], "help")) {
-		c->Message(0, "Syntax: #tune [subcommand].");
-		c->Message(0, "-- Tune System Commands --");
-		c->Message(0, "-- Usage: Returning recommended combat statistical values based on a desired outcome.");
-		c->Message(0, "-- Note: If targeted mob does not have a target (ie not engaged in combat), YOU will be considered the target.");
-		c->Message(0, "-- Warning: The calculations done in this process are intense and can potentially cause zone crashes depending on parameters set, use with caution!");
-		c->Message(0, "-- Below are OPTIONAL parameters.");
-		c->Message(0, "-- Note: [interval] Determines how fast the stat being checked increases/decreases till it finds the best result. Default [ATK/AC 50][Acc/Avoid 10] ");
-		c->Message(0, "-- Note: [loop_max] Determines how many iterations are done to increases/decreases the stat till it finds the best result. Default [ATK/AC 100][Acc/Avoid 1000]");
-		c->Message(0, "-- Note: [Stat Override] Will override that stat on mob being checkd with the specified value. Default=0");
-		c->Message(0, "-- Note: [Info Level] How much statistical detail is displayed[0 - 3]. Default=0 ");
-		c->Message(0, "-- Note: Results are only approximations usually accurate to +/- 2 intervals.");
+		c->Message(Chat::White, "Syntax: #tune [subcommand].");
+		c->Message(Chat::White, "-- Tune System Commands --");
+		c->Message(Chat::White, "-- Usage: Returning recommended combat statistical values based on a desired outcome.");
+		c->Message(Chat::White, "-- Note: If targeted mob does not have a target (ie not engaged in combat), YOU will be considered the target.");
+		c->Message(Chat::White, "-- Warning: The calculations done in this process are intense and can potentially cause zone crashes depending on parameters set, use with caution!");
+		c->Message(Chat::White, "-- Below are OPTIONAL parameters.");
+		c->Message(Chat::White, "-- Note: [interval] Determines how fast the stat being checked increases/decreases till it finds the best result. Default [ATK/AC 50][Acc/Avoid 10] ");
+		c->Message(Chat::White, "-- Note: [loop_max] Determines how many iterations are done to increases/decreases the stat till it finds the best result. Default [ATK/AC 100][Acc/Avoid 1000]");
+		c->Message(Chat::White, "-- Note: [Stat Override] Will override that stat on mob being checkd with the specified value. Default=0");
+		c->Message(Chat::White, "-- Note: [Info Level] How much statistical detail is displayed[0 - 3]. Default=0 ");
+		c->Message(Chat::White, "-- Note: Results are only approximations usually accurate to +/- 2 intervals.");
 
-		c->Message(0, "... ");
-		c->Message(0, "...### Category A ### Target = ATTACKER ### YOU or Target's Target = DEFENDER ###");
-		c->Message(0, "...### Category B ### Target = DEFENDER ### YOU or Target's Target = ATTACKER ###");
-		c->Message(0, "... ");
-		c->Message(0, "...#Returns recommended ATK adjustment +/- on ATTACKER that will result in an average mitigation pct on DEFENDER. ");
-		c->Message(0, "...tune FindATK [A/B] [pct mitigation] [interval][loop_max][AC Overwride][Info Level]");
-		c->Message(0, "... ");
-		c->Message(0, "...#Returns recommended AC adjustment +/- on DEFENDER for an average mitigation pct from ATTACKER. ");
-		c->Message(0, "...tune FindAC [A/B] [pct mitigation] [interval][loop_max][ATK Overwride][Info Level] ");
-		c->Message(0, "... ");
-		c->Message(0, "...#Returns recommended Accuracy adjustment +/- on ATTACKER that will result in a hit chance pct on DEFENDER. ");
-		c->Message(0, "...tune FindAccuracy [A/B] [hit chance] [interval][loop_max][Avoidance Overwride][Info Level]");
-		c->Message(0, "... ");
-		c->Message(0, "...#Returns recommended Avoidance adjustment +/- on DEFENDER for in a hit chance pct from ATTACKER. ");
-		c->Message(0, "...tune FindAvoidance [A/B] [pct mitigation] [interval][loop_max][Accuracy Overwride][Info Level] ");
+		c->Message(Chat::White, "... ");
+		c->Message(Chat::White, "...### Category A ### Target = ATTACKER ### YOU or Target's Target = DEFENDER ###");
+		c->Message(Chat::White, "...### Category B ### Target = DEFENDER ### YOU or Target's Target = ATTACKER ###");
+		c->Message(Chat::White, "... ");
+		c->Message(Chat::White, "...#Returns recommended ATK adjustment +/- on ATTACKER that will result in an average mitigation pct on DEFENDER. ");
+		c->Message(Chat::White, "...tune FindATK [A/B] [pct mitigation] [interval][loop_max][AC Overwride][Info Level]");
+		c->Message(Chat::White, "... ");
+		c->Message(Chat::White, "...#Returns recommended AC adjustment +/- on DEFENDER for an average mitigation pct from ATTACKER. ");
+		c->Message(Chat::White, "...tune FindAC [A/B] [pct mitigation] [interval][loop_max][ATK Overwride][Info Level] ");
+		c->Message(Chat::White, "... ");
+		c->Message(Chat::White, "...#Returns recommended Accuracy adjustment +/- on ATTACKER that will result in a hit chance pct on DEFENDER. ");
+		c->Message(Chat::White, "...tune FindAccuracy [A/B] [hit chance] [interval][loop_max][Avoidance Overwride][Info Level]");
+		c->Message(Chat::White, "... ");
+		c->Message(Chat::White, "...#Returns recommended Avoidance adjustment +/- on DEFENDER for in a hit chance pct from ATTACKER. ");
+		c->Message(Chat::White, "...tune FindAvoidance [A/B] [pct mitigation] [interval][loop_max][Accuracy Overwride][Info Level] ");
 
 		return;
 	}
@@ -10439,7 +12438,7 @@ void command_tune(Client *c, const Seperator *sep)
 
 	if (!attacker)
 	{
-		c->Message(0, "#Tune - Error no target selected. [#Tune help]");
+		c->Message(Chat::White, "#Tune - Error no target selected. [#Tune help]");
 		return;
 	}
 
@@ -10458,7 +12457,7 @@ void command_tune(Client *c, const Seperator *sep)
 
 		if (!pct_mitigation)
 		{
-			c->Message(13, "#Tune - Error must enter the desired percent mitigation on defender. Ie. Defender to mitigate on average 20 pct of max damage.");
+			c->Message(Chat::Red, "#Tune - Error must enter the desired percent mitigation on defender. Ie. Defender to mitigate on average 20 pct of max damage.");
 			return;
 		}
 
@@ -10476,9 +12475,9 @@ void command_tune(Client *c, const Seperator *sep)
 		else if(!strcasecmp(sep->arg[2], "B"))
 			c->Tune_FindATKByPctMitigation(attacker,defender, pct_mitigation, interval, max_loop,ac_override,info_level);
 		else {
-			c->Message(0, "#Tune - Error no category selcted. [#Tune help]");
-			c->Message(0, "Usage #tune FindATK [A/B] [pct mitigation] [interval][loop_max][AC Overwride][Info Level] ");
-			c->Message(0, "Example #tune FindATK A 60");
+			c->Message(Chat::White, "#Tune - Error no category selcted. [#Tune help]");
+			c->Message(Chat::White, "Usage #tune FindATK [A/B] [pct mitigation] [interval][loop_max][AC Overwride][Info Level] ");
+			c->Message(Chat::White, "Example #tune FindATK A 60");
 		}
 		return;
 	}
@@ -10493,7 +12492,7 @@ void command_tune(Client *c, const Seperator *sep)
 
 		if (!pct_mitigation)
 		{
-			c->Message(13, "#Tune - Error must enter the desired percent mitigation on defender. Ie. Defender to mitigate on average 20 pct of max damage.");
+			c->Message(Chat::Red, "#Tune - Error must enter the desired percent mitigation on defender. Ie. Defender to mitigate on average 20 pct of max damage.");
 			return;
 		}
 
@@ -10511,9 +12510,9 @@ void command_tune(Client *c, const Seperator *sep)
 		else if(!strcasecmp(sep->arg[2], "B"))
 			c->Tune_FindACByPctMitigation(attacker, defender, pct_mitigation, interval, max_loop,atk_override,info_level);
 		else {
-			c->Message(0, "#Tune - Error no category selcted. [#Tune help]");
-			c->Message(0, "Usage #tune FindAC [A/B] [pct mitigation] [interval][loop_max][ATK Overwride][Info Level] ");
-			c->Message(0, "Example #tune FindAC A 60");
+			c->Message(Chat::White, "#Tune - Error no category selcted. [#Tune help]");
+			c->Message(Chat::White, "Usage #tune FindAC [A/B] [pct mitigation] [interval][loop_max][ATK Overwride][Info Level] ");
+			c->Message(Chat::White, "Example #tune FindAC A 60");
 		}
 
 		return;
@@ -10529,7 +12528,7 @@ void command_tune(Client *c, const Seperator *sep)
 
 		if (!hit_chance)
 		{
-			c->Message(10, "#Tune - Error must enter the desired percent mitigation on defender. Ie. Defender to mitigate on average 20 pct of max damage.");
+			c->Message(Chat::NPCQuestSay, "#Tune - Error must enter the desired percent mitigation on defender. Ie. Defender to mitigate on average 20 pct of max damage.");
 			return;
 		}
 
@@ -10544,7 +12543,7 @@ void command_tune(Client *c, const Seperator *sep)
 
 		if (hit_chance > RuleR(Combat,MaxChancetoHit) || hit_chance < RuleR(Combat,MinChancetoHit))
 		{
-			c->Message(10, "#Tune - Error hit chance out of bounds. [Max %.2f Min .2f]",  RuleR(Combat,MaxChancetoHit),RuleR(Combat,MinChancetoHit));
+			c->Message(Chat::NPCQuestSay, "#Tune - Error hit chance out of bounds. [Max %.2f Min .2f]",  RuleR(Combat,MaxChancetoHit),RuleR(Combat,MinChancetoHit));
 			return;
 		}
 
@@ -10553,9 +12552,9 @@ void command_tune(Client *c, const Seperator *sep)
 		else if(!strcasecmp(sep->arg[2], "B"))
 			c->Tune_FindAccuaryByHitChance(attacker, defender, hit_chance, interval, max_loop,avoid_override,info_level);
 		else {
-			c->Message(0, "#Tune - Error no category selcted. [#Tune help]");
-			c->Message(0, "Usage #tune FindAcccuracy [A/B] [hit chance] [interval][loop_max][Avoidance Overwride][Info Level]");
-			c->Message(0, "Exampled #tune FindAccuracy B 30");
+			c->Message(Chat::White, "#Tune - Error no category selcted. [#Tune help]");
+			c->Message(Chat::White, "Usage #tune FindAcccuracy [A/B] [hit chance] [interval][loop_max][Avoidance Overwride][Info Level]");
+			c->Message(Chat::White, "Exampled #tune FindAccuracy B 30");
 		}
 
 		return;
@@ -10571,7 +12570,7 @@ void command_tune(Client *c, const Seperator *sep)
 
 		if (!hit_chance)
 		{
-			c->Message(0, "#Tune - Error must enter the desired hit chance on defender. Ie. Defender to have hit chance of 40 pct.");
+			c->Message(Chat::White, "#Tune - Error must enter the desired hit chance on defender. Ie. Defender to have hit chance of 40 pct.");
 			return;
 		}
 
@@ -10586,7 +12585,7 @@ void command_tune(Client *c, const Seperator *sep)
 
 		if (hit_chance > RuleR(Combat,MaxChancetoHit) || hit_chance < RuleR(Combat,MinChancetoHit))
 		{
-			c->Message(10, "#Tune - Error hit chance out of bounds. [Max %.2f Min .2f]",  RuleR(Combat,MaxChancetoHit),RuleR(Combat,MinChancetoHit));
+			c->Message(Chat::NPCQuestSay, "#Tune - Error hit chance out of bounds. [Max %.2f Min .2f]",  RuleR(Combat,MaxChancetoHit),RuleR(Combat,MinChancetoHit));
 			return;
 		}
 
@@ -10595,9 +12594,9 @@ void command_tune(Client *c, const Seperator *sep)
 		else if(!strcasecmp(sep->arg[2], "B"))
 			c->Tune_FindAvoidanceByHitChance(attacker, defender, hit_chance, interval, max_loop,acc_override, info_level);
 		else {
-			c->Message(0, "#Tune - Error no category selcted. [#Tune help]");
-			c->Message(0, "Usage #tune FindAvoidance [A/B] [hit chance] [interval][loop_max][Accuracy Overwride][Info Level]");
-			c->Message(0, "Exampled #tune FindAvoidance B 30");
+			c->Message(Chat::White, "#Tune - Error no category selcted. [#Tune help]");
+			c->Message(Chat::White, "Usage #tune FindAvoidance [A/B] [hit chance] [interval][loop_max][Accuracy Overwride][Info Level]");
+			c->Message(Chat::White, "Exampled #tune FindAvoidance B 30");
 		}
 
 		return;
@@ -10613,7 +12612,7 @@ void command_logtest(Client *c, const Seperator *sep){
 		uint32 i = 0;
 		t = std::clock();
 		for (i = 0; i < atoi(sep->arg[1]); i++){
-			Log(Logs::General, Logs::Debug, "[%u] Test #2... Took %f seconds", i, ((float)(std::clock() - t)) / CLOCKS_PER_SEC);
+			LogDebug("[[{}]] Test #2 Took [{}] seconds", i, ((float)(std::clock() - t)) / CLOCKS_PER_SEC);
 		}
 
 	}
@@ -10621,7 +12620,7 @@ void command_logtest(Client *c, const Seperator *sep){
 
 void command_crashtest(Client *c, const Seperator *sep)
 {
-	c->Message(0, "Alright, now we get an GPF ;) ");
+	c->Message(Chat::White, "Alright, now we get an GPF ;) ");
 	char* gpf = 0;
 	memcpy(gpf, "Ready to crash",  30);
 }
@@ -10633,19 +12632,29 @@ void command_logs(Client *c, const Seperator *sep){
 		if (strcasecmp(sep->arg[1], "reload_all") == 0){
 			auto pack = new ServerPacket(ServerOP_ReloadLogs, 0);
 			worldserver.SendPacket(pack);
-			c->Message(13, "Successfully sent the packet to world to reload log settings from the database for all zones");
+			c->Message(Chat::Red, "Successfully sent the packet to world to reload log settings from the database for all zones");
 			safe_delete(pack);
 		}
 		/* #logs list_settings */
-		if (strcasecmp(sep->arg[1], "list_settings") == 0 || (strcasecmp(sep->arg[1], "set") == 0 && strcasecmp(sep->arg[3], "") == 0)){
-			c->Message(0, "[Category ID | console | file | gmsay | Category Description]");
+		if (strcasecmp(sep->arg[1], "list_settings") == 0 ||
+			(strcasecmp(sep->arg[1], "set") == 0 && strcasecmp(sep->arg[3], "") == 0)) {
+			c->Message(Chat::White, "[Category ID | console | file | gmsay | Category Description]");
 			int redisplay_columns = 0;
-			for (int i = 0; i < Logs::LogCategory::MaxCategoryID; i++){
-				if (redisplay_columns == 10){
-					c->Message(0, "[Category ID | console | file | gmsay | Category Description]");
+			for (int i            = 0; i < Logs::LogCategory::MaxCategoryID; i++) {
+				if (redisplay_columns == 10) {
+					c->Message(Chat::White, "[Category ID | console | file | gmsay | Category Description]");
 					redisplay_columns = 0;
 				}
-				c->Message(0, StringFormat("--- %i | %u | %u | %u | %s",  i, LogSys.log_settings[i].log_to_console, LogSys.log_settings[i].log_to_file, LogSys.log_settings[i].log_to_gmsay, Logs::LogCategoryName[i]).c_str());
+				c->Message(
+					0,
+					StringFormat(
+						"--- %i | %u | %u | %u | %s",
+						i,
+						LogSys.log_settings[i].log_to_console,
+						LogSys.log_settings[i].log_to_file,
+						LogSys.log_settings[i].log_to_gmsay,
+						Logs::LogCategoryName[i]
+					).c_str());
 				redisplay_columns++;
 			}
 		}
@@ -10664,12 +12673,12 @@ void command_logs(Client *c, const Seperator *sep){
 				logs_set = 1;
 			}
 			else{
-				c->Message(0, "--- #logs set [console|file|gmsay] <category_id> <debug_level (1-3)> - Sets log settings during the lifetime of the zone");
-				c->Message(0, "--- #logs set gmsay 20 1 - Would output Quest errors to gmsay");
+				c->Message(Chat::White, "--- #logs set [console|file|gmsay] <category_id> <debug_level (1-3)> - Sets log settings during the lifetime of the zone");
+				c->Message(Chat::White, "--- #logs set gmsay 20 1 - Would output Quest errors to gmsay");
 			}
 			if (logs_set == 1){
-				c->Message(15, "Your Log Settings have been applied");
-				c->Message(15, "Output Method: %s :: Debug Level: %i - Category: %s",  sep->arg[2], atoi(sep->arg[4]), Logs::LogCategoryName[atoi(sep->arg[3])]);
+				c->Message(Chat::Yellow, "Your Log Settings have been applied");
+				c->Message(Chat::Yellow, "Output Method: %s :: Debug Level: %i - Category: %s",  sep->arg[2], atoi(sep->arg[4]), Logs::LogCategoryName[atoi(sep->arg[3])]);
 			}
 			/* We use a general 'is_category_enabled' now, let's update when we update any output settings
 				This is used in hot places of code to check if its enabled in any way before triggering logs
@@ -10683,10 +12692,10 @@ void command_logs(Client *c, const Seperator *sep){
 		}
 	}
 	else {
-		c->Message(0, "#logs usage:");
-		c->Message(0, "--- #logs reload_all - Reload all settings in world and all zone processes with what is defined in the database");
-		c->Message(0, "--- #logs list_settings - Shows current log settings and categories loaded into the current process' memory");
-		c->Message(0, "--- #logs set [console|file|gmsay] <category_id> <debug_level (1-3)> - Sets log settings during the lifetime of the zone");
+		c->Message(Chat::White, "#logs usage:");
+		c->Message(Chat::White, "--- #logs reload_all - Reload all settings in world and all zone processes with what is defined in the database");
+		c->Message(Chat::White, "--- #logs list_settings - Shows current log settings and categories loaded into the current process' memory");
+		c->Message(Chat::White, "--- #logs set [console|file|gmsay] <category_id> <debug_level (1-3)> - Sets log settings during the lifetime of the zone");
 	}
 }
 
@@ -10701,7 +12710,7 @@ void command_mysqltest(Client *c, const Seperator *sep)
 			auto results = database.QueryDatabase(query);
 		}
 	}
-	Log(Logs::General, Logs::Debug, "MySQL Test... Took %f seconds", ((float)(std::clock() - t)) / CLOCKS_PER_SEC);
+	LogDebug("MySQL Test Took [{}] seconds", ((float)(std::clock() - t)) / CLOCKS_PER_SEC);
 }
 
 void command_resetaa_timer(Client *c, const Seperator *sep) {
@@ -10715,64 +12724,79 @@ void command_resetaa_timer(Client *c, const Seperator *sep) {
 	if(sep->IsNumber(1))
 	{
 		int timer_id = atoi(sep->arg[1]);
-		c->Message(0, "Reset of timer %i for %s", timer_id, c->GetName());
+		c->Message(Chat::White, "Reset of timer %i for %s", timer_id, c->GetName());
 		c->ResetAlternateAdvancementTimer(timer_id);
 	}
 	else if(!strcasecmp(sep->arg[1], "all"))
 	{
-		c->Message(0, "Reset all timers for %s", c->GetName());
+		c->Message(Chat::White, "Reset all timers for %s", c->GetName());
 		c->ResetAlternateAdvancementTimers();
 	}
 	else
 	{
-		c->Message(0, "usage: #resetaa_timer [all | timer_id]");
+		c->Message(Chat::White, "usage: #resetaa_timer [all | timer_id]");
 	}
 }
 
 void command_reloadaa(Client *c, const Seperator *sep) {
-	c->Message(0, "Reloading Alternate Advancement Data...");
+	c->Message(Chat::White, "Reloading Alternate Advancement Data...");
 	zone->LoadAlternateAdvancement();
-	c->Message(0, "Alternate Advancement Data Reloaded");
+	c->Message(Chat::White, "Alternate Advancement Data Reloaded");
 	entity_list.SendAlternateAdvancementStats();
 }
 
-void command_hotfix(Client *c, const Seperator *sep) {
+inline bool file_exists(const std::string& name) {
+	std::ifstream f(name.c_str());
+	return f.good();
+}
+
+void command_hotfix(Client *c, const Seperator *sep)
+{
 	std::string hotfix;
 	database.GetVariable("hotfix_name", hotfix);
 
 	std::string hotfix_name;
-	if(!strcasecmp(hotfix.c_str(), "hotfix_")) {
+	if (!strcasecmp(hotfix.c_str(), "hotfix_")) {
 		hotfix_name = "";
-	} else {
+	}
+	else {
 		hotfix_name = "hotfix_";
 	}
 
-	c->Message(0, "Creating and applying hotfix");
-	std::thread t1([c,hotfix_name]() {
+	c->Message(Chat::White, "Creating and applying hotfix");
+	std::thread t1(
+		[c, hotfix_name]() {
 #ifdef WIN32
-		if(hotfix_name.length() > 0) {
-			system(StringFormat("shared_memory -hotfix=%s", hotfix_name.c_str()).c_str());
-		} else {
-			system(StringFormat("shared_memory").c_str());
-		}
+			if(hotfix_name.length() > 0) {
+				if(system(StringFormat("shared_memory -hotfix=%s", hotfix_name.c_str()).c_str()));
+			} else {
+				if(system(StringFormat("shared_memory").c_str()));
+			}
 #else
-		if(hotfix_name.length() > 0) {
-			system(StringFormat("./shared_memory -hotfix=%s", hotfix_name.c_str()).c_str());
-		}
-		else {
-			system(StringFormat("./shared_memory").c_str());
-		}
+
+			std::string shared_memory_path = "./shared_memory";
+			if (file_exists("./bin/shared_memory")) {
+				shared_memory_path = "./bin/shared_memory";
+			}
+
+			if (hotfix_name.length() > 0) {
+				if (system(StringFormat("%s -hotfix=%s", shared_memory_path.c_str(), hotfix_name.c_str()).c_str())) {}
+			}
+			else {
+				if (system(StringFormat("%s", shared_memory_path.c_str()).c_str())) {}
+			}
 #endif
-		database.SetVariable("hotfix_name", hotfix_name);
+			database.SetVariable("hotfix_name", hotfix_name);
 
-		ServerPacket pack(ServerOP_ChangeSharedMem, hotfix_name.length() + 1);
-		if(hotfix_name.length() > 0) {
-			strcpy((char*)pack.pBuffer, hotfix_name.c_str());
+			ServerPacket pack(ServerOP_ChangeSharedMem, hotfix_name.length() + 1);
+			if (hotfix_name.length() > 0) {
+				strcpy((char *) pack.pBuffer, hotfix_name.c_str());
+			}
+			worldserver.SendPacket(&pack);
+
+			if (c) { c->Message(Chat::White, "Hotfix applied"); }
 		}
-		worldserver.SendPacket(&pack);
-
-		c->Message(0, "Hotfix applied");
-	});
+	);
 
 	t1.detach();
 }
@@ -10783,28 +12807,28 @@ void command_load_shared_memory(Client *c, const Seperator *sep) {
 
 	std::string hotfix_name;
 	if(strcasecmp(hotfix.c_str(), sep->arg[1]) == 0) {
-		c->Message(0, "Cannot attempt to load this shared memory segment as it is already loaded.");
+		c->Message(Chat::White, "Cannot attempt to load this shared memory segment as it is already loaded.");
 		return;
 	}
 
 	hotfix_name = sep->arg[1];
-	c->Message(0, "Loading shared memory segment %s", hotfix_name.c_str());
+	c->Message(Chat::White, "Loading shared memory segment %s", hotfix_name.c_str());
 	std::thread t1([c,hotfix_name]() {
 #ifdef WIN32
 		if(hotfix_name.length() > 0) {
-			system(StringFormat("shared_memory -hotfix=%s", hotfix_name.c_str()).c_str());
+			if(system(StringFormat("shared_memory -hotfix=%s", hotfix_name.c_str()).c_str()));
 		} else {
-			system(StringFormat("shared_memory").c_str());
+			if(system(StringFormat("shared_memory").c_str()));
 		}
 #else
 		if(hotfix_name.length() > 0) {
-			system(StringFormat("./shared_memory -hotfix=%s", hotfix_name.c_str()).c_str());
+			if(system(StringFormat("./shared_memory -hotfix=%s", hotfix_name.c_str()).c_str()));
 		}
 		else {
-			system(StringFormat("./shared_memory").c_str());
+			if(system(StringFormat("./shared_memory").c_str()));
 		}
 #endif
-		c->Message(0, "Shared memory segment finished loading.");
+		c->Message(Chat::White, "Shared memory segment finished loading.");
 	});
 
 	t1.detach();
@@ -10815,7 +12839,7 @@ void command_apply_shared_memory(Client *c, const Seperator *sep) {
 	database.GetVariable("hotfix_name", hotfix);
 	std::string hotfix_name = sep->arg[1];
 
-	c->Message(0, "Applying shared memory segment %s", hotfix_name.c_str());
+	c->Message(Chat::White, "Applying shared memory segment %s", hotfix_name.c_str());
 	database.SetVariable("hotfix_name", hotfix_name);
 
 	ServerPacket pack(ServerOP_ChangeSharedMem, hotfix_name.length() + 1);
@@ -10831,12 +12855,524 @@ void command_reloadperlexportsettings(Client *c, const Seperator *sep)
 	{
 		auto pack = new ServerPacket(ServerOP_ReloadPerlExportSettings, 0);
 		worldserver.SendPacket(pack);
-		c->Message(13, "Successfully sent the packet to world to reload Perl Export settings");
+		c->Message(Chat::Red, "Successfully sent the packet to world to reload Perl Export settings");
 		safe_delete(pack);
 
 	}
 }
 
+void command_trapinfo(Client *c, const Seperator *sep)
+{
+	entity_list.GetTrapInfo(c);
+}
+
+void command_reloadtraps(Client *c, const Seperator *sep)
+{
+	entity_list.UpdateAllTraps(true, true);
+	c->Message(Chat::Default, "Traps reloaded for %s.", zone->GetShortName());
+}
+
+void command_scale(Client *c, const Seperator *sep)
+{
+	if (sep->argnum == 0) {
+		c->Message(Chat::Yellow, "# Usage # ");
+		c->Message(Chat::Yellow, "#scale [static/dynamic] (With targeted NPC)");
+		c->Message(Chat::Yellow, "#scale [npc_name_search] [static/dynamic] (To make zone-wide changes)");
+		c->Message(Chat::Yellow, "#scale all [static/dynamic]");
+		return;
+	}
+
+	/**
+	 * Targeted changes
+	 */
+	if (c->GetTarget() && c->GetTarget()->IsNPC() && sep->argnum < 2) {
+		NPC * npc = c->GetTarget()->CastToNPC();
+
+		bool apply_status = false;
+		if (strcasecmp(sep->arg[1], "dynamic") == 0) {
+			c->Message(Chat::Yellow, "Applying global base scaling to npc dynamically (All stats set to zeroes)...");
+			apply_status = npc_scale_manager->ApplyGlobalBaseScalingToNPCDynamically(npc);
+		}
+		else if (strcasecmp(sep->arg[1], "static") == 0) {
+			c->Message(Chat::Yellow, "Applying global base scaling to npc statically (Copying base stats onto NPC)...");
+			apply_status = npc_scale_manager->ApplyGlobalBaseScalingToNPCStatically(npc);
+		}
+		else {
+			return;
+		}
+
+		if (apply_status) {
+			c->Message(Chat::Yellow, "Applied to NPC '%s' successfully!", npc->GetName());
+		}
+		else {
+			c->Message(Chat::Yellow, "Failed to load scaling data from the database "
+						   "for this npc / type, see 'NPCScaling' log for more info");
+		}
+	}
+	else if (c->GetTarget() && sep->argnum < 2) {
+		c->Message(Chat::Yellow, "Target must be an npc!");
+	}
+
+	/**
+	 * Zonewide
+	 */
+	if (sep->argnum > 1) {
+
+		std::string scale_type;
+		if (strcasecmp(sep->arg[2], "dynamic") == 0) {
+			scale_type = "dynamic";
+		}
+		else if (strcasecmp(sep->arg[2], "static") == 0) {
+			scale_type = "static";
+		}
+
+		if (scale_type.length() <= 0) {
+			c->Message(Chat::Yellow, "You must first set if you intend on using static versus dynamic for these changes");
+			c->Message(Chat::Yellow, "#scale [npc_name_search] [static/dynamic]");
+			c->Message(Chat::Yellow, "#scale all [static/dynamic]");
+			return;
+		}
+
+		std::string search_string = sep->arg[1];
+
+		auto &entity_list_search = entity_list.GetNPCList();
+
+		int found_count = 0;
+		for (auto &itr : entity_list_search) {
+			NPC *entity = itr.second;
+
+			std::string entity_name = entity->GetName();
+
+			/**
+			 * Filter by name
+			 */
+			if (search_string.length() > 0 && entity_name.find(search_string) == std::string::npos && strcasecmp(sep->arg[1], "all") != 0) {
+				continue;
+			}
+
+			std::string status = "(Searching)";
+
+			if (strcasecmp(sep->arg[3], "apply") == 0) {
+				status = "(Applying)";
+
+				if (strcasecmp(sep->arg[2], "dynamic") == 0) {
+					npc_scale_manager->ApplyGlobalBaseScalingToNPCDynamically(entity);
+				}
+				if (strcasecmp(sep->arg[2], "static") == 0) {
+					npc_scale_manager->ApplyGlobalBaseScalingToNPCStatically(entity);
+				}
+			}
+
+			c->Message(
+				15,
+				"| ID %5d | %s | x %.0f | y %0.f | z %.0f | DBID %u %s",
+				entity->GetID(),
+				entity->GetName(),
+				entity->GetX(),
+				entity->GetY(),
+				entity->GetZ(),
+				entity->GetNPCTypeID(),
+				status.c_str()
+			);
+
+			found_count++;
+		}
+
+		if (strcasecmp(sep->arg[3], "apply") == 0) {
+			c->Message(Chat::Yellow, "%s scaling applied against (%i) NPC's", sep->arg[2], found_count);
+		}
+		else {
+
+			std::string saylink = StringFormat(
+				"#scale %s %s apply",
+				sep->arg[1],
+				sep->arg[2]
+			);
+
+			c->Message(Chat::Yellow, "Found (%i) NPC's that match this search...", found_count);
+			c->Message(
+				Chat::Yellow, "To apply these changes, click <%s> or type %s",
+				EQEmu::SayLinkEngine::GenerateQuestSaylink(saylink, false, "Apply").c_str(),
+				saylink.c_str()
+			);
+		}
+	}
+}
+
+void command_databuckets(Client *c, const Seperator *sep)
+ {
+	if (sep->arg[1][0] == 0) {
+		c->Message(Chat::Yellow, "Usage: #databuckets view (partial key)|(limit) OR #databuckets delete (key)");
+		return;
+	}
+	if (strcasecmp(sep->arg[1], "view") == 0) {
+
+		std::string key_filter;
+		uint8 limit = 50;
+		for (int i = 2; i < 4; i++) {
+			if (sep->arg[i][0] == '\0')
+				break;
+			if (strcasecmp(sep->arg[i], "limit") == 0) {
+				limit = (uint8)atoi(sep->arg[i + 1]);
+				continue;
+			}
+		}
+		if (sep->arg[2]) {
+			key_filter = str_tolower(sep->arg[2]);
+		}
+		std::string query = "SELECT `id`, `key`, `value`, `expires` FROM data_buckets";
+		if (!key_filter.empty())  query += StringFormat(" WHERE `key` LIKE '%%%s%%'", key_filter.c_str());
+		query += StringFormat(" LIMIT %u", limit);
+		auto results = database.QueryDatabase(query);
+		if (!results.Success())
+			return;
+		if (results.RowCount() == 0) {
+			c->Message(Chat::Yellow, "No data_buckets found");
+			return;
+		}
+		int _ctr = 0;
+		// put in window for easier readability in case want command line for something else
+		std::string window_title = "Data Buckets";
+		std::string window_text =
+			"<table>"
+			"<tr>"
+			"<td>ID</td>"
+			"<td>Expires</td>"
+			"<td>Key</td>"
+			"<td>Value</td>"
+			"</tr>";
+		for (auto row = results.begin(); row != results.end(); ++row) {
+			auto        id = static_cast<uint32>(atoi(row[0]));
+			std::string key = row[1];
+			std::string value = row[2];
+			std::string expires = row[3];
+			window_text.append(StringFormat(
+				"<tr>"
+				"<td>%u</td>"
+				"<td>%s</td>"
+				"<td>%s</td>"
+				"<td>%s</td>"
+				"</tr>",
+				id,
+				expires.c_str(),
+				key.c_str(),
+				value.c_str()
+			));
+			_ctr++;
+			std::string	del_saylink = StringFormat("#databuckets delete %s", key.c_str());
+			c->Message(Chat::White, "%s : %s",
+				EQEmu::SayLinkEngine::GenerateQuestSaylink(del_saylink, false, "Delete").c_str(), key.c_str(), "  Value:  ", value.c_str());
+		}
+		window_text.append("</table>");
+		c->SendPopupToClient(window_title.c_str(), window_text.c_str());
+		std::string response = _ctr > 0 ? StringFormat("Found %i matching data buckets", _ctr).c_str() : "No Databuckets found.";
+		c->Message(Chat::Yellow, response.c_str());
+	}
+	else if (strcasecmp(sep->arg[1], "delete") == 0)
+	{
+		if (DataBucket::DeleteData(sep->argplus[2]))
+			c->Message(Chat::Yellow, "data bucket %s deleted.", sep->argplus[2]);
+		else
+			c->Message(Chat::Red, "An error occurred deleting data bucket %s", sep->argplus[2]);
+		return;
+	}
+}
+
+void command_who(Client *c, const Seperator *sep)
+{
+	std::string query =
+		"SELECT\n"
+		"    character_data.account_id,\n"
+		"    character_data.name,\n"
+		"    character_data.zone_id,\n"
+		"    COALESCE((select zone.short_name from zone where zoneidnumber = character_data.zone_id LIMIT 1), \"Not Found\") as zone_name,\n"
+		"    character_data.zone_instance,\n"
+		"    COALESCE((select guilds.name from guilds where id = ((select guild_id from guild_members where char_id = character_data.id))), \"\") as guild_name,\n"
+		"    character_data.level,\n"
+		"    character_data.race,\n"
+		"    character_data.class,\n"
+		"    COALESCE((select account.status from account where account.id = character_data.account_id LIMIT 1), 0) as account_status,\n"
+		"    COALESCE((select account.name from account where account.id = character_data.account_id LIMIT 1), \"\") as account_name,\n"
+		"    COALESCE((select account_ip.ip from account_ip where account_ip.accid = character_data.account_id ORDER BY account_ip.lastused DESC LIMIT 1), \"\") as account_ip\n"
+		"FROM\n"
+		"    character_data\n"
+		"WHERE\n"
+		"    last_login > (UNIX_TIMESTAMP() - 600)\n"
+  		"ORDER BY character_data.name;";
+
+	auto results = database.QueryDatabase(query);
+	if (!results.Success())
+		return;
+
+	if (results.RowCount() == 0) {
+		c->Message(Chat::Yellow, "No results found");
+		return;
+	}
+
+	std::string search_string;
+
+	if (sep->arg[1]) {
+		search_string = str_tolower(sep->arg[1]);
+	}
+
+	int found_count = 0;
+
+	c->Message(Chat::Magenta, "Players in EverQuest");
+	c->Message(Chat::Magenta, "--------------------");
+
+	for (auto row = results.begin(); row != results.end(); ++row) {
+		auto        account_id      = static_cast<uint32>(atoi(row[0]));
+		std::string player_name     = row[1];
+		auto        zone_id         = static_cast<uint32>(atoi(row[2]));
+		std::string zone_short_name = row[3];
+		auto        zone_instance   = static_cast<uint32>(atoi(row[4]));
+		std::string guild_name      = row[5];
+		auto        player_level    = static_cast<uint32>(atoi(row[6]));
+		auto        player_race     = static_cast<uint32>(atoi(row[7]));
+		auto        player_class    = static_cast<uint32>(atoi(row[8]));
+		auto        account_status  = static_cast<uint32>(atoi(row[9]));
+		std::string account_name    = row[10];
+		std::string account_ip      = row[11];
+
+		std::string base_class_name     = GetClassIDName(static_cast<uint8>(player_class), 1);
+		std::string displayed_race_name = GetRaceIDName(static_cast<uint16>(player_race));
+
+		if (search_string.length() > 0) {
+			bool found_search_term =
+					 (
+						 str_tolower(player_name).find(search_string) != std::string::npos ||
+						 str_tolower(zone_short_name).find(search_string) != std::string::npos ||
+						 str_tolower(displayed_race_name).find(search_string) != std::string::npos ||
+						 str_tolower(base_class_name).find(search_string) != std::string::npos ||
+						 str_tolower(guild_name).find(search_string) != std::string::npos ||
+						 str_tolower(account_name).find(search_string) != std::string::npos ||
+						 str_tolower(account_ip).find(search_string) != std::string::npos
+					 );
+
+			if (!found_search_term) {
+				continue;
+			}
+		}
+
+		std::string displayed_guild_name;
+		if (guild_name.length() > 0) {
+			displayed_guild_name = EQEmu::SayLinkEngine::GenerateQuestSaylink(
+				StringFormat(
+					"#who \"%s\"",
+					guild_name.c_str()),
+				false,
+				StringFormat("<%s>", guild_name.c_str())
+			);
+		}
+
+		std::string goto_saylink = EQEmu::SayLinkEngine::GenerateQuestSaylink(
+			StringFormat("#goto %s", player_name.c_str()), false, "Goto"
+		);
+
+		std::string display_class_name = GetClassIDName(static_cast<uint8>(player_class), static_cast<uint8>(player_level));
+
+		c->Message(
+			5, "%s[%u %s] %s (%s) %s ZONE: %s (%u) (%s) (%s) (%s)",
+			(account_status > 0 ? "* GM * " : ""),
+			player_level,
+			EQEmu::SayLinkEngine::GenerateQuestSaylink(StringFormat("#who %s", base_class_name.c_str()), false, display_class_name).c_str(),
+			player_name.c_str(),
+			EQEmu::SayLinkEngine::GenerateQuestSaylink(StringFormat("#who %s", displayed_race_name.c_str()), false, displayed_race_name).c_str(),
+			displayed_guild_name.c_str(),
+			EQEmu::SayLinkEngine::GenerateQuestSaylink(StringFormat("#who %s", zone_short_name.c_str()), false, zone_short_name).c_str(),
+			zone_instance,
+			goto_saylink.c_str(),
+			EQEmu::SayLinkEngine::GenerateQuestSaylink(StringFormat("#who %s", account_name.c_str()), false, account_name).c_str(),
+			EQEmu::SayLinkEngine::GenerateQuestSaylink(StringFormat("#who %s", account_ip.c_str()), false, account_ip).c_str()
+		);
+
+		found_count++;
+	}
+
+	std::string message = (
+		found_count > 0 ?
+			StringFormat("There is %i player(s) in EverQuest", found_count).c_str() :
+			"There are no players in EverQuest that match those who filters."
+	);
+
+	c->Message(Chat::Magenta, message.c_str());
+}
+
+void command_network(Client *c, const Seperator *sep)
+{
+	if (!strcasecmp(sep->arg[1], "getopt"))
+	{
+		auto eqsi = c->Connection();
+		auto manager = eqsi->GetManager();
+		auto opts = manager->GetOptions();
+
+		if (!strcasecmp(sep->arg[2], "all"))
+		{
+			c->Message(Chat::White, "max_packet_size: %llu", (uint64_t)opts.daybreak_options.max_packet_size);
+			c->Message(Chat::White, "max_connection_count: %llu", (uint64_t)opts.daybreak_options.max_connection_count);
+			c->Message(Chat::White, "keepalive_delay_ms: %llu", (uint64_t)opts.daybreak_options.keepalive_delay_ms);
+			c->Message(Chat::White, "resend_delay_factor: %.2f", opts.daybreak_options.resend_delay_factor);
+			c->Message(Chat::White, "resend_delay_ms: %llu", (uint64_t)opts.daybreak_options.resend_delay_ms);
+			c->Message(Chat::White, "resend_delay_min: %llu", (uint64_t)opts.daybreak_options.resend_delay_min);
+			c->Message(Chat::White, "resend_delay_max: %llu", (uint64_t)opts.daybreak_options.resend_delay_max);
+			c->Message(Chat::White, "connect_delay_ms: %llu", (uint64_t)opts.daybreak_options.connect_delay_ms);
+			c->Message(Chat::White, "connect_stale_ms: %llu", (uint64_t)opts.daybreak_options.connect_stale_ms);
+			c->Message(Chat::White, "stale_connection_ms: %llu", (uint64_t)opts.daybreak_options.stale_connection_ms);
+			c->Message(Chat::White, "crc_length: %llu", (uint64_t)opts.daybreak_options.crc_length);
+			c->Message(Chat::White, "hold_size: %llu", (uint64_t)opts.daybreak_options.hold_size);
+			c->Message(Chat::White, "hold_length_ms: %llu", (uint64_t)opts.daybreak_options.hold_length_ms);
+			c->Message(Chat::White, "simulated_in_packet_loss: %llu", (uint64_t)opts.daybreak_options.simulated_in_packet_loss);
+			c->Message(Chat::White, "simulated_out_packet_loss: %llu", (uint64_t)opts.daybreak_options.simulated_out_packet_loss);
+			c->Message(Chat::White, "tic_rate_hertz: %.2f", opts.daybreak_options.tic_rate_hertz);
+			c->Message(Chat::White, "resend_timeout: %llu", (uint64_t)opts.daybreak_options.resend_timeout);
+			c->Message(Chat::White, "connection_close_time: %llu", (uint64_t)opts.daybreak_options.connection_close_time);
+			c->Message(Chat::White, "encode_passes[0]: %llu", (uint64_t)opts.daybreak_options.encode_passes[0]);
+			c->Message(Chat::White, "encode_passes[1]: %llu", (uint64_t)opts.daybreak_options.encode_passes[1]);
+			c->Message(Chat::White, "port: %llu", (uint64_t)opts.daybreak_options.port);
+		}
+		else {
+			c->Message(Chat::White, "Unknown get option: %s", sep->arg[2]);
+			c->Message(Chat::White, "Available options:");
+			//Todo the rest of these when im less lazy.
+			//c->Message(Chat::White, "max_packet_size");
+			//c->Message(Chat::White, "max_connection_count");
+			//c->Message(Chat::White, "keepalive_delay_ms");
+			//c->Message(Chat::White, "resend_delay_factor");
+			//c->Message(Chat::White, "resend_delay_ms");
+			//c->Message(Chat::White, "resend_delay_min");
+			//c->Message(Chat::White, "resend_delay_max");
+			//c->Message(Chat::White, "connect_delay_ms");
+			//c->Message(Chat::White, "connect_stale_ms");
+			//c->Message(Chat::White, "stale_connection_ms");
+			//c->Message(Chat::White, "crc_length");
+			//c->Message(Chat::White, "hold_size");
+			//c->Message(Chat::White, "hold_length_ms");
+			//c->Message(Chat::White, "simulated_in_packet_loss");
+			//c->Message(Chat::White, "simulated_out_packet_loss");
+			//c->Message(Chat::White, "tic_rate_hertz");
+			//c->Message(Chat::White, "resend_timeout");
+			//c->Message(Chat::White, "connection_close_time");
+			//c->Message(Chat::White, "encode_passes[0]");
+			//c->Message(Chat::White, "encode_passes[1]");
+			//c->Message(Chat::White, "port");
+			c->Message(Chat::White, "all");
+		}
+	}
+	else if (!strcasecmp(sep->arg[1], "setopt"))
+	{
+		auto eqsi = c->Connection();
+		auto manager = eqsi->GetManager();
+		auto opts = manager->GetOptions();
+
+		if (!strcasecmp(sep->arg[3], ""))
+		{
+			c->Message(Chat::White, "Missing value for set");
+			return;
+		}
+
+		std::string value = sep->arg[3];
+		if (!strcasecmp(sep->arg[2], "max_connection_count"))
+		{
+			opts.daybreak_options.max_connection_count = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "keepalive_delay_ms"))
+		{
+			opts.daybreak_options.keepalive_delay_ms = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "resend_delay_factor"))
+		{
+			opts.daybreak_options.resend_delay_factor = std::stod(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "resend_delay_ms"))
+		{
+			opts.daybreak_options.resend_delay_ms = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "resend_delay_min"))
+		{
+			opts.daybreak_options.resend_delay_min = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "resend_delay_max"))
+		{
+			opts.daybreak_options.resend_delay_max = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "connect_delay_ms"))
+		{
+			opts.daybreak_options.connect_delay_ms = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "connect_stale_ms"))
+		{
+			opts.daybreak_options.connect_stale_ms = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "stale_connection_ms"))
+		{
+			opts.daybreak_options.stale_connection_ms = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "hold_size"))
+		{
+			opts.daybreak_options.hold_size = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "hold_length_ms"))
+		{
+			opts.daybreak_options.hold_length_ms = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "simulated_in_packet_loss"))
+		{
+			opts.daybreak_options.simulated_in_packet_loss = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "simulated_out_packet_loss"))
+		{
+			opts.daybreak_options.simulated_out_packet_loss = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "resend_timeout"))
+		{
+			opts.daybreak_options.resend_timeout = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else if (!strcasecmp(sep->arg[2], "connection_close_time"))
+		{
+			opts.daybreak_options.connection_close_time = std::stoull(value);
+			manager->SetOptions(opts);
+		}
+		else {
+			c->Message(Chat::White, "Unknown set option: %s", sep->arg[2]);
+			c->Message(Chat::White, "Available options:");
+			c->Message(Chat::White, "max_connection_count");
+			c->Message(Chat::White, "keepalive_delay_ms");
+			c->Message(Chat::White, "resend_delay_factor");
+			c->Message(Chat::White, "resend_delay_ms");
+			c->Message(Chat::White, "resend_delay_min");
+			c->Message(Chat::White, "resend_delay_max");
+			c->Message(Chat::White, "connect_delay_ms");
+			c->Message(Chat::White, "connect_stale_ms");
+			c->Message(Chat::White, "stale_connection_ms");
+			c->Message(Chat::White, "hold_size");
+			c->Message(Chat::White, "hold_length_ms");
+			c->Message(Chat::White, "simulated_in_packet_loss");
+			c->Message(Chat::White, "simulated_out_packet_loss");
+			c->Message(Chat::White, "resend_timeout");
+			c->Message(Chat::White, "connection_close_time");
+		}
+	}
+	else {
+		c->Message(Chat::White, "Unknown command: %s", sep->arg[1]);
+		c->Message(Chat::White, "Network commands avail:");
+		c->Message(Chat::White, "getopt optname - Retrieve the current option value set.");
+		c->Message(Chat::White, "setopt optname - Set the current option allowed.");
+	}
+}
 
 // All new code added to command.cpp should be BEFORE this comment line. Do no append code to this file below the BOTS code block.
 #ifdef BOTS
@@ -10854,15 +13390,15 @@ void command_bot(Client *c, const Seperator *sep)
 	}
 	
 	if (bot_command_dispatch(c, bot_message.c_str()) == -2) {
-		if (parse->PlayerHasQuestSub(EVENT_COMMAND)) {
-			int i = parse->EventPlayer(EVENT_COMMAND, c, bot_message, 0);
+		if (parse->PlayerHasQuestSub(EVENT_BOT_COMMAND)) {
+			int i = parse->EventPlayer(EVENT_BOT_COMMAND, c, bot_message, 0);
 			if (i == 0 && !RuleB(Chat, SuppressCommandErrors)) {
-				c->Message(13, "Bot command '%s' not recognized.", bot_message.c_str());
+				c->Message(Chat::Red, "Bot command '%s' not recognized.", bot_message.c_str());
 			}
 		}
 		else {
 			if (!RuleB(Chat, SuppressCommandErrors))
-				c->Message(13, "Bot command '%s' not recognized.", bot_message.c_str());
+				c->Message(Chat::Red, "Bot command '%s' not recognized.", bot_message.c_str());
 		}
 	}
 }

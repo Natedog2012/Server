@@ -2,6 +2,8 @@
 #include "global_define.h"
 #include "eq_stream_proxy.h"
 #include "struct_strategy.h"
+#include "eqemu_logsys.h"
+#include "opcodemgr.h"
 
 
 EQStreamProxy::EQStreamProxy(std::shared_ptr<EQStreamInterface> &stream, const StructStrategy *structs, OpcodeManager **opcodes)
@@ -39,6 +41,11 @@ void EQStreamProxy::QueuePacket(const EQApplicationPacket *p, bool ack_req) {
 	if(p == nullptr)
 		return;
 
+	if (p->GetOpcode() != OP_SpecialMesg) {
+		Log(Logs::General, Logs::PacketServerClient, "[%s - 0x%04x] [Size: %u]", OpcodeManager::EmuToName(p->GetOpcode()), p->GetOpcode(), p->Size());
+		Log(Logs::General, Logs::PacketServerClientWithDump, "[%s - 0x%04x] [Size: %u] %s", OpcodeManager::EmuToName(p->GetOpcode()), p->GetOpcode(), p->Size(), DumpPacketToString(p).c_str());
+	}
+
 	EQApplicationPacket *newp = p->Copy();
 	FastQueuePacket(&newp, ack_req);
 }
@@ -75,32 +82,27 @@ uint16 EQStreamProxy::GetRemotePort() const {
 	return(m_stream->GetRemotePort());
 }
 
-const uint32 EQStreamProxy::GetBytesSent() const
-{
-	return(m_stream->GetBytesSent());
-}
-
-const uint32 EQStreamProxy::GetBytesRecieved() const
-{
-	return(m_stream->GetBytesRecieved());
-}
-
-const uint32 EQStreamProxy::GetBytesSentPerSecond() const
-{
-	return(m_stream->GetBytesSentPerSecond());
-}
-
-const uint32 EQStreamProxy::GetBytesRecvPerSecond() const
-{
-	return(m_stream->GetBytesRecvPerSecond());
-}
-
 void EQStreamProxy::ReleaseFromUse() {
 	m_stream->ReleaseFromUse();
 }
 
 void EQStreamProxy::RemoveData() {
 	m_stream->RemoveData();
+}
+
+EQStreamInterface::Stats EQStreamProxy::GetStats() const
+{
+	return m_stream->GetStats();
+}
+
+void EQStreamProxy::ResetStats()
+{
+	m_stream->ResetStats();
+}
+
+EQStreamManagerInterface *EQStreamProxy::GetManager() const
+{
+	return m_stream->GetManager();
 }
 
 bool EQStreamProxy::CheckState(EQStreamState state) {

@@ -94,6 +94,7 @@
 	void Handle_OP_DeleteItem(const EQApplicationPacket *app);
 	void Handle_OP_DeleteSpawn(const EQApplicationPacket *app);
 	void Handle_OP_DeleteSpell(const EQApplicationPacket *app);
+	void Handle_OP_Disarm(const EQApplicationPacket *app);
 	void Handle_OP_DisarmTraps(const EQApplicationPacket *app);
 	void Handle_OP_DoGroupLeadershipAbility(const EQApplicationPacket *app);
 	void Handle_OP_DuelResponse(const EQApplicationPacket *app);
@@ -204,6 +205,7 @@
 	void Handle_OP_MercenaryTimerRequest(const EQApplicationPacket *app);
 	void Handle_OP_MoveCoin(const EQApplicationPacket *app);
 	void Handle_OP_MoveItem(const EQApplicationPacket *app);
+	void Handle_OP_MoveMultipleItems(const EQApplicationPacket *app);
 	void Handle_OP_OpenContainer(const EQApplicationPacket *app);
 	void Handle_OP_OpenGuildTributeMaster(const EQApplicationPacket *app);
 	void Handle_OP_OpenInventory(const EQApplicationPacket *app);
@@ -227,6 +229,7 @@
 	void Handle_OP_PurchaseLeadershipAA(const EQApplicationPacket *app);
 	void Handle_OP_PVPLeaderBoardDetailsRequest(const EQApplicationPacket *app);
 	void Handle_OP_PVPLeaderBoardRequest(const EQApplicationPacket *app);
+	void Handle_OP_QueryUCSServerStatus(const EQApplicationPacket *app);
 	void Handle_OP_RaidCommand(const EQApplicationPacket *app);
 	void Handle_OP_RandomReq(const EQApplicationPacket *app);
 	void Handle_OP_ReadBook(const EQApplicationPacket *app);
@@ -236,6 +239,7 @@
 	void Handle_OP_RecipesSearch(const EQApplicationPacket *app);
 	void Handle_OP_ReloadUI(const EQApplicationPacket *app);
 	void Handle_OP_RemoveBlockedBuffs(const EQApplicationPacket *app);
+	void Handle_OP_RemoveTrap(const EQApplicationPacket *app);
 	void Handle_OP_Report(const EQApplicationPacket *app);
 	void Handle_OP_RequestDuel(const EQApplicationPacket *app);
 	void Handle_OP_RequestTitles(const EQApplicationPacket *app);
@@ -288,6 +292,7 @@
 	void Handle_OP_TributeNPC(const EQApplicationPacket *app);
 	void Handle_OP_TributeToggle(const EQApplicationPacket *app);
 	void Handle_OP_TributeUpdate(const EQApplicationPacket *app);
+	void Handle_OP_UpdateAura(const EQApplicationPacket *app);
 	void Handle_OP_VetClaimRequest(const EQApplicationPacket *app);
 	void Handle_OP_VoiceMacroIn(const EQApplicationPacket *app);
 	void Handle_OP_WearChange(const EQApplicationPacket *app);

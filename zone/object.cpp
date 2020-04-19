@@ -70,7 +70,7 @@ Object::Object(uint32 id, uint32 type, uint32 icon, const Object_Struct& object,
 
 //creating a re-ocurring ground spawn.
 Object::Object(const EQEmu::ItemInstance* inst, char* name,float max_x,float min_x,float max_y,float min_y,float z,float heading,uint32 respawntimer)
- : respawn_timer(respawntimer), decay_timer(300000)
+ : respawn_timer(respawntimer * 1000), decay_timer(300000)
 {
 
 	user = nullptr;
@@ -328,7 +328,7 @@ void Object::Delete(bool reset_state)
 }
 
 const EQEmu::ItemInstance* Object::GetItem(uint8 index) {
-	if (index < EQEmu::legacy::TYPE_WORLD_SIZE) {
+	if (index < EQEmu::invtype::WORLD_SIZE) {
 		return m_inst->GetItem(index);
 	}
 
@@ -339,7 +339,7 @@ const EQEmu::ItemInstance* Object::GetItem(uint8 index) {
 void Object::PutItem(uint8 index, const EQEmu::ItemInstance* inst)
 {
 	if (index > 9) {
-		Log(Logs::General, Logs::Error, "Object::PutItem: Invalid index specified (%i)", index);
+		LogError("Object::PutItem: Invalid index specified ([{}])", index);
 		return;
 	}
 
@@ -366,7 +366,7 @@ void Object::Close() {
 		EQEmu::ItemInstance* container = this->m_inst;
 		if(container != nullptr)
 		{
-			for (uint8 i = EQEmu::inventory::containerBegin; i < EQEmu::inventory::ContainerCount; i++)
+			for (uint8 i = EQEmu::invbag::SLOT_BEGIN; i <= EQEmu::invbag::SLOT_END; i++)
 			{
 				EQEmu::ItemInstance* inst = container->PopItem(i);
 				if(inst != nullptr)
@@ -443,6 +443,14 @@ bool Object::Process(){
 	if(m_ground_spawn && respawn_timer.Check()){
 		RandomSpawn(true);
 	}
+
+	if (user != nullptr && !entity_list.GetClientByCharID(user->CharacterID())) {
+		m_inuse = false;
+		last_user = user;
+		user->SetTradeskillObject(nullptr);
+		user = nullptr;
+	}
+
 	return true;
 }
 
@@ -465,7 +473,7 @@ void Object::RandomSpawn(bool send_packet) {
 		} 
 	}
 
-	Log(Logs::Detail, Logs::Zone_Server, "Object::RandomSpawn(%s): %d (%.2f, %.2f, %.2f)", m_data.object_name, m_inst->GetID(), m_data.x, m_data.y, m_data.z);
+	LogInfo("Object::RandomSpawn([{}]): [{}] ([{}], [{}], [{}])", m_data.object_name, m_inst->GetID(), m_data.x, m_data.y, m_data.z);
 	
 	respawn_timer.Disable();
 
@@ -522,11 +530,13 @@ bool Object::HandleClick(Client* sender, const ClickObject_Struct* click_object)
 
 
 			// Transfer item to client
-			sender->PutItemInInventory(EQEmu::inventory::slotCursor, *m_inst, false);
-			sender->SendItemPacket(EQEmu::inventory::slotCursor, m_inst, ItemPacketTrade);
+			sender->PutItemInInventory(EQEmu::invslot::slotCursor, *m_inst, false);
+			sender->SendItemPacket(EQEmu::invslot::slotCursor, m_inst, ItemPacketTrade);
 
 			if(cursordelete)	// delete the item if it's a duplicate lore. We have to do this because the client expects the item packet
-				sender->DeleteItemInInventory(EQEmu::inventory::slotCursor);
+				sender->DeleteItemInInventory(EQEmu::invslot::slotCursor);
+
+			sender->DropItemQS(m_inst, true);
 
 			if(!m_ground_spawn)
 				safe_delete(m_inst);
@@ -552,7 +562,6 @@ bool Object::HandleClick(Client* sender, const ClickObject_Struct* click_object)
 		ClickObjectAction_Struct* coa = (ClickObjectAction_Struct*)outapp->pBuffer;
 
 		//TODO: there is prolly a better way to do this.
-		m_inuse = true;
 		coa->type = m_type;
 		coa->unknown16 = 0x0a;
 
@@ -570,14 +579,8 @@ bool Object::HandleClick(Client* sender, const ClickObject_Struct* click_object)
 
 			if (sender->ClientVersion() >= EQEmu::versions::ClientVersion::RoF) {
 				coa->drop_id = 0xFFFFFFFF;
-				sender->Message(0, "Someone else is using that. Try again later.");
+				sender->Message(Chat::White, "Someone else is using that. Try again later.");
 			}
-		}
-
-		if(sender->IsLooting())
-		{
-			coa->open = 0x00;
-			user = sender;
 		}
 
 		sender->QueuePacket(outapp);
@@ -588,6 +591,7 @@ bool Object::HandleClick(Client* sender, const ClickObject_Struct* click_object)
 			return(false);
 
 		// Starting to use this object
+		m_inuse = true;
 		sender->SetTradeskillObject(this);
 
 		user = sender;
@@ -603,7 +607,7 @@ bool Object::HandleClick(Client* sender, const ClickObject_Struct* click_object)
 			auto outapp = new EQApplicationPacket(OP_ClientReady, 0);
 			sender->QueuePacket(outapp);
 			safe_delete(outapp);
-			for (uint8 i = EQEmu::inventory::containerBegin; i < EQEmu::inventory::ContainerCount; i++) {
+			for (uint8 i = EQEmu::invbag::SLOT_BEGIN; i <= EQEmu::invbag::SLOT_END; i++) {
 				const EQEmu::ItemInstance* inst = m_inst->GetItem(i);
 				if (inst) {
 					//sender->GetInv().PutItem(i+4000,inst);
@@ -643,7 +647,7 @@ uint32 ZoneDatabase::AddObject(uint32 type, uint32 icon, const Object_Struct& ob
     safe_delete_array(object_name);
 	auto results = QueryDatabase(query);
 	if (!results.Success()) {
-		Log(Logs::General, Logs::Error, "Unable to insert object: %s", results.ErrorMessage().c_str());
+		LogError("Unable to insert object: [{}]", results.ErrorMessage().c_str());
 		return 0;
 	}
 
@@ -682,7 +686,7 @@ void ZoneDatabase::UpdateObject(uint32 id, uint32 type, uint32 icon, const Objec
     safe_delete_array(object_name);
     auto results = QueryDatabase(query);
 	if (!results.Success()) {
-		Log(Logs::General, Logs::Error, "Unable to update object: %s", results.ErrorMessage().c_str());
+		LogError("Unable to update object: [{}]", results.ErrorMessage().c_str());
 		return;
 	}
 
@@ -726,7 +730,7 @@ void ZoneDatabase::DeleteObject(uint32 id)
 	std::string query = StringFormat("DELETE FROM object WHERE id = %i", id);
 	auto results = QueryDatabase(query);
 	if (!results.Success()) {
-		Log(Logs::General, Logs::Error, "Unable to delete object: %s", results.ErrorMessage().c_str());
+		LogError("Unable to delete object: [{}]", results.ErrorMessage().c_str());
 	}
 }
 

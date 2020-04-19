@@ -1,19 +1,21 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
 
 SET(common_sources
 	base_packet.cpp
 	classes.cpp
+	cli/eqemu_command_handler.cpp
+	compression.cpp
 	condition.cpp
 	crash.cpp
 	crc16.cpp
 	crc32.cpp
+	database/database_dump_service.cpp
 	database.cpp
 	database_conversions.cpp
 	database_instances.cpp
 	dbcore.cpp
 	deity.cpp
 	emu_constants.cpp
-	emu_legacy.cpp
 	emu_limits.cpp
 	emu_opcodes.cpp
 	emu_versions.cpp
@@ -30,11 +32,13 @@ SET(common_sources
 	event_sub.cpp
 	extprofile.cpp
 	faction.cpp
+	file_util.cpp
 	guild_base.cpp
 	guilds.cpp
 	inventory_profile.cpp
 	inventory_slot.cpp
 	ipc_mutex.cpp
+	ip_util.cpp
 	item_data.cpp
 	item_instance.cpp
 	json_config.cpp
@@ -55,11 +59,13 @@ SET(common_sources
 	perl_eqdb.cpp
 	perl_eqdb_res.cpp
 	proc_launcher.cpp
+	profanity_manager.cpp
 	ptimer.cpp
 	races.cpp
 	rdtsc.cpp
 	rulesys.cpp
 	say_link.cpp
+	serialize_buffer.cpp
 	serverinfo.cpp
 	shareddb.cpp
 	skills.cpp
@@ -69,9 +75,7 @@ SET(common_sources
 	textures.cpp
 	timer.cpp
 	unix.cpp
-	xml_parser.cpp
 	platform.cpp
-	event/event_loop.cpp
 	json/jsoncpp.cpp
 	net/console_server.cpp
 	net/console_server_connection.cpp
@@ -85,6 +89,8 @@ SET(common_sources
 	net/servertalk_server_connection.cpp
 	net/tcp_connection.cpp
 	net/tcp_server.cpp
+	net/websocket_server.cpp
+	net/websocket_server_connection.cpp
 	patches/patches.cpp
 	patches/sod.cpp
 	patches/sod_limits.cpp
@@ -99,12 +105,8 @@ SET(common_sources
 	patches/uf.cpp
 	patches/uf_limits.cpp
 	StackWalker/StackWalker.cpp
-	tinyxml/tinystr.cpp
-	tinyxml/tinyxml.cpp
-	tinyxml/tinyxmlerror.cpp
-	tinyxml/tinyxmlparser.cpp
-	util/uuid.cpp
-)
+	util/directory.cpp
+	util/uuid.cpp)
 
 SET(common_headers
 	any.h
@@ -112,16 +114,21 @@ SET(common_headers
 	base_data.h
 	bodytypes.h
 	classes.h
+	compression.h
 	condition.h
 	crash.h
 	crc16.h
 	crc32.h
+	cli/argh.h
+	cli/eqemu_command_handler.h
+	cli/terminal_color.hpp
+	database/database_dump_service.h
 	data_verification.h
 	database.h
+	database_schema.h
 	dbcore.h
 	deity.h
 	emu_constants.h
-	emu_legacy.h
 	emu_limits.h
 	emu_opcodes.h
 	emu_oplist.h
@@ -134,6 +141,7 @@ SET(common_headers
 	eqemu_config.h
 	eqemu_config_elements.h
 	eqemu_logsys.h
+	eqemu_logsys_log_aliases.h
 	eq_limits.h
 	eq_packet.h
 	eq_stream_ident.h
@@ -145,15 +153,18 @@ SET(common_headers
 	event_sub.h
 	extprofile.h
 	faction.h
+	file_util.h
 	features.h
 	fixed_memory_hash_set.h
 	fixed_memory_variable_hash_set.h
 	global_define.h
 	guild_base.h
 	guilds.h
+	http/httplib.h
 	inventory_profile.h
 	inventory_slot.h
 	ipc_mutex.h
+	ip_util.h
 	item_data.h
 	item_fieldlist.h
 	item_instance.h
@@ -179,6 +190,7 @@ SET(common_headers
 	packet_functions.h
 	platform.h
 	proc_launcher.h
+	profanity_manager.h
 	profiler.h
 	ptimer.h
 	queue.h
@@ -189,6 +201,7 @@ SET(common_headers
 	ruletypes.h
 	say_link.h
 	seperator.h
+	serialize_buffer.h
 	serverinfo.h
 	servertalk.h
 	shareddb.h
@@ -202,10 +215,9 @@ SET(common_headers
 	unix.h
 	useperl.h
 	version.h
-	xml_parser.h
 	zone_numbers.h
-	event/background_task.h
 	event/event_loop.h
+	event/task.h
 	event/timer.h
 	json/json.h
 	json/json-forwards.h
@@ -225,6 +237,8 @@ SET(common_headers
 	net/servertalk_server_connection.h
 	net/tcp_connection.h
 	net/tcp_server.h
+	net/websocket_server.h
+	net/websocket_server_connection.h
 	patches/patches.h
 	patches/sod.h
 	patches/sod_limits.h
@@ -254,17 +268,14 @@ SET(common_headers
 	patches/uf_ops.h
 	patches/uf_structs.h
 	StackWalker/StackWalker.h
-	tinyxml/tinystr.h
-	tinyxml/tinyxml.h
 	util/memory_stream.h
-	util/uuid.h
-)
+	util/directory.h
+	util/uuid.h)
 
 SOURCE_GROUP(Event FILES
-	event/background_task.h
-	event/event_loop.cpp
 	event/event_loop.h
 	event/timer.h
+	event/task.h
 )
 
 SOURCE_GROUP(Json FILES
@@ -304,6 +315,10 @@ SOURCE_GROUP(Net FILES
 	net/tcp_connection.h
 	net/tcp_server.cpp
 	net/tcp_server.h
+	net/websocket_server.cpp
+	net/websocket_server.h
+	net/websocket_server_connection.cpp
+	net/websocket_server_connection.h
 )
 
 SOURCE_GROUP(Patches FILES
@@ -355,22 +370,15 @@ SOURCE_GROUP(StackWalker FILES
 	StackWalker/StackWalker.cpp
 )
 
-SOURCE_GROUP(TinyXML FILES
-	tinyxml/tinystr.h
-	tinyxml/tinyxml.h
-	tinyxml/tinystr.cpp
-	tinyxml/tinyxml.cpp
-	tinyxml/tinyxmlerror.cpp
-	tinyxml/tinyxmlparser.cpp
-)
-
 SOURCE_GROUP(Util FILES
 	util/memory_stream.h
+	util/directory.cpp
+	util/directory.h
 	util/uuid.cpp
 	util/uuid.h
 )
 
-INCLUDE_DIRECTORIES(Patches SocketLib StackWalker TinyXML)
+INCLUDE_DIRECTORIES(Patches SocketLib StackWalker)
 
 ADD_LIBRARY(common ${common_sources} ${common_headers})
 

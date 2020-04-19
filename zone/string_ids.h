@@ -19,6 +19,7 @@
 #define PROC_TOOLOW					126		//Your will is not sufficient to command this weapon.
 #define PROC_PETTOOLOW				127		//Your pet's will is not sufficient to command its weapon.
 #define YOU_FLURRY					128		//You unleash a flurry of attacks.
+#define FAILED_DISARM_TRAP			129		//You failed to disarm the trap.
 #define DOORS_LOCKED				130		//It's locked and you're not holding the key.
 #define DOORS_CANT_PICK				131		//This lock cannot be picked.
 #define DOORS_INSUFFICIENT_SKILL	132		//You are not sufficiently skilled to pick this lock.
@@ -64,6 +65,7 @@
 #define SILENCED_STRING				207		//You *CANNOT* cast spells, you have been silenced!
 #define CANNOT_AFFECT_PC			210		//That spell can not affect this target PC.
 #define SPELL_NEED_TAR				214		//You must first select a target for this spell!
+#define SUMMON_ONLY_GROUP_CORPSE	215		//You must first target a living group member whose corpse you wish to summon.
 #define ONLY_ON_CORPSES				221		//This spell only works on corpses.
 #define CANT_DRAIN_SELF				224		//You can't drain yourself!
 #define CORPSE_NOT_VALID			230		//This corpse is not valid.
@@ -98,6 +100,7 @@
 #define DUP_LORE					290		//Duplicate lore items are not allowed.
 #define TGB_ON						293		//Target other group buff is *ON*.
 #define TGB_OFF						294		//Target other group buff is *OFF*.
+#define DISARMED_TRAP				305		//You have disarmed the trap.
 #define LDON_SENSE_TRAP1			306		//You do not Sense any traps.
 #define TRADESKILL_NOCOMBINE		334		//You cannot combine these items in this container type!
 #define TRADESKILL_FAILED			336		//You lacked the skills to fashion the items together.
@@ -114,13 +117,18 @@
 #define MEND_WORSEN					351		//You have worsened your wounds!
 #define MEND_FAIL					352		//You have failed to mend your wounds.
 #define LDON_SENSE_TRAP2			367		//You have not detected any traps.
+#define TRAP_TOO_FAR				368		//You are too far away from that trap to affect it.
+#define FAIL_DISARM_DETECTED_TRAP	370		//You fail to disarm the detected trap.
 #define LOOT_LORE_ERROR				371		//You cannot loot this Lore Item. You already have one.
 #define PICK_LORE					379		//You cannot pick up a lore item you already possess.
+#define POISON_TOO_HIGH				382		// This poison is too high level for you to apply.
+#define CORPSE_TOO_FAR				389		//The corpse is too far away to summon.
 #define CONSENT_DENIED				390		//You do not have consent to summon that corpse.
 #define DISCIPLINE_RDY				393		//You are ready to use a new discipline now.
 #define CONSENT_INVALID_NAME		397		//Not a valid consent name.
 #define CONSENT_NPC					398		//You cannot consent NPC\'s.
 #define CONSENT_YOURSELF			399		//You cannot consent yourself.
+#define CONSENT_WAIT				400		//You must wait 2 seconds between consents.
 #define SONG_NEEDS_DRUM				405		//You need to play a percussion instrument for this song
 #define SONG_NEEDS_WIND				406		//You need to play a wind instrument for this song
 #define SONG_NEEDS_STRINGS			407		//You need to play a stringed instrument for this song
@@ -164,6 +172,7 @@
 #define PVP_ON						552		//You are now player kill and follow the ways of Discord.
 #define GENERIC_STRINGID_SAY		554		//%1 says '%T2'
 #define CANNOT_WAKE					555		//%1 tells you, 'I am unable to wake %2, master.'
+#define SUMMONING_CORPSE_ZONE		596		//Summoning %1's corpse(s).
 #define PET_HOLD_SET_ON				698		//The pet hold mode has been set to on.
 #define PET_HOLD_SET_OFF			699		//The pet hold mode has been set to off.
 #define PET_FOCUS_SET_ON			700		//The pet focus mode has been set to on.
@@ -286,6 +295,7 @@
 #define TRADESKILL_LEARN_RECIPE		3457	//You have learned the recipe %1!
 #define EXPEDITION_MIN_REMAIN		3551	//You only have %1 minutes remaining before this expedition comes to an end.
 #define LOOT_NOT_ALLOWED			3562	//You are not allowed to loot the item: %1.
+#define NOT_YOUR_TRAP				3671	//You cannot remove this, you are only allowed to remove traps you have set.
 #define NO_CAST_ON_PET				4045	//You cannot cast this spell on your pet.
 #define REWIND_WAIT					4059	//You must wait a bit longer before using the rewind command again.
 #define CORPSEDRAG_LIMIT			4061	//You are already dragging as much as you can!
@@ -295,6 +305,7 @@
 #define CORPSEDRAG_STOPALL			4065	//You stop dragging the corpses.
 #define CORPSEDRAG_STOP				4066	//You stop dragging the corpse.
 #define SOS_KEEPS_HIDDEN			4086	//Your Shroud of Stealth keeps you hidden from watchful eyes.␣␣
+#define DISARM_NO_TARGET            4583    //You can't use disarm on that.
 #define	TARGET_TOO_CLOSE			4602	//You are too close to your target. Get farther away.
 #define WHOALL_NO_RESULTS			5029	//There are no players in EverQuest that match those who filters.
 #define TELL_QUEUED_MESSAGE			5045	//You told %1 '%T2. %3'
@@ -316,6 +327,7 @@
 #define FAILED_TAUNT				5811	//You have failed to taunt your target.
 #define PHYSICAL_RESIST_FAIL		5817	//Your target avoided your %1 ability.
 #define AA_NO_TARGET				5825	//You must first select a target for this ability!
+#define MAX_ACTIVE_TASKS			6010	//Sorry %3, you already have the maximum number of active tasks.
 #define FORAGE_MASTERY				6012	//Your forage mastery has enabled you to find something else!
 #define GUILD_BANK_CANNOT_DEPOSIT	6097	// Cannot deposit this item. Containers must be empty, and only one of each LORE and no NO TRADE or TEMPORARY items may be deposited.
 #define GUILD_BANK_FULL				6098	// There is no more room in the Guild Bank.
@@ -361,6 +373,7 @@
 #define GAIN_GROUP_LEADERSHIP_EXP	8788	//
 #define GAIN_RAID_LEADERSHIP_EXP	8789	//
 #define BUFF_MINUTES_REMAINING		8799	//%1 (%2 minutes remaining)
+#define NO_MORE_TRAPS				9002	//You have already placed your maximum number of traps.
 #define FEAR_TOO_HIGH				9035	//Your target is too high of a level for your fear spell.
 #define SLOW_MOSTLY_SUCCESSFUL		9029	//Your spell was mostly successful.
 #define SLOW_PARTIALLY_SUCCESSFUL	9030	// Your spell was partially successful.
@@ -375,6 +388,7 @@
 #define SHAKE_OFF_STUN				9077	//You shake off the stun effect!
 #define STRIKETHROUGH_STRING		9078	//You strike through your opponent's defenses!
 #define SPELL_REFLECT				9082	//%1's spell has been reflected by %2.
+#define NO_MORE_AURAS				9160	//You do not have sufficient focus to maintain that ability.
 #define NEW_SPELLS_AVAIL			9149	//You have new spells available to you. Check the merchants near your guild master.
 #define FD_CAST_ON_NO_BREAK			9174	//The strength of your will allows you to resume feigning death.
 #define SNEAK_RESTRICT				9240	//You can not use this ability because you have not been hidden for long enough.
@@ -405,9 +419,11 @@
 #define TARGET_PLAYER_FOR_GUILD_STATUS		12260
 #define GROUP_INVITEE_NOT_FOUND		12268	//You must target a player or use /invite <name> to invite someone to your group.
 #define GROUP_INVITEE_SELF			12270	//12270 You cannot invite yourself.
+#define ALREADY_IN_PARTY			12272	//That person is already in your party.
 #define NO_LONGER_HIDDEN			12337   //You are no longer hidden.
 #define STOP_SNEAKING				12338	//You stop sneaking
 #define NOT_IN_CONTROL				12368	//You do not have control of yourself right now.
+#define STAND_TO_CAST				12441	//You must be standing to cast a spell.
 #define ALREADY_CASTING				12442	//You are already casting a spell!
 #define SHIMMERS_BRIEFLY			12444	//Your %1 shimmers briefly.
 #define SENSE_CORPSE_NOT_NAME		12446	//You don't sense any corpses of that name.
@@ -418,6 +434,7 @@
 #define SENSE_ANIMAL				12472	//You sense an animal in this direction.
 #define SENSE_SUMMONED				12473	//You sense a summoned being in this direction.
 #define SENSE_NOTHING				12474	//You don't sense anything.
+#define SENSE_TRAP					12475	//You sense a trap in this direction.
 #define LDON_SENSE_TRAP3			12476	//You don't sense any traps.
 #define INTERRUPT_SPELL_OTHER		12478	//%1's casting is interrupted!
 #define YOU_HIT_NONMELEE			12481	//You were hit by non-melee for %1 damage.
@@ -436,6 +453,9 @@
 #define TRY_ATTACKING_SOMEONE		12696	//Try attacking someone other than yourself, it's more productive
 #define RANGED_TOO_CLOSE			12698	//Your target is too close to use a ranged weapon!
 #define BACKSTAB_WEAPON				12874	//You need a piercing weapon as your primary weapon in order to backstab
+#define DISARMED                    12889   //You have been disarmed!
+#define DISARM_SUCCESS              12890   //You disarmed %1!
+#define DISARM_FAILED               12891   //Your attempt to disarm failed.
 #define MORE_SKILLED_THAN_I			12931	//%1 tells you, 'You are more skilled than I! What could I possibly teach you?'
 #define SURNAME_EXISTS				12939	//You already have a surname. Operation failed.
 #define SURNAME_LEVEL				12940	//You can only submit a surname upon reaching the 20th level. Operation failed.

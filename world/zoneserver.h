@@ -19,9 +19,10 @@
 #define ZONESERVER_H
 
 #include "world_tcp_connection.h"
-#include "../net/servertalk_server.h"
-#include "../event/timer.h"
-#include "../timer.h"
+#include "../common/net/servertalk_server.h"
+#include "../common/event/timer.h"
+#include "../common/timer.h"
+#include "console.h"
 #include <string.h>
 #include <string>
 
@@ -31,13 +32,14 @@ class ServerPacket;
 
 class ZoneServer : public WorldTCPConnection {
 public:
-	ZoneServer(std::shared_ptr<EQ::Net::ServertalkServerConnection> connection);
+	ZoneServer(std::shared_ptr<EQ::Net::ServertalkServerConnection> connection, EQ::Net::ConsoleServer *console);
 	~ZoneServer();
 	virtual inline bool IsZoneServer() { return true; }
 
 	void        SendPacket(ServerPacket* pack) { tcpc->SendPacket(pack); }
 	void		SendEmoteMessage(const char* to, uint32 to_guilddbid, int16 to_minstatus, uint32 type, const char* message, ...);
 	void		SendEmoteMessageRaw(const char* to, uint32 to_guilddbid, int16 to_minstatus, uint32 type, const char* message);
+	void		SendKeepAlive();
 	bool		SetZone(uint32 iZoneID, uint32 iInstanceID = 0, bool iStaticZone = false);
 	void		TriggerBootup(uint32 iZoneID = 0, uint32 iInstanceID = 0, const char* iAdminName = 0, bool iMakeStatic = false);
 	void		Disconnect() { auto handle = tcpc->Handle(); if (handle) { handle->Disconnect(); } }
@@ -55,6 +57,7 @@ public:
 	const char*			GetCompileTime() const{ return compiled; }
 	void				SetCompile(char* in_compile){ strcpy(compiled,in_compile); }
 	inline uint32		GetZoneID() const	{ return zone_server_zone_id; }
+	inline bool         IsConnected() const { return tcpc->Handle() ? tcpc->Handle()->IsConnected() : false; }
 	inline std::string	GetIP() const		{ return tcpc->Handle() ? tcpc->Handle()->RemoteIP() : ""; }
 	inline uint16		GetPort() const		{ return tcpc->Handle() ? tcpc->Handle()->RemotePort() : 0; }
 	inline const char*	GetCAddress() const	{ return client_address; }
@@ -97,6 +100,7 @@ private:
 	uint32  zone_os_process_id;
 	std::string launcher_name;	//the launcher which started us
 	std::string launched_name;	//the name of the zone we launched.
+	EQ::Net::ConsoleServer *console;
 };
 
 #endif

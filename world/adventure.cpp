@@ -122,7 +122,7 @@ bool Adventure::Process()
 		else if(status == AS_WaitingForPrimaryEndTime)
 		{
 			//Do partial failure: send a message to the clients that they can only get a certain amount of points.
-			SendAdventureMessage(13, "You failed to complete your adventure in time. Complete your adventure goal within 30 minutes to "
+			SendAdventureMessage(Chat::Red, "You failed to complete your adventure in time. Complete your adventure goal within 30 minutes to "
 				"receive a lesser reward. This adventure will end in 30 minutes and your party will be ejected from the dungeon.");
 			SetStatus(AS_WaitingForSecondaryEndTime);
 		}
@@ -287,7 +287,7 @@ void Adventure::Finished(AdventureWinStatus ws)
 		ClientListEntry *current = client_list.FindCharacter((*iter).c_str());
 		if(current)
 		{
-			if(current->Online() == CLE_Status_InZone)
+			if(current->Online() == CLE_Status::InZone)
 			{
 				//We can send our packets only.
 				auto pack =
@@ -380,7 +380,7 @@ void Adventure::MoveCorpsesToGraveyard()
 	std::list<uint32> dbid_list;
 	std::list<uint32> charid_list;
 
-	std::string query = StringFormat("SELECT id, charid FROM character_corpses WHERE instanceid=%d", GetInstanceID());
+	std::string query = StringFormat("SELECT id, charid FROM character_corpses WHERE instance_id=%d", GetInstanceID());
 	auto results = database.QueryDatabase(query);
 	if(!results.Success())
 
@@ -395,8 +395,8 @@ void Adventure::MoveCorpsesToGraveyard()
 		float z = GetTemplate()->graveyard_z;
 
 		query = StringFormat("UPDATE character_corpses "
-                            "SET zoneid = %d, instanceid = 0, "
-                            "x = %f, y = %f, z = %f WHERE instanceid = %d",
+                            "SET zone_id = %d, instance_id = 0, "
+                            "x = %f, y = %f, z = %f WHERE instance_id = %d",
                             GetTemplate()->graveyard_zone_id,
                             x, y, z, GetInstanceID());
 		database.QueryDatabase(query);

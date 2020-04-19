@@ -357,13 +357,55 @@
 9101|2016_12_01_pcnpc_only.sql|SHOW COLUMNS FROM `spells_new` LIKE 'pcnpc_only_flag'|empty|
 9102|2017_01_10_book_languages.sql|SHOW COLUMNS FROM `books` LIKE 'language'|empty|
 9103|2017_01_30_book_languages_fix.sql|SELECT `language` from `books` WHERE `language` IS NULL|not_empty|
-9104|2017_02_09_npc_spells_entries_type_update.sql|SHOW COLUMNS IN `npc_spells_entries` LIKE `type`|contains|smallint(5) unsigned
+9104|2017_02_09_npc_spells_entries_type_update.sql|SHOW COLUMNS IN `npc_spells_entries` LIKE 'type'|contains|smallint(5) unsigned
 9105|2017_02_15_bot_spells_entries.sql|SELECT `id` FROM `npc_spells_entries` WHERE `npc_spells_id` >= 701 AND `npc_spells_id` <= 712|not_empty|
 9106|2017_02_26_npc_spells_update_for_bots.sql|SELECT * FROM `npc_spells` WHERE `id` = '701' AND `name` = 'Cleric Bot'|not_empty|
 9107|2017_03_09_inventory_version.sql|SHOW TABLES LIKE 'inventory_version'|empty|
 9108|2017_04_07_ignore_despawn.sql|SHOW COLUMNS FROM `npc_types` LIKE 'ignore_despawn'|empty|
 9109|2017_04_08_doors_disable_timer.sql|SHOW COLUMNS FROM `doors` LIKE 'disable_timer'|empty|
 9110|2017_04_10_graveyard.sql|show index from graveyard WHERE key_name = 'zone_id_nonunique'|empty|
+9111|2017_06_24_saylink_index.sql|SHOW INDEX FROM `saylink` WHERE `key_name` = 'phrase_index'|empty|
+9112|2017_06_24_rule_values_expand.sql|SHOW COLUMNS FROM rule_values WHERE Field = 'rule_value' and Type = 'varchar(30)'|empty|
+9113|2017_07_19_show_name.sql|SHOW COLUMNS FROM `npc_types` LIKE 'show_name'|empty|
+9114|2017_07_22_aura.sql|SHOW TABLES LIKE 'auras'|empty|
+9115|2017_10_28_traps.sql|SHOW COLUMNS FROM `traps` LIKE 'triggered_number'|empty|
+9116|2017_12_16_GroundSpawn_Respawn_Timer.sql|SHOW COLUMNS FROM `ground_spawns` WHERE Field = 'respawn_timer' AND Type = 'int(11) unsigned'|empty|
+9117|2018_02_01_NPC_Spells_Min_Max_HP.sql|SHOW COLUMNS FROM `npc_spells_entries` LIKE 'min_hp'|empty|
+9118|2018_02_04_Charm_Stats.sql|SHOW COLUMNS FROM `npc_types` LIKE 'charm_ac'|empty|
+9119|2018_02_10_GlobalLoot.sql|SHOW TABLES LIKE 'global_loot'|empty|
+9120|2018_02_13_Heading.sql|SELECT value FROM variables WHERE varname = 'fixed_heading'|empty|
+9121|2018_02_18_bug_reports.sql|SHOW TABLES LIKE 'bug_reports'|empty|
+9122|2018_03_07_ucs_command.sql|SELECT * FROM `command_settings` WHERE `command` LIKE 'ucs'|empty|
+9123|2018_07_07_data_buckets.sql|SHOW TABLES LIKE 'data_buckets'|empty|
+9124|2018_07_09_tasks.sql|SHOW COLUMNS FROM `tasks` LIKE 'type'|empty|
+9125|2018_07_20_task_emote.sql|SHOW COLUMNS FROM `tasks` LIKE 'completion_emote'|empty|
+9126|2018_09_07_FastRegen.sql|SHOW COLUMNS FROM `zone` LIKE 'fast_regen_hp'|empty|
+9127|2018_09_07_NPCMaxAggroDist.sql|SHOW COLUMNS FROM `zone` LIKE 'npc_max_aggro_dist'|empty|
+9128|2018_08_13_inventory_version_update.sql|SHOW TABLES LIKE 'inventory_version'|not_empty|
+9129|2018_08_13_inventory_update.sql|SHOW TABLES LIKE 'inventory_versions'|empty|
+9130|2018_11_25_name_filter_update.sql|SHOW COLUMNS FROM `name_filter` LIKE 'id'|empty|
+9131|2018_12_13_spell_buckets.sql|SHOW TABLES LIKE 'spell_buckets'|empty|
+9132|2018_12_16_global_base_scaling.sql|SHOW TABLES LIKE 'npc_scale_global_base'|empty|
+9133|2018_11_25_StuckBehavior.sql|SHOW COLUMNS FROM `npc_types` LIKE 'stuck_behavior'|empty|
+9134|2019_01_04_update_global_base_scaling.sql|SELECT * FROM db_version WHERE version >= 9134|empty|
+9135|2019_01_10_multi_version_spawns.sql|SHOW COLUMNS FROM `spawn2` LIKE 'version'|contains|unsigned|
+9136|2019_02_04_profanity_command.sql|SHOW TABLES LIKE 'profanity_list'|empty|
+9137|2018_12_12_client_faction_tables.sql|SHOW TABLES LIKE 'faction_base_data'|empty|
+9138|2018_12_12_convert_to_client_functions.sql|SELECT `id` FROM `faction_list` WHERE `id` > 4999|empty|
+9139|2019_03_25_optional_npc_model.sql|SHOW COLUMNS FROM `npc_types` LIKE 'model'|empty|
+9140|2019_07_03_update_range.sql|SHOW COLUMNS FROM `zone` LIKE 'max_movement_update_range'|empty|
+9141|2019_07_10_npc_flymode.sql|SHOW COLUMNS FROM `npc_types` LIKE 'flymode'|empty|
+9142|2019_09_02_required_spawn_filter.sql|SHOW COLUMNS FROM `spawnentry` LIKE 'condition_value_filter'|empty|
+9143|2019_09_16_account_table_changes.sql|SHOW COLUMNS FROM `account` LIKE 'ls_id'|empty|
+9144|2019_11_09_logsys_description_update.sql|SELECT * FROM db_version WHERE version >= 9143|empty|
+9145|2019_12_24_banned_ips_update.sql|SHOW TABLES LIKE 'Banned_IPs'|not_empty|
+9146|2020_01_10_character_soft_deletes.sql|SHOW COLUMNS FROM `character_data` LIKE 'deleted_at'|empty|
+9147|2020_01_24_grid_centerpoint_wp.sql|SHOW COLUMNS FROM `grid_entries` LIKE 'centerpoint'|empty|
+9148|2020_01_28_corpse_guild_consent_id.sql|SHOW COLUMNS FROM `character_corpses` LIKE 'guild_consent_id'|empty|
+9149|2020_02_06_globalloot.sql|SHOW COLUMNS FROM `global_loot` LIKE 'hot_zone'|empty|
+9150|2020_02_06_aa_reset_on_death.sql|SHOW COLUMNS FROM `aa_ability` LIKE 'reset_on_death'|empty|
+9151|2020_03_05_npc_always_aggro.sql|SHOW COLUMNS FROM `npc_types` LIKE 'always_aggro'|empty|
+9152|2020_03_09_convert_myisam_to_innodb.sql|SELECT * FROM db_version WHERE version >= 9152|empty|
 
 # Upgrade conditions:
 # 	This won't be needed after this system is implemented, but it is used database that are not

@@ -71,7 +71,11 @@ class SharedDatabase : public Database
 		void	LoadCharacterInspectMessage(uint32 character_id, InspectMessage_Struct* message);
 		void	SaveCharacterInspectMessage(uint32 character_id, const InspectMessage_Struct* message);
 		bool	GetCommandSettings(std::map<std::string, std::pair<uint8, std::vector<std::string>>> &command_settings);
+		bool	UpdateInjectedCommandSettings(const std::vector<std::pair<std::string, uint8>> &injected);
+		bool	UpdateOrphanedCommandSettings(const std::vector<std::string> &orphaned);
 		uint32	GetTotalTimeEntitledOnAccount(uint32 AccountID);
+		void	SetMailKey(int CharID, int IPAddress, int MailKey);
+		std::string	GetMailKey(int CharID, bool key_only = false);
 
 		/*
 		    Character InventoryProfile
@@ -87,7 +91,7 @@ class SharedDatabase : public Database
 		int32	GetSharedPlatinum(uint32 account_id);
 		bool	SetSharedPlatinum(uint32 account_id, int32 amount_to_add);
 		bool	GetInventory(uint32 char_id, EQEmu::InventoryProfile* inv);
-		bool	GetInventory(uint32 account_id, char* name, EQEmu::InventoryProfile* inv);
+		bool	GetInventory(uint32 account_id, char* name, EQEmu::InventoryProfile* inv); // deprecated
 		std::map<uint32, uint32> GetItemRecastTimestamps(uint32 char_id);
 		uint32	GetItemRecastTimestamp(uint32 char_id, uint32 recast_type);
 		void	ClearOldRecastTimestamps(uint32 char_id);

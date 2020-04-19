@@ -39,6 +39,7 @@ public:
 	void Disconnect();
 	bool IsLD();
 	void WorldKick();
+	void SendToGuildHall();
 	bool GetAnon();
 	void Duck();
 	void Stand();
@@ -135,6 +136,8 @@ public:
 	void UnmemSpellBySpellID(int32 spell_id);
 	void UnmemSpellAll();
 	void UnmemSpellAll(bool update_client);
+	uint16 FindMemmedSpellBySlot(int slot);
+	int MemmedCount();
 	void ScribeSpell(int spell_id, int slot);
 	void ScribeSpell(int spell_id, int slot, bool update_client);
 	void UnscribeSpell(int slot);
@@ -148,7 +151,9 @@ public:
 	void UntrainDisc(int slot, bool update_client);
 	void UntrainDiscAll();
 	void UntrainDiscAll(bool update_client);
+	bool IsStanding();
 	bool IsSitting();
+	bool IsCrouching();
 	void SetFeigned(bool v);
 	bool GetFeigned();
 	bool AutoSplitEnabled();
@@ -236,6 +241,7 @@ public:
 	uint32 GetIP();
 	void AddLevelBasedExp(int exp_pct);
 	void AddLevelBasedExp(int exp_pct, int max_level);
+	void AddLevelBasedExp(int exp_pct, int max_level, bool ignore_mods);
 	void IncrementAA(int aa);
 	bool GrantAlternateAdvancementAbility(int aa_id, int points);
 	bool GrantAlternateAdvancementAbility(int aa_id, int points, bool ignore_cost);
@@ -265,6 +271,8 @@ public:
 	void OpenLFGuildWindow();
 	void Signal(uint32 id);
 	void AddAlternateCurrencyValue(uint32 currency, int amount);
+	void SetAlternateCurrencyValue(uint32 currency, int amount);
+	int GetAlternateCurrencyValue(uint32 currency);
 	void SendWebLink(const char *site);
 	bool HasSpellScribed(int spell_id);
 	void SetAccountFlag(std::string flag, std::string val);
@@ -297,6 +305,25 @@ public:
 	void QuestReward(Lua_Mob target, uint32 copper, uint32 silver, uint32 gold, uint32 platinum, uint32 itemid, uint32 exp);
 	void QuestReward(Lua_Mob target, uint32 copper, uint32 silver, uint32 gold, uint32 platinum, uint32 itemid, uint32 exp, bool faction);
 	void QuestReward(Lua_Mob target, luabind::adl::object reward);
+	bool IsDead();
+	int CalcCurrentWeight();
+	int CalcATK();
+	void FilteredMessage(Mob *sender, uint32 type, int filter, const char* message);
+	void EnableAreaHPRegen(int value);
+	void DisableAreaHPRegen();
+	void EnableAreaManaRegen(int value);
+	void DisableAreaManaRegen();
+	void EnableAreaEndRegen(int value);
+	void DisableAreaEndRegen();
+	void EnableAreaRegens(int value);
+	void DisableAreaRegens();
+
+
+	void SetPrimaryWeaponOrnamentation(uint32 model_id);
+	void SetSecondaryWeaponOrnamentation(uint32 model_id);
+
+	void SetClientMaxLevel(int value);
+	int GetClientMaxLevel();
 };
 
 #endif

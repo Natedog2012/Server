@@ -119,7 +119,7 @@ void Embperl::DoInit() {
 	perl_run(my_perl);
 
 	//a little routine we use a lot.
-	eval_pv("sub my_eval {eval $_[0];}", TRUE);	//dies on error
+	eval_pv("sub my_eval { eval $_[0];}", TRUE);	//dies on error 
 
 	//ruin the perl exit and command:
 	eval_pv("sub my_exit {}",TRUE);
@@ -137,19 +137,19 @@ void Embperl::DoInit() {
 	try {
 		init_eval_file();
 	}
-	catch(const char *err)
+	catch(std::string e)
 	{
 		//remember... lasterr() is no good if we crap out here, in construction
-		Log(Logs::General, Logs::Quests, "perl error: %s", err);
+		LogQuests("Perl Error [{}]", e);
 		throw "failed to install eval_file hook";
 	}
 
 #ifdef EMBPERL_IO_CAPTURE
-	Log(Logs::General, Logs::Quests, "Tying perl output to eqemu logs");
+	LogQuests("Tying perl output to eqemu logs");
 	//make a tieable class to capture IO and pass it into EQEMuLog
 	eval_pv(
 		"package EQEmuIO; "
- 			"sub TIEHANDLE { my $me = bless {}, $_[0]; $me->PRINT('Creating '.$me); return($me); } "
+ 			"sub TIEHANDLE { my $me = bless {}, $_[0]; $me->PRINT('Creating '. $me); return($me); } "
   			"sub WRITE {  } "
   			//dunno why I need to shift off fmt here, but it dosent like without it
   			"sub PRINTF { my $me = shift; my $fmt = shift; $me->PRINT(sprintf($fmt, @_)); } "
@@ -170,16 +170,16 @@ void Embperl::DoInit() {
 		,FALSE
 	);
 
-	Log(Logs::General, Logs::Quests, "Loading perlemb plugins.");
+	LogQuests("Loading perlemb plugins");
 	try
 	{
 		std::string perl_command;
 		perl_command = "main::eval_file('plugin', '" + Config->PluginPlFile + "');";
 		eval_pv(perl_command.c_str(), FALSE);
 	}
-	catch(const char *err)
+	catch(std::string e)
 	{
-		Log(Logs::General, Logs::Quests, "Warning - %s: %s", Config->PluginPlFile.c_str(), err);
+		LogQuests("Warning [{}]: [{}]", Config->PluginPlFile, e);
 	}
 	try
 	{
@@ -195,9 +195,9 @@ void Embperl::DoInit() {
 			"}";
 		eval_pv(perl_command.c_str(),FALSE);
 	}
-	catch(const char *err)
+	catch(std::string e)
 	{
-		Log(Logs::General, Logs::Quests, "Perl warning: %s", err);
+		LogQuests("Warning [{}]", e);
 	}
 #endif //EMBPERL_PLUGIN
 	in_use = false;
@@ -237,6 +237,7 @@ void Embperl::init_eval_file(void)
 {
 	eval_pv(
 		"our %Cache;"
+		"no warnings 'all';"
 		"use Symbol qw(delete_package);"
 		"sub eval_file {"
 			"my($package, $filename) = @_;"
@@ -246,8 +247,9 @@ void Embperl::init_eval_file(void)
 			"if(defined $Cache{$package}{mtime}&&$Cache{$package}{mtime} <= $mtime && !($package eq 'plugin')){"
 			"	return;"
 			"} else {"
-			//we 'my' $filename,$mtime,$package,$sub to prevent them from changing our state up here.
-			"	eval(\"package $package; my(\\$filename,\\$mtime,\\$package,\\$sub); \\$isloaded = 1; require '$filename'; \");"
+			// we 'my' $filename,$mtime,$package,$sub to prevent them from changing our state up here.
+			"	eval(\"package $package; my(\\$filename,\\$mtime,\\$package,\\$sub); \\$isloaded = 1; require './$filename'; \");"
+			//  " print $@ if $@;"
 /*				"local *FH;open FH, $filename or die \"open '$filename' $!\";"
 				"local($/) = undef;my $sub = <FH>;close FH;"
 				"my $eval = qq{package $package; sub handler { $sub; }};"
@@ -313,7 +315,7 @@ int Embperl::dosub(const char * subname, const std::vector<std::string> * args, 
 	{
 		std::string errmsg = "Perl runtime error: ";
 		errmsg += SvPVX(ERRSV);
-		throw errmsg.c_str();
+		throw errmsg;
 	}
 
 	return ret_value;

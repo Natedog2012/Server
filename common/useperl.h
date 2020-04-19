@@ -6,8 +6,16 @@
 #include <EXTERN.h>
 #define WIN32IO_IS_STDIO
 
+// header to detect if libc++ is the std lib
+// this doesn't do shit for C++ but libc++ and GCC 6.1+ use it to define some macros
+#include <ciso646>
+
 #ifndef WIN32
 extern "C" {	//the perl headers dont do this for us...
+#endif
+#if _MSC_VER
+#define __inline__ __inline
+#define __builtin_expect 
 #endif
 #include <perl.h>
 #include <XSUB.h>
@@ -47,7 +55,7 @@ extern "C" {	//the perl headers dont do this for us...
 #endif
 
 //These need to be cleaned up on FreeBSD
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(_LIBCPP_VERSION)
 #ifdef do_open
 #undef do_open
 #endif

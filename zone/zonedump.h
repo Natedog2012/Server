@@ -36,7 +36,7 @@ struct NPCType
 {
 	char	name[64];
 	char	lastname[70]; 
-	int32	cur_hp;
+	int32	current_hp;
 	int32	max_hp; 
 	float	size;
 	float	runspeed;
@@ -44,7 +44,7 @@ struct NPCType
 	uint16	race;
 	uint8	class_;
 	uint8	bodytype;	// added for targettype support
-	uint8	deity;		//not loaded from DB
+	uint32	deity;		//not loaded from DB
 	uint8	level;
 	uint32	npc_id;
 	uint8	texture;
@@ -89,6 +89,13 @@ struct NPCType
 	EQEmu::TintProfile	armor_tint;
 	uint32	min_dmg;
 	uint32	max_dmg;
+	uint32	charm_ac;
+	uint32	charm_min_dmg;
+	uint32	charm_max_dmg;
+	int		charm_attack_delay;
+	int		charm_accuracy_rating;
+	int		charm_avoidance_rating;
+	int		charm_atk;
 	int16	attack_count;
 	char	special_abilities[512];
 	uint16	d_melee_texture1;
@@ -126,13 +133,21 @@ struct NPCType
 	float	healscale;
 	bool	no_target_hotkey;
 	bool	raid_target;
-	uint8 	probability;
 	uint8	armtexture;
 	uint8	bracertexture;
 	uint8	handtexture;
 	uint8	legtexture;
 	uint8	feettexture;
 	bool	ignore_despawn;
+	bool	show_name; // should default on
+	bool	untargetable;
+	bool	skip_global_loot;
+	bool	rare_spawn;
+	bool	skip_auto_scale; // just so it doesn't mess up bots or mercs, probably should add to DB too just in case
+	int8	stuck_behavior;
+	uint16	use_model;
+	int8	flymode;
+	bool	always_aggro;
 };
 
 namespace player_lootitem {

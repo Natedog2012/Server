@@ -62,17 +62,17 @@ uint32 ZoneDatabase::GetZoneForage(uint32 ZoneID, uint8 skill) {
 		return 0;
 	}
 
-	uint8 index = 0;
-    for (auto row = results.begin(); row != results.end(); ++row, ++index) {
-        if (index >= FORAGE_ITEM_LIMIT)
-            break;
+	uint8     index = 0;
+	for (auto row   = results.begin(); row != results.end(); ++row, ++index) {
+		if (index >= FORAGE_ITEM_LIMIT) {
+			break;
+		}
 
-        item[index] = atoi(row[0]);
-        chance[index] = atoi(row[1]) + chancepool;
-        Log(Logs::General, Logs::Error, "Possible Forage: %d with a %d chance", item[index], chance[index]);
-        chancepool = chance[index];
-    }
-
+		item[index]   = atoi(row[0]);
+		chance[index] = atoi(row[1]) + chancepool;
+		LogError("Possible Forage: [{}] with a [{}] chance", item[index], chance[index]);
+		chancepool = chance[index];
+	}
 
 	if(chancepool == 0 || index < 1)
 		return 0;
@@ -153,7 +153,7 @@ uint32 ZoneDatabase::GetZoneFishing(uint32 ZoneID, uint8 skill, uint32 &npc_id, 
 //we need this function to immediately determine, after we receive OP_Fishing, if we can even try to fish, otherwise we have to wait a while to get the failure
 bool Client::CanFish() {
 	//make sure we still have a fishing pole on:
-	const EQEmu::ItemInstance* Pole = m_inv[EQEmu::inventory::slotPrimary];
+	const EQEmu::ItemInstance* Pole = m_inv[EQEmu::invslot::slotPrimary];
 	int32 bslot = m_inv.HasItemByUse(EQEmu::item::ItemTypeFishingBait, 1, invWhereWorn | invWherePersonal);
 	const EQEmu::ItemInstance* Bait = nullptr;
 	if (bslot != INVALID_INDEX)
@@ -161,14 +161,14 @@ bool Client::CanFish() {
 
 	if (!Pole || !Pole->IsClassCommon() || Pole->GetItem()->ItemType != EQEmu::item::ItemTypeFishingPole) {
 		if (m_inv.HasItemByUse(EQEmu::item::ItemTypeFishingPole, 1, invWhereWorn | invWherePersonal | invWhereBank | invWhereSharedBank | invWhereTrading | invWhereCursor))	//We have a fishing pole somewhere, just not equipped
-			Message_StringID(MT_Skills, FISHING_EQUIP_POLE);	//You need to put your fishing pole in your primary hand.
+			MessageString(Chat::Skills, FISHING_EQUIP_POLE);	//You need to put your fishing pole in your primary hand.
 		else	//We don't have a fishing pole anywhere
-			Message_StringID(MT_Skills, FISHING_NO_POLE);	//You can't fish without a fishing pole, go buy one.
+			MessageString(Chat::Skills, FISHING_NO_POLE);	//You can't fish without a fishing pole, go buy one.
 		return false;
 	}
 
 	if (!Bait || !Bait->IsClassCommon() || Bait->GetItem()->ItemType != EQEmu::item::ItemTypeFishingBait) {
-		Message_StringID(MT_Skills, FISHING_NO_BAIT);	//You can't fish without fishing bait, go buy some.
+		MessageString(Chat::Skills, FISHING_NO_BAIT);	//You can't fish without fishing bait, go buy some.
 		return false;
 	}
 
@@ -180,7 +180,7 @@ bool Client::CanFish() {
 		const float LineLength = RuleR(Watermap, FishingLineLength);
 		int HeadingDegrees;
 
-		HeadingDegrees = (int) ((GetHeading()*360)/256);
+		HeadingDegrees = (int) ((GetHeading()*360)/512);
 		HeadingDegrees = HeadingDegrees % 360;
 
 		rodPosition.x = m_Position.x + RodLength * sin(HeadingDegrees * M_PI/180.0f);
@@ -190,20 +190,20 @@ bool Client::CanFish() {
 		float bestz = zone->zonemap->FindBestZ(rodPosition, nullptr);
 		float len = m_Position.z - bestz;
 		if(len > LineLength || len < 0.0f) {
-			Message_StringID(MT_Skills, FISHING_LAND);
+			MessageString(Chat::Skills, FISHING_LAND);
 			return false;
 		}
 
 		float step_size = RuleR(Watermap, FishingLineStepSize);
 
-		for(float i = 0.0f; i < len; i += step_size) {
+		for(float i = 0.0f; i < LineLength; i += step_size) {
 			glm::vec3 dest(rodPosition.x, rodPosition.y, m_Position.z - i);
 
 			bool in_lava = zone->watermap->InLava(dest);
 			bool in_water = zone->watermap->InWater(dest) || zone->watermap->InVWater(dest);
 
 			if (in_lava) {
-				Message_StringID(MT_Skills, FISHING_LAVA);	//Trying to catch a fire elemental or something?
+				MessageString(Chat::Skills, FISHING_LAVA);	//Trying to catch a fire elemental or something?
 				return false;
 			}
 
@@ -212,7 +212,7 @@ bool Client::CanFish() {
 			}
 		}
 
-		Message_StringID(MT_Skills, FISHING_LAND);
+		MessageString(Chat::Skills, FISHING_LAND);
 		return false;
 	}
 	return true;
@@ -223,7 +223,7 @@ void Client::GoFish()
 
 	//TODO: generate a message if we're already fishing
 	/*if (!fishing_timer.Check()) {	//this isn't the right check, may need to add something to the Client class like 'bool is_fishing'
-		Message_StringID(0, ALREADY_FISHING);	//You are already fishing!
+		MessageString(Chat::White, ALREADY_FISHING);	//You are already fishing!
 		return;
 	}*/
 
@@ -258,7 +258,7 @@ void Client::GoFish()
 		Bait = m_inv.GetItem(bslot);
 
 	//if the bait isnt equipped, need to add its skill bonus
-	if (bslot >= EQEmu::legacy::GENERAL_BEGIN && Bait != nullptr && Bait->GetItem()->SkillModType == EQEmu::skills::SkillFishing) {
+	if (bslot >= EQEmu::invslot::GENERAL_BEGIN && Bait != nullptr && Bait->GetItem()->SkillModType == EQEmu::skills::SkillFishing) {
 		fishing_skill += Bait->GetItem()->SkillModValue;
 	}
 
@@ -277,20 +277,28 @@ void Client::GoFish()
 			food_id = database.GetZoneFishing(m_pp.zone_id, fishing_skill, npc_id, npc_chance);
 
 			//check for add NPC
-			if(npc_chance > 0 && npc_id) {
-				if(npc_chance < zone->random.Int(0, 99)) {
-					const NPCType* tmp = database.LoadNPCTypesData(npc_id);
-					if(tmp != nullptr) {
-                        auto positionNPC = GetPosition();
-                        positionNPC.x = positionNPC.x + 3;
-			auto npc = new NPC(tmp, nullptr, positionNPC, FlyMode3);
-			npc->AddLootTable();
+			if (npc_chance > 0 && npc_id) {
+				if (zone->random.Roll(npc_chance)) {
+					if (zone->CanDoCombat()) {
+						const NPCType *tmp = database.LoadNPCTypesData(npc_id);
+						if (tmp != nullptr) {
+							auto positionNPC = GetPosition();
+							positionNPC.x = positionNPC.x + 3;
+							auto npc = new NPC(tmp, nullptr, positionNPC, GravityBehavior::Water);
+							npc->AddLootTable();
+							if (npc->DropsGlobalLoot())
+								npc->CheckGlobalLootTables();
 
-			npc->AddToHateList(this, 1, 0, false); // no help yelling
+							npc->AddToHateList(this, 1, 0, false); // no help yelling
 
-			entity_list.AddNPC(npc);
+							entity_list.AddNPC(npc);
 
-			Message(MT_Emote, "You fish up a little more than you bargained for...");
+							Message(Chat::Emote,
+								"You fish up a little more than you bargained for...");
+						}
+					}
+					else {
+						Message(Chat::Emote, "You notice something lurking just below the water's surface...");
 					}
 				}
 			}
@@ -301,40 +309,42 @@ void Client::GoFish()
 
 		if(food_id == 0) {
 			int index = zone->random.Int(0, MAX_COMMON_FISH_IDS-1);
-			food_id = common_fish_ids[index];
+			food_id = (RuleB(Character, UseNoJunkFishing) ? 13019 : common_fish_ids[index]);
 		}
 
 		const EQEmu::ItemData* food_item = database.GetItem(food_id);
+		if (food_item) {
 
-		if (food_item->ItemType  != EQEmu::item::ItemTypeFood) {
-			Message_StringID(MT_Skills, FISHING_SUCCESS);
-		}
-		else {
-			Message_StringID(MT_Skills, FISHING_SUCCESS_FISH_NAME, food_item->Name);
-		}
-
-		EQEmu::ItemInstance* inst = database.CreateItem(food_item, 1);
-		if(inst != nullptr) {
-			if(CheckLoreConflict(inst->GetItem()))
-			{
-				Message_StringID(0, DUP_LORE);
-				safe_delete(inst);
+			if (food_item->ItemType != EQEmu::item::ItemTypeFood) {
+				MessageString(Chat::Skills, FISHING_SUCCESS);
 			}
-			else
-			{
-				PushItemOnCursor(*inst);
-				SendItemPacket(EQEmu::inventory::slotCursor, inst, ItemPacketLimbo);
-				if(RuleB(TaskSystem, EnableTaskSystem))
-					UpdateTasksForItem(ActivityFish, food_id);
-
-				safe_delete(inst);
-				inst = m_inv.GetItem(EQEmu::inventory::slotCursor);
+			else {
+				MessageString(Chat::Skills, FISHING_SUCCESS_FISH_NAME, food_item->Name);
 			}
 
-			if(inst) {
-				std::vector<EQEmu::Any> args;
-				args.push_back(inst);
-				parse->EventPlayer(EVENT_FISH_SUCCESS, this, "", inst->GetID(), &args);
+			EQEmu::ItemInstance* inst = database.CreateItem(food_item, 1);
+			if (inst != nullptr) {
+				if (CheckLoreConflict(inst->GetItem()))
+				{
+					MessageString(Chat::White, DUP_LORE);
+					safe_delete(inst);
+				}
+				else
+				{
+					PushItemOnCursor(*inst);
+					SendItemPacket(EQEmu::invslot::slotCursor, inst, ItemPacketLimbo);
+					if (RuleB(TaskSystem, EnableTaskSystem))
+						UpdateTasksForItem(ActivityFish, food_id);
+
+					safe_delete(inst);
+					inst = m_inv.GetItem(EQEmu::invslot::slotCursor);
+				}
+
+				if (inst) {
+					std::vector<EQEmu::Any> args;
+					args.push_back(inst);
+					parse->EventPlayer(EVENT_FISH_SUCCESS, this, "", inst->GetID(), &args);
+				}
 			}
 		}
 	}
@@ -343,13 +353,13 @@ void Client::GoFish()
 		//chance to use bait when you dont catch anything...
 		if (zone->random.Int(0, 4) == 1) {
 			DeleteItemInInventory(bslot, 1, true);	//do we need client update?
-			Message_StringID(MT_Skills, FISHING_LOST_BAIT);	//You lost your bait!
+			MessageString(Chat::Skills, FISHING_LOST_BAIT);	//You lost your bait!
 		} else {
 			if (zone->random.Int(0, 15) == 1)	//give about a 1 in 15 chance to spill your beer. we could make this a rule, but it doesn't really seem worth it
 				//TODO: check for & consume an alcoholic beverage from inventory when this triggers, and set it as a rule that's disabled by default
-				Message_StringID(MT_Skills, FISHING_SPILL_BEER);	//You spill your beer while bringing in your line.
+				MessageString(Chat::Skills, FISHING_SPILL_BEER);	//You spill your beer while bringing in your line.
 			else
-				Message_StringID(MT_Skills, FISHING_FAILED);	//You didn't catch anything.
+				MessageString(Chat::Skills, FISHING_FAILED);	//You didn't catch anything.
 		}
 
 		parse->EventPlayer(EVENT_FISH_FAILURE, this, "", 0);
@@ -359,8 +369,8 @@ void Client::GoFish()
 	//this is potentially exploitable in that they can fish
 	//and then swap out items in primary slot... too lazy to fix right now
 	if (zone->random.Int(0, 49) == 1) {
-		Message_StringID(MT_Skills, FISHING_POLE_BROKE);	//Your fishing pole broke!
-		DeleteItemInInventory(EQEmu::inventory::slotPrimary, 0, true);
+		MessageString(Chat::Skills, FISHING_POLE_BROKE);	//Your fishing pole broke!
+		DeleteItemInInventory(EQEmu::invslot::slotPrimary, 0, true);
 	}
 
 	if (CheckIncreaseSkill(EQEmu::skills::SkillFishing, nullptr, 5))
@@ -405,7 +415,7 @@ void Client::ForageItem(bool guarantee) {
 		const EQEmu::ItemData* food_item = database.GetItem(foragedfood);
 
 		if(!food_item) {
-			Log(Logs::General, Logs::Error, "nullptr returned from database.GetItem in ClientForageItem");
+			LogError("nullptr returned from database.GetItem in ClientForageItem");
 			return;
 		}
 
@@ -426,23 +436,23 @@ void Client::ForageItem(bool guarantee) {
 				break;
 			}
 
-		Message_StringID(MT_Skills, stringid);
+		MessageString(Chat::Skills, stringid);
 		EQEmu::ItemInstance* inst = database.CreateItem(food_item, 1);
 		if(inst != nullptr) {
 			// check to make sure it isn't a foraged lore item
 			if(CheckLoreConflict(inst->GetItem()))
 			{
-				Message_StringID(0, DUP_LORE);
+				MessageString(Chat::White, DUP_LORE);
 				safe_delete(inst);
 			}
 			else {
 				PushItemOnCursor(*inst);
-				SendItemPacket(EQEmu::inventory::slotCursor, inst, ItemPacketLimbo);
+				SendItemPacket(EQEmu::invslot::slotCursor, inst, ItemPacketLimbo);
 				if(RuleB(TaskSystem, EnableTaskSystem))
 					UpdateTasksForItem(ActivityForage, foragedfood);
 
 				safe_delete(inst);
-				inst = m_inv.GetItem(EQEmu::inventory::slotCursor);
+				inst = m_inv.GetItem(EQEmu::invslot::slotCursor);
 			}
 
 			if(inst) {
@@ -454,12 +464,12 @@ void Client::ForageItem(bool guarantee) {
 
 		int ChanceSecondForage = aabonuses.ForageAdditionalItems + itembonuses.ForageAdditionalItems + spellbonuses.ForageAdditionalItems;
 		if(!guarantee && zone->random.Roll(ChanceSecondForage)) {
-			Message_StringID(MT_Skills, FORAGE_MASTERY);
+			MessageString(Chat::Skills, FORAGE_MASTERY);
 			ForageItem(true);
 		}
 
 	} else {
-		Message_StringID(MT_Skills, FORAGE_FAILED);
+		MessageString(Chat::Skills, FORAGE_FAILED);
 		parse->EventPlayer(EVENT_FORAGE_FAILURE, this, "", 0);
 	}
 

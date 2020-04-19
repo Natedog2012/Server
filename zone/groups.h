@@ -74,14 +74,16 @@ public:
 	void	GroupBardPulse(Mob* caster,uint16 spellid);
 	void	SplitExp(uint32 exp, Mob* other);
 	void	GroupMessage(Mob* sender,uint8 language,uint8 lang_skill,const char* message);
-	void	GroupMessage_StringID(Mob* sender, uint32 type, uint32 string_id, const char* message,const char* message2=0,const char* message3=0,const char* message4=0,const char* message5=0,const char* message6=0,const char* message7=0,const char* message8=0,const char* message9=0, uint32 distance = 0);
+	void	GroupMessageString(Mob* sender, uint32 type, uint32 string_id, const char* message,const char* message2=0,const char* message3=0,const char* message4=0,const char* message5=0,const char* message6=0,const char* message7=0,const char* message8=0,const char* message9=0, uint32 distance = 0);
 	uint32	GetTotalGroupDamage(Mob* other);
 	void	SplitMoney(uint32 copper, uint32 silver, uint32 gold, uint32 platinum, Client *splitter = nullptr);
 	inline	void SetLeader(Mob* newleader){ leader=newleader; };
 	inline	Mob* GetLeader() { return leader; };
 	const char*	GetLeaderName() { return membername[0]; };
-	void	SendHPPacketsTo(Mob* newmember);
-	void	SendHPPacketsFrom(Mob* newmember);
+	void	SendHPManaEndPacketsTo(Mob* newmember);
+	void	SendHPPacketsFrom(Mob* member);
+	void	SendManaPacketFrom(Mob* member);
+	void SendEndurancePacketFrom(Mob* member);
 	bool	UpdatePlayer(Mob* update);
 	void	MemberZoned(Mob* removemob);
 	inline	bool IsLeader(Mob* leadertest) { return leadertest==leader; };
@@ -138,6 +140,7 @@ public:
 	inline int GetLeadershipAA(int AAID) { return LeaderAbilities.ranks[AAID]; }
 	void	ClearAllNPCMarks();
 	void	QueueHPPacketsForNPCHealthAA(Mob* sender, const EQApplicationPacket* app);
+	void	QueueClients(Mob *sender, const EQApplicationPacket *app, bool ack_required = true, bool ignore_sender = true, float distance = 0);
 	void	ChangeLeader(Mob* newleader);
 	const char *GetClientNameByIndex(uint8 index);
 	void UpdateXTargetMarkedNPC(uint32 Number, Mob *m);

@@ -128,9 +128,9 @@ static const uint32 MAX_NUMBER_GUILDS = 1500;
 
 // Used primarily in the Player Profile:
 static const uint32 MAX_PP_LANGUAGE		= 32;	// was 25
-static const uint32 MAX_PP_SPELLBOOK	= 720;	// was 480
-static const uint32 MAX_PP_MEMSPELL		= 16;	// was 12
+
 static const uint32 MAX_PP_SKILL		= PACKET_SKILL_ARRAY_SIZE;	// 100 - actual skills buffer size
+static const uint32 MAX_PP_INNATE_SKILL	= 25;
 static const uint32 MAX_PP_AA_ARRAY		= 300;
 static const uint32 MAX_PP_DISCIPLINES	= 200;	// was 100
 static const uint32 MAX_GROUP_MEMBERS	= 6;
@@ -339,18 +339,7 @@ struct Spawn_Struct_Bitfields
 /*06*/	unsigned   sneak:1;
 /*08*/	unsigned   lfg:1;
 /*09*/	unsigned   unknown09:1;
-/*10*/	unsigned   invis:1;			// May have invis & sneak the wrong way around ... not sure how to tell which is which
-/*11*/	unsigned   invis1:1;		// GM Invis?  Can only be seen with #gm on - same for the below
-/*12*/	unsigned   invis2:1;		// This one also make the NPC/PC invis
-/*13*/	unsigned   invis3:1;		// This one also make the NPC/PC invis
-/*14*/	unsigned   invis4:1;		// This one also make the NPC/PC invis
-/*15*/	unsigned   invis6:1;		// This one also make the NPC/PC invis
-/*16*/	unsigned   invis7:1;		// This one also make the NPC/PC invis
-/*17*/	unsigned   invis8:1;		// This one also make the NPC/PC invis
-/*18*/	unsigned   invis9:1;		// This one also make the NPC/PC invis
-/*19*/	unsigned   invis10:1;		// This one also make the NPC/PC invis
-/*20*/	unsigned   invis11:1;		// This one also make the NPC/PC invis
-/*21*/	unsigned   invis12:1;		// This one also make the NPC/PC invis
+/*10*/	unsigned   invis:12;		// there are 3000 different (non-GM) invis levels
 /*22*/	unsigned   linkdead:1;		// 1 Toggles LD on or off after name. Correct for RoF
 /*23*/	unsigned   showhelm:1;
 /*24*/	unsigned   unknown24:1;		// Prefixes name with !
@@ -418,7 +407,7 @@ struct Spawn_Struct
 /*0000*/ //uint8     nullterm1; // hack to null terminate name
 /*0064*/ uint32 spawnId;
 /*0068*/ uint8  level;
-/*0069*/ float    unknown1;
+/*0069*/ float  bounding_radius; // used in melee, overrides calc
 /*0073*/ uint8  NPC;           // 0=player,1=npc,2=pc corpse,3=npc corpse
 	 Spawn_Struct_Bitfields	Bitfields;
 /*0000*/ uint8  otherData; // & 4 - has title, & 8 - has suffix, & 1 - it's a chest or untargetable
@@ -598,9 +587,9 @@ struct NewZone_Struct {
 /*0893*/	uint8	unknown893;		// Seen 0 - 00
 /*0894*/	uint8	fall_damage;	// 0 = Fall Damage on, 1 = Fall Damage off
 /*0895*/	uint8	unknown895;		// Seen 0 - 00
-/*0896*/	uint32	unknown896;		// Seen 180
-/*0900*/	uint32	unknown900;		// Seen 180
-/*0904*/	uint32	unknown904;		// Seen 180
+/*0896*/	uint32	FastRegenHP;		// Seen 180
+/*0900*/	uint32	FastRegenMana;		// Seen 180
+/*0904*/	uint32	FastRegenEndurance;		// Seen 180
 /*0908*/	uint32	unknown908;		// Seen 2
 /*0912*/	uint32	unknown912;		// Seen 2
 /*0916*/	float	FogDensity;		// Most zones have this set to 0.33 Blightfire had 0.16
@@ -908,13 +897,13 @@ struct BandolierItem_Struct_Old
 struct Bandolier_Struct
 {
 	char Name[1];	// Variable Length
-	BandolierItem_Struct Items[profile::BandolierItemCount];
+	BandolierItem_Struct Items[profile::BANDOLIER_ITEM_COUNT];
 };
 
 struct Bandolier_Struct_Old
 {
 	char Name[32];
-	BandolierItem_Struct Items[profile::BandolierItemCount];
+	BandolierItem_Struct Items[profile::BANDOLIER_ITEM_COUNT];
 };
 
 struct PotionBeltItem_Struct
@@ -934,12 +923,12 @@ struct PotionBeltItem_Struct_Old
 
 struct PotionBelt_Struct
 {
-	PotionBeltItem_Struct Items[profile::PotionBeltSize];
+	PotionBeltItem_Struct Items[profile::POTION_BELT_SIZE];
 };
 
 struct PotionBelt_Struct_Old
 {
-	PotionBeltItem_Struct_Old Items[profile::PotionBeltSize];
+	PotionBeltItem_Struct_Old Items[profile::POTION_BELT_SIZE];
 };
 
 struct GroupLeadershipAA_Struct {
@@ -1107,8 +1096,8 @@ union
 /*01012*/ AA_Array  aa_array[MAX_PP_AA_ARRAY];	// [300] 3600 bytes - AAs 12 bytes each
 /*04612*/ uint32 skill_count;					// Seen 100
 /*04616*/ uint32 skills[MAX_PP_SKILL];			// [100] 400 bytes - List of skills
-/*05016*/ uint32 unknown15_count;				// Seen 25
-/*05020*/ uint32 unknown_rof15[25];				// Most are 255 or 0
+/*05016*/ uint32 InnateSkills_count;				// Seen 25
+/*05020*/ uint32 InnateSkills[MAX_PP_INNATE_SKILL];	// Most are 255 or 0
 /*05120*/ uint32 discipline_count;				// Seen 200
 /*05124*/ Disciplines_Struct  disciplines;		// [200] 800 bytes Known disciplines
 /*05924*/ uint32 timestamp_count;				// Seen 20
@@ -1118,9 +1107,9 @@ union
 /*06092*/ uint32 timestamp2_count;				// Seen 100
 /*06096*/ uint32 timestamps2[100];				// Unknown Unix Timestamps - maybe Skill related?
 /*06496*/ uint32 spell_book_count;				// Seen 720
-/*06500*/ uint32 spell_book[MAX_PP_SPELLBOOK];	// List of the Spells in spellbook 720 = 90 pages [2880 bytes]
+/*06500*/ uint32 spell_book[spells::SPELLBOOK_SIZE];	// List of the Spells in spellbook 720 = 90 pages [2880 bytes]
 /*09380*/ uint32 mem_spell_count;				// Seen 16
-/*09384*/ int32 mem_spells[MAX_PP_MEMSPELL];	// [16] List of spells memorized - First 12 are set or -1 and last 4 are 0s
+/*09384*/ int32 mem_spells[spells::SPELL_GEM_COUNT];	// [16] List of spells memorized - First 12 are set or -1 and last 4 are 0s
 /*09448*/ uint32 unknown16_count;				// Seen 13
 /*09452*/ uint32 unknown_rof16[13];				// Possibly spell or buff related
 /*09504*/ uint8 unknown_rof17;					// Seen 0 or 8
@@ -1149,7 +1138,7 @@ union
 /*12949*/ uint32 aapoints;				// Unspent AA points - Seen 1
 /*12953*/ uint16 unknown_rof20;			//
 /*12955*/ uint32 bandolier_count;		// Seen 20
-/*12959*/ Bandolier_Struct bandoliers[profile::BandoliersSize]; // [20] 740 bytes (Variable Name Sizes) - bandolier contents
+/*12959*/ Bandolier_Struct bandoliers[profile::BANDOLIERS_SIZE]; // [20] 740 bytes (Variable Name Sizes) - bandolier contents
 /*13699*/ uint32 potionbelt_count;		// Seen 5
 /*13703*/ PotionBelt_Struct potionbelt;	// [5] 45 bytes potion belt - (Variable Name Sizes)
 /*13748*/ int32 unknown_rof21;			// Seen -1
@@ -1460,17 +1449,17 @@ struct Action_Struct
 {
 /*00*/	uint16 target;			// id of target
 /*02*/	uint16 source;			// id of caster
-/*04*/	uint16 level;			// level of caster - Seen 0
-/*06*/  uint32 unknown06;
+/*04*/	uint16 level;			// level of caster for spells, OSX dump says attack rating, guess spells use it for level
+/*06*/  uint32 unknown06;		// OSX dump says base_damage, was used for bard mod too, this is 0'd :(
 /*10*/	float instrument_mod;
-/*14*/  uint32 bard_focus_id;      // seen 0
-/*18*/  float knockback_angle;  //seems to go from 0-512 then it rolls over again
-/*22*/  uint32 unknown22;
-/*26*/  uint8 type;
-/*27*/  uint32 damage;
-/*31*/  uint16 unknown31;
+/*14*/  float force;
+/*18*/  float hit_heading;
+/*22*/  float hit_pitch;
+/*26*/  uint8 type;				// 231 (0xE7) for spells, skill
+/*27*/  uint32 damage;			// OSX says min_damage
+/*31*/  uint16 unknown31;		// OSX says tohit
 /*33*/	uint32 spell;			// spell id being cast
-/*37*/	uint8 level2;			// level of caster again? Or maybe the castee
+/*37*/	uint8 spell_level;			// level of caster again? Or maybe the castee
 /*38*/	uint8 effect_flag;		// if this is 4, the effect is valid: or if two are sent at the same time?
 /*39*/
 };
@@ -1482,25 +1471,21 @@ struct ActionAlt_Struct
 {
 /*00*/	uint16 target;			// id of target
 /*02*/	uint16 source;			// id of caster
-/*04*/	uint16 level;			// level of caster - Seen 0
-/*06*/  uint32 unknown06;
+/*04*/	uint16 level;			// level of caster for spells, OSX dump says attack rating, guess spells use it for level
+/*06*/  uint32 unknown06;		// OSX dump says base_damage, was used for bard mod too, this is 0'd :(
 /*10*/	float instrument_mod;
-/*14*/  uint32 bard_focus_id;      // seen 0
-/*18*/  float knockback_angle;  //seems to go from 0-512 then it rolls over again
-/*22*/  uint32 unknown22;
-/*26*/  uint8 type;
-/*27*/  uint32 damage;
-/*31*/  uint16 unknown31;
+/*14*/  float force;
+/*18*/  float hit_heading;
+/*22*/  float hit_pitch;
+/*26*/  uint8 type;				// 231 (0xE7) for spells, skill
+/*27*/  uint32 damage;			// OSX says min_damage
+/*31*/  uint16 unknown31;		// OSX says tohit
 /*33*/	uint32 spell;			// spell id being cast
-/*37*/	uint8 level2;			// level of caster again? Or maybe the castee
+/*37*/	uint8 spell_level;		// level of caster again? Or maybe the castee
 /*38*/	uint8 effect_flag;		// if this is 4, the effect is valid: or if two are sent at the same time?
-/*39*/	uint32 unknown39;		// New field to Underfoot - Seen 14
-/*43*/	uint8 unknown43;			// New field to Underfoot - Seen 0
-/*44*/	uint8 unknown44;			// New field to Underfoot - Seen 17
-/*45*/	uint8 unknown45;			// New field to Underfoot - Seen 0
-/*46*/	int32 unknown46;		// New field to Underfoot - Seen -1
-/*50*/	uint32 unknown50;		// New field to Underfoot - Seen 0
-/*54*/	uint16 unknown54;		// New field to Underfoot - Seen 0
+/*39*/	uint8 spell_gem;
+/*40*/	InventorySlot_Struct slot;
+/*52*/	uint32 item_cast_type;	// ItemSpellTypes enum from MQ2
 /*56*/
 };
 
@@ -1515,9 +1500,9 @@ struct CombatDamage_Struct
 /* 05 */	uint32	spellid;
 /* 09 */	int32	damage;
 /* 13 */	float	force;		// cd cc cc 3d
-/* 17 */	float	meleepush_xy;		// see above notes in Action_Struct
-/* 21 */	float	meleepush_z;
-/* 25 */	uint8	unknown25;	// was [9]
+/* 17 */	float	hit_heading;		// see above notes in Action_Struct
+/* 21 */	float	hit_pitch;
+/* 25 */	uint8	secondary;	// 0 for primary hand, 1 for secondary
 /* 26 */	uint32	special; // 2 = Rampage, 1 = Wild Rampage
 /* 30 */
 };
@@ -1623,22 +1608,22 @@ struct RespawnWindow_Struct {
 */
 struct PlayerPositionUpdateServer_Struct
 {
-/*0000*/ uint16	spawn_id;
-/*0002*/ uint16	spawnId2;
-/*0004*/ signed	padding0004:12;
-         signed	y_pos:19;           // y coord
-	 unsigned padding:1;
-/*0008*/ signed	delta_x:13;      // change in x
-         signed	delta_heading:10;// change in heading
-         signed	padding0008:9;
-/*0012*/ signed	delta_y:13;      // change in y
-         signed	z_pos:19;           // z coord
-/*0016*/ signed	x_pos:19;           // x coord
-         signed	animation:10;   // animation
-         signed	padding0016:3;
-/*0020*/ unsigned heading:12;     // heading
-         signed	delta_z:13;      // change in z
-         signed	padding0020:7;
+/*0000*/	uint16		spawn_id;
+/*0002*/	uint16		vehicle_id;
+/*0004*/	signed		padding0004 : 12;
+			signed		y_pos : 19;			// y coord
+			unsigned	padding : 1;
+/*0008*/	signed		delta_x : 13;		// change in x
+			signed		delta_heading : 10;	// change in heading
+			signed		padding0008 : 9;
+/*0012*/	signed		delta_y : 13;		// change in y
+			signed		z_pos : 19;			// z coord
+/*0016*/	signed		x_pos : 19;			// x coord
+			signed		animation : 10;		// animation
+			signed		padding0016 : 3;
+/*0020*/	unsigned	heading : 12;		// heading
+			signed		delta_z : 13;		// change in z
+			signed		padding0020 : 7;
 /*0024*/
 };
 
@@ -1651,21 +1636,22 @@ struct PlayerPositionUpdateServer_Struct
 */
 struct PlayerPositionUpdateClient_Struct
 {
-/*0000*/ uint16		sequence;			// increments one each packet - Verified
-/*0002*/ uint16		spawn_id;			// Player's spawn id
-/*0004*/ uint8		unknown0004[6];		// ***Placeholder
-/*0010*/ float		delta_y;			// Change in y
-/*0014*/ float		x_pos;				// x coord (2nd loc value)
-/*0018*/ float		y_pos;				// y coord (1st loc value)
-/*0022*/ signed		delta_heading:10;	// change in heading
-	 unsigned	animation:10;		// ***Placeholder
-         unsigned	padding0024:12;		// animation
-/*0026*/ float		delta_z;			// Change in z
-/*0030*/ float		delta_x;			// Change in x
-/*0034*/ float		z_pos;				// z coord (3rd loc value)
-/*0038*/ unsigned	heading:12;			// Directional heading
-         unsigned	padding0040:10;		// ***Placeholder
-         unsigned	padding0041:10;		// ***Placeholder
+/*0000*/	uint16		sequence;			// increments one each packet - Verified
+/*0002*/	uint16		spawn_id;			// Player's spawn id
+/*0004*/	uint16		vehicle_id;			// Player's vehicle spawn id
+/*0006*/	uint8		unknown0004[4];		// ***Placeholder
+/*0010*/	float		delta_y;			// Change in y
+/*0014*/	float		x_pos;				// x coord (2nd loc value)
+/*0018*/	float		y_pos;				// y coord (1st loc value)
+/*0022*/	signed		delta_heading : 10;	// change in heading
+			unsigned	animation : 10;		// ***Placeholder
+			unsigned	padding0024 : 12;	// animation
+/*0026*/	float		delta_z;			// Change in z
+/*0030*/	float		delta_x;			// Change in x
+/*0034*/	float		z_pos;				// z coord (3rd loc value)
+/*0038*/	unsigned	heading : 12;		// Directional heading
+			unsigned	padding0040 : 10;	// ***Placeholder
+			unsigned	padding0041 : 10;	// ***Placeholder
 /*0042*/
 };
 
@@ -3555,21 +3541,6 @@ struct GuildSetRank_Struct
 /*80*/
 };
 
-struct BugStruct{
-/*0000*/	char	chartype[64];
-/*0064*/	char	name[96];
-/*0160*/	char	ui[128];
-/*0288*/	float	x;
-/*0292*/	float	y;
-/*0296*/	float	z;
-/*0300*/	float	heading;
-/*0304*/	uint32	unknown304;
-/*0308*/	uint32	type;
-/*0312*/	char	unknown312[2144];
-/*2456*/	char	bug[1024];
-/*3480*/	char	placeholder[2];
-/*3482*/	char	system_info[4098];
-};
 struct Make_Pet_Struct { //Simple struct for getting pet info
 	uint8 level;
 	uint8 class_;
@@ -3596,20 +3567,21 @@ struct Ground_Spawn{
 struct Ground_Spawns {
 	struct Ground_Spawn spawn[50]; //Assigned max number to allow
 };
-struct PetitionBug_Struct{
-	uint32	petition_number;
-	uint32	unknown4;
-	char	accountname[64];
-	uint32	zoneid;
-	char	name[64];
-	uint32	level;
-	uint32	class_;
-	uint32	race;
-	uint32	unknown152[3];
-	uint32	time;
-	uint32	unknown168;
-	char	text[1028];
-};
+
+//struct PetitionBug_Struct{
+//	uint32	petition_number;
+//	uint32	unknown4;
+//	char	accountname[64];
+//	uint32	zoneid;
+//	char	name[64];
+//	uint32	level;
+//	uint32	class_;
+//	uint32	race;
+//	uint32	unknown152[3];
+//	uint32	time;
+//	uint32	unknown168;
+//	char	text[1028];
+//};
 
 struct ApproveZone_Struct {
 	char	name[64];
@@ -4369,7 +4341,7 @@ struct SendAA_Struct {
 /*0104*/	uint32 special_category;
 /*0108*/	uint8 shroud;
 /*0109*/	uint8 unknown109;
-/*0110*/	uint8 layonhands; // 1 for lay on hands -- doesn't seem to matter?
+/*0110*/	uint8 reset_on_death; // timer is reset on death
 /*0111*/	uint8 unknown111;
 /*0112*/	uint32 total_abilities;
 /*0116*/	AA_Ability abilities[0];
@@ -5030,6 +5002,23 @@ struct MercenaryMerchantRequest_Struct {
 struct MercenaryMerchantResponse_Struct {
 /*0000*/ uint32 ResponseType;
 /*0004*/
+};
+
+struct SayLinkBodyFrame_Struct {
+/*000*/	char ActionID[1];
+/*001*/	char ItemID[5];
+/*006*/	char Augment1[5];
+/*011*/	char Augment2[5];
+/*016*/	char Augment3[5];
+/*021*/	char Augment4[5];
+/*026*/	char Augment5[5];
+/*031*/	char Augment6[5];
+/*036*/	char IsEvolving[1];
+/*037*/	char EvolveGroup[4];
+/*041*/	char EvolveLevel[1];
+/*042*/	char OrnamentIcon[5];
+/*047*/	char Hash[8];
+/*055*/
 };
 
 	}; /*structs*/

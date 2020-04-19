@@ -30,11 +30,10 @@ struct CharacterSelect_Struct;
 class WorldDatabase : public SharedDatabase {
 public:
 	bool GetStartZone(PlayerProfile_Struct* in_pp, CharCreate_Struct* in_cc, bool isTitanium);
-	void GetCharSelectInfo(uint32 accountID, EQApplicationPacket **outApp, uint32 clientVersionBit);
+	void GetCharSelectInfo(uint32 account_id, EQApplicationPacket **out_app, uint32 client_version_bit);
 	int MoveCharacterToBind(int CharID, uint8 bindnum = 0);
 
 	void GetLauncherList(std::vector<std::string> &result);
-	void SetMailKey(int CharID, int IPAddress, int MailKey);
 	bool GetCharacterLevel(const char *name, int &level);
 
 	bool LoadCharacterCreateAllocations();
@@ -42,6 +41,8 @@ public:
 private:
 	void SetTitaniumDefaultStartZone(PlayerProfile_Struct* in_pp, CharCreate_Struct* in_cc);
 	void SetSoFDefaultStartZone(PlayerProfile_Struct* in_pp, CharCreate_Struct* in_cc);
+
+	bool GetCharSelInventory(uint32 account_id, char* name, EQEmu::InventoryProfile* inv);
 };
 
 extern WorldDatabase database;
