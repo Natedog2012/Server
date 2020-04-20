@@ -1628,7 +1628,11 @@ int32 Client::CalcBaseEndurance()
 	int32 base_end = 0;
 	if (ClientVersion() >= EQEmu::versions::ClientVersion::SoF && RuleB(Character, SoDClientUseSoDHPManaEnd)) {
 		double heroic_stats = (GetHeroicSTR() + GetHeroicSTA() + GetHeroicDEX() + GetHeroicAGI()) / 4.0f;
-		
+		int str = 0;
+		int sta = 0;
+		int dex = 0;
+		int agi = 0;
+
 		if (GetLevel() <= 60) {
 			str = GetSTR() <= 255 ? GetSTR() : 255; 
 			sta = GetSTA() <= 255 ? GetSTR() : 255; 
