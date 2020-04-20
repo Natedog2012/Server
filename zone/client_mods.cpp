@@ -76,9 +76,9 @@ int32 Client::GetMaxSTR() const
 int32 Client::GetMaxSTA() const
 {
 	return GetMaxStat()
-	       + itembonuses.STACapMod
-	       + spellbonuses.STACapMod
-	       + aabonuses.STACapMod;
+		   + itembonuses.STACapMod
+		   + spellbonuses.STACapMod
+		   + aabonuses.STACapMod;
 }
 int32 Client::GetMaxDEX() const
 {
@@ -1628,7 +1628,22 @@ int32 Client::CalcBaseEndurance()
 	int32 base_end = 0;
 	if (ClientVersion() >= EQEmu::versions::ClientVersion::SoF && RuleB(Character, SoDClientUseSoDHPManaEnd)) {
 		double heroic_stats = (GetHeroicSTR() + GetHeroicSTA() + GetHeroicDEX() + GetHeroicAGI()) / 4.0f;
-		double stats = (GetSTR() + GetSTA() + GetDEX() + GetAGI()) / 4.0f;
+		
+		if (GetLevel() <= 60) {
+			str = GetSTR() <= 255 ? GetSTR() : 255; 
+			sta = GetSTA() <= 255 ? GetSTR() : 255; 
+			dex = GetDEX() <= 255 ? GetSTR() : 255; 
+			agi = GetAGI() <= 255 ? GetSTR() : 255; 
+		} else {
+			str = GetSTR() <= (255 + ((GetLevel()-60) * 5)) ? GetSTR() : (255 + ((GetLevel()-60) * 5));
+			sta = GetSTA() <= (255 + ((GetLevel()-60) * 5)) ? GetSTA() : (255 + ((GetLevel()-60) * 5));
+			dex = GetDEX() <= (255 + ((GetLevel()-60) * 5)) ? GetDEX() : (255 + ((GetLevel()-60) * 5));
+			agi = GetAGI() <= (255 + ((GetLevel()-60) * 5)) ? GetAGI() : (255 + ((GetLevel()-60) * 5));
+		}
+		
+		double stats = (str + sta + dex + agi) / 4.0f;
+		
+		
 		if (stats > 201.0f) {
 			stats = 1.25f * (stats - 201.0f) + 352.5f;
 		}
