@@ -1510,6 +1510,7 @@ void PerlembParser::ExportEventVariables(
 		case EVENT_SPELL_BUFF_TIC_CLIENT:
 		case EVENT_SPELL_BUFF_TIC_NPC: {
 			ExportVar(package_name.c_str(), "caster_id", extradata);
+			ExportVar(package_name.c_str(), "spell_id", data);
 			break;
 		}
 
