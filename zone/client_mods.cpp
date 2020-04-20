@@ -1635,9 +1635,9 @@ int32 Client::CalcBaseEndurance()
 
 		if (GetLevel() <= 60) {
 			str = GetSTR() <= 255 ? GetSTR() : 255; 
-			sta = GetSTA() <= 255 ? GetSTR() : 255; 
-			dex = GetDEX() <= 255 ? GetSTR() : 255; 
-			agi = GetAGI() <= 255 ? GetSTR() : 255; 
+			sta = GetSTA() <= 255 ? GetSTA() : 255; 
+			dex = GetDEX() <= 255 ? GetDEX() : 255; 
+			agi = GetAGI() <= 255 ? GetAGI() : 255; 
 		} else {
 			str = GetSTR() <= (255 + ((GetLevel()-60) * 5)) ? GetSTR() : (255 + ((GetLevel()-60) * 5));
 			sta = GetSTA() <= (255 + ((GetLevel()-60) * 5)) ? GetSTA() : (255 + ((GetLevel()-60) * 5));
