@@ -1504,7 +1504,8 @@ void PerlembParser::ExportEventVariables(
 			ExportVar(package_name.c_str(), "hate_state", data);
 			break;
 		}
-
+		
+		case EVENT_SPELL_FADE:
 		case EVENT_SPELL_EFFECT_CLIENT:
 		case EVENT_SPELL_EFFECT_NPC:
 		case EVENT_SPELL_BUFF_TIC_CLIENT:

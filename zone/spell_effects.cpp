@@ -3819,12 +3819,12 @@ void Mob::BuffFadeBySlot(int slot, bool iRecalcBonuses)
 		std::vector<EQEmu::Any> args;
 		args.push_back(&buffs[slot].casterid);
 
-		parse->EventSpell(EVENT_SPELL_FADE, nullptr, CastToClient(), buffs[slot].spellid, slot, &args);
+		parse->EventSpell(EVENT_SPELL_FADE, nullptr, CastToClient(), buffs[slot].spellid, buffs[slot].casterid, &args);
 	} else if(IsNPC()) {
 		std::vector<EQEmu::Any> args;
 		args.push_back(&buffs[slot].casterid);
 
-		parse->EventSpell(EVENT_SPELL_FADE, CastToNPC(), nullptr, buffs[slot].spellid, slot, &args);
+		parse->EventSpell(EVENT_SPELL_FADE, CastToNPC(), nullptr, buffs[slot].spellid, buffs[slot].casterid, &args);
 	}
 
 	for (int i=0; i < EFFECT_COUNT; i++)
