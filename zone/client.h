@@ -454,6 +454,8 @@ public:
 	inline virtual int GetHaste() const { return Haste; }
 	int GetRawACNoShield(int &shield_ac) const;
 
+	inline virtual int32 GetSPELL_MOD() const { return SPELL_MOD; }
+	inline virtual int32 GetHEAL_MOD() const { return HEAL_MOD; }
 	inline virtual int32 GetSTR() const { return STR; }
 	inline virtual int32 GetSTA() const { return STA; }
 	inline virtual int32 GetDEX() const { return DEX; }
@@ -1319,7 +1321,7 @@ protected:
 	void MakeBuffFadePacket(uint16 spell_id, int slot_id, bool send_message = true);
 	bool client_data_loaded;
 
-	int16 GetFocusEffect(focusType type, uint16 spell_id);
+	int32 GetFocusEffect(focusType type, uint16 spell_id);
 	uint16 GetSympatheticFocusEffect(focusType type, uint16 spell_id);
 
 	void FinishAlternateAdvancementPurchase(AA::Rank *rank, bool ignore_cost);

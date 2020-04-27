@@ -6493,6 +6493,56 @@ XS(XS_Client_GetHealAmt) {
 	XSRETURN(1);
 }
 
+XS(XS_Client_GetSPELL_MOD); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Client_GetSPELL_MOD) {
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: Client::GetSPELL_MOD(THIS)");
+	{
+		Client *THIS;
+		uint32 RETVAL;
+		dXSTARG;
+
+		if (sv_derived_from(ST(0), "Client")) {
+			IV tmp = SvIV((SV *) SvRV(ST(0)));
+			THIS = INT2PTR(Client *, tmp);
+		} else
+			Perl_croak(aTHX_ "THIS is not of type Client");
+		if (THIS == nullptr)
+			Perl_croak(aTHX_ "THIS is nullptr, avoiding crash.");
+
+		RETVAL = THIS->GetSPELL_MOD();
+		XSprePUSH;
+		PUSHu((UV) RETVAL);
+	}
+	XSRETURN(1);
+}
+
+XS(XS_Client_GetHEAL_MOD); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Client_GetHEAL_MOD) {
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: Client::GetHEAL_MOD(THIS)");
+	{
+		Client *THIS;
+		uint32 RETVAL;
+		dXSTARG;
+
+		if (sv_derived_from(ST(0), "Client")) {
+			IV tmp = SvIV((SV *) SvRV(ST(0)));
+			THIS = INT2PTR(Client *, tmp);
+		} else
+			Perl_croak(aTHX_ "THIS is not of type Client");
+		if (THIS == nullptr)
+			Perl_croak(aTHX_ "THIS is nullptr, avoiding crash.");
+
+		RETVAL = THIS->GetHEAL_MOD();
+		XSprePUSH;
+		PUSHu((UV) RETVAL);
+	}
+	XSRETURN(1);
+}
+
 
 #ifdef __cplusplus
 extern "C"
@@ -6762,6 +6812,8 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "WorldKick"), XS_Client_WorldKick, file, "$");
 	newXSproto(strcpy(buf, "GetSpellDmg"), XS_Client_GetSpellDmg, file, "$");
 	newXSproto(strcpy(buf, "GetHealAmt"), XS_Client_GetHealAmt, file, "$");
+	newXSproto(strcpy(buf, "GetSPELL_MOD"), XS_Client_GetSPELL_MOD, file, "$");
+	newXSproto(strcpy(buf, "GetHEAL_MOD"), XS_Client_GetHEAL_MOD, file, "$");
 	XSRETURN_YES;
 }
 

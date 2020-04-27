@@ -228,8 +228,8 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				snprintf(effect_desc, _EDLEN, "Current Hitpoints: %+i", effect_value);
 #endif
 				// SE_CurrentHP is calculated at first tick if its a dot/buff
-				if (buffslot >= 0)
-					break;
+				//if (buffslot >= 0)
+				//	break;
 
 				// for offensive spells check if we have a spell rune on
 				int32 dmg = effect_value;
@@ -5301,7 +5301,7 @@ uint16 Client::GetSympatheticFocusEffect(focusType type, uint16 spell_id) {
 	return 0;
 }
 
-int16 Client::GetFocusEffect(focusType type, uint16 spell_id)
+int32 Client::GetFocusEffect(focusType type, uint16 spell_id)
 {
 	if (IsBardSong(spell_id) && type != focusFcBaseEffects && type != focusSpellDuration)
 		return 0;
@@ -5309,9 +5309,17 @@ int16 Client::GetFocusEffect(focusType type, uint16 spell_id)
 	if (spells[spell_id].not_focusable)
 		return 0;
 
-	int16 realTotal = 0;
-	int16 realTotal2 = 0;
-	int16 realTotal3 = 0;
+	int32 realTotal = 0;
+	int32 realTotal2 = 0;
+	int32 realTotal3 = 0;
+	int32 realTotal4 = 0;
+	
+	if (type == focusImprovedDamage) {
+		realTotal4 = GetSPELL_MOD();
+	} else if (type == focusImprovedHeal) {
+		realTotal4 = GetHEAL_MOD();
+	}
+	
 	bool rand_effectiveness = false;
 
 	//Improved Healing, Damage & Mana Reduction are handled differently in that some are random percentages
@@ -5325,9 +5333,9 @@ int16 Client::GetFocusEffect(focusType type, uint16 spell_id)
 		const EQEmu::ItemData* TempItem = nullptr;
 		const EQEmu::ItemData* UsedItem = nullptr;
 		uint16 UsedFocusID = 0;
-		int16 Total = 0;
-		int16 focus_max = 0;
-		int16 focus_max_real = 0;
+		int32 Total = 0;
+		int32 focus_max = 0;
+		int32 focus_max_real = 0;
 
 		//item focus
 		for (int x = EQEmu::invslot::EQUIPMENT_BEGIN; x <= EQEmu::invslot::EQUIPMENT_END; x++)
@@ -5488,9 +5496,9 @@ int16 Client::GetFocusEffect(focusType type, uint16 spell_id)
 	if (spellbonuses.FocusEffects[type]){
 
 		//Spell Focus
-		int16 Total2 = 0;
-		int16 focus_max2 = 0;
-		int16 focus_max_real2 = 0;
+		int32 Total2 = 0;
+		int32 focus_max2 = 0;
+		int32 focus_max_real2 = 0;
 
 		int buff_tracker = -1;
 		int buff_slot = 0;
@@ -5541,7 +5549,7 @@ int16 Client::GetFocusEffect(focusType type, uint16 spell_id)
 	// AA Focus
 	if (aabonuses.FocusEffects[type]){
 
-		int16 Total3 = 0;
+		int32 Total3 = 0;
 
 		for (const auto &aa : aa_ranks) {
 			auto ability_rank = zone->GetAlternateAdvancementAbilityAndRank(aa.first, aa.second.first);
@@ -5571,14 +5579,14 @@ int16 Client::GetFocusEffect(focusType type, uint16 spell_id)
 	//by reagent conservation for obvious reasons.
 
 	//Non-Live like feature to allow for an additive focus bonus to be applied from foci that are placed in worn slot. (No limit checks)
-	int16 worneffect_bonus = 0;
+	int32 worneffect_bonus = 0;
 	if (RuleB(Spells, UseAdditiveFocusFromWornSlot))
 		worneffect_bonus = itembonuses.FocusEffectsWorn[type];
 
-	return realTotal + realTotal2 + realTotal3 + worneffect_bonus;
+	return realTotal + realTotal2 + realTotal3 + worneffect_bonus + realTotal4;
 }
 
-int16 NPC::GetFocusEffect(focusType type, uint16 spell_id) {
+int32 NPC::GetFocusEffect(focusType type, uint16 spell_id) {
 
 	if (spells[spell_id].not_focusable)
 		return 0;

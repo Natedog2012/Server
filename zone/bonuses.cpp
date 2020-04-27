@@ -325,13 +325,15 @@ void Client::CalcBonuses()
 		}
 		
 		if (GetINT() > mod_start_value) {
-			itembonuses.SpellDmg += (((GetINT()-mod_start_value) * spelldmg_mod) / 100) + 35;
+			//itembonuses.SpellDmg += (((GetINT()-mod_start_value) * spelldmg_mod) / 100) + 35;
+			SPELL_MOD = (((GetINT() - mod_start_value) * spelldmg_mod) / 100);
 		} else {
 			itembonuses.SpellDmg += (GetLevel() / 2);
 		}
 		
 		if (GetWIS() > mod_start_value) {
-			itembonuses.HealAmt += (((GetWIS()-mod_start_value) * healamt_mod) / 100) + 35;
+			//itembonuses.HealAmt += (((GetWIS()-mod_start_value) * healamt_mod) / 100) + 35;
+			HEAL_MOD = (((GetWIS()-mod_start_value) * healamt_mod) / 100);
 		} else {
 			itembonuses.HealAmt += (GetLevel() / 2);
 		}

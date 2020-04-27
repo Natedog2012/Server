@@ -1252,6 +1252,8 @@ protected:
 	int AC;
 	int mitigation_ac; // cached Mob::ACSum
 	int32 ATK;
+	int32 SPELL_MOD;
+	int32 HEAL_MOD;
 	int32 STR;
 	int32 STA;
 	int32 DEX;
@@ -1354,7 +1356,7 @@ protected:
 	virtual
 #endif
 	int GetBaseSkillDamage(EQEmu::skills::SkillType skill, Mob *target = nullptr);
-	virtual int16 GetFocusEffect(focusType type, uint16 spell_id) { return 0; }
+	virtual int32 GetFocusEffect(focusType type, uint16 spell_id) { return 0; }
 	void CalculateNewFearpoint();
 	float FindGroundZ(float new_x, float new_y, float z_offset=0.0);
 	float FindDestGroundZ(glm::vec3 dest, float z_offset=0.0);
