@@ -3114,7 +3114,7 @@ int32 Mob::GetActSpellCasttime(uint16 spell_id, int32 casttime) {
 void Mob::ExecWeaponProc(const EQEmu::ItemInstance *inst, uint16 spell_id, Mob *on, int level_override) {
 	// Changed proc targets to look up based on the spells goodEffect flag.
 	// This should work for the majority of weapons.
-	if(spell_id == SPELL_UNKNOWN || on->GetSpecialAbility(NO_HARM_FROM_CLIENT)) {
+	if(spell_id == SPELL_UNKNOWN || (on->GetSpecialAbility(NO_HARM_FROM_CLIENT) && (IsClient() || (GetOwner() && GetOwner()->IsClient())))) {
 		//This is so 65535 doesn't get passed to the client message and to logs because it is not relavant information for debugging.
 		return;
 	}
