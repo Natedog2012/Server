@@ -126,6 +126,7 @@ void Client::CalcBonuses()
 	int mana_regen_mod = 0;
 	int endur_regen_mod = 0;
 	int archery_mod = 0;
+	int song_mod = 0;
 	int mod_start_value = RuleI(Character, Mod_Start_Value);
 	
 	switch (GetClass()) {
@@ -218,6 +219,12 @@ void Client::CalcBonuses()
 			healamt_mod = RuleI(Character, Bard_HealAMTMod);
 			mana_regen_mod = RuleI(Character, Bard_ManaRegenMod);
 			endur_regen_mod = RuleI(Character, Bard_EndurRegenMod);
+			song_mod = RuleI(Character, Bard_SongMod);
+			if (GetLevel() >= RuleI(Character, MaxLevel)) {
+				if (GetDEX() > mod_start_value) {
+					BARD_MOD = (((GetDEX() - mod_start_value) * song_mod) / 100);
+				}
+			}
 			break;
 		case 9: // Rogue
 			melee_mod = RuleI(Character, Rogue_MeleeMod);

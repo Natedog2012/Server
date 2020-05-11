@@ -1254,6 +1254,7 @@ protected:
 	int32 ATK;
 	int32 SPELL_MOD;
 	int32 HEAL_MOD;
+	int32 BARD_MOD;
 	int32 STR;
 	int32 STA;
 	int32 DEX;
