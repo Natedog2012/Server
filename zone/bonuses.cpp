@@ -128,6 +128,7 @@ void Client::CalcBonuses()
 	int archery_mod = 0;
 	int song_mod = 0;
 	int mod_start_value = RuleI(Character, Mod_Start_Value);
+	int mod_start_level = RuleI(Character, Mod_Start_Level);
 	
 	switch (GetClass()) {
 		case 1: // Warrior
@@ -170,7 +171,7 @@ void Client::CalcBonuses()
 			mana_regen_mod = RuleI(Character, Ranger_ManaRegenMod);
 			endur_regen_mod = RuleI(Character, Ranger_EndurRegenMod);
 			archery_mod = RuleI(Character, Ranger_ArcheryMod);
-			if (GetLevel() < RuleI(Character, MaxLevel)) {
+			if (GetLevel() < RuleI(Character, Mod_Start_Level)) {
 				spellbonuses.ArcheryDamageModifier += 15;
 			} else {
 				if (GetDEX() > mod_start_value) {
@@ -220,7 +221,7 @@ void Client::CalcBonuses()
 			mana_regen_mod = RuleI(Character, Bard_ManaRegenMod);
 			endur_regen_mod = RuleI(Character, Bard_EndurRegenMod);
 			song_mod = RuleI(Character, Bard_SongMod);
-			if (GetLevel() >= RuleI(Character, MaxLevel)) {
+			if (GetLevel() >= RuleI(Character, Mod_Start_Level)) {
 				if (GetDEX() > mod_start_value) {
 					BARD_MOD = (((GetDEX() - mod_start_value) * song_mod) / 100);
 				}
@@ -308,7 +309,7 @@ void Client::CalcBonuses()
 			break;
 	}
 	
-	if (GetLevel() < RuleI(Character, MaxLevel)) {
+	if (GetLevel() < RuleI(Character, Mod_Start_Level)) {
 		spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] += 15;
 		spellbonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] += 15;
 		spellbonuses.CriticalHitChance[EQ::skills::HIGHEST_SKILL+1] += 3;
