@@ -117,7 +117,8 @@ bool NPC::AICastSpell(Mob* tar, uint8 iChance, uint32 iSpellTypes, bool bInnates
 				(
 				 (spells[AIspells[i].spellid].targettype == ST_HateList || spells[AIspells[i].spellid].targettype == ST_AETargetHateList) ||
 				 (
-				  (spells[AIspells[i].spellid].targettype==ST_AECaster || spells[AIspells[i].spellid].targettype==ST_AEBard)
+				  // note: I think this check is actually wrong and we should be checking range instead in all cases, BUT if range is 0, range check is skipped? Works for now
+				  (spells[AIspells[i].spellid].targettype==ST_AECaster || spells[AIspells[i].spellid].targettype==ST_AEBard || spells[AIspells[i].spellid].targettype==ST_AEClientV1)
 				  && dist2 <= spells[AIspells[i].spellid].aoerange*spells[AIspells[i].spellid].aoerange
 				 ) ||
 				 dist2 <= spells[AIspells[i].spellid].range*spells[AIspells[i].spellid].range
@@ -1319,7 +1320,10 @@ void Mob::AI_Process() {
 						FaceTarget();
 					}
 				}
-				else if (AI_movement_timer->Check() && target) {
+				// mob/npc waits until call for help complete, others can move
+				else if (AI_movement_timer->Check() && target &&
+						(GetOwnerID() || IsBot() ||
+						CastToNPC()->GetCombatEvent())) {
 					if (!IsRooted()) {
 						LogAI("Pursuing [{}] while engaged", target->GetName());
 						RunTo(target->GetX(), target->GetY(), target->GetZ());
@@ -1828,7 +1832,11 @@ void NPC::AI_SetupNextWaypoint() {
 	}
 	else {
 		pause_timer_complete = false;
-		LogPathing("We are departing waypoint [{}]", cur_wp);
+		LogPathingDetail(
+			"[{}] departing waypoint [{}]",
+			GetCleanName(),
+			cur_wp
+		);
 		//if we were under quest control (with no grid), we are done now..
 		if (cur_wp == EQ::WaypointStatus::QuestControlNoGrid) {
 			LogPathing("Non-grid quest mob has reached its quest ordered waypoint. Leaving pathing mode");
@@ -2471,12 +2479,12 @@ bool NPC::AI_AddNPCSpells(uint32 iDBSpellsID) {
 		AIautocastspell_timer->Disable();
 		return false;
 	}
-	DBnpcspells_Struct* spell_list = database.GetNPCSpells(iDBSpellsID);
+	DBnpcspells_Struct* spell_list = content_db.GetNPCSpells(iDBSpellsID);
 	if (!spell_list) {
 		AIautocastspell_timer->Disable();
 		return false;
 	}
-	DBnpcspells_Struct* parentlist = database.GetNPCSpells(spell_list->parent_list);
+	DBnpcspells_Struct* parentlist = content_db.GetNPCSpells(spell_list->parent_list);
 #if MobAI_DEBUG_Spells >= 10
 	std::string debug_msg = StringFormat("Loading NPCSpells onto %s: dbspellsid=%u, level=%u", this->GetName(), iDBSpellsID, this->GetLevel());
 	if (spell_list) {
@@ -2643,13 +2651,13 @@ bool NPC::AI_AddNPCSpellsEffects(uint32 iDBSpellsEffectsID) {
 	if (iDBSpellsEffectsID == 0)
 		return false;
 
-	DBnpcspellseffects_Struct* spell_effects_list = database.GetNPCSpellsEffects(iDBSpellsEffectsID);
+	DBnpcspellseffects_Struct* spell_effects_list = content_db.GetNPCSpellsEffects(iDBSpellsEffectsID);
 
 	if (!spell_effects_list) {
 		return false;
 	}
 
-	DBnpcspellseffects_Struct* parentlist = database.GetNPCSpellsEffects(spell_effects_list->parent_list);
+	DBnpcspellseffects_Struct* parentlist = content_db.GetNPCSpellsEffects(spell_effects_list->parent_list);
 
 	uint32 i;
 #if MobAI_DEBUG_Spells >= 10
