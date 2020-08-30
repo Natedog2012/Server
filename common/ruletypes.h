@@ -36,7 +36,6 @@
 
 
 RULE_CATEGORY(Character)
-<<<<<<< HEAD
 RULE_INT(Character, Mod_Start_Value, 255, "Start value for stats to start scaling once they hit start level")
 RULE_INT(Character, Mod_Start_Level, 50, "Start level for custom scaling to kick in")
 RULE_INT(Character, Warrior_MeleeMod, 0, "")
