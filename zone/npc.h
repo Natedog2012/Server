@@ -494,6 +494,8 @@ public:
 
 	inline bool IsSkipAutoScale() const { return skip_auto_scale; }
 
+	void ScaleNPC(uint8 npc_level);
+
 	void RecalculateSkills();
 
 	static LootDropEntries_Struct NewLootDropEntry();
@@ -639,11 +641,10 @@ protected:
 
 
 private:
-	uint32	loottable_id;
-	bool	skip_global_loot;
-	bool	skip_auto_scale;
-	bool	p_depop;
-
+	uint32 loottable_id;
+	bool   skip_global_loot;
+	bool   skip_auto_scale;
+	bool   p_depop;
 };
 
 #endif

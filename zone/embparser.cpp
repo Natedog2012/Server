@@ -959,6 +959,9 @@ void PerlembParser::MapFunctions()
 		"package Raid;"
 		"&boot_Raid;"        //load our Raid XS
 
+		"package Inventory;"
+		"&boot_Inventory;" // load inventory XS
+
 		"package QuestItem;"
 		"&boot_QuestItem;"    // load quest Item XS
 
@@ -970,6 +973,9 @@ void PerlembParser::MapFunctions()
 
 		"package Doors;"
 		"&boot_Doors;"    // load quest Doors XS
+
+		"package Expedition;"
+		"&boot_Expedition;"
 
 		#endif
 		"package main;"

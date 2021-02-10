@@ -372,6 +372,11 @@ int Lua_Mob::GetRace() {
 	return self->GetRace();
 }
 
+const char *Lua_Mob::GetRaceName() {
+	Lua_Safe_Call_String();
+	return GetRaceIDName(self->GetRace());
+}
+
 int Lua_Mob::GetGender() {
 	Lua_Safe_Call_Int();
 	return self->GetGender();
@@ -440,6 +445,11 @@ int Lua_Mob::GetDrakkinDetails() {
 int Lua_Mob::GetClass() {
 	Lua_Safe_Call_Int();
 	return self->GetClass();
+}
+
+const char *Lua_Mob::GetClassName() {
+	Lua_Safe_Call_String();
+	return GetClassIDName(self->GetClass());
 }
 
 int Lua_Mob::GetLevel() {
@@ -2257,6 +2267,48 @@ void Lua_Mob::CheckNumHitsRemaining(int type, int32 buff_slot, uint16 spell_id)
 	self->CheckNumHitsRemaining((NumHit)type, buff_slot, spell_id);
 }
 
+void Lua_Mob::DeleteBucket(std::string bucket_name)
+{
+	Lua_Safe_Call_Void();
+	self->DeleteBucket(bucket_name);
+}
+
+std::string Lua_Mob::GetBucket(std::string bucket_name)
+{
+	Lua_Safe_Call_String();
+	return self->GetBucket(bucket_name);
+}
+
+std::string Lua_Mob::GetBucketExpires(std::string bucket_name)
+{
+	Lua_Safe_Call_String();
+	return self->GetBucketExpires(bucket_name);
+}
+
+std::string Lua_Mob::GetBucketKey()
+{
+	Lua_Safe_Call_String();
+	return self->GetBucketKey();
+}
+
+std::string Lua_Mob::GetBucketRemaining(std::string bucket_name)
+{
+	Lua_Safe_Call_String();
+	return self->GetBucketRemaining(bucket_name);
+}
+
+void Lua_Mob::SetBucket(std::string bucket_name, std::string bucket_value)
+{
+	Lua_Safe_Call_Void();
+	self->SetBucket(bucket_name, bucket_value);
+}
+
+void Lua_Mob::SetBucket(std::string bucket_name, std::string bucket_value, std::string expiration)
+{
+	Lua_Safe_Call_Void();
+	self->SetBucket(bucket_name, bucket_value, expiration);
+}
+
 luabind::scope lua_register_mob() {
 	return luabind::class_<Lua_Mob, Lua_Entity>("Mob")
 		.def(luabind::constructor<>())
@@ -2316,6 +2368,7 @@ luabind::scope lua_register_mob() {
 		.def("GetBaseGender", &Lua_Mob::GetBaseGender)
 		.def("GetDeity", &Lua_Mob::GetDeity)
 		.def("GetRace", &Lua_Mob::GetRace)
+		.def("GetRaceName", &Lua_Mob::GetRaceName)
 		.def("GetGender", &Lua_Mob::GetGender)
 		.def("GetTexture", &Lua_Mob::GetTexture)
 		.def("GetHelmTexture", &Lua_Mob::GetHelmTexture)
@@ -2330,6 +2383,7 @@ luabind::scope lua_register_mob() {
 		.def("GetDrakkinTattoo", &Lua_Mob::GetDrakkinTattoo)
 		.def("GetDrakkinDetails", &Lua_Mob::GetDrakkinDetails)
 		.def("GetClass", &Lua_Mob::GetClass)
+		.def("GetClassName", &Lua_Mob::GetClassName)
 		.def("GetLevel", &Lua_Mob::GetLevel)
 		.def("GetCleanName", &Lua_Mob::GetCleanName)
 		.def("GetTarget", &Lua_Mob::GetTarget)
@@ -2645,7 +2699,14 @@ luabind::scope lua_register_mob() {
 		.def("TryFinishingBlow", &Lua_Mob::TryFinishingBlow)
 		.def("GetBodyType", &Lua_Mob::GetBodyType)
 		.def("GetOrigBodyType", &Lua_Mob::GetOrigBodyType)
-		.def("CheckNumHitsRemaining", &Lua_Mob::CheckNumHitsRemaining);
+		.def("CheckNumHitsRemaining", &Lua_Mob::CheckNumHitsRemaining)
+		.def("DeleteBucket", (void(Lua_Mob::*)(std::string))&Lua_Mob::DeleteBucket)
+		.def("GetBucket", (std::string(Lua_Mob::*)(std::string))&Lua_Mob::GetBucket)
+		.def("GetBucketExpires", (std::string(Lua_Mob::*)(std::string))&Lua_Mob::GetBucketExpires)
+		.def("GetBucketKey", (std::string(Lua_Mob::*)(void))&Lua_Mob::GetBucketKey)
+		.def("GetBucketRemaining", (std::string(Lua_Mob::*)(std::string))&Lua_Mob::GetBucketRemaining)
+		.def("SetBucket", (void(Lua_Mob::*)(std::string,std::string))&Lua_Mob::SetBucket)
+		.def("SetBucket", (void(Lua_Mob::*)(std::string,std::string,std::string))&Lua_Mob::SetBucket);
 }
 
 luabind::scope lua_register_special_abilities() {
@@ -2696,7 +2757,11 @@ luabind::scope lua_register_special_abilities() {
 				luabind::value("ignore_root_aggro_rules", static_cast<int>(IGNORE_ROOT_AGGRO_RULES)),
 				luabind::value("casting_resist_diff", static_cast<int>(CASTING_RESIST_DIFF)),
 				luabind::value("counter_avoid_damage", static_cast<int>(COUNTER_AVOID_DAMAGE)),
-				luabind::value("immune_ranged_attacks", static_cast<int>(IMMUNE_RANGED_ATTACKS))
+				luabind::value("immune_ranged_attacks", static_cast<int>(IMMUNE_RANGED_ATTACKS)),
+				luabind::value("immune_damage_client", static_cast<int>(IMMUNE_DAMAGE_CLIENT)),
+				luabind::value("immune_damage_npc", static_cast<int>(IMMUNE_DAMAGE_NPC)),
+				luabind::value("immune_aggro_client", static_cast<int>(IMMUNE_AGGRO_CLIENT)),
+				luabind::value("immune_aggro_npc", static_cast<int>(IMMUNE_AGGRO_NPC))
 		];
 }
 

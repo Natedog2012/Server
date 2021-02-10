@@ -172,8 +172,8 @@ public:
 	void DisplayInfo(Mob *mob);
 
 	std::unordered_map<uint16, Mob *> close_mobs;
-	Timer mob_scan_close;
-	Timer mob_check_moving_timer;
+	Timer                             mob_close_scan_timer;
+	Timer                             mob_check_moving_timer;
 
 	//Somewhat sorted: needs documenting!
 
@@ -1194,6 +1194,15 @@ public:
 	int32 GetHPRegen() const;
 	int32 GetManaRegen() const;
 
+	bool CanOpenDoors() const;
+	void SetCanOpenDoors(bool can_open);
+
+	void DeleteBucket(std::string bucket_name);
+	std::string GetBucket(std::string bucket_name);
+	std::string GetBucketExpires(std::string bucket_name);
+	std::string GetBucketKey();
+	std::string GetBucketRemaining(std::string bucket_name);
+	void SetBucket(std::string bucket_name, std::string bucket_value, std::string expiration = "");
 
 #ifdef BOTS
 	// Bots HealRotation methods
@@ -1590,11 +1599,14 @@ protected:
 	AuraMgr aura_mgr;
 	AuraMgr trap_mgr;
 
+	bool m_can_open_doors;
+
 	MobMovementManager *mMovementManager;
 
 private:
 	void _StopSong(); //this is not what you think it is
 	Mob* target;
+
 
 #ifdef BOTS
 	std::shared_ptr<HealRotation> m_target_of_heal_rotation;

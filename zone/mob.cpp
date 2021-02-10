@@ -20,6 +20,7 @@
 #include "../common/string_util.h"
 #include "../common/misc_functions.h"
 
+#include "data_bucket.h"
 #include "quest_parser_collection.h"
 #include "string_ids.h"
 #include "worldserver.h"
@@ -118,7 +119,7 @@ Mob::Mob(
 	attack_anim_timer(500),
 	position_update_melee_push_timer(500),
 	hate_list_cleanup_timer(6000),
-	mob_scan_close(6000),
+	mob_close_scan_timer(6000),
 	mob_check_moving_timer(1000)
 {
 	mMovementManager = &MobMovementManager::Get();
@@ -463,7 +464,9 @@ Mob::Mob(
 	m_manual_follow = false;
 #endif
 
-	mob_scan_close.Trigger();
+	mob_close_scan_timer.Trigger();
+
+	SetCanOpenDoors(true);
 }
 
 Mob::~Mob()
@@ -1197,24 +1200,27 @@ void Mob::FillSpawnStruct(NewSpawn_Struct* ns, Mob* ForWho)
 	else
 		ns->spawn.flymode = flymode;
 
-	if(IsBoat()) {
-		ns->spawn.flymode = GravityBehavior::Floating;
-	}
-
 	ns->spawn.lastName[0] = '\0';
 
 	strn0cpy(ns->spawn.lastName, lastname, sizeof(ns->spawn.lastName));
 
 	//for (i = 0; i < _MaterialCount; i++)
-	for (i = 0; i < 9; i++)
-	{
+	for (i = 0; i < 9; i++) {
 		// Only Player Races Wear Armor
-		if (Mob::IsPlayerRace(race) || i > 6)
-		{
-			ns->spawn.equipment.Slot[i].Material = GetEquipmentMaterial(i);
-			ns->spawn.equipment.Slot[i].EliteModel = IsEliteMaterialItem(i);
+		if (Mob::IsPlayerRace(race) || i > 6) {
+			ns->spawn.equipment.Slot[i].Material        = GetEquipmentMaterial(i);
+			ns->spawn.equipment.Slot[i].EliteModel      = IsEliteMaterialItem(i);
 			ns->spawn.equipment.Slot[i].HerosForgeModel = GetHerosForgeModel(i);
-			ns->spawn.equipment_tint.Slot[i].Color = GetEquipmentColor(i);
+			ns->spawn.equipment_tint.Slot[i].Color      = GetEquipmentColor(i);
+		}
+	}
+
+	if (texture > 0) {
+		for (i = 0; i < 9; i++) {
+			if (i == EQ::textures::weaponPrimary || i == EQ::textures::weaponSecondary || texture == 255) {
+				continue;
+			}
+			ns->spawn.equipment.Slot[i].Material = texture;
 		}
 	}
 
@@ -1731,6 +1737,7 @@ void Mob::GMMove(float x, float y, float z, float heading, bool SendUpdate) {
 	m_Position.x = x;
 	m_Position.y = y;
 	m_Position.z = z;
+	SetHeading(heading);
 	mMovementManager->SendCommandToClients(this, 0.0, 0.0, 0.0, 0.0, 0, ClientRangeAny);
 
 	if (IsNPC()) {
@@ -1757,78 +1764,69 @@ void Mob::SendIllusionPacket(
 	float in_size
 )
 {
-	uint8 new_texture = in_texture;
-	uint8 new_helmtexture = in_helmtexture;
-	uint8 new_haircolor;
-	uint8 new_beardcolor;
-	uint8 new_eyecolor1;
-	uint8 new_eyecolor2;
-	uint8 new_hairstyle;
-	uint8 new_luclinface;
-	uint8 new_beard;
-	uint8 new_aa_title;
+	uint8  new_texture     = in_texture;
+	uint8  new_helmtexture = in_helmtexture;
+	uint8  new_haircolor;
+	uint8  new_beardcolor;
+	uint8  new_eyecolor1;
+	uint8  new_eyecolor2;
+	uint8  new_hairstyle;
+	uint8  new_luclinface;
+	uint8  new_beard;
+	uint8  new_aa_title;
 	uint32 new_drakkin_heritage;
 	uint32 new_drakkin_tattoo;
 	uint32 new_drakkin_details;
 
 	race = in_race;
-	if (race == 0)
-		{
+	if (race == 0) {
 		race = (use_model) ? use_model : GetBaseRace();
-		}
+	}
 
-	if (in_gender != 0xFF)
-		{
+	if (in_gender != 0xFF) {
 		gender = in_gender;
-		}
-	else
-		{
+	}
+	else {
 		gender = (in_race) ? GetDefaultGender(race, gender) : GetBaseGender();
-		}
+	}
 
-	if (in_texture == 0xFF && !IsPlayerRace(in_race))
-		{
+	if (in_texture == 0xFF && !IsPlayerRace(in_race)) {
 		new_texture = GetTexture();
-		}
+	}
 
-	if (in_helmtexture == 0xFF && !IsPlayerRace(in_race))
-		{
+	if (in_helmtexture == 0xFF && !IsPlayerRace(in_race)) {
 		new_helmtexture = GetHelmTexture();
-		}
+	}
 
-	new_haircolor = (in_haircolor == 0xFF) ? GetHairColor() : in_haircolor;
-	new_beardcolor = (in_beardcolor == 0xFF) ? GetBeardColor() : in_beardcolor;
-	new_eyecolor1 = (in_eyecolor1 == 0xFF) ? GetEyeColor1() : in_eyecolor1;
-	new_eyecolor2 = (in_eyecolor2 == 0xFF) ? GetEyeColor2() : in_eyecolor2;
-	new_hairstyle = (in_hairstyle == 0xFF) ? GetHairStyle() : in_hairstyle;
-	new_luclinface = (in_luclinface == 0xFF) ? GetLuclinFace() : in_luclinface;
-	new_beard = (in_beard == 0xFF) ? GetBeard() : in_beard;
-	new_drakkin_heritage =
-		(in_drakkin_heritage == 0xFFFFFFFF) ? GetDrakkinHeritage() : in_drakkin_heritage;
-	new_drakkin_tattoo =
-		(in_drakkin_tattoo == 0xFFFFFFFF) ? GetDrakkinTattoo() : in_drakkin_tattoo;
-	new_drakkin_details =
-		(in_drakkin_details == 0xFFFFFFFF) ? GetDrakkinDetails() : in_drakkin_details;
-	new_aa_title = in_aa_title;
-	size = (in_size <= 0.0f) ? GetSize() : in_size;
+	new_haircolor        = (in_haircolor == 0xFF) ? GetHairColor() : in_haircolor;
+	new_beardcolor       = (in_beardcolor == 0xFF) ? GetBeardColor() : in_beardcolor;
+	new_eyecolor1        = (in_eyecolor1 == 0xFF) ? GetEyeColor1() : in_eyecolor1;
+	new_eyecolor2        = (in_eyecolor2 == 0xFF) ? GetEyeColor2() : in_eyecolor2;
+	new_hairstyle        = (in_hairstyle == 0xFF) ? GetHairStyle() : in_hairstyle;
+	new_luclinface       = (in_luclinface == 0xFF) ? GetLuclinFace() : in_luclinface;
+	new_beard            = (in_beard == 0xFF) ? GetBeard() : in_beard;
+	new_drakkin_heritage = (in_drakkin_heritage == 0xFFFFFFFF) ? GetDrakkinHeritage() : in_drakkin_heritage;
+	new_drakkin_tattoo   = (in_drakkin_tattoo == 0xFFFFFFFF) ? GetDrakkinTattoo() : in_drakkin_tattoo;
+	new_drakkin_details  = (in_drakkin_details == 0xFFFFFFFF) ? GetDrakkinDetails() : in_drakkin_details;
+	new_aa_title         = in_aa_title;
 
 	// Reset features to Base from the Player Profile
 	if (IsClient() && in_race == 0) {
-		race							= CastToClient()->GetBaseRace();
-		gender							= CastToClient()->GetBaseGender();
-		new_texture = texture			= 0xFF;
-		new_helmtexture = helmtexture	= 0xFF;
-		new_haircolor = haircolor		= CastToClient()->GetBaseHairColor();
-		new_beardcolor = beardcolor		= CastToClient()->GetBaseBeardColor();
-		new_eyecolor1 = eyecolor1		= CastToClient()->GetBaseEyeColor();
-		new_eyecolor2 = eyecolor2		= CastToClient()->GetBaseEyeColor();
-		new_hairstyle = hairstyle		= CastToClient()->GetBaseHairStyle();
-		new_luclinface = luclinface		= CastToClient()->GetBaseFace();
-		new_beard = beard				= CastToClient()->GetBaseBeard();
-		new_aa_title = aa_title			= 0xFF;
-		new_drakkin_heritage = drakkin_heritage	= CastToClient()->GetBaseHeritage();
-		new_drakkin_tattoo = drakkin_tattoo	= CastToClient()->GetBaseTattoo();
-		new_drakkin_details = drakkin_details	= CastToClient()->GetBaseDetails();
+		race                 = CastToClient()->GetBaseRace();
+		gender               = CastToClient()->GetBaseGender();
+		new_texture          = texture          = 0xFF;
+		new_helmtexture      = helmtexture      = 0xFF;
+		new_haircolor        = haircolor        = CastToClient()->GetBaseHairColor();
+		new_beardcolor       = beardcolor       = CastToClient()->GetBaseBeardColor();
+		new_eyecolor1        = eyecolor1        = CastToClient()->GetBaseEyeColor();
+		new_eyecolor2        = eyecolor2        = CastToClient()->GetBaseEyeColor();
+		new_hairstyle        = hairstyle        = CastToClient()->GetBaseHairStyle();
+		new_luclinface       = luclinface       = CastToClient()->GetBaseFace();
+		new_beard            = beard            = CastToClient()->GetBaseBeard();
+		new_aa_title         = aa_title         = 0xFF;
+		new_drakkin_heritage = drakkin_heritage = CastToClient()->GetBaseHeritage();
+		new_drakkin_tattoo   = drakkin_tattoo   = CastToClient()->GetBaseTattoo();
+		new_drakkin_details  = drakkin_details  = CastToClient()->GetBaseDetails();
 		switch (race) {
 			case OGRE:
 				size = 9;
@@ -1859,6 +1857,21 @@ void Mob::SendIllusionPacket(
 		}
 	}
 
+	// update internal values for mob
+	size             = (in_size <= 0.0f) ? GetSize() : in_size;
+	texture          = new_texture;
+	helmtexture      = new_helmtexture;
+	haircolor        = new_haircolor;
+	beardcolor       = new_beardcolor;
+	eyecolor1        = new_eyecolor1;
+	eyecolor2        = new_eyecolor2;
+	hairstyle        = new_hairstyle;
+	luclinface       = new_luclinface;
+	beard            = new_beard;
+	drakkin_heritage = new_drakkin_heritage;
+	drakkin_tattoo   = new_drakkin_tattoo;
+	drakkin_details  = new_drakkin_details;
+
 	auto            outapp = new EQApplicationPacket(OP_Illusion, sizeof(Illusion_Struct));
 	Illusion_Struct *is    = (Illusion_Struct *) outapp->pBuffer;
 	is->spawnid = GetID();
@@ -1883,9 +1896,10 @@ void Mob::SendIllusionPacket(
 	safe_delete(outapp);
 
 	/* Refresh armor and tints after send illusion packet */
-	this->SendArmorAppearance();
+	SendArmorAppearance();
 
-	LogSpells("Illusion: Race = [{}], Gender = [{}], Texture = [{}], HelmTexture = [{}], HairColor = [{}], BeardColor = [{}], EyeColor1 = [{}], EyeColor2 = [{}], HairStyle = [{}], Face = [{}], DrakkinHeritage = [{}], DrakkinTattoo = [{}], DrakkinDetails = [{}], Size = [{}]",
+	LogSpells(
+		"Illusion: Race [{}] Gender [{}] Texture [{}] HelmTexture [{}] HairColor [{}] BeardColor [{}] EyeColor1 [{}] EyeColor2 [{}] HairStyle [{}] Face [{}] DrakkinHeritage [{}] DrakkinTattoo [{}] DrakkinDetails [{}] Size [{}]",
 		race,
 		gender,
 		new_texture,
@@ -1899,7 +1913,8 @@ void Mob::SendIllusionPacket(
 		new_drakkin_heritage,
 		new_drakkin_tattoo,
 		new_drakkin_details,
-		size);
+		size
+	);
 }
 
 bool Mob::RandomizeFeatures(bool send_illusion, bool set_variables)
@@ -2405,7 +2420,7 @@ void Mob::ChangeSize(float in_size = 0, bool bNoRestriction) {
 	if (in_size > 255.0)
 		in_size = 255.0;
 	//End of Size Code
-	this->size = in_size;
+	size = in_size;
 	SendAppearancePacket(AT_Size, (uint32) in_size);
 }
 
@@ -2809,6 +2824,11 @@ bool Mob::HateSummon() {
 }
 
 void Mob::FaceTarget(Mob* mob_to_face /*= 0*/) {
+
+	if (IsBoat()) {
+		return;
+	}
+
 	Mob* faced_mob = mob_to_face;
 	if(!faced_mob) {
 		if(!GetTarget()) {
@@ -3120,6 +3140,12 @@ void Mob::ExecWeaponProc(const EQ::ItemInstance *inst, uint16 spell_id, Mob *on,
 		//This is so 65535 doesn't get passed to the client message and to logs because it is not relavant information for debugging.
 		return;
 	}
+
+	if (on->GetSpecialAbility(IMMUNE_DAMAGE_CLIENT) && IsClient())
+		return;
+
+	if (on->GetSpecialAbility(IMMUNE_DAMAGE_NPC) && IsNPC())
+		return;
 
 	if (IsNoCast())
 		return;
@@ -4872,7 +4898,8 @@ bool Mob::IsBoat() const {
 		race == RACE_SHIP_404 ||
 		race == RACE_MERCHANT_SHIP_550 ||
 		race == RACE_PIRATE_SHIP_551 ||
-		race == RACE_GHOST_SHIP_552
+		race == RACE_GHOST_SHIP_552 ||
+		race == RACE_BOAT_533
 	);
 }
 
@@ -5936,3 +5963,61 @@ float Mob::HealRotationExtendedHealFrequency()
 	return m_target_of_heal_rotation->ExtendedHealFrequency(this);
 }
 #endif
+
+bool Mob::CanOpenDoors() const
+{
+	return m_can_open_doors;
+}
+
+void Mob::SetCanOpenDoors(bool can_open)
+{
+	m_can_open_doors = can_open;
+}
+
+void Mob::DeleteBucket(std::string bucket_name) {
+	std::string full_bucket_name = fmt::format("{}-{}", GetBucketKey(), bucket_name);
+	DataBucket::DeleteData(full_bucket_name);
+}
+
+std::string Mob::GetBucket(std::string bucket_name) {
+	std::string full_bucket_name = fmt::format("{}-{}", GetBucketKey(), bucket_name);
+	std::string bucket_value = DataBucket::GetData(full_bucket_name);
+	if (!bucket_value.empty()) {
+		return bucket_value;
+	}
+	return std::string();
+}
+
+std::string Mob::GetBucketExpires(std::string bucket_name) {
+	std::string full_bucket_name = fmt::format("{}-{}", GetBucketKey(), bucket_name);
+	std::string bucket_expiration = DataBucket::GetDataExpires(full_bucket_name);
+	if (!bucket_expiration.empty()) {
+		return bucket_expiration;
+	}
+	return std::string();
+}
+
+std::string Mob::GetBucketKey() {
+	if (IsClient()) {
+		return fmt::format("character-{}", CastToClient()->CharacterID());
+	} else if (IsNPC()) {
+		return fmt::format("npc-{}", GetNPCTypeID());
+	}
+	return std::string();
+}
+
+std::string Mob::GetBucketRemaining(std::string bucket_name) {
+	std::string full_bucket_name = fmt::format("{}-{}", GetBucketKey(), bucket_name);
+	std::string bucket_remaining = DataBucket::GetDataRemaining(full_bucket_name);
+	if (!bucket_remaining.empty() && atoi(bucket_remaining.c_str()) > 0) {
+		return bucket_remaining;
+	} else if (atoi(bucket_remaining.c_str()) == 0) {
+		return "0";
+	}
+	return std::string();
+}
+
+void Mob::SetBucket(std::string bucket_name, std::string bucket_value, std::string expiration) {
+	std::string full_bucket_name = fmt::format("{}-{}", GetBucketKey(), bucket_name);
+	DataBucket::SetData(full_bucket_name, bucket_value, expiration);
+}
