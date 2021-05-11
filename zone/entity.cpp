@@ -33,7 +33,7 @@
 #include "../common/guilds.h"
 
 #include "entity.h"
-#include "dynamiczone.h"
+#include "dynamic_zone.h"
 #include "guild_mgr.h"
 #include "petitions.h"
 #include "quest_parser_collection.h"
@@ -517,13 +517,15 @@ void EntityList::MobProcess()
 			mob_settle_timer->Disable();
 		}
 
+		Spawn2* s2 = mob->CastToNPC()->respawn2;
+
+		// Perform normal mob processing if any of these are true:
+		//	-- zone is not empty
+		//	-- a quest has turned it on for this zone while zone is idle
+		//	-- the entity's spawn2 point is marked as path_while_zone_idle
+		//	-- the zone is newly empty and we're allowing mobs to settle
 		if (zone->process_mobs_while_empty || numclients > 0 ||
-			mob->GetWanderType() == 4 || mob->GetWanderType() == 6 ||
-			mob_settle_timer->Enabled()) {
-			// Normal processing, or assuring that spawns that should
-			// path and depop do that.  Otherwise all of these type mobs
-			// will be up and at starting positions, or waiting at the zoneline
-			// if they chased the PCs  when idle zone wakes up.
+			(s2 && s2->PathWhenZoneIdle()) || mob_settle_timer->Enabled()) {
 			mob_dead = !mob->Process();
 		}
 		else {
@@ -602,6 +604,8 @@ void EntityList::EncounterProcess()
 	auto it = encounter_list.begin();
 	while (it != encounter_list.end()) {
 		if (!it->second->Process()) {
+			// if Process is returning false here, we probably just got called from ReloadQuests .. oh well
+			parse->RemoveEncounter(it->second->GetEncounterName());
 			safe_delete(it->second);
 			free_ids.push(it->first);
 			it = encounter_list.erase(it);
@@ -2565,6 +2569,7 @@ void EntityList::RemoveAllEncounters()
 {
 	auto it = encounter_list.begin();
 	while (it != encounter_list.end()) {
+		parse->RemoveEncounter(it->second->GetEncounterName());
 		safe_delete(it->second);
 		free_ids.push(it->first);
 		it = encounter_list.erase(it);
@@ -2999,7 +3004,7 @@ void EntityList::Depop(bool StartSpawnTimer)
 			if (own && own->IsClient())
 				continue;
 
-			if (pnpc->IsHorse)
+			if (pnpc->IsHorse())
 				continue;
 
 			if (pnpc->IsFindable())
@@ -4250,7 +4255,7 @@ void EntityList::ForceGroupUpdate(uint32 gid)
 	}
 }
 
-void EntityList::SendGroupLeave(uint32 gid, const char *name, bool checkleader)
+void EntityList::SendGroupLeave(uint32 gid, const char *name)
 {
 	auto it = client_list.begin();
 	while (it != client_list.end()) {
@@ -4266,39 +4271,13 @@ void EntityList::SendGroupLeave(uint32 gid, const char *name, bool checkleader)
 					gj->action = groupActLeave;
 					strcpy(gj->yourname, c->GetName());
 					Mob *Leader = g->GetLeader();
-					if (Leader) {
+					if (Leader)
 						Leader->CastToClient()->GetGroupAAs(&gj->leader_aas);
-					}
 					c->QueuePacket(outapp);
 					safe_delete(outapp);
-					g->DelMemberOOZ(name, checkleader);
-					if (g->IsLeader(c) && c->IsLFP()) {
+					g->DelMemberOOZ(name);
+					if (g->IsLeader(c) && c->IsLFP())
 						c->UpdateLFP();
-					}
-				}
-			}
-		}
-		++it;
-	}
-}
-
-void EntityList::SendGroupLeader(uint32 gid, const char *lname, const char *oldlname)
-{
-	auto it = client_list.begin();
-	while (it != client_list.end()) {
-		if (it->second){
-			Group *g = nullptr;
-			g = it->second->GetGroup();
-			if (g) {
-				if (g->GetID() == gid) {
-					EQApplicationPacket* outapp = new EQApplicationPacket(OP_GroupUpdate,sizeof(GroupJoin_Struct));
-					GroupJoin_Struct* gj = (GroupJoin_Struct*) outapp->pBuffer;
-					gj->action = groupActMakeLeader;
-					strcpy(gj->membername, lname);
-					strcpy(gj->yourname, oldlname);
-					it->second->QueuePacket(outapp);
-					Log(Logs::Detail, Logs::Group, "SendGroupLeader(): Entity loop leader update packet sent to: %s .", it->second->GetName());
-					safe_delete(outapp);
 				}
 			}
 		}
@@ -4321,9 +4300,9 @@ void EntityList::SendGroupJoin(uint32 gid, const char *name)
 					gj->action = groupActJoin;
 					strcpy(gj->yourname, it->second->GetName());
 					Mob *Leader = g->GetLeader();
-					if (Leader) {
+					if (Leader)
 						Leader->CastToClient()->GetGroupAAs(&gj->leader_aas);
-					}
+
 					it->second->QueuePacket(outapp);
 					safe_delete(outapp);
 				}
@@ -5274,16 +5253,7 @@ std::unordered_map<uint16, Mob *> &EntityList::GetCloseMobList(Mob *mob, float d
 
 void EntityList::GateAllClientsToSafeReturn()
 {
-	DynamicZone dz;
-	if (zone)
-	{
-		dz = zone->GetDynamicZone();
-
-		LogDynamicZones(
-			"Sending all clients in zone: [{}] instance: [{}] to dz safereturn or bind",
-			zone->GetZoneID(), zone->GetInstanceID()
-		);
-	}
+	DynamicZone* dz = zone ? zone->GetDynamicZone() : nullptr;
 
 	for (const auto& client_list_iter : client_list)
 	{

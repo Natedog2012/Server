@@ -110,6 +110,7 @@ public:
 	int GetClass();
 	int GetLevel();
 	const char *GetCleanName();
+	const char *GetLastName();
 	Lua_Mob GetTarget();
 	void SetTarget(Lua_Mob t);
 	double GetHPRatio();
@@ -198,9 +199,12 @@ public:
 	Lua_Mob GetPet();
 	Lua_Mob GetOwner();
 	Lua_HateList GetHateList();
+	Lua_HateList GetHateListByDistance();
+	Lua_HateList GetHateListByDistance(int distance);
 	Lua_Mob GetHateTop();
 	Lua_Mob GetHateDamageTop(Lua_Mob other);
 	Lua_Mob GetHateRandom();
+	Lua_Mob GetHateClosest();
 	void AddToHateList(Lua_Mob other);
 	void AddToHateList(Lua_Mob other, int hate);
 	void AddToHateList(Lua_Mob other, int hate, int damage);
@@ -433,6 +437,7 @@ public:
 	std::string GetBucketRemaining(std::string bucket_name);
 	void SetBucket(std::string bucket_name, std::string bucket_value);
 	void SetBucket(std::string bucket_name, std::string bucket_value, std::string expiration);
+	bool IsHorse();
 };
 
 #endif

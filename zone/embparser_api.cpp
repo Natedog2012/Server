@@ -899,6 +899,27 @@ XS(XS__getspellname) {
 	XSRETURN(1);
 }
 
+XS(XS__get_spell_level);
+XS(XS__get_spell_level) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: quest::get_spell_level(uint16 spell_id, uint8 class_id)");
+
+	dXSTARG;
+	uint16 spell_id = (int)SvIV(ST(0));
+	uint8 class_id = (int)SvIV(ST(1));
+	uint8 spell_level = IsValidSpell(spell_id) ? GetSpellLevel(spell_id, class_id) : 0;
+	uint8 server_max_level = RuleI(Character, MaxLevel);
+
+	if (spell_level && spell_level > server_max_level)
+		spell_level = 0;
+
+	XSprePUSH;
+	PUSHu((UV)spell_level);
+
+	XSRETURN(1);
+}
+
 XS(XS__getskillname);
 XS(XS__getskillname) {
 	dXSARGS;
@@ -1474,14 +1495,19 @@ XS(XS__ding) {
 XS(XS__rebind);
 XS(XS__rebind) {
 	dXSARGS;
-	if (items != 4)
-		Perl_croak(aTHX_ "Usage: quest::rebind(int zone_id, float x, float y, float z)");
+	if (items < 4 || items > 5)
+		Perl_croak(aTHX_ "Usage: quest::rebind(int zone_id, float x, float y, float z, [float heading])");
 
-	int  zone_id  = (int) SvIV(ST(0));
-	auto location = glm::vec3((float) SvNV(ST(1)), (float) SvNV(ST(2)), (float) SvNV(ST(3)));
-
-	quest_manager.rebind(zone_id, location);
-
+	int zone_id = (int) SvIV(ST(0));
+	float target_x = (float) SvNV(ST(1));
+	float target_y = (float) SvNV(ST(2));
+	float target_z = (float) SvNV(ST(3));
+	if (items > 4) {
+		float target_heading = (float) SvNV(ST(4));
+		quest_manager.rebind(zone_id, glm::vec4(target_x, target_y, target_z, target_heading));
+	} else {
+		quest_manager.rebind(zone_id, glm::vec3(target_x, target_y, target_z));
+	}
 	XSRETURN_EMPTY;
 }
 
@@ -2932,7 +2958,7 @@ XS(XS__ModifyNPCStat);
 XS(XS__ModifyNPCStat) {
 	dXSARGS;
 	if (items != 2)
-		Perl_croak(aTHX_ "Usage: quest::ModifyNPCStat(string key, string value)");
+		Perl_croak(aTHX_ "Usage: quest::modifynpcstat(string key, string value)");
 
 	quest_manager.ModifyNPCStat(SvPV_nolen(ST(0)), SvPV_nolen(ST(1)));
 
@@ -3007,9 +3033,9 @@ XS(XS__getnpcnamebyid) {
 
 	dXSTARG;
 	uint32 npc_id = (int) SvIV(ST(0));
-	const char *npc_name = quest_manager.getnpcnamebyid(npc_id);
+	auto npc_name = quest_manager.getnpcnamebyid(npc_id);
 
-	sv_setpv(TARG, npc_name);
+	sv_setpv(TARG, npc_name.c_str());
 	XSprePUSH;
 	PUSHTARG;
 	XSRETURN(1);
@@ -3397,8 +3423,9 @@ XS(XS__getcharnamebyid) {
 
 	Const_char *RETVAL;
 	uint32     char_id = (int) SvUV(ST(0));
+	auto       name    = quest_manager.getcharnamebyid(char_id);
 
-	RETVAL = quest_manager.getcharnamebyid(char_id);
+	RETVAL = name.c_str();
 
 	sv_setpv(TARG, RETVAL);
 	XSprePUSH;
@@ -3795,6 +3822,36 @@ XS(XS__GetZoneLongName) {
 	std::string RETVAL = quest_manager.GetZoneLongName(zone);
 
 	sv_setpv(TARG, RETVAL.c_str());
+	XSprePUSH;
+	PUSHTARG;
+	XSRETURN(1);
+}
+
+XS(XS__GetZoneLongNameByID);
+XS(XS__GetZoneLongNameByID) {
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: quest::GetZoneLongNameByID(uint32 zone_id)");
+
+	dXSTARG;
+	uint32 zone_id = (uint32) SvUV(ST(0));
+	std::string zone_long_name = quest_manager.GetZoneLongNameByID(zone_id);
+	sv_setpv(TARG, zone_long_name.c_str());
+	XSprePUSH;
+	PUSHTARG;
+	XSRETURN(1);
+}
+
+XS(XS__GetZoneShortName);
+XS(XS__GetZoneShortName) {
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: quest::GetZoneShortName(uint32 zone_id)");
+
+	dXSTARG;
+	uint32 zone_id = (uint32) SvUV(ST(0));
+	std::string zone_short_name = quest_manager.GetZoneShortName(zone_id);
+	sv_setpv(TARG, zone_short_name.c_str());
 	XSprePUSH;
 	PUSHTARG;
 	XSRETURN(1);
@@ -6404,6 +6461,98 @@ XS(XS__createitem) {
 	XSRETURN(1);
 }
 
+XS(XS__secondstotime);
+XS(XS__secondstotime) {
+	dXSARGS;
+	if (items != 1) {
+		Perl_croak(aTHX_ "Usage: quest::secondstotime(int duration)");
+	}
+
+	dXSTARG;
+	std::string time_string;
+	int duration = (int) SvIV(ST(0));
+	time_string = quest_manager.secondstotime(duration);
+	sv_setpv(TARG, time_string.c_str());
+	XSprePUSH;
+	PUSHTARG;
+	XSRETURN(1);
+}
+
+XS(XS__gethexcolorcode);
+XS(XS__gethexcolorcode) {
+	dXSARGS;
+	if (items != 1) {
+		Perl_croak(aTHX_ "Usage: quest::gethexcolorcode(std::string color_name)");
+	}
+
+	dXSTARG;
+	std::string hex_color_code;
+	std::string color_name = SvPV_nolen(ST(0));
+	hex_color_code = quest_manager.gethexcolorcode(color_name);
+	sv_setpv(TARG, hex_color_code.c_str());
+	XSprePUSH;
+	PUSHTARG;
+	XSRETURN(1);	
+}
+
+XS(XS__getaaexpmodifierbycharid);
+XS(XS__getaaexpmodifierbycharid) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: quest::getaaexpmodifierbycharid(uint32 character_id, uint32 zone_id)");
+		
+	dXSTARG;
+	double aa_modifier;
+	uint32 character_id = (uint32) SvUV(ST(0));
+	uint32 zone_id = (uint32) SvUV(ST(1));
+	aa_modifier = quest_manager.GetAAEXPModifierByCharID(character_id, zone_id);
+	XSprePUSH;
+	PUSHn((double) aa_modifier);
+	XSRETURN(1);
+}
+
+XS(XS__getexpmodifierbycharid);
+XS(XS__getexpmodifierbycharid) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: quest::getexpmodifierbycharid(uint32 character_id, uint32 zone_id)");
+		
+	dXSTARG;
+	double exp_modifier;
+	uint32 character_id = (uint32) SvUV(ST(0));
+	uint32 zone_id = (uint32) SvUV(ST(1));
+	exp_modifier = quest_manager.GetEXPModifierByCharID(character_id, zone_id);
+	XSprePUSH;
+	PUSHn((double) exp_modifier);
+	XSRETURN(1);
+}
+
+XS(XS__setaaexpmodifierbycharid);
+XS(XS__setaaexpmodifierbycharid) {
+	dXSARGS;
+	if (items != 3) {
+		Perl_croak(aTHX_ "Usage: quest::setaaexpmodifierbycharid(uint32 character_id, uint32 zone_id, float aa_modifier)");
+	}
+	uint32 character_id = (uint32) SvUV(ST(0));
+	uint32 zone_id = (uint32) SvUV(ST(1));
+	double aa_modifier = (double) SvNV(ST(2));
+	quest_manager.SetAAEXPModifierByCharID(character_id, zone_id, aa_modifier);
+	XSRETURN_EMPTY;
+}
+
+XS(XS__setexpmodifierbycharid);
+XS(XS__setexpmodifierbycharid) {
+	dXSARGS;
+	if (items != 3) {
+		Perl_croak(aTHX_ "Usage: quest::setexpmodifierbycharid(uint32 character_id, uint32 zone_id, float exp_modifier)");
+	}
+	uint32 character_id = (uint32) SvUV(ST(0));
+	uint32 zone_id = (uint32) SvUV(ST(1));
+	double exp_modifier = (double) SvNV(ST(2));
+	quest_manager.SetEXPModifierByCharID(character_id, zone_id, exp_modifier);
+	XSRETURN_EMPTY;
+}
+
 /*
 This is the callback perl will look for to setup the
 quest package's XSUBs
@@ -6452,6 +6601,8 @@ EXTERN_C XS(boot_quest) {
 	newXS(strcpy(buf, "GetTimeSeconds"), XS__GetTimeSeconds, file);
 	newXS(strcpy(buf, "GetZoneID"), XS__GetZoneID, file);
 	newXS(strcpy(buf, "GetZoneLongName"), XS__GetZoneLongName, file);
+	newXS(strcpy(buf, "GetZoneLongNameByID"), XS__GetZoneLongNameByID, file);
+	newXS(strcpy(buf, "GetZoneShortName"), XS__GetZoneShortName, file);
 	newXS(strcpy(buf, "set_rule"), XS__set_rule, file);
 	newXS(strcpy(buf, "get_rule"), XS__get_rule, file);
 	newXS(strcpy(buf, "get_data"), XS__get_data, file);
@@ -6608,9 +6759,12 @@ EXTERN_C XS(boot_quest) {
 	newXS(strcpy(buf, "follow"), XS__follow, file);
 	newXS(strcpy(buf, "forcedoorclose"), XS__forcedoorclose, file);
 	newXS(strcpy(buf, "forcedooropen"), XS__forcedooropen, file);
+	newXS(strcpy(buf, "getaaexpmodifierbycharid"), XS__getaaexpmodifierbycharid, file);
 	newXS(strcpy(buf, "getcharidbyname"), XS__getcharidbyname, file);
 	newXS(strcpy(buf, "getclassname"), XS__getclassname, file);
+	newXS(strcpy(buf, "gethexcolorcode"), XS__gethexcolorcode, file);
 	newXS(strcpy(buf, "getcurrencyid"), XS__getcurrencyid, file);
+	newXS(strcpy(buf, "getexpmodifierbycharid"), XS__getexpmodifierbycharid, file);
 	newXS(strcpy(buf, "get_expedition"), XS__get_expedition, file);
 	newXS(strcpy(buf, "get_expedition_by_char_id"), XS__get_expedition_by_char_id, file);
 	newXS(strcpy(buf, "get_expedition_by_dz_id"), XS__get_expedition_by_dz_id, file);
@@ -6630,6 +6784,7 @@ EXTERN_C XS(boot_quest) {
 	newXS(strcpy(buf, "getraididbycharid"), XS__getraididbycharid, file);
 	newXS(strcpy(buf, "getracename"), XS__getracename, file);
 	newXS(strcpy(buf, "getspellname"), XS__getspellname, file);
+	newXS(strcpy(buf, "get_spell_level"), XS__get_spell_level, file);
 	newXS(strcpy(buf, "getskillname"), XS__getskillname, file);
 	newXS(strcpy(buf, "getlevel"), XS__getlevel, file);
 	newXS(strcpy(buf, "getplayerburiedcorpsecount"), XS__getplayerburiedcorpsecount, file);
@@ -6696,11 +6851,14 @@ EXTERN_C XS(boot_quest) {
 	newXS(strcpy(buf, "say"), XS__say, file);
 	newXS(strcpy(buf, "saylink"), XS__saylink, file);
 	newXS(strcpy(buf, "scribespells"), XS__scribespells, file);
+	newXS(strcpy(buf, "secondstotime"), XS__secondstotime, file);
 	newXS(strcpy(buf, "selfcast"), XS__selfcast, file);
+	newXS(strcpy(buf, "setaaexpmodifierbycharid"), XS__setaaexpmodifierbycharid, file);
 	newXS(strcpy(buf, "set_proximity"), XS__set_proximity, file);
 	newXS(strcpy(buf, "set_zone_flag"), XS__set_zone_flag, file);
 	newXS(strcpy(buf, "setallskill"), XS__setallskill, file);
 	newXS(strcpy(buf, "setanim"), XS__setanim, file);
+	newXS(strcpy(buf, "setexpmodifierbycharid"), XS__setexpmodifierbycharid, file);
 	newXS(strcpy(buf, "setglobal"), XS__setglobal, file);
 	newXS(strcpy(buf, "setguild"), XS__setguild, file);
 	newXS(strcpy(buf, "sethp"), XS__sethp, file);

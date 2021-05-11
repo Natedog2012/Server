@@ -639,53 +639,6 @@ void ZoneDatabase::SetDoorPlace(uint8 value,uint8 door_id,const char* zone_name)
 	door_isopen_array[door_id] = value;
 }
 
-void ZoneDatabase::GetEventLogs(const char* name,char* target,uint32 account_id,uint8 eventid,char* detail,char* timestamp, CharacterEventLog_Struct* cel)
-{
-	char modifications[200];
-	if(strlen(name) != 0)
-		sprintf(modifications,"charname=\'%s\'",name);
-	else if(account_id != 0)
-		sprintf(modifications,"accountid=%i",account_id);
-
-	if(strlen(target) != 0)
-		sprintf(modifications,"%s AND target LIKE \'%%%s%%\'",modifications,target);
-
-	if(strlen(detail) != 0)
-		sprintf(modifications,"%s AND description LIKE \'%%%s%%\'",modifications,detail);
-
-	if(strlen(timestamp) != 0)
-		sprintf(modifications,"%s AND time LIKE \'%%%s%%\'",modifications,timestamp);
-
-	if(eventid == 0)
-		eventid =1;
-	sprintf(modifications,"%s AND event_nid=%i",modifications,eventid);
-
-    std::string query = StringFormat("SELECT id, accountname, accountid, status, charname, target, "
-                                    "time, descriptiontype, description FROM eventlog WHERE %s", modifications);
-    auto results = QueryDatabase(query);
-    if (!results.Success())
-        return;
-
-	int index = 0;
-    for (auto row = results.begin(); row != results.end(); ++row, ++index) {
-        if(index == 255)
-            break;
-
-        cel->eld[index].id = atoi(row[0]);
-        strn0cpy(cel->eld[index].accountname,row[1],64);
-        cel->eld[index].account_id = atoi(row[2]);
-        cel->eld[index].status = atoi(row[3]);
-        strn0cpy(cel->eld[index].charactername,row[4],64);
-        strn0cpy(cel->eld[index].targetname,row[5],64);
-        sprintf(cel->eld[index].timestamp,"%s",row[6]);
-        strn0cpy(cel->eld[index].descriptiontype,row[7],64);
-        strn0cpy(cel->eld[index].details,row[8],128);
-        cel->eventid = eventid;
-        cel->count = index + 1;
-    }
-
-}
-
 // Load child objects for a world container (i.e., forge, bag dropped to ground, etc)
 void ZoneDatabase::LoadWorldContainer(uint32 parentid, EQ::ItemInstance* container)
 {
@@ -1517,7 +1470,7 @@ bool ZoneDatabase::LoadCharacterBindPoint(uint32 character_id, PlayerProfile_Str
 		if (index < 0 || index > 4)
 			continue;
 
-		pp->binds[index].zoneId = atoi(row[1]);
+		pp->binds[index].zone_id = atoi(row[1]);
 		pp->binds[index].instance_id = atoi(row[2]);
 		pp->binds[index].x = atoi(row[3]);
 		pp->binds[index].y = atoi(row[4]);
@@ -1540,10 +1493,10 @@ bool ZoneDatabase::SaveCharacterBindPoint(uint32 character_id, const BindStruct 
 	std::string query =
 	    StringFormat("REPLACE INTO `character_bind` (id, zone_id, instance_id, x, y, z, heading, slot) VALUES (%u, "
 			 "%u, %u, %f, %f, %f, %f, %i)",
-			 character_id, bind.zoneId, bind.instance_id, bind.x, bind.y, bind.z, bind.heading, bind_num);
+			 character_id, bind.zone_id, bind.instance_id, bind.x, bind.y, bind.z, bind.heading, bind_num);
 
 	LogDebug("ZoneDatabase::SaveCharacterBindPoint for character ID: [{}] zone_id: [{}] instance_id: [{}] position: [{}] [{}] [{}] [{}] bind_num: [{}]",
-		character_id, bind.zoneId, bind.instance_id, bind.x, bind.y, bind.z, bind.heading, bind_num);
+		character_id, bind.zone_id, bind.instance_id, bind.x, bind.y, bind.z, bind.heading, bind_num);
 
 	auto results = QueryDatabase(query);
 	if (!results.RowsAffected())
@@ -2525,7 +2478,8 @@ const NPCType *ZoneDatabase::LoadNPCTypesData(uint32 npc_type_id, bool bulk_load
 		"npc_types.stuck_behavior, "
 		"npc_types.model, "
 		"npc_types.flymode, "
-		"npc_types.always_aggro "
+		"npc_types.always_aggro, "
+		"npc_types.exp_mod "
 		"FROM npc_types %s",
 		where_condition.c_str()
 	);
@@ -2728,6 +2682,7 @@ const NPCType *ZoneDatabase::LoadNPCTypesData(uint32 npc_type_id, bool bulk_load
 		temp_npctype_data->use_model        	= atoi(row[110]);
 		temp_npctype_data->flymode          	= atoi(row[111]);
 		temp_npctype_data->always_aggro	        = atoi(row[112]);
+		temp_npctype_data->exp_mod              = atoi(row[113]);
 
 		temp_npctype_data->skip_auto_scale = false; // hardcoded here for now
 
@@ -4937,4 +4892,86 @@ uint32 ZoneDatabase::SaveSaylinkID(const char* saylink_text)
 		return 0;
 
 	return results.LastInsertedID();
+}
+
+double ZoneDatabase::GetAAEXPModifier(uint32 character_id, uint32 zone_id) const {
+	std::string query = fmt::format(
+		SQL(
+			SELECT
+			`aa_modifier`
+			FROM
+			`character_exp_modifiers`
+			WHERE
+			`character_id` = {}
+			AND
+			(`zone_id` = {} OR `zone_id` = 0)
+			ORDER BY `zone_id` DESC
+			LIMIT 1
+		),
+		character_id,
+		zone_id
+	);
+	auto results = database.QueryDatabase(query);
+	for (auto row = results.begin(); row != results.end(); ++row) {
+		return atof(row[0]);
+	}
+	return 1.0f;
+}
+
+double ZoneDatabase::GetEXPModifier(uint32 character_id, uint32 zone_id) const {
+	std::string query = fmt::format(
+		SQL(
+			SELECT
+			`exp_modifier`
+			FROM
+			`character_exp_modifiers`
+			WHERE
+			`character_id` = {}
+			AND
+			(`zone_id` = {} OR `zone_id` = 0)
+			ORDER BY `zone_id` DESC
+			LIMIT 1
+		),
+		character_id,
+		zone_id
+	);
+	auto results = database.QueryDatabase(query);
+	for (auto row = results.begin(); row != results.end(); ++row) {
+		return atof(row[0]);
+	}
+	return 1.0f;
+}
+
+void ZoneDatabase::SetAAEXPModifier(uint32 character_id, uint32 zone_id, double aa_modifier) {
+	float exp_modifier = GetEXPModifier(character_id, zone_id);
+	std::string query = fmt::format(
+		SQL(
+			REPLACE INTO
+			`character_exp_modifiers`
+			VALUES
+			({}, {}, {}, {})
+		),
+		character_id,
+		zone_id,
+		aa_modifier,
+		exp_modifier
+	);
+	database.QueryDatabase(query);
+}
+
+void ZoneDatabase::SetEXPModifier(uint32 character_id, uint32 zone_id, double exp_modifier) {
+	float aa_modifier = GetAAEXPModifier(character_id, zone_id);
+	std::string query = fmt::format(
+		SQL(
+			REPLACE INTO
+			`character_exp_modifiers`
+			VALUES
+			({}, {}, {}, {})
+		),
+		character_id,
+		zone_id,
+		aa_modifier,
+		exp_modifier
+	);
+	database.QueryDatabase(query);
 }

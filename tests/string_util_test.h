@@ -29,6 +29,8 @@ public:
 		TEST_ADD(StringUtilTest::StringFormatTest);
 		TEST_ADD(StringUtilTest::EscapeStringTest);
 		TEST_ADD(StringUtilTest::EscapeStringMemoryTest);
+		TEST_ADD(StringUtilTest::SearchDeliminatedStringTest);
+		TEST_ADD(StringUtilTest::SplitStringTest);
 	}
 
 	~StringUtilTest() {
@@ -79,6 +81,42 @@ public:
 
 		auto s = EscapeString(t, 10);
 		TEST_ASSERT(s.compare("abc\\x00\\n\\r\\\\\\'\\\"\\x1a") == 0);
+	}
+
+	void SearchDeliminatedStringTest() {
+		std::string h =
+		    "befallen,charasis,dalnir,frontiermtns,gukbottom,iceclad,lakeofillomen,northkarana,qey2hh1,soldunga,southro,wakening,podisease,velketor,akheva,riwwi,bothunder,poair";
+		TEST_ASSERT(search_deliminated_string(h, "befallen") == 0);
+		TEST_ASSERT(search_deliminated_string(h, "charasis") == 9);
+		TEST_ASSERT(search_deliminated_string(h, "dalnir") == 18);
+		TEST_ASSERT(search_deliminated_string(h, "frontiermtns") == 25);
+		TEST_ASSERT(search_deliminated_string(h, "gukbottom") == 38);
+		TEST_ASSERT(search_deliminated_string(h, "iceclad") == 48);
+		TEST_ASSERT(search_deliminated_string(h, "lakeofillomen") == 56);
+		TEST_ASSERT(search_deliminated_string(h, "northkarana") == 70);
+		TEST_ASSERT(search_deliminated_string(h, "qey2hh1") == 82);
+		TEST_ASSERT(search_deliminated_string(h, "soldunga") == 90);
+		TEST_ASSERT(search_deliminated_string(h, "southro") == 99);
+		TEST_ASSERT(search_deliminated_string(h, "wakening") == 107);
+		TEST_ASSERT(search_deliminated_string(h, "podisease") == 116);
+		TEST_ASSERT(search_deliminated_string(h, "velketor") == 126);
+		TEST_ASSERT(search_deliminated_string(h, "akheva") == 135);
+		TEST_ASSERT(search_deliminated_string(h, "riwwi") == 142);
+		TEST_ASSERT(search_deliminated_string(h, "bothunder") == 148);
+		TEST_ASSERT(search_deliminated_string(h, "poair") == 158);
+		TEST_ASSERT(search_deliminated_string(h, "pod") == std::string::npos);
+		TEST_ASSERT(search_deliminated_string(h, "air") == std::string::npos);
+		TEST_ASSERT(search_deliminated_string(h, "bef") == std::string::npos);
+		TEST_ASSERT(search_deliminated_string(h, "wwi") == std::string::npos);
+	}
+
+	void SplitStringTest() {
+		std::string s = "123,456,789,";
+		auto v = SplitString(s, ',');
+		TEST_ASSERT(v.size() == 3);
+		TEST_ASSERT(v[0] == "123");
+		TEST_ASSERT(v[1] == "456");
+		TEST_ASSERT(v[2] == "789");
 	}
 };
 

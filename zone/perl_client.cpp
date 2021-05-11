@@ -446,24 +446,6 @@ XS(XS_Client_GetLanguageSkill) {
 	XSRETURN(1);
 }
 
-XS(XS_Client_GetLastName); /* prototype to pass -Wmissing-prototypes */
-XS(XS_Client_GetLastName) {
-	dXSARGS;
-	if (items != 1)
-		Perl_croak(aTHX_ "Usage: Client::GetLastName(THIS)"); // @categories Account and Character
-	{
-		Client     *THIS;
-		Const_char *RETVAL;
-		dXSTARG;
-		VALIDATE_THIS_IS_CLIENT;
-		RETVAL = THIS->GetLastName();
-		sv_setpv(TARG, RETVAL);
-		XSprePUSH;
-		PUSHTARG;
-	}
-	XSRETURN(1);
-}
-
 XS(XS_Client_GetLDoNPointsTheme); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Client_GetLDoNPointsTheme) {
 	dXSARGS;
@@ -771,47 +753,28 @@ XS(XS_Client_SetEXP) {
 XS(XS_Client_SetBindPoint); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Client_SetBindPoint) {
 	dXSARGS;
-	if (items < 1 || items > 6)
-		Perl_croak(aTHX_ "Usage: Client::SetBindPoint(THIS, int to_zone = -1, int to_instance = 0, float new_x = 0.0f, float new_y = 0.0f, float new_z = 0.0f)"); // @categories Account and Character, Stats and Attributes
+	if (items < 1 || items > 7)
+		Perl_croak(aTHX_ "Usage: Client::SetBindPoint(THIS, [int to_zone = -1, int to_instance = 0, float new_x = 0.0f, float new_y = 0.0f, float new_z = 0.0f, float new_heading = 0.0f])"); // @categories Account and Character, Stats and Attributes
 	{
 		Client *THIS;
-		int   to_zone;
-		int   to_instance;
-		float new_x;
-		float new_y;
-		float new_z;
+		int   to_zone = -1;
+		int   to_instance = 0;
+		float new_x = 0.0f, new_y = 0.0f, new_z = 0.0f, new_heading = 0.0f;
 		VALIDATE_THIS_IS_CLIENT;
-		if (items < 2)
-			to_zone = -1;
-		else {
+		if (items > 1)
 			to_zone = (int) SvIV(ST(1));
-		}
-
-		if (items < 3)
-			to_instance = 0;
-		else {
+		if (items > 2)
 			to_instance = (int) SvIV(ST(2));
-		}
-
-		if (items < 4)
-			new_x = 0.0f;
-		else {
+		if (items > 3)
 			new_x = (float) SvNV(ST(3));
-		}
-
-		if (items < 5)
-			new_y = 0.0f;
-		else {
+		if (items > 4)
 			new_y = (float) SvNV(ST(4));
-		}
-
-		if (items < 6)
-			new_z = 0.0f;
-		else {
+		if (items > 5)
 			new_z = (float) SvNV(ST(5));
-		}
+		if (items > 6)
+			new_heading = (float) SvNV(ST(6));
 
-		THIS->SetBindPoint(0, to_zone, to_instance, glm::vec3(new_x, new_y, new_z));
+		THIS->SetBindPoint2(0, to_zone, to_instance, glm::vec4(new_x, new_y, new_z, new_heading));
 	}
 	XSRETURN_EMPTY;
 }
@@ -3276,23 +3239,22 @@ XS(XS_Client_GetStartZone) {
 XS(XS_Client_SetStartZone);
 XS(XS_Client_SetStartZone) {
 	dXSARGS;
-	if (items != 2 && items != 5)
-		Perl_croak(aTHX_
-		           "Usage: Client::SetStartZone(THIS, uint32 zone_id, [float x = 0], [float y = 0], [float z = 0])");
+	if (items != 2 && items != 5 && items != 6)
+		Perl_croak(aTHX_ "Usage: Client::SetStartZone(THIS, uint32 zone_id, [float x = 0, float y = 0, float z = 0, [float heading = 0]])");
 	{
 		Client *THIS;
 		uint32 zoneid = (uint32) SvUV(ST(1));
-		float  x      = 0;
-		float  y      = 0;
-		float  z      = 0;
+		float  x = 0.0f, y = 0.0f, z = 0.0f, heading = 0.0f;
 		VALIDATE_THIS_IS_CLIENT;
 		if (items == 5) {
-			x = SvNV(ST(2));
-			y = SvNV(ST(3));
-			z = SvNV(ST(4));
+			x = (float) SvNV(ST(2));
+			y = (float) SvNV(ST(3));
+			z = (float) SvNV(ST(4));
 		}
+		if (items == 6)
+			heading = (float) SvNV(ST(5));
 
-		THIS->SetStartZone(zoneid, x, y, z);
+		THIS->SetStartZone(zoneid, x, y, z, heading);
 	}
 	XSRETURN_EMPTY;
 }
@@ -5362,6 +5324,72 @@ XS(XS_Client_GetInventory) {
 	XSRETURN(1);
 }
 
+XS(XS_Client_GetAAEXPModifier);
+XS(XS_Client_GetAAEXPModifier) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Client::GetAAEXPModifier(THIS, uint32 zone_id)");
+	{
+		Client* THIS;
+		double aa_modifier = 1.0f;
+		uint32 zone_id = (uint32)SvUV(ST(1));
+		dXSTARG;
+		VALIDATE_THIS_IS_CLIENT;			
+		aa_modifier = THIS->GetAAEXPModifier(zone_id);
+		XSprePUSH;
+		PUSHn((double) aa_modifier);
+	}
+	XSRETURN(1);
+}
+
+XS(XS_Client_GetEXPModifier);
+XS(XS_Client_GetEXPModifier) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Client::GetEXPModifier(THIS, uint32 zone_id)");
+	{
+		Client* THIS;
+		double exp_modifier = 1.0f;
+		uint32 zone_id = (uint32)SvUV(ST(1));
+		dXSTARG;
+		VALIDATE_THIS_IS_CLIENT;
+		exp_modifier = THIS->GetEXPModifier(zone_id);
+		XSprePUSH;
+		PUSHn((double) exp_modifier);
+	}
+	XSRETURN(1);
+}
+
+XS(XS_Client_SetAAEXPModifier);
+XS(XS_Client_SetAAEXPModifier) {
+	dXSARGS;
+	if (items != 3)
+		Perl_croak(aTHX_ "Usage: Client::SetAAEXPModifier(THIS, uint32 zone_id, float aa_modifier)");
+	{
+		Client* THIS;
+		uint32 zone_id = (uint32)SvUV(ST(1));
+		double aa_modifier = (double) SvNV(ST(2));
+		VALIDATE_THIS_IS_CLIENT;
+		THIS->SetAAEXPModifier(zone_id, aa_modifier);
+	}
+	XSRETURN_EMPTY;	
+}
+
+XS(XS_Client_SetEXPModifier);
+XS(XS_Client_SetEXPModifier) {
+	dXSARGS;
+	if (items != 3)
+		Perl_croak(aTHX_ "Usage: Client::SetEXPModifier(THIS, uint32 zone_id, float exp_modifier)");
+	{
+		Client* THIS;
+		uint32 zone_id = (uint32)SvUV(ST(1));
+		double exp_modifier = (double) SvNV(ST(2));
+		VALIDATE_THIS_IS_CLIENT;
+		THIS->SetEXPModifier(zone_id, exp_modifier);
+	}
+	XSRETURN_EMPTY;		
+}
+
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -5423,6 +5451,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "ForageItem"), XS_Client_ForageItem, file, "$");
 	newXSproto(strcpy(buf, "Freeze"), XS_Client_Freeze, file, "$");
 	newXSproto(strcpy(buf, "GetAAExp"), XS_Client_GetAAExp, file, "$");
+	newXSproto(strcpy(buf, "GetAAEXPModifier"), XS_Client_GetAAEXPModifier, file, "$$");
 	newXSproto(strcpy(buf, "GetAALevel"), XS_Client_GetAALevel, file, "$$");
 	newXSproto(strcpy(buf, "GetAAPercent"), XS_Client_GetAAPercent, file, "$");
 	newXSproto(strcpy(buf, "GetAAPoints"), XS_Client_GetAAPoints, file, "$$");
@@ -5466,6 +5495,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "GetEndurance"), XS_Client_GetEndurance, file, "$");
 	newXSproto(strcpy(buf, "GetEnduranceRatio"), XS_Client_GetEnduranceRatio, file, "$");
 	newXSproto(strcpy(buf, "GetEXP"), XS_Client_GetEXP, file, "$");
+	newXSproto(strcpy(buf, "GetEXPModifier"), XS_Client_GetEXPModifier, file, "$$");
 	newXSproto(strcpy(buf, "GetExpedition"), XS_Client_GetExpedition, file, "$");
 	newXSproto(strcpy(buf, "GetExpeditionLockouts"), XS_Client_GetExpeditionLockouts, file, "$;$");
 	newXSproto(strcpy(buf, "GetFace"), XS_Client_GetFace, file, "$");
@@ -5485,7 +5515,6 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "GetItemIDAt"), XS_Client_GetItemIDAt, file, "$$");
 	newXSproto(strcpy(buf, "GetItemInInventory"), XS_Client_GetItemInInventory, file, "$$");
 	newXSproto(strcpy(buf, "GetLanguageSkill"), XS_Client_GetLanguageSkill, file, "$$");
-	newXSproto(strcpy(buf, "GetLastName"), XS_Client_GetLastName, file, "$");
 	newXSproto(strcpy(buf, "GetLDoNLosses"), XS_Client_GetLDoNLosses, file, "$");
 	newXSproto(strcpy(buf, "GetLDoNLossesTheme"), XS_Client_GetLDoNLossesTheme, file, "$$");
 	newXSproto(strcpy(buf, "GetLDoNPointsTheme"), XS_Client_GetLDoNPointsTheme, file, "$");
@@ -5593,6 +5622,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "SendToGuildHall"), XS_Client_SendToGuildHall, file, "$");
 	newXSproto(strcpy(buf, "SendWebLink"), XS_Client_SendWebLink, file, "$:$");
 	newXSproto(strcpy(buf, "SendZoneFlagInfo"), XS_Client_SendZoneFlagInfo, file, "$$");
+	newXSproto(strcpy(buf, "SetAAEXPModifier"), XS_Client_SetAAEXPModifier, file, "$$$");
 	newXSproto(strcpy(buf, "SetAAPoints"), XS_Client_SetAAPoints, file, "$$");
 	newXSproto(strcpy(buf, "SetAATitle"), XS_Client_SetAATitle, file, "$$;$");
 	newXSproto(strcpy(buf, "SetAccountFlag"), XS_Client_SetAccountFlag, file, "$$");
@@ -5604,7 +5634,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "SetBaseRace"), XS_Client_SetBaseRace, file, "$$");
 	newXSproto(strcpy(buf, "SetBecomeNPC"), XS_Client_SetBecomeNPC, file, "$$");
 	newXSproto(strcpy(buf, "SetBecomeNPCLevel"), XS_Client_SetBecomeNPCLevel, file, "$$");
-	newXSproto(strcpy(buf, "SetBindPoint"), XS_Client_SetBindPoint, file, "$;$$$$$");
+	newXSproto(strcpy(buf, "SetBindPoint"), XS_Client_SetBindPoint, file, "$;$$$$$$");
 	newXSproto(strcpy(buf, "SetConsumption"), XS_Client_SetConsumption, file, "$$$");
 	newXSproto(strcpy(buf, "SetClientMaxLevel"), XS_Client_SetClientMaxLevel, file, "$$");
 	newXSproto(strcpy(buf, "SetCustomItemData"), XS_Client_SetCustomItemData, file, "$$$$");
@@ -5614,6 +5644,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "SetEbonCrystals"), XS_Client_SetEbonCrystals, file, "$$");
 	newXSproto(strcpy(buf, "SetEndurance"), XS_Client_SetEndurance, file, "$$");
 	newXSproto(strcpy(buf, "SetEXP"), XS_Client_SetEXP, file, "$$$;$");
+	newXSproto(strcpy(buf, "SetEXPModifier"), XS_Client_SetEXPModifier, file, "$$$");
 	newXSproto(strcpy(buf, "SetFactionLevel"), XS_Client_SetFactionLevel, file, "$$$$$$");
 	newXSproto(strcpy(buf, "SetFactionLevel2"), XS_Client_SetFactionLevel2, file, "$$$$$$$");
 	newXSproto(strcpy(buf, "SetFeigned"), XS_Client_SetFeigned, file, "$$");
@@ -5628,7 +5659,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "SetSecondaryWeaponOrnamentation"), XS_Client_SetSecondaryWeaponOrnamentation, file, "$$");
 	newXSproto(strcpy(buf, "SetSkill"), XS_Client_SetSkill, file, "$$$");
 	newXSproto(strcpy(buf, "SetSkillPoints"), XS_Client_SetSkillPoints, file, "$$");
-	newXSproto(strcpy(buf, "SetStartZone"), XS_Client_SetStartZone, file, "$$");
+	newXSproto(strcpy(buf, "SetStartZone"), XS_Client_SetStartZone, file, "$$;$$$$");
 	newXSproto(strcpy(buf, "SetStats"), XS_Client_SetStats, file, "$$$");
 	newXSproto(strcpy(buf, "SetThirst"), XS_Client_SetThirst, file, "$$");
 	newXSproto(strcpy(buf, "SetTint"), XS_Client_SetTint, file, "$$$");

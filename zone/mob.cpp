@@ -131,6 +131,7 @@ Mob::Mob(
 	AI_Init();
 	SetMoving(false);
 	moved            = false;
+	turning = false;
 	m_RewindLocation = glm::vec3();
 	m_RelativePosition = glm::vec4();
 
@@ -255,7 +256,7 @@ Mob::Mob(
 	INT               = in_int;
 	WIS               = in_wis;
 	CHA               = in_cha;
-	MR                = CR = FR = DR = PR = Corrup = 0;
+	MR                = CR = FR = DR = PR = Corrup = PhR = 0;
 	ExtraHaste        = 0;
 	bEnraged          = false;
 	shield_target     = nullptr;
@@ -313,7 +314,7 @@ Mob::Mob(
 	isgrouped     = false;
 	israidgrouped = false;
 
-	IsHorse = false;
+	is_horse = false;
 
 	entity_id_being_looted = 0;
 	_appearance            = eaStanding;

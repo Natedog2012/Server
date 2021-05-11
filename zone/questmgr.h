@@ -151,7 +151,8 @@ public:
 	void targlobal(const char *varname, const char *value, const char *duration, int npcid, int charid, int zoneid);
 	void delglobal(const char *varname);
 	void ding();
-	void rebind(int zoneid, const glm::vec3& location);
+	void rebind(int zone_id, const glm::vec3& location);
+	void rebind(int zone_id, const glm::vec4& location);
 	void start(int wp);
 	void stop();
 	void pause(int duration);
@@ -264,7 +265,7 @@ public:
 	void FlagInstanceByRaidLeader(uint32 zone, int16 version);
 	const char* varlink(char* perltext, int item_id);
 	std::string saylink(char *saylink_text, bool silent, const char *link_name);
-	const char* getcharnamebyid(uint32 char_id);
+	std::string getcharnamebyid(uint32 char_id);
 	uint32 getcharidbyname(const char* name);
 	std::string getclassname(uint8 class_id, uint8 level = 0);
 	int getcurrencyid(uint32 item_id);
@@ -272,7 +273,7 @@ public:
 	const char* getguildnamebyid(int guild_id);
 	int getguildidbycharid(uint32 char_id);
 	int getgroupidbycharid(uint32 char_id);
-	const char* getnpcnamebyid(uint32 npc_id);
+	std::string getnpcnamebyid(uint32 npc_id);
 	int getraididbycharid(uint32 char_id);
 	void SetRunning(bool val);
 	bool IsRunning();
@@ -285,6 +286,8 @@ public:
 	uint16 CreateDoor( const char* model, float x, float y, float z, float heading, uint8 opentype, uint16 size);
     int32 GetZoneID(const char *zone);
     static std::string GetZoneLongName(std::string zone_short_name);
+    static std::string GetZoneLongNameByID(uint32 zone_id);
+	static std::string GetZoneShortName(uint32 zone_id);
 	void CrossZoneAssignTaskByCharID(int character_id, uint32 task_id, bool enforce_level_requirement = false);
 	void CrossZoneAssignTaskByGroupID(int group_id, uint32 task_id, bool enforce_level_requirement = false);
 	void CrossZoneAssignTaskByRaidID(int raid_id, uint32 task_id, bool enforce_level_requirement = false);
@@ -369,6 +372,12 @@ public:
 	bool DisableRecipe(uint32 recipe_id);
 	void ClearNPCTypeCache(int npctype_id);
 	void ReloadZoneStaticData();
+	std::string secondstotime(int duration);
+	std::string gethexcolorcode(std::string color_name);  
+	double GetAAEXPModifierByCharID(uint32 character_id, uint32 zone_id) const;
+	double GetEXPModifierByCharID(uint32 character_id, uint32 zone_id) const;
+	void SetAAEXPModifierByCharID(uint32 character_id, uint32 zone_id, double aa_modifier);
+	void SetEXPModifierByCharID(uint32 character_id, uint32 zone_id, double exp_modifier);
 
 	Client *GetInitiator() const;
 	NPC *GetNPC() const;

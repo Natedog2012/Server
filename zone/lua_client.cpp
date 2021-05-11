@@ -4,8 +4,7 @@
 #include <luabind/luabind.hpp>
 
 #include "client.h"
-#include "dynamiczone.h"
-#include "expedition_lockout_timer.h"
+#include "dynamic_zone.h"
 #include "expedition_request.h"
 #include "lua_client.h"
 #include "lua_expedition.h"
@@ -16,6 +15,7 @@
 #include "lua_group.h"
 #include "lua_raid.h"
 #include "lua_packet.h"
+#include "../common/expedition_lockout_timer.h"
 
 struct InventoryWhere { };
 
@@ -169,11 +169,6 @@ int Lua_Client::GetLanguageSkill(int skill_id) {
 	return self->GetLanguageSkill(skill_id);
 }
 
-const char *Lua_Client::GetLastName() {
-	Lua_Safe_Call_String();
-	return self->GetLastName();
-}
-
 int Lua_Client::GetLDoNPointsTheme(int theme) {
 	Lua_Safe_Call_Int();
 	return self->GetLDoNPointsTheme(theme);
@@ -302,6 +297,11 @@ void Lua_Client::SetBindPoint(int to_zone, int to_instance, float new_x, float n
 void Lua_Client::SetBindPoint(int to_zone, int to_instance, float new_x, float new_y, float new_z) {
 	Lua_Safe_Call_Void();
 	self->SetBindPoint(0, to_zone, to_instance, glm::vec3(new_x, new_y, new_z));
+}
+
+void Lua_Client::SetBindPoint(int to_zone, int to_instance, float new_x, float new_y, float new_z, float new_heading) {
+	Lua_Safe_Call_Void();
+	self->SetBindPoint2(0, to_zone, to_instance, glm::vec4(new_x, new_y, new_z, new_heading));
 }
 
 float Lua_Client::GetBindX() {
@@ -2063,6 +2063,26 @@ void Lua_Client::Fling(float value, float target_x, float target_y, float target
 	self->Fling(value, target_x, target_y, target_z, ignore_los, clipping);
 }
 
+double Lua_Client::GetAAEXPModifier(uint32 zone_id) {
+	Lua_Safe_Call_Real();
+	return self->GetAAEXPModifier(zone_id);
+}
+
+double Lua_Client::GetEXPModifier(uint32 zone_id) {
+	Lua_Safe_Call_Real();
+	return self->GetEXPModifier(zone_id);
+}
+
+void Lua_Client::SetAAEXPModifier(uint32 zone_id, double aa_modifier) {
+	Lua_Safe_Call_Void();
+	self->SetAAEXPModifier(zone_id, aa_modifier);
+}
+
+void Lua_Client::SetEXPModifier(uint32 zone_id, double exp_modifier) {
+	Lua_Safe_Call_Void();
+	self->SetEXPModifier(zone_id, exp_modifier);	
+}
+
 luabind::scope lua_register_client() {
 	return luabind::class_<Lua_Client, Lua_Mob>("Client")
 		.def(luabind::constructor<>())
@@ -2096,7 +2116,6 @@ luabind::scope lua_register_client() {
 		.def("GetRaceBitmask", (int(Lua_Client::*)(void))&Lua_Client::GetRaceBitmask)
 		.def("GetBaseFace", (int(Lua_Client::*)(void))&Lua_Client::GetBaseFace)
 		.def("GetLanguageSkill", (int(Lua_Client::*)(int))&Lua_Client::GetLanguageSkill)
-		.def("GetLastName", (const char *(Lua_Client::*)(void))&Lua_Client::GetLastName)
 		.def("GetLDoNPointsTheme", (int(Lua_Client::*)(int))&Lua_Client::GetLDoNPointsTheme)
 		.def("GetBaseSTR", (int(Lua_Client::*)(void))&Lua_Client::GetBaseSTR)
 		.def("GetBaseSTA", (int(Lua_Client::*)(void))&Lua_Client::GetBaseSTA)
@@ -2122,7 +2141,8 @@ luabind::scope lua_register_client() {
 		.def("SetBindPoint", (void(Lua_Client::*)(int,int))&Lua_Client::SetBindPoint)
 		.def("SetBindPoint", (void(Lua_Client::*)(int,int,float))&Lua_Client::SetBindPoint)
 		.def("SetBindPoint", (void(Lua_Client::*)(int,int,float,float))&Lua_Client::SetBindPoint)
-		.def("SetBindPoint", (void(Lua_Client::*)(int,int,float,float, float))&Lua_Client::SetBindPoint)
+		.def("SetBindPoint", (void(Lua_Client::*)(int,int,float,float,float))&Lua_Client::SetBindPoint)
+		.def("SetBindPoint", (void(Lua_Client::*)(int,int,float,float,float,float))&Lua_Client::SetBindPoint)
 		.def("GetBindX", (float(Lua_Client::*)(void))&Lua_Client::GetBindX)
 		.def("GetBindX", (float(Lua_Client::*)(int))&Lua_Client::GetBindX)
 		.def("GetBindY", (float(Lua_Client::*)(void))&Lua_Client::GetBindY)
@@ -2411,7 +2431,11 @@ luabind::scope lua_register_client() {
 		.def("MovePCDynamicZone", (void(Lua_Client::*)(std::string, int, bool))&Lua_Client::MovePCDynamicZone)
 		.def("Fling", (void(Lua_Client::*)(float,float,float,float))&Lua_Client::Fling)
 		.def("Fling", (void(Lua_Client::*)(float,float,float,float,bool))&Lua_Client::Fling)
-		.def("Fling", (void(Lua_Client::*)(float,float,float,float,bool,bool))&Lua_Client::Fling);
+		.def("Fling", (void(Lua_Client::*)(float,float,float,float,bool,bool))&Lua_Client::Fling)
+		.def("GetAAEXPModifier", (double(Lua_Client::*)(uint32))&Lua_Client::GetAAEXPModifier)
+		.def("GetEXPModifier", (double(Lua_Client::*)(uint32))&Lua_Client::GetEXPModifier)
+		.def("SetAAEXPModifier", (void(Lua_Client::*)(uint32,double))&Lua_Client::SetAAEXPModifier)
+		.def("SetEXPModifier", (void(Lua_Client::*)(uint32,double))&Lua_Client::SetEXPModifier);
 }
 
 luabind::scope lua_register_inventory_where() {

@@ -38,7 +38,7 @@ locations other than lua/
 find_path(LUAJIT_INCLUDE_DIR lua.h
   HINTS
     ENV LUA_DIR
-  PATH_SUFFIXES include/luajit include/luajit-2.0 include/luajit-2.1
+  PATH_SUFFIXES include/luajit include/luajit-2.0 include/luajit-2.1 include
   PATHS
   ~/Library/Frameworks
   /Library/Frameworks
@@ -49,7 +49,7 @@ find_path(LUAJIT_INCLUDE_DIR lua.h
 )
 
 find_library(LUAJIT_LIBRARY
-  NAMES luajit51 luajit5.1 luajit-5.1 luajit
+  NAMES luajit51 luajit5.1 luajit-5.1 luajit lua51
   HINTS
     ENV LUA_DIR
   PATH_SUFFIXES lib

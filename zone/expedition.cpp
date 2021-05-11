@@ -20,13 +20,15 @@
 
 #include "expedition.h"
 #include "expedition_database.h"
-#include "expedition_lockout_timer.h"
 #include "expedition_request.h"
 #include "client.h"
 #include "string_ids.h"
 #include "worldserver.h"
 #include "zonedb.h"
 #include "../common/eqemu_logsys.h"
+#include "../common/expedition_lockout_timer.h"
+#include "../common/repositories/expedition_lockouts_repository.h"
+#include "../common/repositories/expedition_members_repository.h"
 #include "../common/util/uuid.h"
 
 extern WorldServer worldserver;
@@ -39,9 +41,6 @@ const char* const EXPEDITION_OTHER_BELONGS   = "{} attempted to create an expedi
 // lockout warnings were added to live in March 11 2020 patch
 const char* const DZADD_INVITE_WARNING       = "Warning! You will be given replay timers for the following events if you enter %s:";
 const char* const DZADD_INVITE_WARNING_TIMER = "%s - %sD:%sH:%sM";
-const char* const KICKPLAYERS_EVERYONE       = "Everyone";
-// message string 8312 added in September 08 2020 Test patch (used by both dz and shared tasks)
-const char* const CREATE_NOT_ALL_ADDED       = "Not all players in your {} were added to the {}. The {} can take a maximum of {} players, and your {} has {}.";
 // various expeditions re-use these strings when locking
 constexpr char LOCK_CLOSE[]                  = "Your expedition is nearing its close. You cannot bring any additional people into your expedition at this time.";
 constexpr char LOCK_BEGIN[]                  = "The trial has begun. You cannot bring any additional people into your expedition at this time.";
@@ -50,17 +49,20 @@ const int32_t Expedition::REPLAY_TIMER_ID = -1;
 const int32_t Expedition::EVENT_TIMER_ID  = 1;
 
 Expedition::Expedition(
-	uint32_t id, const std::string& uuid, const DynamicZone& dynamic_zone, const std::string& expedition_name,
-	const ExpeditionMember& leader, uint32_t min_players, uint32_t max_players
-) :
-	m_id(id),
-	m_uuid(uuid),
-	m_dynamiczone(dynamic_zone),
-	m_expedition_name(expedition_name),
-	m_leader(leader),
-	m_min_players(min_players),
-	m_max_players(max_players)
+	uint32_t id, const std::string& uuid, DynamicZone&& dz, const std::string& expedition_name,
+	const DynamicZoneMember& leader, uint32_t min_players, uint32_t max_players
+) : ExpeditionBase(id, uuid, expedition_name, leader, min_players, max_players)
 {
+	SetDynamicZone(std::move(dz));
+}
+
+void Expedition::SetDynamicZone(DynamicZone&& dz)
+{
+	dz.SetName(GetName());
+	dz.SetLeaderName(GetLeaderName());
+
+	m_dynamiczone = std::move(dz);
+	m_dynamiczone.RegisterOnCompassChange([this]() { SendCompassUpdateToZoneMembers(); });
 }
 
 Expedition* Expedition::TryCreate(
@@ -102,21 +104,21 @@ Expedition* Expedition::TryCreate(
 
 	if (expedition_id)
 	{
-		auto expedition = std::unique_ptr<Expedition>(new Expedition(
+		auto expedition = std::make_unique<Expedition>(
 			expedition_id,
 			expedition_uuid,
-			dynamiczone,
+			std::move(dynamiczone),
 			request.GetExpeditionName(),
-			ExpeditionMember{ request.GetLeaderID(), request.GetLeaderName() },
+			DynamicZoneMember{ request.GetLeaderID(), request.GetLeaderName() },
 			request.GetMinPlayers(),
 			request.GetMaxPlayers()
-		));
+		);
 
 		LogExpeditions(
 			"Created [{}] [{}] instance id: [{}] leader: [{}] minplayers: [{}] maxplayers: [{}]",
 			expedition->GetID(),
 			expedition->GetName(),
-			expedition->GetInstanceID(),
+			expedition->GetDynamicZone().GetInstanceID(),
 			expedition->GetLeaderName(),
 			expedition->GetMinPlayers(),
 			expedition->GetMaxPlayers()
@@ -144,113 +146,84 @@ Expedition* Expedition::TryCreate(
 	return nullptr;
 }
 
-void Expedition::CacheExpeditions(MySQLRequestResult& results)
+void Expedition::CacheExpeditions(
+	std::vector<ExpeditionsRepository::ExpeditionWithLeader>&& expedition_entries)
 {
-	if (!results.Success() || !zone)
+	if (!zone)
 	{
 		return;
 	}
 
+	// bulk load expedition dzs, members, and internal lockouts before caching
 	std::vector<uint32_t> expedition_ids;
-	std::vector<uint32_t> dynamic_zone_ids;;
-	std::vector<std::pair<uint32_t, uint32_t>> expedition_character_ids;
-
-	using col = LoadExpeditionColumns::eLoadExpeditionColumns;
-
-	uint32_t last_expedition_id = 0;
-
-	for (auto row = results.begin(); row != results.end(); ++row)
+	std::vector<uint32_t> dynamic_zone_ids;
+	for (const auto& entry : expedition_entries)
 	{
-		auto expedition_id = strtoul(row[col::id], nullptr, 10);
-
-		if (expedition_id != last_expedition_id)
-		{
-			expedition_ids.emplace_back(expedition_id);
-
-			uint32_t leader_id = strtoul(row[col::leader_id], nullptr, 10);
-			uint32_t dynamic_zone_id = strtoul(row[col::dz_id], nullptr, 10);
-
-			dynamic_zone_ids.emplace_back(dynamic_zone_id);
-
-			std::unique_ptr<Expedition> expedition = std::unique_ptr<Expedition>(new Expedition(
-				expedition_id,
-				row[col::uuid],                                         // expedition uuid
-				DynamicZone{ dynamic_zone_id },
-				row[col::expedition_name],                              // expedition name
-				ExpeditionMember{ leader_id, row[col::leader_name] },   // expedition leader id, name
-				strtoul(row[col::min_players], nullptr, 10),            // min_players
-				strtoul(row[col::max_players], nullptr, 10)             // max_players
-			));
-
-			bool add_replay_on_join = (strtoul(row[col::add_replay_on_join], nullptr, 10) != 0);
-			bool is_locked = (strtoul(row[col::is_locked], nullptr, 10) != 0);
-
-			expedition->SetReplayLockoutOnMemberJoin(add_replay_on_join);
-			expedition->SetLocked(is_locked, ExpeditionLockMessage::None);
-
-			zone->expedition_cache.emplace(expedition_id, std::move(expedition));
-		}
-
-		last_expedition_id = expedition_id;
-
-		// looping expedition members
-		auto current_expedition = Expedition::FindCachedExpeditionByID(last_expedition_id);
-		if (current_expedition)
-		{
-			auto member_id = strtoul(row[col::member_id], nullptr, 10);
-			current_expedition->AddInternalMember(
-				row[col::member_name], member_id, ExpeditionMemberStatus::Offline);
-			expedition_character_ids.emplace_back(expedition_id, member_id);
-		}
+		expedition_ids.emplace_back(entry.id);
+		dynamic_zone_ids.emplace_back(entry.dynamic_zone_id);
 	}
 
-	// ask world for online members from all cached expeditions at once
-	Expedition::SendWorldGetOnlineMembers(expedition_character_ids);
+	auto dynamic_zones = DynamicZonesRepository::GetWithInstance(database, dynamic_zone_ids);
+	auto expedition_members = ExpeditionMembersRepository::GetWithNames(database, expedition_ids);
+	auto expedition_lockouts = ExpeditionLockoutsRepository::GetWithTimestamp(database, expedition_ids);
 
-	// bulk load dynamic zone data and expedition lockouts for cached expeditions
-	auto dynamic_zones = DynamicZone::LoadMultipleDzFromDatabase(dynamic_zone_ids);
-	auto expedition_lockouts = ExpeditionDatabase::LoadMultipleExpeditionLockouts(expedition_ids);
-
-	for (const auto& expedition_id : expedition_ids)
+	for (auto& entry : expedition_entries)
 	{
-		auto expedition = Expedition::FindCachedExpeditionByID(expedition_id);
-		if (expedition)
+		auto expedition = std::make_unique<Expedition>();
+		expedition->LoadRepositoryResult(std::move(entry));
+
+		auto dz_entry_iter = std::find_if(dynamic_zones.begin(), dynamic_zones.end(),
+			[&](const DynamicZonesRepository::DynamicZoneInstance& dz_entry) {
+				return dz_entry.id == entry.dynamic_zone_id;
+			});
+
+		if (dz_entry_iter != dynamic_zones.end())
 		{
-			auto dz_iter = dynamic_zones.find(expedition->GetDynamicZoneID());
-			if (dz_iter != dynamic_zones.end())
-			{
-				expedition->m_dynamiczone = dz_iter->second;
-			}
-
-			auto lockout_iter = expedition_lockouts.find(expedition->GetID());
-			if (lockout_iter != expedition_lockouts.end())
-			{
-				expedition->m_lockouts = lockout_iter->second;
-			}
-
-			// send member updates now that all data is loaded for the cached expedition
-			expedition->SendUpdatesToZoneMembers();
+			expedition->SetDynamicZone(std::move(*dz_entry_iter));
 		}
+
+		for (auto& member : expedition_members)
+		{
+			if (member.expedition_id == expedition->GetID())
+			{
+				expedition->AddMemberFromRepositoryResult(std::move(member));
+			}
+		}
+
+		for (auto& lockout_entry : expedition_lockouts)
+		{
+			if (lockout_entry.expedition_id == expedition->GetID())
+			{
+				ExpeditionLockoutTimer lockout{
+					std::move(lockout_entry.from_expedition_uuid),
+					expedition->GetName(),
+					std::move(lockout_entry.event_name),
+					static_cast<uint64_t>(lockout_entry.expire_time),
+					static_cast<uint32_t>(lockout_entry.duration)
+				};
+
+				std::string event_name = lockout.GetEventName(); // copy for key since we're moving it
+				expedition->m_lockouts.emplace(std::move(event_name), std::move(lockout));
+			}
+		}
+
+		expedition->SendWorldExpeditionUpdate(ServerOP_ExpeditionGetMemberStatuses);
+
+		auto inserted = zone->expedition_cache.emplace(entry.id, std::move(expedition));
+		inserted.first->second->SendUpdatesToZoneMembers();
 	}
 }
 
 void Expedition::CacheFromDatabase(uint32_t expedition_id)
 {
-	if (zone)
+	if (zone && expedition_id != 0)
 	{
 		BenchTimer benchmark;
 
-		auto results = ExpeditionDatabase::LoadExpedition(expedition_id);
-		if (!results.Success())
-		{
-			LogExpeditions("Failed to load Expedition [{}] for zone cache", expedition_id);
-			return;
-		}
+		auto expedition = ExpeditionsRepository::GetWithLeaderName(database, expedition_id);
+		CacheExpeditions({ std::move(expedition) });
 
-		CacheExpeditions(results);
-
-		auto elapsed = benchmark.elapsed();
-		LogExpeditions("Caching new expedition [{}] took [{}s]", expedition_id, elapsed);
+		LogExpeditions("Caching new expedition [{}] took [{}s]", expedition_id, benchmark.elapsed());
 	}
 }
 
@@ -263,20 +236,13 @@ bool Expedition::CacheAllFromDatabase()
 
 	BenchTimer benchmark;
 
+	auto expeditions = ExpeditionsRepository::GetAllWithLeaderName(database);
 	zone->expedition_cache.clear();
+	zone->expedition_cache.reserve(expeditions.size());
 
-	// load all active expeditions and members to current zone cache
-	auto results = ExpeditionDatabase::LoadAllExpeditions();
-	if (!results.Success())
-	{
-		LogExpeditions("Failed to load Expeditions for zone cache");
-		return false;
-	}
+	CacheExpeditions(std::move(expeditions));
 
-	CacheExpeditions(results);
-
-	auto elapsed = benchmark.elapsed();
-	LogExpeditions("Caching [{}] expedition(s) took [{}s]", zone->expedition_cache.size(), elapsed);
+	LogExpeditions("Caching [{}] expedition(s) took [{}s]", zone->expedition_cache.size(), benchmark.elapsed());
 
 	return true;
 }
@@ -294,7 +260,7 @@ void Expedition::SaveMembers(ExpeditionRequest& request)
 	std::vector<uint32_t> member_ids;
 	for (const auto& member : m_members)
 	{
-		member_ids.emplace_back(member.char_id);
+		member_ids.emplace_back(member.id);
 	}
 
 	ExpeditionDatabase::InsertMembers(m_id, m_members);
@@ -383,48 +349,6 @@ bool Expedition::HasLockout(const std::string& event_name)
 bool Expedition::HasReplayLockout()
 {
 	return HasLockout(DZ_REPLAY_TIMER_NAME);
-}
-
-bool Expedition::HasMember(uint32_t character_id)
-{
-	return std::any_of(m_members.begin(), m_members.end(), [&](const ExpeditionMember& member) {
-		return member.char_id == character_id;
-	});
-}
-
-bool Expedition::HasMember(const std::string& character_name)
-{
-	return std::any_of(m_members.begin(), m_members.end(), [&](const ExpeditionMember& member) {
-		return (strcasecmp(member.name.c_str(), character_name.c_str()) == 0);
-	});
-}
-
-ExpeditionMember Expedition::GetMemberData(uint32_t character_id)
-{
-	auto it = std::find_if(m_members.begin(), m_members.end(), [&](const ExpeditionMember& member) {
-		return member.char_id == character_id;
-	});
-
-	ExpeditionMember member_data;
-	if (it != m_members.end())
-	{
-		member_data = *it;
-	}
-	return member_data;
-}
-
-ExpeditionMember Expedition::GetMemberData(const std::string& character_name)
-{
-	auto it = std::find_if(m_members.begin(), m_members.end(), [&](const ExpeditionMember& member) {
-		return (strcasecmp(member.name.c_str(), character_name.c_str()) == 0);
-	});
-
-	ExpeditionMember member_data;
-	if (it != m_members.end())
-	{
-		member_data = *it;
-	}
-	return member_data;
 }
 
 void Expedition::SetReplayLockoutOnMemberJoin(bool add_on_join, bool update_db)
@@ -520,20 +444,6 @@ void Expedition::RemoveLockout(const std::string& event_name)
 	SendWorldLockoutUpdate(lockout, true);
 }
 
-void Expedition::AddInternalMember(
-	const std::string& char_name, uint32_t character_id, ExpeditionMemberStatus status)
-{
-	auto it = std::find_if(m_members.begin(), m_members.end(),
-		[character_id](const ExpeditionMember& member) {
-			return member.char_id == character_id;
-		});
-
-	if (it == m_members.end())
-	{
-		m_members.emplace_back(character_id, char_name, status);
-	}
-}
-
 bool Expedition::AddMember(const std::string& add_char_name, uint32_t add_char_id)
 {
 	if (HasMember(add_char_id))
@@ -570,11 +480,11 @@ bool Expedition::RemoveMember(const std::string& remove_char_name)
 		return false;
 	}
 
-	ExpeditionDatabase::DeleteMember(m_id, member.char_id);
-	m_dynamiczone.RemoveCharacter(member.char_id);
+	ExpeditionDatabase::DeleteMember(m_id, member.id);
+	m_dynamiczone.RemoveCharacter(member.id);
 
-	ProcessMemberRemoved(member.name, member.char_id);
-	SendWorldMemberChanged(member.name, member.char_id, true);
+	ProcessMemberRemoved(member.name, member.id);
+	SendWorldMemberChanged(member.name, member.id, true);
 
 	return true;
 }
@@ -593,33 +503,26 @@ void Expedition::SwapMember(Client* add_client, const std::string& remove_char_n
 	}
 
 	// make remove and add atomic to avoid racing with separate world messages
-	ExpeditionDatabase::DeleteMember(m_id, member.char_id);
+	ExpeditionDatabase::DeleteMember(m_id, member.id);
 	ExpeditionDatabase::InsertMember(m_id, add_client->CharacterID());
-	m_dynamiczone.RemoveCharacter(member.char_id);
+	m_dynamiczone.RemoveCharacter(member.id);
 	m_dynamiczone.AddCharacter(add_client->CharacterID());
 
-	ProcessMemberRemoved(member.name, member.char_id);
+	ProcessMemberRemoved(member.name, member.id);
 	ProcessMemberAdded(add_client->GetName(), add_client->CharacterID());
-	SendWorldMemberSwapped(member.name, member.char_id, add_client->GetName(), add_client->CharacterID());
+	SendWorldMemberSwapped(member.name, member.id, add_client->GetName(), add_client->CharacterID());
 }
 
-void Expedition::SetMemberStatus(Client* client, ExpeditionMemberStatus status)
+void Expedition::SetMemberStatus(Client* client, DynamicZoneMemberStatus status)
 {
 	if (client)
 	{
-		UpdateMemberStatus(client->CharacterID(), status);
+		SendMemberStatusToZoneMembers(client->CharacterID(), status);
 		SendWorldMemberStatus(client->CharacterID(), status);
-
-		// world could detect this itself but it'd have to process member status updates
-		// a member coming online will trigger a leader change if all members were offline
-		if (m_leader.status == ExpeditionMemberStatus::Offline)
-		{
-			SendWorldExpeditionUpdate(ServerOP_ExpeditionChooseNewLeader);
-		}
 	}
 }
 
-void Expedition::UpdateMemberStatus(uint32_t update_member_id, ExpeditionMemberStatus status)
+void Expedition::SendMemberStatusToZoneMembers(uint32_t update_member_id, DynamicZoneMemberStatus status)
 {
 	auto member_data = GetMemberData(update_member_id);
 	if (!member_data.IsValid())
@@ -627,38 +530,19 @@ void Expedition::UpdateMemberStatus(uint32_t update_member_id, ExpeditionMemberS
 		return;
 	}
 
-	if (status == ExpeditionMemberStatus::InDynamicZone && !RuleB(Expedition, EnableInDynamicZoneStatus))
-	{
-		status = ExpeditionMemberStatus::Online;
-	}
-
-	if (update_member_id == m_leader.char_id)
-	{
-		m_leader.status = status;
-	}
-
 	// if zone already had this member status cached avoid packet update to clients
-	auto it = std::find_if(m_members.begin(), m_members.end(),
-		[&](const ExpeditionMember& member) { return member.char_id == update_member_id; });
-
-	if (it != m_members.end() && it->status == status)
+	bool changed = SetInternalMemberStatus(update_member_id, status);
+	if (changed)
 	{
-		return;
-	}
-
-	auto outapp_member_status = CreateMemberListStatusPacket(member_data.name, status);
-
-	for (auto& member : m_members)
-	{
-		if (member.char_id == update_member_id)
+		member_data = GetMemberData(update_member_id); // rules may override status
+		auto outapp_member_status = CreateMemberListStatusPacket(member_data.name, member_data.status);
+		for (auto& member : m_members)
 		{
-			member.status = status;
-		}
-
-		Client* member_client = entity_list.GetClientByCharID(member.char_id);
-		if (member_client)
-		{
-			member_client->QueuePacket(outapp_member_status.get());
+			Client* member_client = entity_list.GetClientByCharID(member.id);
+			if (member_client)
+			{
+				member_client->QueuePacket(outapp_member_status.get());
+			}
 		}
 	}
 }
@@ -821,7 +705,7 @@ void Expedition::DzInviteResponse(Client* add_client, bool accepted, const std::
 
 	// a null leader_client is handled by SendLeaderMessage fallbacks
 	// note current leader receives invite reply messages (if leader changed)
-	Client* leader_client = entity_list.GetClientByCharID(m_leader.char_id);
+	Client* leader_client = entity_list.GetClientByCharID(m_leader.id);
 
 	if (!accepted)
 	{
@@ -845,7 +729,7 @@ void Expedition::DzInviteResponse(Client* add_client, bool accepted, const std::
 	if (was_swap_invite)
 	{
 		auto swap_member = GetMemberData(swap_remove_name);
-		if (!swap_member.IsValid() || !ExpeditionDatabase::HasMember(m_id, swap_member.char_id))
+		if (!swap_member.IsValid() || !ExpeditionDatabase::HasMember(m_id, swap_member.id))
 		{
 			has_conflicts = true;
 		}
@@ -897,7 +781,7 @@ bool Expedition::ConfirmLeaderCommand(Client* requester)
 		return false;
 	}
 
-	if (m_leader.char_id != requester->CharacterID())
+	if (m_leader.id != requester->CharacterID())
 	{
 		requester->MessageString(Chat::System, EXPEDITION_NOT_LEADER, m_leader.name.c_str());
 		return false;
@@ -966,7 +850,7 @@ void Expedition::DzAddPlayer(
 		if (member_data.IsValid())
 		{
 			// live prioritizes offline message before already a member message
-			if (member_data.status == ExpeditionMemberStatus::Offline)
+			if (member_data.status == DynamicZoneMemberStatus::Offline)
 			{
 				requester->MessageString(Chat::Red, DZADD_NOT_ONLINE, add_char_name.c_str());
 			}
@@ -1098,7 +982,7 @@ void Expedition::DzKickPlayers(Client* requester)
 	}
 
 	RemoveAllMembers();
-	requester->MessageString(Chat::Red, EXPEDITION_REMOVED, KICKPLAYERS_EVERYONE, m_expedition_name.c_str());
+	requester->MessageString(Chat::Red, EXPEDITION_REMOVED, "Everyone", m_expedition_name.c_str());
 }
 
 void Expedition::SetLocked(
@@ -1137,17 +1021,18 @@ void Expedition::ProcessLeaderChanged(uint32_t new_leader_id)
 	LogExpeditionsModerate("Replaced [{}] leader [{}] with [{}]", m_id, m_leader.name, new_leader.name);
 
 	m_leader = new_leader;
+	m_dynamiczone.SetLeaderName(m_leader.name);
 
 	// update each client's expedition window in this zone
 	auto outapp_leader = CreateLeaderNamePacket();
 	for (const auto& member : m_members)
 	{
-		Client* member_client = entity_list.GetClientByCharID(member.char_id);
+		Client* member_client = entity_list.GetClientByCharID(member.id);
 		if (member_client)
 		{
 			member_client->QueuePacket(outapp_leader.get());
 
-			if (member.char_id == new_leader_id && RuleB(Expedition, AlwaysNotifyNewLeaderOnChange))
+			if (member.id == new_leader_id && RuleB(Expedition, AlwaysNotifyNewLeaderOnChange))
 			{
 				member_client->MessageString(Chat::Yellow, DZMAKELEADER_YOU);
 			}
@@ -1183,25 +1068,25 @@ void Expedition::ProcessMakeLeader(Client* old_leader_client, Client* new_leader
 
 void Expedition::ProcessMemberAdded(const std::string& char_name, uint32_t added_char_id)
 {
+	AddInternalMember({ added_char_id, char_name, DynamicZoneMemberStatus::Online });
+
 	// adds the member to this expedition and notifies both leader and new member
-	Client* leader_client = entity_list.GetClientByCharID(m_leader.char_id);
+	Client* leader_client = entity_list.GetClientByCharID(m_leader.id);
 	if (leader_client)
 	{
 		leader_client->MessageString(Chat::Yellow, EXPEDITION_MEMBER_ADDED, char_name.c_str(), m_expedition_name.c_str());
 	}
-
-	AddInternalMember(char_name, added_char_id, ExpeditionMemberStatus::Online);
 
 	Client* member_client = entity_list.GetClientByCharID(added_char_id);
 	if (member_client)
 	{
 		member_client->SetExpeditionID(GetID());
 		member_client->SendDzCompassUpdate();
-		SendClientExpeditionInfo(member_client);
+		member_client->QueuePacket(CreateInfoPacket().get());
 		member_client->MessageString(Chat::Yellow, EXPEDITION_MEMBER_ADDED, char_name.c_str(), m_expedition_name.c_str());
 	}
 
-	SendNewMemberAddedToZoneMembers(char_name);
+	SendMemberListToZoneMembers();
 }
 
 void Expedition::ProcessMemberRemoved(const std::string& removed_char_name, uint32_t removed_char_id)
@@ -1217,7 +1102,7 @@ void Expedition::ProcessMemberRemoved(const std::string& removed_char_name, uint
 	{
 		bool is_removed = (it->name == removed_char_name);
 
-		Client* member_client = entity_list.GetClientByCharID(it->char_id);
+		Client* member_client = entity_list.GetClientByCharID(it->id);
 		if (member_client)
 		{
 			// all members receive the removed player name packet
@@ -1263,7 +1148,7 @@ void Expedition::ProcessLockoutDuration(
 
 	for (const auto& member : m_members)
 	{
-		Client* member_client = entity_list.GetClientByCharID(member.char_id);
+		Client* member_client = entity_list.GetClientByCharID(member.id);
 		if (member_client)
 		{
 			member_client->AddExpeditionLockoutDuration(m_expedition_name,
@@ -1280,7 +1165,7 @@ void Expedition::ProcessLockoutDuration(
 void Expedition::AddLockoutDurationClients(
 	const ExpeditionLockoutTimer& lockout, int seconds, uint32_t exclude_id)
 {
-	std::vector<ExpeditionMember> lockout_clients;
+	std::vector<DynamicZoneMember> lockout_clients;
 	for (const auto& client_iter : entity_list.GetClientList())
 	{
 		Client* client = client_iter.second;
@@ -1316,7 +1201,7 @@ void Expedition::ProcessLockoutUpdate(
 
 	for (const auto& member : m_members)
 	{
-		Client* member_client = entity_list.GetClientByCharID(member.char_id);
+		Client* member_client = entity_list.GetClientByCharID(member.id);
 		if (member_client)
 		{
 			if (!remove)
@@ -1342,7 +1227,7 @@ void Expedition::ProcessLockoutUpdate(
 void Expedition::AddLockoutClients(
 	const ExpeditionLockoutTimer& lockout, uint32_t exclude_expedition_id)
 {
-	std::vector<ExpeditionMember> lockout_clients;
+	std::vector<DynamicZoneMember> lockout_clients;
 	for (const auto& client_iter : entity_list.GetClientList())
 	{
 		Client* client = client_iter.second;
@@ -1359,23 +1244,16 @@ void Expedition::AddLockoutClients(
 	}
 }
 
-void Expedition::SendNewMemberAddedToZoneMembers(const std::string& added_name)
+void Expedition::SendMemberListToZoneMembers()
 {
-	// live only sends MemberListName when members are added from a swap, otherwise
-	// it sends expedition info (unnecessary) and the full member list
-	// we send a full member list update for both cases since MemberListName adds as
-	// "unknown" status (either due to unknown packet fields or future client change)
 	auto outapp_members = CreateMemberListPacket(false);
 
 	for (const auto& member : m_members)
 	{
-		if (member.name != added_name) // new member already updated
+		Client* member_client = entity_list.GetClientByCharID(member.id);
+		if (member_client)
 		{
-			Client* member_client = entity_list.GetClientByCharID(member.char_id);
-			if (member_client)
-			{
-				member_client->QueuePacket(outapp_members.get());
-			}
+			member_client->QueuePacket(outapp_members.get());
 		}
 	}
 }
@@ -1389,7 +1267,7 @@ void Expedition::SendUpdatesToZoneMembers(bool clear, bool message_on_clear)
 
 		for (const auto& member : m_members)
 		{
-			Client* member_client = entity_list.GetClientByCharID(member.char_id);
+			Client* member_client = entity_list.GetClientByCharID(member.id);
 			if (member_client)
 			{
 				member_client->SetExpeditionID(clear ? 0 : GetID());
@@ -1429,7 +1307,7 @@ void Expedition::SendWorldPendingInvite(const ExpeditionInvite& invite, const st
 std::unique_ptr<EQApplicationPacket> Expedition::CreateExpireWarningPacket(uint32_t minutes_remaining)
 {
 	uint32_t outsize = sizeof(ExpeditionExpireWarning);
-	auto outapp = std::unique_ptr<EQApplicationPacket>(new EQApplicationPacket(OP_DzExpeditionEndsWarning, outsize));
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_DzExpeditionEndsWarning, outsize);
 	auto buf = reinterpret_cast<ExpeditionExpireWarning*>(outapp->pBuffer);
 	buf->minutes_remaining = minutes_remaining;
 	return outapp;
@@ -1437,13 +1315,13 @@ std::unique_ptr<EQApplicationPacket> Expedition::CreateExpireWarningPacket(uint3
 
 std::unique_ptr<EQApplicationPacket> Expedition::CreateInfoPacket(bool clear)
 {
-	uint32_t outsize = sizeof(ExpeditionInfo_Struct);
-	auto outapp = std::unique_ptr<EQApplicationPacket>(new EQApplicationPacket(OP_DzExpeditionInfo, outsize));
-	auto info = reinterpret_cast<ExpeditionInfo_Struct*>(outapp->pBuffer);
+	uint32_t outsize = sizeof(DynamicZoneInfo_Struct);
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_DzExpeditionInfo, outsize);
+	auto info = reinterpret_cast<DynamicZoneInfo_Struct*>(outapp->pBuffer);
 	if (!clear)
 	{
 		info->assigned = true;
-		strn0cpy(info->expedition_name, m_expedition_name.c_str(), sizeof(info->expedition_name));
+		strn0cpy(info->dz_name, m_expedition_name.c_str(), sizeof(info->dz_name));
 		strn0cpy(info->leader_name, m_leader.name.c_str(), sizeof(info->leader_name));
 		info->max_players = m_max_players;
 	}
@@ -1454,7 +1332,7 @@ std::unique_ptr<EQApplicationPacket> Expedition::CreateInvitePacket(
 	const std::string& inviter_name, const std::string& swap_remove_name)
 {
 	uint32_t outsize = sizeof(ExpeditionInvite_Struct);
-	auto outapp = std::unique_ptr<EQApplicationPacket>(new EQApplicationPacket(OP_DzExpeditionInvite, outsize));
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_DzExpeditionInvite, outsize);
 	auto outbuf = reinterpret_cast<ExpeditionInvite_Struct*>(outapp->pBuffer);
 	strn0cpy(outbuf->inviter_name, inviter_name.c_str(), sizeof(outbuf->inviter_name));
 	strn0cpy(outbuf->expedition_name, m_expedition_name.c_str(), sizeof(outbuf->expedition_name));
@@ -1468,10 +1346,10 @@ std::unique_ptr<EQApplicationPacket> Expedition::CreateInvitePacket(
 std::unique_ptr<EQApplicationPacket> Expedition::CreateMemberListPacket(bool clear)
 {
 	uint32_t member_count = clear ? 0 : static_cast<uint32_t>(m_members.size());
-	uint32_t member_entries_size = sizeof(ExpeditionMemberEntry_Struct) * member_count;
-	uint32_t outsize = sizeof(ExpeditionMemberList_Struct) + member_entries_size;
-	auto outapp = std::unique_ptr<EQApplicationPacket>(new EQApplicationPacket(OP_DzMemberList, outsize));
-	auto buf = reinterpret_cast<ExpeditionMemberList_Struct*>(outapp->pBuffer);
+	uint32_t member_entries_size = sizeof(DynamicZoneMemberEntry_Struct) * member_count;
+	uint32_t outsize = sizeof(DynamicZoneMemberList_Struct) + member_entries_size;
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_DzMemberList, outsize);
+	auto buf = reinterpret_cast<DynamicZoneMemberList_Struct*>(outapp->pBuffer);
 
 	buf->member_count = member_count;
 
@@ -1480,7 +1358,7 @@ std::unique_ptr<EQApplicationPacket> Expedition::CreateMemberListPacket(bool cle
 		for (auto i = 0; i < m_members.size(); ++i)
 		{
 			strn0cpy(buf->members[i].name, m_members[i].name.c_str(), sizeof(buf->members[i].name));
-			buf->members[i].expedition_status = static_cast<uint8_t>(m_members[i].status);
+			buf->members[i].online_status = static_cast<uint8_t>(m_members[i].status);
 		}
 	}
 
@@ -1490,35 +1368,35 @@ std::unique_ptr<EQApplicationPacket> Expedition::CreateMemberListPacket(bool cle
 std::unique_ptr<EQApplicationPacket> Expedition::CreateMemberListNamePacket(
 	const std::string& name, bool remove_name)
 {
-	uint32_t outsize = sizeof(ExpeditionMemberListName_Struct);
-	auto outapp = std::unique_ptr<EQApplicationPacket>(new EQApplicationPacket(OP_DzMemberListName, outsize));
-	auto buf = reinterpret_cast<ExpeditionMemberListName_Struct*>(outapp->pBuffer);
+	uint32_t outsize = sizeof(DynamicZoneMemberListName_Struct);
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_DzMemberListName, outsize);
+	auto buf = reinterpret_cast<DynamicZoneMemberListName_Struct*>(outapp->pBuffer);
 	buf->add_name = !remove_name;
 	strn0cpy(buf->name, name.c_str(), sizeof(buf->name));
 	return outapp;
 }
 
 std::unique_ptr<EQApplicationPacket> Expedition::CreateMemberListStatusPacket(
-	const std::string& name, ExpeditionMemberStatus status)
+	const std::string& name, DynamicZoneMemberStatus status)
 {
 	// member list status uses member list struct with a single entry
-	uint32_t outsize = sizeof(ExpeditionMemberList_Struct) + sizeof(ExpeditionMemberEntry_Struct);
-	auto outapp = std::unique_ptr<EQApplicationPacket>(new EQApplicationPacket(OP_DzMemberListStatus, outsize));
-	auto buf = reinterpret_cast<ExpeditionMemberList_Struct*>(outapp->pBuffer);
+	uint32_t outsize = sizeof(DynamicZoneMemberList_Struct) + sizeof(DynamicZoneMemberEntry_Struct);
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_DzMemberListStatus, outsize);
+	auto buf = reinterpret_cast<DynamicZoneMemberList_Struct*>(outapp->pBuffer);
 	buf->member_count = 1;
 
-	auto entry = reinterpret_cast<ExpeditionMemberEntry_Struct*>(buf->members);
+	auto entry = static_cast<DynamicZoneMemberEntry_Struct*>(buf->members);
 	strn0cpy(entry->name, name.c_str(), sizeof(entry->name));
-	entry->expedition_status = static_cast<uint8_t>(status);
+	entry->online_status = static_cast<uint8_t>(status);
 
 	return outapp;
 }
 
 std::unique_ptr<EQApplicationPacket> Expedition::CreateLeaderNamePacket()
 {
-	uint32_t outsize = sizeof(ExpeditionSetLeaderName_Struct);
-	auto outapp = std::unique_ptr<EQApplicationPacket>(new EQApplicationPacket(OP_DzSetLeaderName, outsize));
-	auto buf = reinterpret_cast<ExpeditionSetLeaderName_Struct*>(outapp->pBuffer);
+	uint32_t outsize = sizeof(DynamicZoneLeaderName_Struct);
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_DzSetLeaderName, outsize);
+	auto buf = reinterpret_cast<DynamicZoneLeaderName_Struct*>(outapp->pBuffer);
 	strn0cpy(buf->leader_name, m_leader.name.c_str(), sizeof(buf->leader_name));
 	return outapp;
 }
@@ -1526,7 +1404,7 @@ std::unique_ptr<EQApplicationPacket> Expedition::CreateLeaderNamePacket()
 void Expedition::SendWorldExpeditionUpdate(uint16_t server_opcode)
 {
 	uint32_t pack_size = sizeof(ServerExpeditionID_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(server_opcode, pack_size));
+	auto pack = std::make_unique<ServerPacket>(server_opcode, pack_size);
 	auto buf = reinterpret_cast<ServerExpeditionID_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->sender_zone_id = zone ? zone->GetZoneID() : 0;
@@ -1539,7 +1417,7 @@ void Expedition::SendWorldAddPlayerInvite(
 {
 	auto server_opcode = pending ? ServerOP_ExpeditionSaveInvite : ServerOP_ExpeditionDzAddPlayer;
 	uint32_t pack_size = sizeof(ServerDzCommand_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(server_opcode, pack_size));
+	auto pack = std::make_unique<ServerPacket>(server_opcode, pack_size);
 	auto buf = reinterpret_cast<ServerDzCommand_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->is_char_online = false;
@@ -1553,7 +1431,7 @@ void Expedition::SendWorldLockoutDuration(
 	const ExpeditionLockoutTimer& lockout, int seconds, bool members_only)
 {
 	uint32_t pack_size = sizeof(ServerExpeditionLockout_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionLockoutDuration, pack_size));
+	auto pack = std::make_unique<ServerPacket>(ServerOP_ExpeditionLockoutDuration, pack_size);
 	auto buf = reinterpret_cast<ServerExpeditionLockout_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->expire_time = lockout.GetExpireTime();
@@ -1570,7 +1448,7 @@ void Expedition::SendWorldLockoutUpdate(
 	const ExpeditionLockoutTimer& lockout, bool remove, bool members_only)
 {
 	uint32_t pack_size = sizeof(ServerExpeditionLockout_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionLockout, pack_size));
+	auto pack = std::make_unique<ServerPacket>(ServerOP_ExpeditionLockout, pack_size);
 	auto buf = reinterpret_cast<ServerExpeditionLockout_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->expire_time = lockout.GetExpireTime();
@@ -1586,7 +1464,7 @@ void Expedition::SendWorldLockoutUpdate(
 void Expedition::SendWorldMakeLeaderRequest(uint32_t requester_id, const std::string& new_leader_name)
 {
 	uint32_t pack_size = sizeof(ServerDzCommandMakeLeader_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionDzMakeLeader, pack_size));
+	auto pack = std::make_unique<ServerPacket>(ServerOP_ExpeditionDzMakeLeader, pack_size);
 	auto buf = reinterpret_cast<ServerDzCommandMakeLeader_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->requester_id = requester_id;
@@ -1598,7 +1476,7 @@ void Expedition::SendWorldMemberChanged(const std::string& char_name, uint32_t c
 {
 	// notify other zones of added or removed member
 	uint32_t pack_size = sizeof(ServerExpeditionMemberChange_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionMemberChange, pack_size));
+	auto pack = std::make_unique<ServerPacket>(ServerOP_ExpeditionMemberChange, pack_size);
 	auto buf = reinterpret_cast<ServerExpeditionMemberChange_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->sender_zone_id = zone ? zone->GetZoneID() : 0;
@@ -1609,10 +1487,10 @@ void Expedition::SendWorldMemberChanged(const std::string& char_name, uint32_t c
 	worldserver.SendPacket(pack.get());
 }
 
-void Expedition::SendWorldMemberStatus(uint32_t character_id, ExpeditionMemberStatus status)
+void Expedition::SendWorldMemberStatus(uint32_t character_id, DynamicZoneMemberStatus status)
 {
 	uint32_t pack_size = sizeof(ServerExpeditionMemberStatus_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionMemberStatus, pack_size));
+	auto pack = std::make_unique<ServerPacket>(ServerOP_ExpeditionMemberStatus, pack_size);
 	auto buf = reinterpret_cast<ServerExpeditionMemberStatus_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->sender_zone_id = zone ? zone->GetZoneID() : 0;
@@ -1622,29 +1500,11 @@ void Expedition::SendWorldMemberStatus(uint32_t character_id, ExpeditionMemberSt
 	worldserver.SendPacket(pack.get());
 }
 
-void Expedition::SendWorldDzLocationUpdate(uint16_t server_opcode, const DynamicZoneLocation& location)
-{
-	uint32_t pack_size = sizeof(ServerDzLocation_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(server_opcode, pack_size));
-	auto buf = reinterpret_cast<ServerDzLocation_Struct*>(pack->pBuffer);
-	buf->owner_id = GetID();
-	buf->dz_zone_id = m_dynamiczone.GetZoneID();
-	buf->dz_instance_id = m_dynamiczone.GetInstanceID();
-	buf->sender_zone_id = zone ? zone->GetZoneID() : 0;
-	buf->sender_instance_id = zone ? zone->GetInstanceID() : 0;
-	buf->zone_id = location.zone_id;
-	buf->x = location.x;
-	buf->y = location.y;
-	buf->z = location.z;
-	buf->heading = location.heading;
-	worldserver.SendPacket(pack.get());
-}
-
 void Expedition::SendWorldMemberSwapped(
 	const std::string& remove_char_name, uint32_t remove_char_id, const std::string& add_char_name, uint32_t add_char_id)
 {
 	uint32_t pack_size = sizeof(ServerExpeditionMemberSwap_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionMemberSwap, pack_size));
+	auto pack = std::make_unique<ServerPacket>(ServerOP_ExpeditionMemberSwap, pack_size);
 	auto buf = reinterpret_cast<ServerExpeditionMemberSwap_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->sender_zone_id = zone ? zone->GetZoneID() : 0;
@@ -1659,7 +1519,7 @@ void Expedition::SendWorldMemberSwapped(
 void Expedition::SendWorldSettingChanged(uint16_t server_opcode, bool setting_value)
 {
 	uint32_t pack_size = sizeof(ServerExpeditionSetting_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(server_opcode, pack_size));
+	auto pack = std::make_unique<ServerPacket>(server_opcode, pack_size);
 	auto buf = reinterpret_cast<ServerExpeditionSetting_Struct*>(pack->pBuffer);
 	buf->expedition_id = GetID();
 	buf->sender_zone_id = zone ? zone->GetZoneID() : 0;
@@ -1668,34 +1528,11 @@ void Expedition::SendWorldSettingChanged(uint16_t server_opcode, bool setting_va
 	worldserver.SendPacket(pack.get());
 }
 
-void Expedition::SendWorldGetOnlineMembers(
-	const std::vector<std::pair<uint32_t, uint32_t>>& expedition_character_ids)
-{
-	// request online status of characters
-	uint32_t count = static_cast<uint32_t>(expedition_character_ids.size());
-	uint32_t entries_size = sizeof(ServerExpeditionCharacterEntry_Struct) * count;
-	uint32_t pack_size = sizeof(ServerExpeditionCharacters_Struct) + entries_size;
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionGetOnlineMembers, pack_size));
-	auto buf = reinterpret_cast<ServerExpeditionCharacters_Struct*>(pack->pBuffer);
-	buf->sender_zone_id = zone ? zone->GetZoneID() : 0;
-	buf->sender_instance_id = zone ? zone->GetInstanceID() : 0;
-	buf->count = count;
-	for (uint32_t i = 0; i < buf->count; ++i)
-	{
-		buf->entries[i].expedition_id = expedition_character_ids[i].first;
-		buf->entries[i].character_id = expedition_character_ids[i].second;
-		buf->entries[i].character_zone_id = 0;
-		buf->entries[i].character_instance_id = 0;
-		buf->entries[i].character_online = false;
-	}
-	worldserver.SendPacket(pack.get());
-}
-
 void Expedition::SendWorldCharacterLockout(
 	uint32_t character_id, const ExpeditionLockoutTimer& lockout, bool remove)
 {
 	uint32_t pack_size = sizeof(ServerExpeditionCharacterLockout_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionCharacterLockout, pack_size));
+	auto pack = std::make_unique<ServerPacket>(ServerOP_ExpeditionCharacterLockout, pack_size);
 	auto buf = reinterpret_cast<ServerExpeditionCharacterLockout_Struct*>(pack->pBuffer);
 	buf->remove = remove;
 	buf->character_id = character_id;
@@ -1704,16 +1541,6 @@ void Expedition::SendWorldCharacterLockout(
 	strn0cpy(buf->uuid, lockout.GetExpeditionUUID().c_str(), sizeof(buf->uuid));
 	strn0cpy(buf->expedition_name, lockout.GetExpeditionName().c_str(), sizeof(buf->expedition_name));
 	strn0cpy(buf->event_name, lockout.GetEventName().c_str(), sizeof(buf->event_name));
-	worldserver.SendPacket(pack.get());
-}
-
-void Expedition::SendWorldSetSecondsRemaining(uint32_t seconds_remaining)
-{
-	uint32_t pack_size = sizeof(ServerExpeditionUpdateDuration_Struct);
-	auto pack = std::unique_ptr<ServerPacket>(new ServerPacket(ServerOP_ExpeditionSecondsRemaining, pack_size));
-	auto buf = reinterpret_cast<ServerExpeditionUpdateDuration_Struct*>(pack->pBuffer);
-	buf->expedition_id = GetID();
-	buf->new_duration_seconds = seconds_remaining;
 	worldserver.SendPacket(pack.get());
 }
 
@@ -1910,7 +1737,8 @@ void Expedition::HandleWorldMessage(ServerPacket* pack)
 			auto expedition = Expedition::FindCachedExpeditionByID(buf->expedition_id);
 			if (expedition)
 			{
-				expedition->UpdateMemberStatus(buf->character_id, static_cast<ExpeditionMemberStatus>(buf->status));
+				auto status = static_cast<DynamicZoneMemberStatus>(buf->status);
+				expedition->SendMemberStatusToZoneMembers(buf->character_id, status);
 			}
 		}
 		break;
@@ -1941,24 +1769,19 @@ void Expedition::HandleWorldMessage(ServerPacket* pack)
 		}
 		break;
 	}
-	case ServerOP_ExpeditionGetOnlineMembers:
+	case ServerOP_ExpeditionGetMemberStatuses:
 	{
-		// reply from world for online member statuses request (for multiple expeditions)
-		auto buf = reinterpret_cast<ServerExpeditionCharacters_Struct*>(pack->pBuffer);
-		for (uint32_t i = 0; i < buf->count; ++i)
+		// reply from world for online member statuses request
+		auto buf = reinterpret_cast<ServerExpeditionMemberStatuses_Struct*>(pack->pBuffer);
+		auto expedition = Expedition::FindCachedExpeditionByID(buf->expedition_id);
+		if (expedition)
 		{
-			auto member = reinterpret_cast<ServerExpeditionCharacterEntry_Struct*>(&buf->entries[i]);
-			auto expedition = Expedition::FindCachedExpeditionByID(member->expedition_id);
-			if (expedition)
+			for (uint32_t i = 0; i < buf->count; ++i)
 			{
-				auto is_online = member->character_online;
-				auto status = is_online ? ExpeditionMemberStatus::Online : ExpeditionMemberStatus::Offline;
-				if (is_online && expedition->GetDynamicZone().IsInstanceID(member->character_instance_id))
-				{
-					status = ExpeditionMemberStatus::InDynamicZone;
-				}
-				expedition->UpdateMemberStatus(member->character_id, status);
+				auto status = static_cast<DynamicZoneMemberStatus>(buf->entries[i].online_status);
+				expedition->SetInternalMemberStatus(buf->entries[i].character_id, status);
 			}
+			expedition->SendMemberListToZoneMembers();
 		}
 		break;
 	}
@@ -1998,32 +1821,6 @@ void Expedition::HandleWorldMessage(ServerPacket* pack)
 		}
 		break;
 	}
-	case ServerOP_ExpeditionDzCompass:
-	case ServerOP_ExpeditionDzSafeReturn:
-	case ServerOP_ExpeditionDzZoneIn:
-	{
-		auto buf = reinterpret_cast<ServerDzLocation_Struct*>(pack->pBuffer);
-		if (zone && !zone->IsZone(buf->sender_zone_id, buf->sender_instance_id))
-		{
-			auto expedition = Expedition::FindCachedExpeditionByID(buf->owner_id);
-			if (expedition)
-			{
-				if (pack->opcode == ServerOP_ExpeditionDzCompass)
-				{
-					expedition->SetDzCompass(buf->zone_id, buf->x, buf->y, buf->z, false);
-				}
-				else if (pack->opcode == ServerOP_ExpeditionDzSafeReturn)
-				{
-					expedition->SetDzSafeReturn(buf->zone_id, buf->x, buf->y, buf->z, buf->heading, false);
-				}
-				else if (pack->opcode == ServerOP_ExpeditionDzZoneIn)
-				{
-					expedition->SetDzZoneInLocation(buf->x, buf->y, buf->z, buf->heading, false);
-				}
-			}
-		}
-		break;
-	}
 	case ServerOP_ExpeditionCharacterLockout:
 	{
 		auto buf = reinterpret_cast<ServerExpeditionCharacterLockout_Struct*>(pack->pBuffer);
@@ -2047,16 +1844,6 @@ void Expedition::HandleWorldMessage(ServerPacket* pack)
 		}
 		break;
 	}
-	case ServerOP_ExpeditionDzDuration:
-	{
-		auto buf = reinterpret_cast<ServerExpeditionUpdateDuration_Struct*>(pack->pBuffer);
-		auto expedition = Expedition::FindCachedExpeditionByID(buf->expedition_id);
-		if (expedition)
-		{
-			expedition->UpdateDzDuration(buf->new_duration_seconds);
-		}
-		break;
-	}
 	case ServerOP_ExpeditionExpireWarning:
 	{
 		auto buf = reinterpret_cast<ServerExpeditionExpireWarning_Struct*>(pack->pBuffer);
@@ -2070,64 +1857,15 @@ void Expedition::HandleWorldMessage(ServerPacket* pack)
 	}
 }
 
-void Expedition::SetDzCompass(uint32_t zone_id, float x, float y, float z, bool update_db)
+void Expedition::SendCompassUpdateToZoneMembers()
 {
-	DynamicZoneLocation location{ zone_id, x, y, z, 0.0f };
-	m_dynamiczone.SetCompass(location, update_db);
-
 	for (const auto& member : m_members)
 	{
-		Client* member_client = entity_list.GetClientByCharID(member.char_id);
+		Client* member_client = entity_list.GetClientByCharID(member.id);
 		if (member_client)
 		{
 			member_client->SendDzCompassUpdate();
 		}
-	}
-
-	if (update_db)
-	{
-		SendWorldDzLocationUpdate(ServerOP_ExpeditionDzCompass, location);
-	}
-}
-
-void Expedition::SetDzCompass(const std::string& zone_name, float x, float y, float z, bool update_db)
-{
-	auto zone_id = ZoneID(zone_name.c_str());
-	SetDzCompass(zone_id, x, y, z, update_db);
-}
-
-void Expedition::SetDzSafeReturn(uint32_t zone_id, float x, float y, float z, float heading, bool update_db)
-{
-	DynamicZoneLocation location{ zone_id, x, y, z, heading };
-
-	m_dynamiczone.SetSafeReturn(location, update_db);
-
-	if (update_db)
-	{
-		SendWorldDzLocationUpdate(ServerOP_ExpeditionDzSafeReturn, location);
-	}
-}
-
-void Expedition::SetDzSafeReturn(const std::string& zone_name, float x, float y, float z, float heading, bool update_db)
-{
-	auto zone_id = ZoneID(zone_name.c_str());
-	SetDzSafeReturn(zone_id, x, y, z, heading, update_db);
-}
-
-void Expedition::SetDzSecondsRemaining(uint32_t seconds_remaining)
-{
-	SendWorldSetSecondsRemaining(seconds_remaining); // async
-}
-
-void Expedition::SetDzZoneInLocation(float x, float y, float z, float heading, bool update_db)
-{
-	DynamicZoneLocation location{ 0, x, y, z, heading };
-
-	m_dynamiczone.SetZoneInLocation(location, update_db);
-
-	if (update_db)
-	{
-		SendWorldDzLocationUpdate(ServerOP_ExpeditionDzZoneIn, location);
 	}
 }
 
@@ -2237,7 +1975,7 @@ void Expedition::SendMembersExpireWarning(uint32_t minutes_remaining)
 	auto outapp = CreateExpireWarningPacket(minutes_remaining);
 	for (const auto& member : m_members)
 	{
-		Client* member_client = entity_list.GetClientByCharID(member.char_id);
+		Client* member_client = entity_list.GetClientByCharID(member.id);
 		if (member_client)
 		{
 			member_client->QueuePacket(outapp.get());

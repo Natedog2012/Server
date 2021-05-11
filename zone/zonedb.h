@@ -23,7 +23,6 @@ class Petition;
 class Spawn2;
 class SpawnGroupList;
 class Trap;
-struct CharacterEventLog_Struct;
 struct Door;
 struct ExtendedProfile_Struct;
 struct NPCType;
@@ -52,7 +51,7 @@ struct wplist {
 
 #pragma pack(1)
 struct DBnpcspells_entries_Struct {
-	int16	spellid;
+	uint16	spellid;
 	uint8	minlevel;
 	uint8	maxlevel;
 	uint32	type;
@@ -320,7 +319,7 @@ public:
 
 	bool SaveCharacterAA(uint32 character_id, uint32 aa_id, uint32 current_level, uint32 charges);
 	bool SaveCharacterBandolier(uint32 character_id, uint8 bandolier_id, uint8 bandolier_slot, uint32 item_id, uint32 icon, const char* bandolier_name);
-	bool SaveCharacterBindPoint(uint32 character_id, const BindStruct &bind, uint32 bind_num);
+	bool SaveCharacterBindPoint(uint32 character_id, const BindStruct &bind, uint32 bind_number);
 	bool SaveCharacterCurrency(uint32 character_id, PlayerProfile_Struct* pp);
 	bool SaveCharacterData(uint32 character_id, uint32 account_id, PlayerProfile_Struct* pp, ExtendedProfile_Struct* m_epp);
 	bool SaveCharacterDisc(uint32 character_id, uint32 slot_id, uint32 disc_id);
@@ -332,6 +331,11 @@ public:
 	bool SaveCharacterSkill(uint32 character_id, uint32 skill_id, uint32 value);
 	bool SaveCharacterSpell(uint32 character_id, uint32 spell_id, uint32 slot_id);
 	bool SaveCharacterTribute(uint32 character_id, PlayerProfile_Struct* pp);
+	
+	double GetAAEXPModifier(uint32 character_id, uint32 zone_id) const;
+	double GetEXPModifier(uint32 character_id, uint32 zone_id) const;
+	void SetAAEXPModifier(uint32 character_id, uint32 zone_id, double aa_modifier);
+	void SetEXPModifier(uint32 character_id, uint32 zone_id, double exp_modifier);
 
 	/* Character Inventory  */
 	bool	NoRentExpired(const char* name);
@@ -551,7 +555,6 @@ public:
 		* REALLY HAS NO BETTER SECTION
 	*/
 	bool	logevents(const char* accountname,uint32 accountid,uint8 status,const char* charname,const char* target, const char* descriptiontype, const char* description,int event_nid);
-	void	GetEventLogs(const char* name,char* target,uint32 account_id=0,uint8 eventid=0,char* detail=0,char* timestamp=0, CharacterEventLog_Struct* cel=0);
 	uint32	GetKarma(uint32 acct_id);
 	void	UpdateKarma(uint32 acct_id, uint32 amount);
 

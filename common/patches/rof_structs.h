@@ -998,7 +998,7 @@ struct LeadershipAA_Struct {
 * Size: 20 Octets
 */
 struct BindStruct {
-   /*000*/ uint32 zoneId;
+   /*000*/ uint32 zone_id;
    /*004*/ float x;
    /*008*/ float y;
    /*012*/ float z;
@@ -2062,7 +2062,7 @@ struct GMZoneRequest_Struct {
 /*0068*/	float	x;
 /*0072*/	float	y;
 /*0076*/	float	z;
-/*0080*/	char	unknown0080[4];
+/*0080*/	float	heading;
 /*0084*/	uint32	success;		// 0 if command failed, 1 if succeeded?
 /*0088*/
 //	/*072*/	int8	success;		// =0 client->server, =1 server->client, -X=specific error
@@ -4841,30 +4841,30 @@ struct ExpeditionInviteResponse_Struct
 /*079*/ uint8  unknown079;     // padding garbage?
 };
 
-struct ExpeditionInfo_Struct
+struct DynamicZoneInfo_Struct
 {
 /*000*/ uint32 client_id;
 /*004*/ uint32 unknown004;
 /*008*/ uint32 assigned; // padded bool
 /*012*/ uint32 max_players;
-/*016*/ char   expedition_name[128];
+/*016*/ char   dz_name[128];
 /*144*/ char   leader_name[64];
 };
 
-struct ExpeditionMemberEntry_Struct
+struct DynamicZoneMemberEntry_Struct
 {
-/*000*/ char name[1];            // variable length, null terminated, max 0x40 (64)
-/*000*/ uint8 expedition_status; // 0: unknown 1: Online, 2: Offline, 3: In Dynamic Zone, 4: Link Dead
+/*000*/ char name[1];        // variable length, null terminated, max 0x40 (64)
+/*000*/ uint8 online_status; // 0: unknown 1: Online, 2: Offline, 3: In Dynamic Zone, 4: Link Dead
 };
 
-struct ExpeditionMemberList_Struct
+struct DynamicZoneMemberList_Struct
 {
 /*000*/ uint32 client_id;
 /*004*/ uint32 member_count; // number of players in window
-/*008*/ ExpeditionMemberEntry_Struct members[0]; // variable length
+/*008*/ DynamicZoneMemberEntry_Struct members[0]; // variable length
 };
 
-struct ExpeditionMemberListName_Struct
+struct DynamicZoneMemberListName_Struct
 {
 /*000*/ uint32 client_id;
 /*004*/ uint32 unknown004;
@@ -4887,7 +4887,7 @@ struct ExpeditionLockoutTimers_Struct
 /*008*/ ExpeditionLockoutTimerEntry_Struct timers[0];
 };
 
-struct ExpeditionSetLeaderName_Struct
+struct DynamicZoneLeaderName_Struct
 {
 /*000*/ uint32 client_id;
 /*004*/ uint32 unknown004;

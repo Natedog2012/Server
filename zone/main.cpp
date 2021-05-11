@@ -78,6 +78,7 @@
 #include <pthread.h>
 #include "../common/unix.h"
 #include "zone_store.h"
+#include "zone_event_scheduler.h"
 
 #endif
 
@@ -100,8 +101,9 @@ QueryServ *QServ          = 0;
 TaskManager *task_manager = 0;
 NpcScaleManager *npc_scale_manager;
 QuestParserCollection *parse = 0;
-EQEmuLogSys LogSys;
-WorldContentService content_service;
+EQEmuLogSys          LogSys;
+ZoneEventScheduler event_scheduler;
+WorldContentService  content_service;
 const SPDat_Spell_Struct* spells;
 int32 SPDAT_RECORDS = -1;
 const ZoneConfig *Config;
@@ -260,12 +262,6 @@ int main(int argc, char** argv) {
 	guild_mgr.SetDatabase(&database);
 	GuildBanks = nullptr;
 
-	/**
-	 * NPC Scale Manager
-	 */
-	npc_scale_manager = new NpcScaleManager;
-	npc_scale_manager->LoadScaleData();
-
 #ifdef _EQDEBUG
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
@@ -324,7 +320,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 	LogInfo("Loading skill caps");
-	if (!database.LoadSkillCaps(std::string(hotfix_name))) {
+	if (!content_db.LoadSkillCaps(std::string(hotfix_name))) {
 		LogError("Loading skill caps failed!");
 		return 1;
 	}
@@ -393,6 +389,8 @@ int main(int argc, char** argv) {
 
 	ZoneStore::LoadContentFlags();
 
+	event_scheduler.SetDatabase(&database)->LoadScheduledEvents();
+
 #ifdef BOTS
 	LogInfo("Loading bot commands");
 	int botretval = bot_command_init();
@@ -405,6 +403,12 @@ int main(int argc, char** argv) {
 	if (!database.botdb.LoadBotSpellCastingChances())
 		LogError("Bot spell casting chances loading failed");
 #endif
+
+	/**
+	 * NPC Scale Manager
+	 */
+	npc_scale_manager = new NpcScaleManager;
+	npc_scale_manager->LoadScaleData();
 
 	if (RuleB(TaskSystem, EnableTaskSystem)) {
 		task_manager = new TaskManager;
@@ -430,6 +434,7 @@ int main(int argc, char** argv) {
 	parse->ReloadQuests();
 
 	worldserver.Connect();
+	worldserver.SetScheduler(&event_scheduler);
 
 	Timer InterserverTimer(INTERSERVER_TIMER); // does MySQL pings and auto-reconnect
 #ifdef EQPROFILE
@@ -484,7 +489,7 @@ int main(int argc, char** argv) {
 		 */
 		if (!websocker_server_opened && Config->ZonePort != 0) {
 			LogInfo("Websocket Server listener started ([{}]:[{}])", Config->TelnetIP.c_str(), Config->ZonePort);
-			ws_server.reset(new EQ::Net::WebsocketServer(Config->TelnetIP, Config->ZonePort));
+			ws_server = std::make_unique<EQ::Net::WebsocketServer>(Config->TelnetIP, Config->ZonePort);
 			RegisterApiService(ws_server);
 			websocker_server_opened = true;
 		}
@@ -501,7 +506,7 @@ int main(int argc, char** argv) {
 			opts.daybreak_options.resend_delay_min = RuleI(Network, ResendDelayMinMS);
 			opts.daybreak_options.resend_delay_max = RuleI(Network, ResendDelayMaxMS);
 			opts.daybreak_options.outgoing_data_rate = RuleR(Network, ClientDataRate);
-			eqsm.reset(new EQ::Net::EQStreamManager(opts));
+			eqsm = std::make_unique<EQ::Net::EQStreamManager>(opts);
 			eqsf_open = true;
 
 			eqsm->OnNewConnection([&stream_identifier](std::shared_ptr<EQ::Net::EQStream> stream) {
@@ -541,11 +546,11 @@ int main(int argc, char** argv) {
 				entity_list.CorpseProcess();
 				entity_list.TrapProcess();
 				entity_list.RaidProcess();
-
 				entity_list.Process();
 				entity_list.MobProcess();
 				entity_list.BeaconProcess();
 				entity_list.EncounterProcess();
+				event_scheduler.Process(zone, &content_service);
 
 				if (zone) {
 					if (!zone->Process()) {
@@ -588,6 +593,7 @@ int main(int argc, char** argv) {
 		Zone::Shutdown(true);
 	//Fix for Linux world server problem.
 	safe_delete(task_manager);
+	safe_delete(npc_scale_manager);
 	command_deinit();
 #ifdef BOTS
 	bot_command_deinit();
