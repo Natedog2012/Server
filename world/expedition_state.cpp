@@ -22,8 +22,9 @@
 #include "expedition.h"
 #include "expedition_database.h"
 #include "worlddb.h"
+#include "../common/dynamic_zone_base.h"
 #include "../common/eqemu_logsys.h"
-#include "../common/repositories/expedition_members_repository.h"
+#include "../common/repositories/dynamic_zone_members_repository.h"
 #include <algorithm>
 
 ExpeditionState expedition_state;
@@ -76,16 +77,14 @@ void ExpeditionState::CacheExpeditions(
 	std::vector<ExpeditionsRepository::ExpeditionWithLeader>&& expedition_entries)
 {
 	// bulk load expedition dzs and members before caching
-	std::vector<uint32_t> expedition_ids;
 	std::vector<uint32_t> dynamic_zone_ids;
 	for (const auto& entry : expedition_entries)
 	{
-		expedition_ids.emplace_back(entry.id);
 		dynamic_zone_ids.emplace_back(entry.dynamic_zone_id);
 	}
 
 	auto dynamic_zones = DynamicZonesRepository::GetWithInstance(database, dynamic_zone_ids);
-	auto expedition_members = ExpeditionMembersRepository::GetWithNames(database, expedition_ids);
+	auto dynamic_zone_members = DynamicZoneMembersRepository::GetWithNames(database, dynamic_zone_ids);
 
 	for (auto& entry : expedition_entries)
 	{
@@ -102,13 +101,17 @@ void ExpeditionState::CacheExpeditions(
 			expedition->SetDynamicZone(std::move(*dz_entry_iter));
 		}
 
-		for (auto& member : expedition_members)
+		for (auto& member : dynamic_zone_members)
 		{
-			if (member.expedition_id == expedition->GetID())
+			if (member.dynamic_zone_id == entry.dynamic_zone_id)
 			{
-				expedition->AddMemberFromRepositoryResult(std::move(member));
+				expedition->GetDynamicZone().AddMemberFromRepositoryResult(std::move(member));
 			}
 		}
+
+		// stored on expedition in db but on dz in memory cache
+		expedition->GetDynamicZone().SetMinPlayers(entry.min_players);
+		expedition->GetDynamicZone().SetMaxPlayers(entry.max_players);
 
 		expedition->CacheMemberStatuses();
 
@@ -125,7 +128,7 @@ void ExpeditionState::MemberChange(
 		if (remove) {
 			expedition->RemoveMember(member.id);
 		} else {
-			expedition->AddInternalMember(member);
+			expedition->GetDynamicZone().AddInternalMember(member);
 		}
 	}
 }
@@ -135,7 +138,7 @@ void ExpeditionState::RemoveAllMembers(uint32_t expedition_id)
 	auto expedition = GetExpedition(expedition_id);
 	if (expedition)
 	{
-		expedition->ClearInternalMembers();
+		expedition->GetDynamicZone().ClearInternalMembers();
 	}
 }
 
@@ -147,6 +150,7 @@ void ExpeditionState::Process()
 	}
 
 	std::vector<uint32_t> expedition_ids;
+	std::vector<uint32_t> dynamic_zone_ids;
 
 	for (auto it = m_expeditions.begin(); it != m_expeditions.end();)
 	{
@@ -154,6 +158,7 @@ void ExpeditionState::Process()
 		if (is_deleted)
 		{
 			expedition_ids.emplace_back((*it)->GetID());
+			dynamic_zone_ids.emplace_back((*it)->GetDynamicZone().GetID());
 		}
 		it = is_deleted ? m_expeditions.erase(it) : it + 1;
 	}
@@ -162,5 +167,6 @@ void ExpeditionState::Process()
 	{
 		ExpeditionDatabase::MoveMembersToSafeReturn(expedition_ids);
 		ExpeditionDatabase::DeleteExpeditions(expedition_ids);
+		DynamicZoneMembersRepository::RemoveAllMembers(database, dynamic_zone_ids);
 	}
 }

@@ -2052,6 +2052,25 @@ bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, ui
 	if(!IsValidSpell(spell_id))
 		return false;
 
+	//Guard Assist Code
+	if (RuleB(Character, PVPEnableGuardFactionAssist) && IsDetrimentalSpell(spell_id) && spell_target != this) {
+		if (IsClient() || (HasOwner() && GetOwner()->IsClient())) {
+			auto& mob_list = entity_list.GetCloseMobList(spell_target);
+			for (auto& e : mob_list) {
+				auto mob = e.second;
+				if (mob->IsNPC() && mob->CastToNPC()->IsGuard()) {
+					float distance = Distance(spell_target->GetPosition(), mob->GetPosition());
+					if ((mob->CheckLosFN(spell_target) || mob->CheckLosFN(this)) && distance <= 70) {
+						auto petorowner = GetOwnerOrSelf();
+						if (spell_target->GetReverseFactionCon(mob) <= petorowner->GetReverseFactionCon(mob)) {
+							mob->AddToHateList(this);
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if( spells[spell_id].zonetype == 1 && !zone->CanCastOutdoor()){
 		if(IsClient()){
 				if(!CastToClient()->GetGM()){
@@ -3615,33 +3634,36 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, bool reflect, bool use_r
 
 	// Prevent double invising, which made you uninvised
 	// Not sure if all 3 should be stacking
-	if(IsEffectInSpell(spell_id, SE_Invisibility))
-	{
-		if(spelltar->invisible)
-		{
-			spelltar->MessageString(Chat::SpellFailure, ALREADY_INVIS, GetCleanName());
-			safe_delete(action_packet);
-			return false;
-		}
-	}
 
-	if(IsEffectInSpell(spell_id, SE_InvisVsUndead))
-	{
-		if(spelltar->invisible_undead)
+	if (!RuleB(Spells, AllowDoubleInvis)) {
+		if (IsEffectInSpell(spell_id, SE_Invisibility))
 		{
-			spelltar->MessageString(Chat::SpellFailure, ALREADY_INVIS, GetCleanName());
-			safe_delete(action_packet);
-			return false;
+			if (spelltar->invisible)
+			{
+				spelltar->MessageString(Chat::SpellFailure, ALREADY_INVIS, GetCleanName());
+				safe_delete(action_packet);
+				return false;
+			}
 		}
-	}
 
-	if(IsEffectInSpell(spell_id, SE_InvisVsAnimals))
-	{
-		if(spelltar->invisible_animals)
+		if (IsEffectInSpell(spell_id, SE_InvisVsUndead))
 		{
-			spelltar->MessageString(Chat::SpellFailure, ALREADY_INVIS, GetCleanName());
-			safe_delete(action_packet);
-			return false;
+			if (spelltar->invisible_undead)
+			{
+				spelltar->MessageString(Chat::SpellFailure, ALREADY_INVIS, GetCleanName());
+				safe_delete(action_packet);
+				return false;
+			}
+		}
+
+		if (IsEffectInSpell(spell_id, SE_InvisVsAnimals))
+		{
+			if (spelltar->invisible_animals)
+			{
+				spelltar->MessageString(Chat::SpellFailure, ALREADY_INVIS, GetCleanName());
+				safe_delete(action_packet);
+				return false;
+			}
 		}
 	}
 
