@@ -189,6 +189,19 @@ XS(XS_NPC_ClearItemList) {
 	XSRETURN_EMPTY;
 }
 
+XS(XS_NPC_ClearItemSkipQuest); /* prototype to pass -Wmissing-prototypes */
+XS(XS_NPC_ClearItemSkipQuest) {
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: NPC::ClearItemSkipQuest(THIS)"); // @categories Inventory and Items
+	{
+		NPC *THIS;
+		VALIDATE_THIS_IS_NPC;
+		THIS->ClearItemSkipQuest();
+	}
+	XSRETURN_EMPTY;
+}
+
 XS(XS_NPC_AddCash); /* prototype to pass -Wmissing-prototypes */
 XS(XS_NPC_AddCash) {
 	dXSARGS;
@@ -1765,6 +1778,7 @@ XS(boot_NPC) {
 	newXSproto(strcpy(buf, "AddLootTable"), XS_NPC_AddLootTable, file, "$");
 	newXSproto(strcpy(buf, "RemoveItem"), XS_NPC_RemoveItem, file, "$$;$$");
 	newXSproto(strcpy(buf, "ClearItemList"), XS_NPC_ClearItemList, file, "$");
+	newXSproto(strcpy(buf, "ClearItemSkipQuest"), XS_NPC_ClearItemSkipQuest, file, "$");
 	newXSproto(strcpy(buf, "AddCash"), XS_NPC_AddCash, file, "$$$$$");
 	newXSproto(strcpy(buf, "RemoveCash"), XS_NPC_RemoveCash, file, "$");
 	newXSproto(strcpy(buf, "CountLoot"), XS_NPC_CountLoot, file, "$");

@@ -560,6 +560,37 @@ ServerLootItem_Struct* NPC::GetItem(int slot_id) {
 	return(nullptr);
 }
 
+void NPC::ClearItemSkipQuest()
+{
+	uint8  material;
+	auto cur = itemlist.begin();
+	while (cur != itemlist.end()) {
+		if (!(*cur)) {
+			return;
+		}
+
+		uint32 item_id     = (*cur)->item_id;
+		
+		uint32 questflag = GetItemStat(item_id, "questitemflag");
+		
+		if (questflag == 0) {
+			material = EQ::InventoryProfile::CalcMaterialFromSlot((*cur)->equip_slot);
+			if (material != EQ::textures::materialInvalid) {
+				SendWearChange(material);
+			}
+			
+			cur = itemlist.erase(cur);
+			continue;
+		}
+		++cur;
+	}
+
+	UpdateEquipmentLight();
+	if (UpdateActiveLight()) {
+		SendAppearancePacket(AT_Light, GetActiveLightType());
+	}
+}
+
 void NPC::RemoveItem(uint32 item_id, uint16 quantity, uint16 slot) {
 	ItemList::iterator cur,end;
 	cur = itemlist.begin();
