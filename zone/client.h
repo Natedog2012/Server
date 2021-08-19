@@ -394,6 +394,7 @@ public:
 
 	void Duck();
 	void Stand();
+	void Sit();
 
 	virtual void SetMaxHP();
 	int32 LevelRegen();
@@ -892,7 +893,7 @@ public:
 	void SendClearAA();
 	inline uint32 GetAAXP() const { return m_pp.expAA; }
 	inline uint32 GetAAPercent() const { return m_epp.perAA; }
-	int16 CalcAAFocus(focusType type, const AA::Rank &rank, uint16 spell_id);
+	int32 CalcAAFocus(focusType type, const AA::Rank &rank, uint16 spell_id);
 	void SetAATitle(const char *Title);
 	void SetTitleSuffix(const char *txt);
 	void MemorizeSpell(uint32 slot, uint32 spellid, uint32 scribing);
@@ -1556,6 +1557,13 @@ public:
 
 	void ShowNumHits(); // work around function for numhits not showing on buffs
 
+	void ApplyWeaponsStance();
+	void TogglePassiveAlternativeAdvancement(const AA::Rank &rank, uint32 ability_id);
+	bool UseTogglePassiveHotkey(const AA::Rank &rank);
+	void TogglePurchaseAlternativeAdvancementRank(int rank_id);
+	void ResetAlternateAdvancementRank(uint32 aa_id);
+	bool IsEffectinAlternateAdvancementRankEffects(const AA::Rank &rank, int effect_id);
+
 	void TripInterrogateInvState() { interrogateinv_flag = true; }
 	bool GetInterrogateInvState() { return interrogateinv_flag; }
 
@@ -1799,7 +1807,6 @@ private:
 	Timer linkdead_timer;
 	Timer dead_timer;
 	Timer global_channel_timer;
-	Timer shield_timer;
 	Timer fishing_timer;
 	Timer endupkeep_timer;
 	Timer forget_timer; // our 2 min everybody forgets you timer
