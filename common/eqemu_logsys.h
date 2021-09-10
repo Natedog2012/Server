@@ -122,6 +122,9 @@ namespace Logs {
 		Expeditions,
 		DynamicZones,
 		Scheduler,
+		Cheat,
+		ClientList,
+		DiaWind,
 		MaxCategoryID /* Don't Remove this */
 	};
 
@@ -202,6 +205,9 @@ namespace Logs {
 		"Expeditions",
 		"DynamicZones",
 		"Scheduler",
+		"Cheat",
+		"ClientList",
+		"DialogueWindow",
 	};
 }
 

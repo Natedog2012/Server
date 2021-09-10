@@ -14,6 +14,7 @@ SET(zone_sources
 	bot_command.cpp
 	bot_database.cpp
 	botspellsai.cpp
+	cheat_manager.cpp
 	client.cpp
 	client_mods.cpp
 	client_packet.cpp
@@ -22,6 +23,7 @@ SET(zone_sources
 	corpse.cpp
 	data_bucket.cpp
 	doors.cpp
+	dialogue_window.cpp
 	dynamic_zone.cpp
 	effects.cpp
 	embparser.cpp
@@ -128,6 +130,7 @@ SET(zone_sources
 	quest_parser_collection.cpp
 	raids.cpp
 	raycast_mesh.cpp
+	shared_task_zone_messaging.cpp
 	spawn2.cpp
 	spawn2.h
 	spawngroup.cpp
@@ -157,7 +160,8 @@ SET(zone_sources
 	zone_event_scheduler.cpp
 	zone_reload.cpp
 	zone_store.cpp
-	zoning.cpp)
+	zoning.cpp
+)
 
 SET(zone_headers
 	aa.h
@@ -171,6 +175,7 @@ SET(zone_headers
 	bot_command.h
 	bot_database.h
 	bot_structs.h
+	cheat_manager.h
 	client.h
 	client_packet.h
 	command.h
@@ -178,6 +183,7 @@ SET(zone_headers
 	corpse.h
 	data_bucket.h
 	doors.h
+	dialogue_window.h
 	dynamic_zone.h
 	embparser.h
 	embperl.h
@@ -252,6 +258,7 @@ SET(zone_headers
 	raids.h
 	raycast_mesh.h
 	skills.h
+	shared_task_zone_messaging.h
 	spawn2.cpp
 	spawn2.h
 	spawngroup.h
@@ -274,7 +281,8 @@ SET(zone_headers
 	zonedb.h
 	zonedump.h
 	zone_reload.h
-	zone_store.h)
+	zone_store.h
+)
 
 ADD_EXECUTABLE(zone ${zone_sources} ${zone_headers})
 
