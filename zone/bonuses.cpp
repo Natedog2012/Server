@@ -366,6 +366,9 @@ void Client::CalcBonuses()
 	timer = timer * (100 + metabolism) / 100;
 	if (timer != consume_food_timer.GetTimerTime())
 		consume_food_timer.SetTimer(timer);
+	
+	
+	SendEdgeStatBulkUpdate();
 }
 
 int Client::CalcRecommendedLevelBonus(uint8 level, uint8 reclevel, int basestat)

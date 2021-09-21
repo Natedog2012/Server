@@ -5596,6 +5596,84 @@ struct UnderWorld {
 	/* 16 */
 };
 
+struct EdgeDamage_Struct
+{
+	/* 00 */	uint16	target;
+	/* 02 */	uint16	source;
+	/* 04 */	uint8	type; //slashing, etc. 231 (0xE7) for spells, skill
+	/* 05 */	uint16	spellid;
+	/* 07 */	int64 damage;
+	/* 08 */	uint8 hitType;
+};
+
+enum eStatEntry
+{
+	eStatClassless = 1,
+	eStatCurHP,
+	eStatCurMana,
+	eStatCurEndur,
+	eStatMaxHP,
+	eStatMaxMana,
+	eStatMaxEndur,
+	eStatATK,
+	eStatAC,
+	eStatSTR,
+	eStatSTA,
+	eStatDEX,
+	eStatAGI,
+	eStatINT,
+	eStatWIS,
+	eStatCHA,
+	eStatMR,
+	eStatFR,
+	eStatCR,
+	eStatPR,
+	eStatDR,
+	eStatWalkspeed,
+	eStatRunspeed,
+	eStatWeight,
+	eStatMaxWeight,
+	eStatMeleePower,
+	eStatSpellPower,
+	eStatHealingPower,
+	eStatMeleeHaste,
+	eStatSpellHaste,
+	eStatHealingHaste,
+	eStatMeleeCrit,
+	eStatSpellCrit,
+	eStatHealingCrit,
+	eStatTotalPower,
+	eStatSynergyLevel,
+	eStatMitigation,
+	eStatAAPoints,
+	eStatSynergyLevel1,
+	eStatSynergyLevel2,
+	eStatSynergyLevel3,
+	eStatSynergyLevel4,
+	eStatSynergyLevel5,
+	eStatSynergyLevel6,
+	eStatSynergyLevel7,
+	eStatSynergyLevel8,
+	eStatSynergyLevel9,
+	eStatSynergyLevel10,
+	eStatSynergyLevel11,
+	eStatSynergyLevel12,
+	eStatDummyStat,
+	eStatMax
+};
+
+
+struct EdgeStatEntry_Struct {
+	uint32_t statKey;
+	uint64_t statValue;
+};
+
+struct EdgeStat_Struct
+{
+	uint32_t count;
+	EdgeStatEntry_Struct entries[0];
+};
+
 // Restore structure packing to default
 #pragma pack()
 
