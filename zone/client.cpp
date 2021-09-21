@@ -1933,6 +1933,7 @@ void Client::SendManaUpdate()
 	mana_update->spawn_id = GetID();
 	QueuePacket(mana_app);
 	safe_delete(mana_app);
+	CastToClient()->SendEdgeManaStats();
 }
 
 // sends endurance update to self
@@ -1945,6 +1946,7 @@ void Client::SendEnduranceUpdate()
 	endurance_update->spawn_id = GetID();
 	QueuePacket(end_app);
 	safe_delete(end_app);
+	CastToClient()->SendEdgeEnduranceStats();
 }
 
 void Client::FillSpawnStruct(NewSpawn_Struct* ns, Mob* ForWho)
@@ -10725,7 +10727,7 @@ int64_t Client::GetStatValueEdgeType(eStatEntry eLabel)
 		}
 		case eStatAC:
 		{
-			return GetAC();
+			return GetACBonus();
 		}
 		case eStatATK:
 		{
@@ -10738,6 +10740,10 @@ int64_t Client::GetStatValueEdgeType(eStatEntry eLabel)
 		case eStatAAPoints:
 		{
 			return m_pp.aapoints;
+		}
+		case eStatLevel:
+		{
+			return GetLevel();
 		}
 		default:
 		{

@@ -5615,8 +5615,8 @@ namespace RoF2
 		ibs.BaneDmgAmt = item->BaneDmgAmt;
 		ibs.Magic = item->Magic;
 		ibs.CastTime_ = item->CastTime_;
-		ibs.ReqLevel = ((item->ReqLevel > 100) ? 100 : item->ReqLevel);
-		ibs.RecLevel = ((item->RecLevel > 100) ? 100 : item->RecLevel);
+		ibs.ReqLevel = ((item->ReqLevel > 125) ? 125 : item->ReqLevel);
+		ibs.RecLevel = ((item->RecLevel > 125) ? 125 : item->RecLevel);
 		ibs.RecSkill = item->RecSkill;
 		ibs.BardType = item->BardType;
 		ibs.BardValue = item->BardValue;

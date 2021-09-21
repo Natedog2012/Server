@@ -5658,7 +5658,8 @@ enum eStatEntry
 	eStatSynergyLevel10,
 	eStatSynergyLevel11,
 	eStatSynergyLevel12,
-	eStatDummyStat,
+	eStatLevel,
+	eStatDummy,
 	eStatMax
 };
 
