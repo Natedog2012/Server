@@ -361,39 +361,39 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 	// check for fizzle
 	// note that CheckFizzle itself doesn't let NPCs fizzle,
 	// but this code allows for it.
-	if (slot < CastingSlot::MaxGems && !CheckFizzle(spell_id)) {
-		int fizzle_msg = IsBardSong(spell_id) ? MISS_NOTE : SPELL_FIZZLE;
-
-		uint32 use_mana = ((spells[spell_id].mana) / 4);
-		LogSpells("Spell casting canceled: fizzled. [{}] mana has been consumed", use_mana);
-
-		// fizzle 1/4 the mana away
-		Mob::SetMana(GetMana() - use_mana); // We send StopCasting which will update mana
-		StopCasting();
-
-		MessageString(Chat::SpellFailure, fizzle_msg);
-
-		/**
-		 * Song Failure message
-		 */
-		entity_list.FilteredMessageCloseString(
-			this,
-			true,
-			RuleI(Range, SpellMessages),
-			Chat::SpellFailure,
-			(IsClient() ? FilterPCSpells : FilterNPCSpells),
-			(fizzle_msg == MISS_NOTE ? MISSED_NOTE_OTHER : SPELL_FIZZLE_OTHER),
-			/*
-				MessageFormat: You miss a note, bringing your song to a close! (if missed note)
-				MessageFormat: A missed note brings %1's song to a close!
-				MessageFormat: %1's spell fizzles!
-			*/
-			GetName()
-		);
-
-		TryTriggerOnCastRequirement();
-		return(false);
-	}
+	//if (slot < CastingSlot::MaxGems && !CheckFizzle(spell_id)) {
+	//	int fizzle_msg = IsBardSong(spell_id) ? MISS_NOTE : SPELL_FIZZLE;
+	//
+	//	uint32 use_mana = ((spells[spell_id].mana) / 4);
+	//	LogSpells("Spell casting canceled: fizzled. [{}] mana has been consumed", use_mana);
+	//
+	//	// fizzle 1/4 the mana away
+	//	Mob::SetMana(GetMana() - use_mana); // We send StopCasting which will update mana
+	//	StopCasting();
+	//
+	//	MessageString(Chat::SpellFailure, fizzle_msg);
+	//
+	//	/**
+	//	 * Song Failure message
+	//	 */
+	//	entity_list.FilteredMessageCloseString(
+	//		this,
+	//		true,
+	//		RuleI(Range, SpellMessages),
+	//		Chat::SpellFailure,
+	//		(IsClient() ? FilterPCSpells : FilterNPCSpells),
+	//		(fizzle_msg == MISS_NOTE ? MISSED_NOTE_OTHER : SPELL_FIZZLE_OTHER),
+	//		/*
+	//			MessageFormat: You miss a note, bringing your song to a close! (if missed note)
+	//			MessageFormat: A missed note brings %1's song to a close!
+	//			MessageFormat: %1's spell fizzles!
+	//		*/
+	//		GetName()
+	//	);
+	//
+	//	TryTriggerOnCastRequirement();
+	//	return(false);
+	//}
 
 	SaveSpellLoc();
 	LogSpells("Casting [{}] Started at ({},{},{})", spell_id, m_SpellLocation.x, m_SpellLocation.y, m_SpellLocation.z);

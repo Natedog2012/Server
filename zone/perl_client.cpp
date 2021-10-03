@@ -175,6 +175,23 @@ XS(XS_Client_IsLD) {
 	XSRETURN(1);
 }
 
+XS(XS_Client_CheckFizzle); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Client_CheckFizzle) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Client::CheckFizzle(THIS, int spell_id)"); // @categories Account and Character
+	{
+		Client *THIS;
+		bool RETVAL;
+		VALIDATE_THIS_IS_CLIENT;
+		uint32 spell_id = (uint32) SvUV(ST(1));
+		RETVAL = THIS->CheckFizzle(spell_id);
+		ST(0) = boolSV(RETVAL);
+		sv_2mortal(ST(0));
+	}
+	XSRETURN(1);
+}
+
 XS(XS_Client_WorldKick); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Client_WorldKick) {
 	dXSARGS;
@@ -6259,6 +6276,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "GetHealAmt"), XS_Client_GetHealAmt, file, "$");
 	newXSproto(strcpy(buf, "GetSPELL_MOD"), XS_Client_GetSPELL_MOD, file, "$");
 	newXSproto(strcpy(buf, "GetHEAL_MOD"), XS_Client_GetHEAL_MOD, file, "$");
+	newXSproto(strcpy(buf, "CheckFizzle"), XS_Client_CheckFizzle, file, "$");
 	newXSproto(strcpy(buf, "ReadBookByName"), XS_Client_ReadBookByName, file, "$$$");
 	XSRETURN_YES;
 }
