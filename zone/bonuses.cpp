@@ -368,7 +368,7 @@ void Client::CalcBonuses()
 		consume_food_timer.SetTimer(timer);
 	
 	
-	SendEdgeStatBulkUpdate();
+	//SendEdgeStatBulkUpdate();
 }
 
 int Client::CalcRecommendedLevelBonus(uint8 level, uint8 reclevel, int basestat)

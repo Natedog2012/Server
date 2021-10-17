@@ -1933,7 +1933,7 @@ void Client::SendManaUpdate()
 	mana_update->spawn_id = GetID();
 	QueuePacket(mana_app);
 	safe_delete(mana_app);
-	CastToClient()->SendEdgeManaStats();
+	//CastToClient()->SendEdgeManaStats();
 }
 
 // sends endurance update to self
@@ -1946,7 +1946,7 @@ void Client::SendEnduranceUpdate()
 	endurance_update->spawn_id = GetID();
 	QueuePacket(end_app);
 	safe_delete(end_app);
-	CastToClient()->SendEdgeEnduranceStats();
+	//CastToClient()->SendEdgeEnduranceStats();
 }
 
 void Client::FillSpawnStruct(NewSpawn_Struct* ns, Mob* ForWho)
@@ -10537,321 +10537,321 @@ void Client::SetDoorToolEntityId(uint16 door_tool_entity_id)
 	Client::m_door_tool_entity_id = door_tool_entity_id;
 }
 
-int64_t Client::GetStatValueEdgeType(eStatEntry eLabel)
-{
-	switch (eLabel)
-	{
-		case eStatCurHP:
-		{
-			return GetHP();
-		}
-		case eStatMaxHP:
-		{
-			return GetMaxHP();
-		}
-		case eStatCurMana:
-		{
-			return GetMana();
-		}
-		case eStatMaxMana:
-		{
-			return GetMaxMana();
-		}
-		case eStatCurEndur:
-		{
-			return GetEndurance();
-		}
-		case eStatMaxEndur:
-		{
-			return GetMaxEndurance();
-		}
-		case eStatSTR:
-		{
-			return GetSTR();
-		}
-		case eStatSTA:
-		{
-			return GetSTA();
-		}
-		case eStatDEX:
-		{
-			return GetDEX();
-		}
-		case eStatAGI:
-		{
-			return GetAGI();
-		}
-		case eStatINT:
-		{
-			return GetINT();
-		}
-		case eStatWIS:
-		{
-			return GetWIS();
-		}
-		case eStatCHA:
-		{
-			return GetCHA();
-		}
-		case eStatMR:
-		{
-			return GetMR();
-		}
-		case eStatCR:
-		{
-			return GetCR();
-		}
-		case eStatFR:
-		{
-			return GetFR();
-		}
-		case eStatDR:
-		{
-			return GetDR();
-		}
-		case eStatPR:
-		{
-			return GetPR();
-		}
-		case eStatWalkspeed:
-		{
-			return (static_cast<double>(0.025 * GetWalkspeed()) / (double)walkspeed)  * 100000.0f;
-		}
-		case eStatRunspeed:
-		{
-			return (static_cast<double>(0.025 * GetRunspeed()) / (double)runspeed) * 100000.0f;
-		}
-		case eStatMeleePower:
-		{
-			return 0;
-		}
-		case eStatSpellPower:
-		{
-			return 0;
-		}
-		case eStatHealingPower:
-		{
-			return 0;
-		}
-		case eStatMeleeCrit:
-		{
-			return GetCriticalChanceBonus(EQ::skills::Skill1HBlunt);
-		}
-		case eStatSpellCrit:
-		{
-			return GetCriticalChanceBonus(EQ::skills::SkillEvocation);
-		}
-		case eStatHealingCrit:
-		{
-			return GetCriticalChanceBonus(EQ::skills::SkillMend);
-		}
-		//case eStatMeleeHaste:
-		//{
-		//	return GetHaste(EQ::skills::Skill1HBlunt);
-		//}
-		//case eStatSpellHaste:
-		//{
-		//	return GetHaste(EQ::skills::SkillEvocation);
-		//}
-		//case eStatHealingHaste:
-		//{
-		//	return GetHaste(EQ::skills::SkillMend);
-		//}
-		//case eStatTotalPower:
-		//{
-		//	return m_POWER;
-		//}
-		case eStatWeight:
-		{
-			return CalcCurrentWeight();
-		}
-		case eStatMaxWeight:
-		{
-			return GetSTR();
-		}
-		//case eStatSynergyLevel1:
-		//{
-		//	return m_SYNERGY[0] * 100.0f;
-		//}
-		//case eStatSynergyLevel2:
-		//{
-		//	return m_SYNERGY[1] * 100.0f;
-		//}
-		//case eStatSynergyLevel3:
-		//{
-		//	return m_SYNERGY[2] * 100.0f;
-		//}
-		//case eStatSynergyLevel4:
-		//{
-		//	return m_SYNERGY[3] * 100.0f;
-		//}
-		//case eStatSynergyLevel5:
-		//{
-		//	return m_SYNERGY[4] * 100.0f;
-		//}
-		//case eStatSynergyLevel6:
-		//{
-		//	return m_SYNERGY[5] * 100.0f;
-		//}
-		//case eStatSynergyLevel7:
-		//{
-		//	return m_SYNERGY[6] * 100.0f;
-		//}
-		//case eStatSynergyLevel8:
-		//{
-		//	return m_SYNERGY[7] * 100.0f;
-		//}
-		//case eStatSynergyLevel9:
-		//{
-		//	return m_SYNERGY[8] * 100.0f;
-		//}
-		//case eStatSynergyLevel10:
-		//{
-		//	return m_SYNERGY[9] * 100.0f;
-		//}
-		//case eStatSynergyLevel11:
-		//{
-		//	return m_SYNERGY[10] * 100.0f;
-		//}
-		//case eStatSynergyLevel12:
-		//{
-		//	return m_SYNERGY[11] * 100.0f;
-		//}
-		case eStatSynergyLevel:
-		{
-			return 0;
-		}
-		case eStatClassless:
-		{
-			return GetBaseClass();
-		}
-		case eStatAC:
-		{
-			return GetACBonus();
-		}
-		case eStatATK:
-		{
-			return GetATKBonus();
-		}
-		//case eStatMitigation:
-		//{
-		//	return mitigation() * 100000;
-		//}
-		case eStatAAPoints:
-		{
-			return m_pp.aapoints;
-		}
-		case eStatLevel:
-		{
-			return GetLevel();
-		}
-		default:
-		{
-			return 0;
-		}
-	}
-	return 0;
-}
-
-void Client::SendEdgeStatBulkUpdate()
-{
-	EmuOpcode opcode = OP_Unknown;
-	EQApplicationPacket* outapp = nullptr;
-	EdgeStat_Struct* itempacket = nullptr;
-
-	// Construct packet
-	opcode = OP_EdgeStats;
-	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * ((int)(eStatEntry::eStatMax) - 1)));
-	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
-	itempacket->count = (int)(eStatMax) - 1;
-	for(int guava = 0; guava < eStatEntry::eStatMax - 1; guava++)
-	{
-		itempacket->entries[guava].statKey = (eStatEntry)guava;
-		itempacket->entries[guava].statValue = GetStatValueEdgeType((eStatEntry)guava);
-	}
-	QueuePacket(outapp);
-	safe_delete(outapp);
-}
-
-void Client::SendEdgeHPStats()
-{
-	EmuOpcode opcode = OP_Unknown;
-	EQApplicationPacket* outapp = nullptr;
-	EdgeStat_Struct* itempacket = nullptr;
-
-	// Construct packet
-	opcode = OP_EdgeStats;
-	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * 2));
-	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
-	itempacket->count = 2;
-	itempacket->entries[0].statKey = eStatCurHP;
-	itempacket->entries[0].statValue = GetStatValueEdgeType(eStatCurHP);
-	itempacket->entries[1].statKey = eStatMaxHP;
-	itempacket->entries[1].statValue = GetStatValueEdgeType(eStatMaxHP);
-	QueuePacket(outapp);
-	safe_delete(outapp);
-}
-
-void Client::SendEdgeManaStats()
-{
-	EmuOpcode opcode = OP_Unknown;
-	EQApplicationPacket* outapp = nullptr;
-	EdgeStat_Struct* itempacket = nullptr;
-
-	// Construct packet
-	opcode = OP_EdgeStats;
-	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * 2));
-	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
-	itempacket->count = 2;
-	itempacket->entries[0].statKey = eStatCurMana;
-	itempacket->entries[0].statValue = GetStatValueEdgeType(eStatCurMana);
-	itempacket->entries[1].statKey = eStatMaxMana;
-	itempacket->entries[1].statValue = GetStatValueEdgeType(eStatMaxMana);
-	QueuePacket(outapp);
-	safe_delete(outapp);
-}
-
-void Client::SendEdgeEnduranceStats()
-{
-	EmuOpcode opcode = OP_Unknown;
-	EQApplicationPacket* outapp = nullptr;
-	EdgeStat_Struct* itempacket = nullptr;
-
-	// Construct packet
-	opcode = OP_EdgeStats;
-	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * 2));
-	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
-	itempacket->count = 2;
-	itempacket->entries[0].statKey = eStatCurEndur;
-	itempacket->entries[0].statValue = GetStatValueEdgeType(eStatCurEndur);
-	itempacket->entries[1].statKey = eStatMaxEndur;
-	itempacket->entries[1].statValue = GetStatValueEdgeType(eStatMaxEndur);
-	QueuePacket(outapp);
-	safe_delete(outapp);
-}
-
-void Client::SendEdgeMovementStats()
-{
-	EmuOpcode opcode = OP_Unknown;
-	EQApplicationPacket* outapp = nullptr;
-	EdgeStat_Struct* itempacket = nullptr;
-
-	// Construct packet
-	opcode = OP_EdgeStats;
-	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * 4));
-	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
-	itempacket->count = 4;
-	itempacket->entries[3].statKey = eStatRunspeed;
-	itempacket->entries[3].statValue = GetStatValueEdgeType(eStatRunspeed);
-	itempacket->entries[2].statKey = eStatWalkspeed;
-	itempacket->entries[2].statValue = GetStatValueEdgeType(eStatWalkspeed);
-	itempacket->entries[0].statKey = eStatWeight;
-	itempacket->entries[0].statValue = GetStatValueEdgeType(eStatWeight);
-	itempacket->entries[1].statKey = eStatMaxWeight;
-	itempacket->entries[1].statValue = GetStatValueEdgeType(eStatMaxWeight);
-	QueuePacket(outapp);
-	safe_delete(outapp);
-}
+//int64_t Client::GetStatValueEdgeType(eStatEntry eLabel)
+//{
+//	switch (eLabel)
+//	{
+//		case eStatCurHP:
+//		{
+//			return GetHP();
+//		}
+//		case eStatMaxHP:
+//		{
+//			return GetMaxHP();
+//		}
+//		case eStatCurMana:
+//		{
+//			return GetMana();
+//		}
+//		case eStatMaxMana:
+//		{
+//			return GetMaxMana();
+//		}
+//		case eStatCurEndur:
+//		{
+//			return GetEndurance();
+//		}
+//		case eStatMaxEndur:
+//		{
+//			return GetMaxEndurance();
+//		}
+//		case eStatSTR:
+//		{
+//			return GetSTR();
+//		}
+//		case eStatSTA:
+//		{
+//			return GetSTA();
+//		}
+//		case eStatDEX:
+//		{
+//			return GetDEX();
+//		}
+//		case eStatAGI:
+//		{
+//			return GetAGI();
+//		}
+//		case eStatINT:
+//		{
+//			return GetINT();
+//		}
+//		case eStatWIS:
+//		{
+//			return GetWIS();
+//		}
+//		case eStatCHA:
+//		{
+//			return GetCHA();
+//		}
+//		case eStatMR:
+//		{
+//			return GetMR();
+//		}
+//		case eStatCR:
+//		{
+//			return GetCR();
+//		}
+//		case eStatFR:
+//		{
+//			return GetFR();
+//		}
+//		case eStatDR:
+//		{
+//			return GetDR();
+//		}
+//		case eStatPR:
+//		{
+//			return GetPR();
+//		}
+//		case eStatWalkspeed:
+//		{
+//			return (static_cast<double>(0.025 * GetWalkspeed()) / (double)walkspeed)  * 100000.0f;
+//		}
+//		case eStatRunspeed:
+//		{
+//			return (static_cast<double>(0.025 * GetRunspeed()) / (double)runspeed) * 100000.0f;
+//		}
+//		case eStatMeleePower:
+//		{
+//			return 0;
+//		}
+//		case eStatSpellPower:
+//		{
+//			return 0;
+//		}
+//		case eStatHealingPower:
+//		{
+//			return 0;
+//		}
+//		case eStatMeleeCrit:
+//		{
+//			return GetCriticalChanceBonus(EQ::skills::Skill1HBlunt);
+//		}
+//		case eStatSpellCrit:
+//		{
+//			return GetCriticalChanceBonus(EQ::skills::SkillEvocation);
+//		}
+//		case eStatHealingCrit:
+//		{
+//			return GetCriticalChanceBonus(EQ::skills::SkillMend);
+//		}
+//		//case eStatMeleeHaste:
+//		//{
+//		//	return GetHaste(EQ::skills::Skill1HBlunt);
+//		//}
+//		//case eStatSpellHaste:
+//		//{
+//		//	return GetHaste(EQ::skills::SkillEvocation);
+//		//}
+//		//case eStatHealingHaste:
+//		//{
+//		//	return GetHaste(EQ::skills::SkillMend);
+//		//}
+//		//case eStatTotalPower:
+//		//{
+//		//	return m_POWER;
+//		//}
+//		case eStatWeight:
+//		{
+//			return CalcCurrentWeight();
+//		}
+//		case eStatMaxWeight:
+//		{
+//			return GetSTR();
+//		}
+//		//case eStatSynergyLevel1:
+//		//{
+//		//	return m_SYNERGY[0] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel2:
+//		//{
+//		//	return m_SYNERGY[1] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel3:
+//		//{
+//		//	return m_SYNERGY[2] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel4:
+//		//{
+//		//	return m_SYNERGY[3] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel5:
+//		//{
+//		//	return m_SYNERGY[4] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel6:
+//		//{
+//		//	return m_SYNERGY[5] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel7:
+//		//{
+//		//	return m_SYNERGY[6] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel8:
+//		//{
+//		//	return m_SYNERGY[7] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel9:
+//		//{
+//		//	return m_SYNERGY[8] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel10:
+//		//{
+//		//	return m_SYNERGY[9] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel11:
+//		//{
+//		//	return m_SYNERGY[10] * 100.0f;
+//		//}
+//		//case eStatSynergyLevel12:
+//		//{
+//		//	return m_SYNERGY[11] * 100.0f;
+//		//}
+//		case eStatSynergyLevel:
+//		{
+//			return 0;
+//		}
+//		case eStatClassless:
+//		{
+//			return GetBaseClass();
+//		}
+//		case eStatAC:
+//		{
+//			return GetACBonus();
+//		}
+//		case eStatATK:
+//		{
+//			return GetATKBonus();
+//		}
+//		//case eStatMitigation:
+//		//{
+//		//	return mitigation() * 100000;
+//		//}
+//		case eStatAAPoints:
+//		{
+//			return m_pp.aapoints;
+//		}
+//		case eStatLevel:
+//		{
+//			return GetLevel();
+//		}
+//		default:
+//		{
+//			return 0;
+//		}
+//	}
+//	return 0;
+//}
+//
+//void Client::SendEdgeStatBulkUpdate()
+//{
+//	EmuOpcode opcode = OP_Unknown;
+//	EQApplicationPacket* outapp = nullptr;
+//	EdgeStat_Struct* itempacket = nullptr;
+//
+//	// Construct packet
+//	opcode = OP_EdgeStats;
+//	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * ((int)(eStatEntry::eStatMax) - 1)));
+//	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
+//	itempacket->count = (int)(eStatMax) - 1;
+//	for(int guava = 0; guava < eStatEntry::eStatMax - 1; guava++)
+//	{
+//		itempacket->entries[guava].statKey = (eStatEntry)guava;
+//		itempacket->entries[guava].statValue = GetStatValueEdgeType((eStatEntry)guava);
+//	}
+//	QueuePacket(outapp);
+//	safe_delete(outapp);
+//}
+//
+//void Client::SendEdgeHPStats()
+//{
+//	EmuOpcode opcode = OP_Unknown;
+//	EQApplicationPacket* outapp = nullptr;
+//	EdgeStat_Struct* itempacket = nullptr;
+//
+//	// Construct packet
+//	opcode = OP_EdgeStats;
+//	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * 2));
+//	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
+//	itempacket->count = 2;
+//	itempacket->entries[0].statKey = eStatCurHP;
+//	itempacket->entries[0].statValue = GetStatValueEdgeType(eStatCurHP);
+//	itempacket->entries[1].statKey = eStatMaxHP;
+//	itempacket->entries[1].statValue = GetStatValueEdgeType(eStatMaxHP);
+//	QueuePacket(outapp);
+//	safe_delete(outapp);
+//}
+//
+//void Client::SendEdgeManaStats()
+//{
+//	EmuOpcode opcode = OP_Unknown;
+//	EQApplicationPacket* outapp = nullptr;
+//	EdgeStat_Struct* itempacket = nullptr;
+//
+//	// Construct packet
+//	opcode = OP_EdgeStats;
+//	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * 2));
+//	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
+//	itempacket->count = 2;
+//	itempacket->entries[0].statKey = eStatCurMana;
+//	itempacket->entries[0].statValue = GetStatValueEdgeType(eStatCurMana);
+//	itempacket->entries[1].statKey = eStatMaxMana;
+//	itempacket->entries[1].statValue = GetStatValueEdgeType(eStatMaxMana);
+//	QueuePacket(outapp);
+//	safe_delete(outapp);
+//}
+//
+//void Client::SendEdgeEnduranceStats()
+//{
+//	EmuOpcode opcode = OP_Unknown;
+//	EQApplicationPacket* outapp = nullptr;
+//	EdgeStat_Struct* itempacket = nullptr;
+//
+//	// Construct packet
+//	opcode = OP_EdgeStats;
+//	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * 2));
+//	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
+//	itempacket->count = 2;
+//	itempacket->entries[0].statKey = eStatCurEndur;
+//	itempacket->entries[0].statValue = GetStatValueEdgeType(eStatCurEndur);
+//	itempacket->entries[1].statKey = eStatMaxEndur;
+//	itempacket->entries[1].statValue = GetStatValueEdgeType(eStatMaxEndur);
+//	QueuePacket(outapp);
+//	safe_delete(outapp);
+//}
+//
+//void Client::SendEdgeMovementStats()
+//{
+//	EmuOpcode opcode = OP_Unknown;
+//	EQApplicationPacket* outapp = nullptr;
+//	EdgeStat_Struct* itempacket = nullptr;
+//
+//	// Construct packet
+//	opcode = OP_EdgeStats;
+//	outapp = new EQApplicationPacket(OP_EdgeStats, 4 + (sizeof(EdgeStatEntry_Struct) * 4));
+//	itempacket = (EdgeStat_Struct*)outapp->pBuffer;
+//	itempacket->count = 4;
+//	itempacket->entries[3].statKey = eStatRunspeed;
+//	itempacket->entries[3].statValue = GetStatValueEdgeType(eStatRunspeed);
+//	itempacket->entries[2].statKey = eStatWalkspeed;
+//	itempacket->entries[2].statValue = GetStatValueEdgeType(eStatWalkspeed);
+//	itempacket->entries[0].statKey = eStatWeight;
+//	itempacket->entries[0].statValue = GetStatValueEdgeType(eStatWeight);
+//	itempacket->entries[1].statKey = eStatMaxWeight;
+//	itempacket->entries[1].statValue = GetStatValueEdgeType(eStatMaxWeight);
+//	QueuePacket(outapp);
+//	safe_delete(outapp);
+//}
 
 int Client::GetIPExemption()
 {

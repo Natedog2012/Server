@@ -833,7 +833,7 @@ void Client::CompleteConnect()
 	SendDisciplineTimers();
 
 	parse->EventPlayer(EVENT_ENTER_ZONE, this, "", 0);
-	SendEdgeStatBulkUpdate();
+	//SendEdgeStatBulkUpdate();
 	SetLastPositionBeforeBulkUpdate(GetPosition());
 
 	/* This sub event is for if a player logs in for the first time since entering world. */
