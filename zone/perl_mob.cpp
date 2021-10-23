@@ -4476,6 +4476,23 @@ XS(XS_Mob_SetEntityVariable) {
 	XSRETURN_EMPTY;
 }
 
+XS(XS_Mob_PassCastRestriction); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Mob_PassCastRestriction) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Mob::PassCastRestriction(THIS, int value)");
+	{
+		Mob        *THIS;
+		int value = SvIV(ST(1));
+		bool RETVAL;
+		VALIDATE_THIS_IS_MOB;
+		RETVAL = THIS->PassCastRestriction(value);
+		ST(0)          = boolSV(RETVAL);
+		sv_2mortal(ST(0));
+	}
+	XSRETURN(1);
+}
+
 XS(XS_Mob_GetHateList); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Mob_GetHateList) {
 	dXSARGS;
@@ -6681,6 +6698,7 @@ XS(boot_Mob) {
 	newXSproto(strcpy(buf, "GetEntityVariable"), XS_Mob_GetEntityVariable, file, "$$");
 	newXSproto(strcpy(buf, "SetEntityVariable"), XS_Mob_SetEntityVariable, file, "$$$");
 	newXSproto(strcpy(buf, "EntityVariableExists"), XS_Mob_EntityVariableExists, file, "$$");
+	newXSproto(strcpy(buf, "PassCastRestriction"), XS_Mob_PassCastRestriction, file, "$$");
 	newXSproto(strcpy(buf, "GetHateList"), XS_Mob_GetHateList, file, "$");
 	newXSproto(strcpy(buf, "SignalClient"), XS_Mob_SignalClient, file, "$$$");
 	newXSproto(strcpy(buf, "CombatRange"), XS_Mob_CombatRange, file, "$$");
