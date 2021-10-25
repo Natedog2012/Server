@@ -314,6 +314,7 @@ int32 Client::CalcHPRegenCap()
 
 int32 Client::CalcMaxHP()
 {
+	/*
 	float nd = 10000;
 	max_hp = (CalcBaseHP() + itembonuses.HP);
 	//The AA desc clearly says it only applies to base hp..
@@ -325,6 +326,27 @@ int32 Client::CalcMaxHP()
 	max_hp += spellbonuses.HP + aabonuses.HP;
 	max_hp += GroupLeadershipAAHealthEnhancement();
 	max_hp += max_hp * ((spellbonuses.MaxHPChange + itembonuses.MaxHPChange) / 10000.0f);
+	if (current_hp > max_hp) {
+		current_hp = max_hp;
+	}
+	int hp_perc_cap = spellbonuses.HPPercCap[SBIndex::RESOURCE_PERCENT_CAP];
+	if (hp_perc_cap) {
+		int curHP_cap = (max_hp * hp_perc_cap) / 100;
+		if (current_hp > curHP_cap || (spellbonuses.HPPercCap[SBIndex::RESOURCE_AMOUNT_CAP] && current_hp > spellbonuses.HPPercCap[SBIndex::RESOURCE_AMOUNT_CAP])) {
+
+			current_hp = curHP_cap;
+		}
+	}
+
+	return max_hp;
+	*/
+	int32 base_hp = (CalcBaseHP() + itembonuses.HP);
+	int32 nd = aabonuses.MaxHPChange + spellbonuses.MaxHPChange + itembonuses.MaxHPChange;
+	max_hp = (base_hp * nd / 10000) + base_hp;
+	max_hp += GroupLeadershipAAHealthEnhancement();
+	max_hp += 5;
+	max_hp += GetHeroicSTA() * 10;
+	max_hp += aabonuses.HP + spellbonuses.HP;
 	if (current_hp > max_hp) {
 		current_hp = max_hp;
 	}
@@ -485,11 +507,11 @@ int32 Client::CalcBaseHP()
 			stats = (stats - 255) / 2;
 			stats += 255;
 		}
-		base_hp = 5;
+		base_hp = 0;
 		auto base_data = database.GetBaseData(GetLevel(), GetClass());
 		if (base_data) {
 			base_hp += base_data->base_hp + (base_data->hp_factor * stats);
-			base_hp += (GetHeroicSTA() * 10);
+			//base_hp += (GetHeroicSTA() * 10);
 		}
 	}
 	else {
@@ -1686,17 +1708,25 @@ int32 Client::CalcBaseEndurance()
 		int sta = 0;
 		int dex = 0;
 		int agi = 0;
-
-		if (GetLevel() <= 60) {
-			str = GetSTR() <= 255 ? GetSTR() : 255; 
-			sta = GetSTA() <= 255 ? GetSTA() : 255; 
-			dex = GetDEX() <= 255 ? GetDEX() : 255; 
-			agi = GetAGI() <= 255 ? GetAGI() : 255; 
+		
+		
+		if ((RuleI(Character, StatCap)) > 0) {
+			str = GetSTR();
+			sta = GetSTA();
+			dex = GetDEX();
+			agi = GetAGI();
 		} else {
-			str = GetSTR() <= (255 + ((GetLevel()-60) * 5)) ? GetSTR() : (255 + ((GetLevel()-60) * 5));
-			sta = GetSTA() <= (255 + ((GetLevel()-60) * 5)) ? GetSTA() : (255 + ((GetLevel()-60) * 5));
-			dex = GetDEX() <= (255 + ((GetLevel()-60) * 5)) ? GetDEX() : (255 + ((GetLevel()-60) * 5));
-			agi = GetAGI() <= (255 + ((GetLevel()-60) * 5)) ? GetAGI() : (255 + ((GetLevel()-60) * 5));
+			if (GetLevel() <= 60) {
+				str = GetSTR() <= 255 ? GetSTR() : 255; 
+				sta = GetSTA() <= 255 ? GetSTA() : 255; 
+				dex = GetDEX() <= 255 ? GetDEX() : 255; 
+				agi = GetAGI() <= 255 ? GetAGI() : 255; 
+			} else {
+				str = GetSTR() <= (255 + ((GetLevel()-60) * 5)) ? GetSTR() : (255 + ((GetLevel()-60) * 5));
+				sta = GetSTA() <= (255 + ((GetLevel()-60) * 5)) ? GetSTA() : (255 + ((GetLevel()-60) * 5));
+				dex = GetDEX() <= (255 + ((GetLevel()-60) * 5)) ? GetDEX() : (255 + ((GetLevel()-60) * 5));
+				agi = GetAGI() <= (255 + ((GetLevel()-60) * 5)) ? GetAGI() : (255 + ((GetLevel()-60) * 5));
+			}
 		}
 		
 		double stats = (str + sta + dex + agi) / 4.0f;
