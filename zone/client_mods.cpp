@@ -1684,6 +1684,12 @@ uint32 Mob::GetInstrumentMod(uint16 spell_id)
 void Client::CalcMaxEndurance()
 {
 	max_end = CalcBaseEndurance() + spellbonuses.Endurance + itembonuses.Endurance + aabonuses.Endurance;
+	int32 heroic_stats = (GetHeroicSTR() + GetHeroicSTA() + GetHeroicDEX() + GetHeroicAGI()) / 4;
+
+	if (heroic_stats > 0) {
+		max_end += heroic_stats * 10;
+	}
+
 	if (max_end < 0) {
 		max_end = 0;
 	}
@@ -1703,44 +1709,18 @@ int32 Client::CalcBaseEndurance()
 {
 	int32 base_end = 0;
 	if (ClientVersion() >= EQ::versions::ClientVersion::SoF && RuleB(Character, SoDClientUseSoDHPManaEnd)) {
-		double heroic_stats = (GetHeroicSTR() + GetHeroicSTA() + GetHeroicDEX() + GetHeroicAGI()) / 4.0f;
-		int str = 0;
-		int sta = 0;
-		int dex = 0;
-		int agi = 0;
-		
-		
-		if ((RuleI(Character, StatCap)) > 0) {
-			str = GetSTR();
-			sta = GetSTA();
-			dex = GetDEX();
-			agi = GetAGI();
-		} else {
-			if (GetLevel() <= 60) {
-				str = GetSTR() <= 255 ? GetSTR() : 255; 
-				sta = GetSTA() <= 255 ? GetSTA() : 255; 
-				dex = GetDEX() <= 255 ? GetDEX() : 255; 
-				agi = GetAGI() <= 255 ? GetAGI() : 255; 
-			} else {
-				str = GetSTR() <= (255 + ((GetLevel()-60) * 5)) ? GetSTR() : (255 + ((GetLevel()-60) * 5));
-				sta = GetSTA() <= (255 + ((GetLevel()-60) * 5)) ? GetSTA() : (255 + ((GetLevel()-60) * 5));
-				dex = GetDEX() <= (255 + ((GetLevel()-60) * 5)) ? GetDEX() : (255 + ((GetLevel()-60) * 5));
-				agi = GetAGI() <= (255 + ((GetLevel()-60) * 5)) ? GetAGI() : (255 + ((GetLevel()-60) * 5));
+		int32 stats = (GetSTR() + GetSTA() + GetDEX() + GetAGI()) / 4;
+		if (stats > 100) {
+			if (stats > 200) {
+				stats -= (stats - 200) / 2;
 			}
+
+			stats += (3 * stats - 300) / 2;
 		}
 		
-		double stats = (str + sta + dex + agi) / 4.0f;
-		
-		
-		if (stats > 201.0f) {
-			stats = 1.25f * (stats - 201.0f) + 352.5f;
-		}
-		else if (stats > 100.0f) {
-			stats = 2.5f * (stats - 100.0f) + 100.0f;
-		}
 		auto base_data = database.GetBaseData(GetLevel(), GetClass());
 		if (base_data) {
-			base_end = base_data->base_end + (heroic_stats * 10.0f) + (base_data->endurance_factor * static_cast<int>(stats));
+			base_end = base_data->base_end + static_cast<int32>(base_data->endurance_factor * stats);
 		}
 	}
 	else {
