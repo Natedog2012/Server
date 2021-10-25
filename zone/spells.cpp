@@ -288,9 +288,9 @@ bool Mob::CastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 		}
 	}
 
+	std::string export_string = fmt::format("{}", spell_id);
 	if(IsClient()) {
-		std::string buf = fmt::format("{}", spell_id);
-		if (parse->EventPlayer(EVENT_CAST_BEGIN, CastToClient(), buf.c_str(), 0) != 0) {
+		if (parse->EventPlayer(EVENT_CAST_BEGIN, CastToClient(), export_string, 0) != 0) {
 			if (IsDiscipline(spell_id)) {
 				InterruptSpell(0, 0x121, spell_id);
 				CastToClient()->SendDisciplineTimer(spells[spell_id].EndurTimerIndex, 1);
@@ -301,8 +301,7 @@ bool Mob::CastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 			return(false);
 		}
 	} else if(IsNPC()) {
-		std::string buf = fmt::format("{}", spell_id);
-		parse->EventNPC(EVENT_CAST_BEGIN, CastToNPC(), nullptr, buf.c_str(), 0);
+		parse->EventNPC(EVENT_CAST_BEGIN, CastToNPC(), nullptr, export_string, 0);
 	}
 
 	//To prevent NPC ghosting when spells are cast from scripts
@@ -1445,12 +1444,11 @@ void Mob::CastedSpellFinished(uint16 spell_id, uint32 target_id, CastingSlot slo
 	// at this point the spell has successfully been cast
 	//
 
+	std::string export_string = fmt::format("{}", spell_id);
 	if(IsClient()) {
-		std::string buf = fmt::format("{}", spell_id);
-		parse->EventPlayer(EVENT_CAST, CastToClient(), buf.c_str(), 0);
+		parse->EventPlayer(EVENT_CAST, CastToClient(), export_string, 0);
 	} else if(IsNPC()) {
-		std::string buf = fmt::format("{}", spell_id);
-		parse->EventNPC(EVENT_CAST, CastToNPC(), nullptr, buf.c_str(), 0);
+		parse->EventNPC(EVENT_CAST, CastToNPC(), nullptr, export_string, 0);
 	}
 
 	if(bard_song_mode)
@@ -3432,6 +3430,7 @@ int Mob::AddBuff(Mob *caster, uint16 spell_id, int duration, int32 level_overrid
 	buffs[emptyslot].RootBreakChance = 0;
 	buffs[emptyslot].focusproclimit_time = 0;
 	buffs[emptyslot].focusproclimit_procamt = 0;
+	buffs[emptyslot].virus_spread_time = 0;
 	buffs[emptyslot].instrument_mod = caster ? caster->GetInstrumentMod(spell_id) : 10;
 
 	if (level_override > 0 || buffs[emptyslot].numhits > 0) {
@@ -3542,9 +3541,8 @@ int Mob::CanBuffStack(uint16 spellid, uint8 caster_level, bool iFailIfOverwrite)
 // break stuff
 //
 bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectiveness, bool use_resist_adjust, int16 resist_adjust,
-			bool isproc, int level_override)
+			bool isproc, int level_override, int32 duration_override)
 {
-
 	bool is_damage_or_lifetap_spell = IsDamageSpell(spell_id) || IsLifetapSpell(spell_id);
 
 	// well we can't cast a spell on target without a target
@@ -3656,15 +3654,11 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 	);
 
 	/* Send the EVENT_CAST_ON event */
-	if(spelltar->IsNPC())
-	{
-		std::string buf = fmt::format("{}", spell_id);
-		parse->EventNPC(EVENT_CAST_ON, spelltar->CastToNPC(), this, buf.c_str(), 0);
-	}
-	else if (spelltar->IsClient())
-	{
-		std::string buf = fmt::format("{}", spell_id);
-		parse->EventPlayer(EVENT_CAST_ON, spelltar->CastToClient(), buf.c_str(), 0);
+	std::string export_string = fmt::format("{}", spell_id);
+	if(spelltar->IsNPC()) {
+		parse->EventNPC(EVENT_CAST_ON, spelltar->CastToNPC(), this, export_string, 0);
+	} else if (spelltar->IsClient()) {
+		parse->EventPlayer(EVENT_CAST_ON, spelltar->CastToClient(), export_string, 0);
 	}
 
 	mod_spell_cast(spell_id, spelltar, reflect_effectiveness, use_resist_adjust, resist_adjust, isproc);
@@ -3867,6 +3861,7 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 	//Need this to account for special AOE cases.
 	if (IsClient() && IsHarmonySpell(spell_id) && !HarmonySpellLevelCheck(spell_id, spelltar)) {
 		MessageString(Chat::SpellFailure, SPELL_NO_EFFECT);
+		safe_delete(action_packet);
 		return false;
 	}
 
@@ -4090,7 +4085,7 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 	}
 
 	// cause the effects to the target
-	if(!spelltar->SpellEffect(this, spell_id, spell_effectiveness, level_override, reflect_effectiveness))
+	if(!spelltar->SpellEffect(this, spell_id, spell_effectiveness, level_override, reflect_effectiveness, duration_override))
 	{
 		// if SpellEffect returned false there's a problem applying the
 		// spell. It's most likely a buff that can't stack.
