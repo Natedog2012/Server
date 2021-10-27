@@ -6141,7 +6141,7 @@ int32 Client::GetFocusEffect(focusType type, uint16 spell_id)
 	
 	if (type == focusImprovedDamage) {
 		realTotal4 = GetSPELL_MOD();
-	} else if (type == focusImprovedHeal) {
+	} else if (type == focusImprovedHeal && !IsPercentalHealSpell(spell_id)) {
 		realTotal4 = GetHEAL_MOD();
 	} else if (type == focusFcBaseEffects && IsBardSong(spell_id)) {
 		realTotal4 = GetBARD_MOD();
