@@ -469,7 +469,15 @@ public:
 	inline virtual int32 GetATKBonus() const { return itembonuses.ATK + spellbonuses.ATK; }
 	inline virtual int GetHaste() const { return Haste; }
 	int GetRawACNoShield(int &shield_ac) const;
-
+	
+	inline void SetSpellScaleMod(int scale) {SpellScaleMod = scale; CalcBonuses();}
+	inline void SetMeleeScaleMod(int scale) {MeleeScaleMod = scale; CalcBonuses();}
+	inline void SetHealScaleMod(int scale) {HealScaleMod = scale; CalcBonuses();}
+	
+	inline virtual int32 GetSpellScaleMod() const { return SpellScaleMod; }
+	inline virtual int32 GetMeleeScaleMod() const { return MeleeScaleMod; }
+	inline virtual int32 GetHealScaleMod() const { return HealScaleMod; }
+	
 	inline virtual int32 GetSPELL_MOD() const { return SPELL_MOD; }
 	inline virtual int32 GetHEAL_MOD() const { return HEAL_MOD; }
 	inline virtual int32 GetBARD_MOD() const { return BARD_MOD; }

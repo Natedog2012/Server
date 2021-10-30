@@ -354,6 +354,11 @@ Client::Client(EQStreamInterface* ieqs)
 	// gm
 	SetDisplayMobInfoWindow(true);
 	SetDevToolsEnabled(true);
+	
+	//Natedog Special Scaling
+	SetSpellScaleMod(100);
+	SetMeleeScaleMod(100);
+	SetHealScaleMod(100);
 
 #ifdef BOTS
 	bot_owner_options[booDeathMarquee] = false;

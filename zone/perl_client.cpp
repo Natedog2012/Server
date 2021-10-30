@@ -5509,6 +5509,48 @@ XS(XS_Client_GetHealAmt) {
 	XSRETURN(1);
 }
 
+XS(XS_Client_SetSpellScaleMod);
+XS(XS_Client_SetSpellScaleMod) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Client::SetSpellScaleMod(THIS, int scale)");
+	{
+		Client* THIS;
+		int scale = SvIV(ST(1));
+		VALIDATE_THIS_IS_CLIENT;
+		THIS->SetSpellScaleMod(scale);
+	}
+	XSRETURN_EMPTY;
+}
+
+XS(XS_Client_SetMeleeScaleMod);
+XS(XS_Client_SetMeleeScaleMod) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Client::SetMeleeScaleMod(THIS, int scale)");
+	{
+		Client* THIS;
+		int scale = SvIV(ST(1));
+		VALIDATE_THIS_IS_CLIENT;
+		THIS->SetMeleeScaleMod(scale);
+	}
+	XSRETURN_EMPTY;
+}
+
+XS(XS_Client_SetHealScaleMod);
+XS(XS_Client_SetHealScaleMod) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Client::SetHealScaleMod(THIS, int scale)");
+	{
+		Client* THIS;
+		int scale = SvIV(ST(1));
+		VALIDATE_THIS_IS_CLIENT;
+		THIS->SetHealScaleMod(scale);
+	}
+	XSRETURN_EMPTY;
+}
+
 XS(XS_Client_GetSPELL_MOD); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Client_GetSPELL_MOD) {
 	dXSARGS;
@@ -6302,6 +6344,9 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "UpdateWho"), XS_Client_UpdateWho, file, "$;$");
 	newXSproto(strcpy(buf, "UseDiscipline"), XS_Client_UseDiscipline, file, "$$$");
 	newXSproto(strcpy(buf, "WorldKick"), XS_Client_WorldKick, file, "$");
+	newXSproto(strcpy(buf, "SetSpellScaleMod"), XS_Client_SetSpellScaleMod, file, "$");
+	newXSproto(strcpy(buf, "SetMeleeScaleMod"), XS_Client_SetMeleeScaleMod, file, "$");
+	newXSproto(strcpy(buf, "SetHealScaleMod"), XS_Client_SetHealScaleMod, file, "$");
 	newXSproto(strcpy(buf, "GetSpellDmg"), XS_Client_GetSpellDmg, file, "$");
 	newXSproto(strcpy(buf, "GetHealAmt"), XS_Client_GetHealAmt, file, "$");
 	newXSproto(strcpy(buf, "GetSPELL_MOD"), XS_Client_GetSPELL_MOD, file, "$");

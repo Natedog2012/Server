@@ -1321,6 +1321,9 @@ protected:
 	int AC;
 	int mitigation_ac; // cached Mob::ACSum
 	int32 ATK;
+	int32 SpellScaleMod;
+	int32 MeleeScaleMod;
+	int32 HealScaleMod;
 	int32 SPELL_MOD;
 	int32 HEAL_MOD;
 	int32 BARD_MOD;
