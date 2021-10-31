@@ -432,8 +432,8 @@ public:
 	Lua_StatBonuses GetItemBonuses();
 	Lua_StatBonuses GetSpellBonuses();
 	Lua_StatBonuses GetAABonuses();
-	int16 GetMeleeDamageMod_SE(uint16 skill);
-	int16 GetMeleeMinDamageMod_SE(uint16 skill);
+	int32 GetMeleeDamageMod_SE(uint16 skill);
+	int32 GetMeleeMinDamageMod_SE(uint16 skill);
 	bool IsAttackAllowed(Lua_Mob target, bool isSpellAttack);
 	bool IsCasting();
 	int AttackAnimation(int Hand, Lua_ItemInst weapon);

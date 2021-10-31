@@ -6958,7 +6958,9 @@ void Client::SendStatsWindow(Client* client, bool use_window)
 	/*	SpellDmg*/	indP << "Spell Dmg: " << GetSpellDmg() << " / " << RuleI(Character, ItemSpellDmgCap) << "<br>" <<
 	/*	Clair	*/	indP << "Clairvoyance: " << GetClair() << " / " << RuleI(Character, ItemClairvoyanceCap) << "<br>" <<
 	/*	DSMit	*/	indP << "Dmg Shld Mit: " << GetDSMit() << " / " << RuleI(Character, ItemDSMitigationCap) << "<br><br>" <<
-	/*  DMGMOD  */	indP << "MeleeDMG Mod: " << spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] + aabonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] << "<br>"
+	/*  DMGMOD  */	indP << "MeleeDMG Mod: " << spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] + aabonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] + itembonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] << "<br>" <<
+	/*  DMGMOD  */	indP << "SpellDMG Mod: " <<  GetFocusEffect(focusImprovedDamage, RuleI(Character, Default_Spell_For_DMG_Display)) << "<br>" <<
+	/*  DMGMOD  */	indP << "Heal Mod: " <<  GetFocusEffect(focusImprovedHeal, RuleI(Character, Default_Spell_For_HEAL_Display)) << "<br>"
 	;
 	if(GetClass() == BARD)
 		final_string << bard_info << "<br>";

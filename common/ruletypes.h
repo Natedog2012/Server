@@ -36,6 +36,8 @@
 
 
 RULE_CATEGORY(Character)
+RULE_INT(Character, Default_Spell_For_DMG_Display, 57, "Firestrike by default.. change to another spell to display properly for your server")
+RULE_INT(Character, Default_Spell_For_HEAL_Display, 12, "Healing by default.. change to another spell to display properly for your server")
 RULE_INT(Character, Mod_Start_Value, 255, "Start value for stats to start scaling once they hit start level")
 RULE_INT(Character, Mod_Start_Level, 50, "Start level for custom scaling to kick in")
 RULE_INT(Character, Warrior_MeleeMod, 0, "")

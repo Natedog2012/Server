@@ -2251,13 +2251,13 @@ Lua_StatBonuses Lua_Mob::GetAABonuses()
 	return self->GetAABonusesPtr();
 }
 
-int16 Lua_Mob::GetMeleeDamageMod_SE(uint16 skill)
+int32 Lua_Mob::GetMeleeDamageMod_SE(uint16 skill)
 {
 	Lua_Safe_Call_Int();
 	return self->GetMeleeDamageMod_SE(skill);
 }
 
-int16 Lua_Mob::GetMeleeMinDamageMod_SE(uint16 skill)
+int32 Lua_Mob::GetMeleeMinDamageMod_SE(uint16 skill)
 {
 	Lua_Safe_Call_Int();
 	return self->GetMeleeMinDamageMod_SE(skill);

@@ -6139,7 +6139,7 @@ int32 Client::GetFocusEffect(focusType type, uint16 spell_id)
 	int32 realTotal3 = 0;
 	int32 realTotal4 = 0;
 	
-	if (type == focusImprovedDamage) {
+	if (type == focusImprovedDamage && !IsPercentalHealSpell(spell_id)) {
 		realTotal4 = GetSPELL_MOD();
 	} else if (type == focusImprovedHeal && !IsPercentalHealSpell(spell_id)) {
 		realTotal4 = GetHEAL_MOD();

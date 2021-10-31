@@ -4435,7 +4435,7 @@ int Mob::GetCriticalChanceBonus(uint16 skill)
 	return critical_chance;
 }
 
-int16 Mob::GetMeleeDamageMod_SE(uint16 skill)
+int32 Mob::GetMeleeDamageMod_SE(uint16 skill)
 {
 	int dmg_mod = 0;
 
@@ -4459,7 +4459,7 @@ int16 Mob::GetMeleeDamageMod_SE(uint16 skill)
 	return dmg_mod;
 }
 
-int16 Mob::GetMeleeMinDamageMod_SE(uint16 skill)
+int32 Mob::GetMeleeMinDamageMod_SE(uint16 skill)
 {
 	int dmg_mod = 0;
 

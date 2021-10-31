@@ -309,31 +309,19 @@ void Client::CalcBonuses()
 			break;
 	}
 	
-	if (GetLevel() < RuleI(Character, Mod_Start_Level)) {
-		spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] += 15;
-		spellbonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] += 15;
-		spellbonuses.CriticalHitChance[EQ::skills::HIGHEST_SKILL+1] += 3;
-		itembonuses.SpellDmg += (GetLevel() / 2);
-		itembonuses.HealAmt += (GetLevel() / 2);
-		spellbonuses.ManaRegen += (GetLevel() / 5);
-		spellbonuses.EnduranceRegen += (GetLevel() / 5);
-	} else {
+
+	if (GetLevel() >= RuleI(Character, Mod_Start_Level)) {
 		if (GetSTR() > mod_start_value) {
 			if(MeleeScaleMod >= 0) {
 				melee_mod = (melee_mod * MeleeScaleMod) / 100;
 			}
 
-				spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100) + 15;
-				spellbonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100) + 15;
-		} else {
-			spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] += 15;
-			spellbonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] += 15;
+				spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100);
+				spellbonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100);
 		}
 		
 		if (GetDEX() > mod_start_value) {
-			spellbonuses.CriticalHitChance[EQ::skills::HIGHEST_SKILL+1] += (((GetDEX()-mod_start_value) * melee_crit_mod) / 100) + 3;
-		} else {
-			spellbonuses.CriticalHitChance[EQ::skills::HIGHEST_SKILL+1] += 3;
+			spellbonuses.CriticalHitChance[EQ::skills::HIGHEST_SKILL+1] += (((GetDEX()-mod_start_value) * melee_crit_mod) / 100);
 		}
 		
 		if (GetINT() > mod_start_value) {
@@ -342,8 +330,6 @@ void Client::CalcBonuses()
 				spelldmg_mod = (spelldmg_mod * SpellScaleMod) / 100;
 			}
 			SPELL_MOD = (((GetINT() - mod_start_value) * spelldmg_mod) / 100);
-		} else {
-			itembonuses.SpellDmg += (GetLevel() / 2);
 		}
 		
 		if (GetWIS() > mod_start_value) {
@@ -352,16 +338,11 @@ void Client::CalcBonuses()
 				healamt_mod = (healamt_mod * HealScaleMod) / 100;
 			}
 			HEAL_MOD = (((GetWIS()-mod_start_value) * healamt_mod) / 100);
-		} else {
-			itembonuses.HealAmt += (GetLevel() / 2);
 		}
 		
 		if (GetCHA() > mod_start_value) {
 			spellbonuses.ManaRegen += (((GetCHA()-mod_start_value) * mana_regen_mod) / 100) + 14;
 			spellbonuses.EnduranceRegen += (((GetCHA()-mod_start_value) * endur_regen_mod) / 100) + 14;
-		} else {
-			spellbonuses.ManaRegen += (GetLevel() / 5);
-			spellbonuses.EnduranceRegen += (GetLevel() / 5);
 		}
 		
 		// Only at 70

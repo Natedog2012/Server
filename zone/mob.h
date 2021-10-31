@@ -825,8 +825,8 @@ public:
 	void CastOnNumHitFade(uint32 spell_id);
 	void SlowMitigation(Mob* caster);
 	int16 GetCritDmgMod(uint16 skill, Mob* owner = nullptr);
-	int16 GetMeleeDamageMod_SE(uint16 skill);
-	int16 GetMeleeMinDamageMod_SE(uint16 skill);
+	int32 GetMeleeDamageMod_SE(uint16 skill);
+	int32 GetMeleeMinDamageMod_SE(uint16 skill);
 	int16 GetCrippBlowChance();
 	int16 GetMeleeDmgPositionMod(Mob* defender);
 	int16 GetSkillReuseTime(uint16 skill);
