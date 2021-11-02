@@ -452,7 +452,7 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 					) {
 						cast_failed = false;
 					}
-				} else if (spell_target->IsRaidGrouped()) {					
+				} else if (spell_target->IsRaidGrouped()) {
 					Raid *target_raid = spell_target->GetRaid();
 					Raid *my_raid = GetRaid();
 					if (
@@ -3428,8 +3428,6 @@ int Mob::AddBuff(Mob *caster, uint16 spell_id, int duration, int32 level_overrid
 	buffs[emptyslot].dot_rune = 0;
 	buffs[emptyslot].ExtraDIChance = 0;
 	buffs[emptyslot].RootBreakChance = 0;
-	buffs[emptyslot].focusproclimit_time = 0;
-	buffs[emptyslot].focusproclimit_procamt = 0;
 	buffs[emptyslot].virus_spread_time = 0;
 	buffs[emptyslot].instrument_mod = caster ? caster->GetInstrumentMod(spell_id) : 10;
 
@@ -3883,15 +3881,15 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 	}
 	/*
 		Reflect
-		base= % Chance to Reflect 
-		Limit= Resist Modifier (+Value for decrease chance to resist) 
+		base= % Chance to Reflect
+		Limit= Resist Modifier (+Value for decrease chance to resist)
 		Max= % of base spell damage (this is the base before any formula or focus is applied)
 		On live any type of detrimental spell can be reflected as long as the Reflectable spell field is set, this includes AOE.
 		The 'caster' of the reflected spell is owner of the reflect effect. Caster's focus effects are NOT applied to reflected spell.
-		
+
 		reflect_effectiveness is applied to damage spells, a value of 100 is no change to base damage. Other values change by percent. (50=50% of damage)
 		we this variable to both check if a spell being applied is from a reflection and for the damage modifier.
-		
+
 		There are a few spells in database that are not detrimental that have Reflectable field set, however from testing, they do not actually reflect.
 	*/
 	if(spells[spell_id].reflectable && !reflect_effectiveness && spelltar && this != spelltar && IsDetrimentalSpell(spell_id) &&
@@ -4068,7 +4066,7 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 				}
 			}
 		}
-		
+
 		entity_list.AddHealAggro(
 			spelltar, this,
 			CheckHealAggroAmount(spell_id, spelltar, (spelltar->GetMaxHP() - spelltar->GetHP())));
@@ -4214,9 +4212,9 @@ void Corpse::CastRezz(uint16 spellid, Mob* Caster)
 	rezz->zone_id = zone->GetZoneID();
 	rezz->instance_id = zone->GetInstanceID();
 	rezz->spellid = spellid;
-	rezz->x = this->m_Position.x;
-	rezz->y = this->m_Position.y;
-	rezz->z = this->m_Position.z;
+	rezz->x = m_Position.x;
+	rezz->y = m_Position.y;
+	rezz->z = GetFixedZ(m_Position);
 	rezz->unknown000 = 0x00000000;
 	rezz->unknown020 = 0x00000000;
 	rezz->unknown088 = 0x00000000;
@@ -5323,42 +5321,49 @@ int Client::MemmedCount() {
 }
 
 
-void Client::ScribeSpell(uint16 spell_id, int slot, bool update_client)
+void Client::ScribeSpell(uint16 spell_id, int slot, bool update_client, bool defer_save)
 {
-	if(slot >= EQ::spells::SPELLBOOK_SIZE || slot < 0)
+	if (slot >= EQ::spells::SPELLBOOK_SIZE || slot < 0) {
 		return;
+	}
 
-	if(update_client)
-	{
-		if(m_pp.spell_book[slot] != 0xFFFFFFFF)
-			UnscribeSpell(slot, update_client);
+	if (update_client) {
+		if (m_pp.spell_book[slot] != 0xFFFFFFFF) {
+			UnscribeSpell(slot, update_client, defer_save);
+		}
 	}
 
 	m_pp.spell_book[slot] = spell_id;
-	database.SaveCharacterSpell(this->CharacterID(), spell_id, slot);
+
+	// defer save if we're bulk saving elsewhere
+	if (!defer_save) {
+		database.SaveCharacterSpell(this->CharacterID(), spell_id, slot);
+	}
 	LogSpells("Spell [{}] scribed into spell book slot [{}]", spell_id, slot);
 
-	if(update_client)
-	{
+	if (update_client) {
 		MemorizeSpell(slot, spell_id, memSpellScribing);
 	}
 }
 
-void Client::UnscribeSpell(int slot, bool update_client)
+void Client::UnscribeSpell(int slot, bool update_client, bool defer_save)
 {
-	if(slot >= EQ::spells::SPELLBOOK_SIZE || slot < 0)
+	if (slot >= EQ::spells::SPELLBOOK_SIZE || slot < 0) {
 		return;
+	}
 
 	LogSpells("Spell [{}] erased from spell book slot [{}]", m_pp.spell_book[slot], slot);
 	m_pp.spell_book[slot] = 0xFFFFFFFF;
 
-	database.DeleteCharacterSpell(this->CharacterID(), m_pp.spell_book[slot], slot);
-	if(update_client && slot < EQ::spells::DynamicLookup(ClientVersion(), GetGM())->SpellbookSize)
-	{
-		auto outapp = new EQApplicationPacket(OP_DeleteSpell, sizeof(DeleteSpell_Struct));
-		DeleteSpell_Struct* del = (DeleteSpell_Struct*)outapp->pBuffer;
+	if (!defer_save) {
+		database.DeleteCharacterSpell(this->CharacterID(), m_pp.spell_book[slot], slot);
+	}
+
+	if (update_client && slot < EQ::spells::DynamicLookup(ClientVersion(), GetGM())->SpellbookSize) {
+		auto               outapp = new EQApplicationPacket(OP_DeleteSpell, sizeof(DeleteSpell_Struct));
+		DeleteSpell_Struct *del   = (DeleteSpell_Struct *) outapp->pBuffer;
 		del->spell_slot = slot;
-		del->success = 1;
+		del->success    = 1;
 		QueuePacket(outapp);
 		safe_delete(outapp);
 	}
@@ -5366,37 +5371,44 @@ void Client::UnscribeSpell(int slot, bool update_client)
 
 void Client::UnscribeSpellAll(bool update_client)
 {
-	for(int i = 0; i < EQ::spells::SPELLBOOK_SIZE; i++)
-	{
-		if(m_pp.spell_book[i] != 0xFFFFFFFF)
-			UnscribeSpell(i, update_client);
+	for (int i = 0; i < EQ::spells::SPELLBOOK_SIZE; i++) {
+		if (m_pp.spell_book[i] != 0xFFFFFFFF) {
+			UnscribeSpell(i, update_client, true);
+		}
 	}
+
+	// bulk save at end (this will only delete)
+	SaveSpells();
 }
 
-void Client::UntrainDisc(int slot, bool update_client)
+void Client::UntrainDisc(int slot, bool update_client, bool defer_save)
 {
-	if(slot >= MAX_PP_DISCIPLINES || slot < 0)
+	if (slot >= MAX_PP_DISCIPLINES || slot < 0) {
 		return;
+	}
 
 	LogSpells("Discipline [{}] untrained from slot [{}]", m_pp.disciplines.values[slot], slot);
 	m_pp.disciplines.values[slot] = 0;
-	database.DeleteCharacterDisc(this->CharacterID(), slot);
 
-	if(update_client)
-	{
+	if (!defer_save) {
+		database.DeleteCharacterDisc(this->CharacterID(), slot);
+	}
+
+	if (update_client) {
 		SendDisciplineUpdate();
 	}
 }
 
 void Client::UntrainDiscAll(bool update_client)
 {
-	int i;
-
-	for(i = 0; i < MAX_PP_DISCIPLINES; i++)
-	{
-		if(m_pp.disciplines.values[i] != 0)
-			UntrainDisc(i, update_client);
+	for (int i = 0; i < MAX_PP_DISCIPLINES; i++) {
+		if (m_pp.disciplines.values[i] != 0) {
+			UntrainDisc(i, update_client, true);
+		}
 	}
+
+	// bulk delete / save
+	SaveDisciplines();
 }
 
 void Client::UntrainDiscBySpellID(uint16 spell_id, bool update_client)
@@ -6251,5 +6263,6 @@ bool Client::IsLinkedSpellReuseTimerReady(uint32 timer_id)
 		return true;
 	return GetPTimers().Expired(&database, pTimerLinkedSpellReuseStart + timer_id, false);
 }
+
 
 
