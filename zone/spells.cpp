@@ -4341,6 +4341,18 @@ void Mob::BuffFadeBySitModifier()
 	}
 }
 
+// removes all buffs that go to short buff box
+void Mob::BuffFadeSongs()
+{
+	int buff_count = GetMaxTotalSlots();
+	for (int j = 0; j < buff_count; j++)
+	{
+		if (spells[buffs[j].spellid].short_buff_box != 0)
+			BuffFadeBySlot(j, false);
+	}
+	CalcBonuses();
+}
+
 // removes the buff matching spell_id
 void Mob::BuffFadeBySpellID(uint16 spell_id)
 {

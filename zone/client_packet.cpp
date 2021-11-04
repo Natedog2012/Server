@@ -1795,6 +1795,28 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 		}
 	}
 
+	std::string c_spell_mod = GetBucket("c_spellscalemod");
+	std::string c_melee_mod = GetBucket("c_meleescalemod");
+	std::string c_heal_mod = GetBucket("c_healscalemod");
+
+	if (c_spell_mod.length() > 0) {
+		SetSpellScaleMod(std::stoi(c_spell_mod));
+	} else {
+		SetSpellScaleMod(100);
+	}
+
+	if (c_melee_mod.length() > 0) {
+		SetMeleeScaleMod(std::stoi(c_melee_mod));
+	} else {
+		SetMeleeScaleMod(100);
+	}
+
+	if (c_heal_mod.length() > 0) {
+		SetHealScaleMod(std::stoi(c_heal_mod));
+	} else {
+		SetHealScaleMod(100);
+	}
+	
 	if (m_ClientVersionBit & EQ::versions::maskUFAndLater) {
 		outapp = new EQApplicationPacket(OP_XTargetResponse, 8);
 		outapp->WriteUInt32(GetMaxXTargets());

@@ -182,7 +182,7 @@ bool Client::Process() {
 			}
 
 			SetDynamicZoneMemberStatus(DynamicZoneMemberStatus::Offline);
-
+			BuffFadeSongs();
 			parse->EventPlayer(EVENT_DISCONNECT, this, "", 0);
 
 			return false; //delete client
@@ -668,7 +668,8 @@ void Client::OnDisconnect(bool hard_disconnect) {
 
 		if (MyRaid)
 			MyRaid->MemberZoned(this);
-
+		
+		BuffFadeSongs();
 		parse->EventPlayer(EVENT_DISCONNECT, this, "", 0);
 
 		/* QS: PlayerLogConnectDisconnect */

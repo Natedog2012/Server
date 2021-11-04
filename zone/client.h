@@ -470,9 +470,9 @@ public:
 	inline virtual int GetHaste() const { return Haste; }
 	int GetRawACNoShield(int &shield_ac) const;
 	
-	inline void SetSpellScaleMod(int scale) {SpellScaleMod = scale; CalcBonuses();}
-	inline void SetMeleeScaleMod(int scale) {MeleeScaleMod = scale; CalcBonuses();}
-	inline void SetHealScaleMod(int scale) {HealScaleMod = scale; CalcBonuses();}
+	inline void SetSpellScaleMod(int scale) {SpellScaleMod = scale; CalcBonuses(); SetBucket("c_spellscalemod", std::to_string(scale));}
+	inline void SetMeleeScaleMod(int scale) {MeleeScaleMod = scale; CalcBonuses(); SetBucket("c_meleescalemod", std::to_string(scale));}
+	inline void SetHealScaleMod(int scale) {HealScaleMod = scale; CalcBonuses();SetBucket("c_healscalemod", std::to_string(scale));}
 	
 	inline virtual int32 GetSpellScaleMod() const { return SpellScaleMod; }
 	inline virtual int32 GetMeleeScaleMod() const { return MeleeScaleMod; }

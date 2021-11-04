@@ -201,7 +201,7 @@ void Client::Handle_OP_ZoneChange(const EQApplicationPacket *app) {
 		SendZoneCancel(zc);
 		return;
 	}
-
+	BuffFadeSongs();
 	std::string export_string = fmt::format("{}", target_zone_id);
 	parse->EventPlayer(EVENT_ZONE, this, export_string, 0);
 
