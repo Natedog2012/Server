@@ -278,7 +278,6 @@ int command_init(void)
 		command_add("killallnpcs", " [npc_name] Kills all npcs by search name, leave blank for all attackable NPC's", 200, command_killallnpcs) ||
 		command_add("lastname", "[new lastname] - Set your or your player target's lastname", 50, command_lastname) ||
 		command_add("level", "[level] - Set your or your target's level", 10, command_level) ||
-		command_add("listnpcs", "[name/range] - Search NPCs", 20, command_listnpcs) ||
 		command_add("list", "[npcs|players|corpses|doors|objects] [search] - Search entities", 20, command_list) ||
 		command_add("listpetition", "- List petitions", 50, command_listpetition) ||
 		command_add("load_shared_memory", "[shared_memory_name] - Reloads shared memory and uses the input as output", 250, command_load_shared_memory) ||
@@ -411,8 +410,6 @@ int command_init(void)
 		command_add("spawnfix", "- Find targeted NPC in database based on its X/Y/heading and update the database to make it spawn at your current location/heading.", 170, command_spawnfix) ||
 		command_add("spawnstatus", "- Show respawn timer status", 100, command_spawnstatus) ||
 		command_add("spellinfo", "[spellid] - Get detailed info about a spell", 10, command_spellinfo) ||
-		command_add("spoff", "- Sends OP_ManaChange", 80, command_spoff) ||
-		command_add("spon", "- Sends OP_MemorizeSpell", 80, command_spon) ||
 		command_add("stun", "[duration] - Stuns you or your target for duration", 100, command_stun) ||
 		command_add("summon", "[charname] - Summons your player/npc/corpse target, or charname if specified", 80, command_summon) ||
 		command_add("summonburiedplayercorpse", "- Summons the target's oldest buried corpse, if any exist.",  100, command_summonburiedplayercorpse) ||
@@ -422,7 +419,6 @@ int command_init(void)
 		command_add("tattoo", "- Change the tattoo of your target (Drakkin Only)", 80, command_tattoo) ||
 		command_add("tempname", "[newname] - Temporarily renames your target. Leave name blank to restore the original name.", 100, command_tempname) ||
 		command_add("petname", "[newname] - Temporarily renames your pet. Leave name blank to restore the original name.", 100, command_petname) ||
-		command_add("test", "Test command", 200, command_test) ||
 		command_add("texture", "[texture] [helmtexture] - Change your or your target's appearance, use 255 to show equipment", 10, command_texture) ||
 		command_add("time", "[HH] [MM] - Set EQ time", 90, command_time) ||
 		command_add("timers", "- Display persistent timers for target", 200, command_timers) ||
@@ -760,20 +756,131 @@ void command_worldwide(Client *c, const Seperator *sep)
 	}
 
 	if (sub_command == "cast") {
-		if (sep->arg[2][0] && Seperator::IsNumber(sep->arg[2])) {
+		if (sep->arg[2] && Seperator::IsNumber(sep->arg[2])) {
 			uint8 update_type = WWSpellUpdateType_Cast;
-			int spell_id = atoi(sep->arg[2]);
+			auto spell_id = std::stoul(sep->arg[2]);
+			bool disable_message = false;
+			if (sep->arg[3] && Seperator::IsNumber(sep->arg[3])) {
+				disable_message = std::stoi(sep->arg[3]) ? true : false;
+			}
+
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"World Wide Cast Spell | Spell: {} ({})",
+					GetSpellName(spell_id),
+					spell_id
+				).c_str()
+			);
+
 			quest_manager.WorldWideSpell(update_type, spell_id);
-			worldserver.SendEmoteMessage(0, 0, 15, fmt::format("<SYSTEMWIDE MESSAGE> A GM has cast [{}] world-wide!", GetSpellName(spell_id)).c_str());
+			if (!disable_message) {
+				quest_manager.WorldWideMessage(
+					Chat::Yellow,
+					fmt::format(
+						"[SYSTEM] A GM has cast [{}] world-wide!",
+						GetSpellName(spell_id)
+					).c_str()
+				);
+			}
+		} else {
+			c->Message(Chat::White, "Usage: #worldwide cast [Spell ID] [Disable Message]");
 		}
-		else {
-			c->Message(Chat::Yellow, "Usage: #worldwide cast [spellid]");
+	} else if (sub_command == "remove") {
+		if (sep->arg[2] && Seperator::IsNumber(sep->arg[2])) {
+			uint8 update_type = WWSpellUpdateType_Remove;
+			auto spell_id = std::stoul(sep->arg[2]);
+
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"World Wide Remove Spell | Spell: {} ({})",
+					GetSpellName(spell_id),
+					spell_id
+				).c_str()
+			);
+
+			quest_manager.WorldWideSpell(update_type, spell_id);
+		} else {
+			c->Message(Chat::White, "Usage: #worldwide remove [Spell ID]");
 		}
+	} else if (sub_command == "message") {
+		if (sep->arg[2]) {
+			std::string message = sep->arg[2];
+			quest_manager.WorldWideMessage(
+				Chat::White,
+				fmt::format(
+					"{}",
+					message
+				).c_str()
+			);
+		} else {
+			c->Message(Chat::White, "Usage: #worldwide message [Message]");
+		}
+	} else if (sub_command == "move") {
+		if (sep->arg[2]) {
+			uint8 update_type = WWMoveUpdateType_MoveZone;
+			uint32 zone_id = 0;
+			std::string zone_short_name;
+			if (Seperator::IsNumber(sep->arg[2])) {
+				zone_id = std::stoul(sep->arg[2]);
+			}
+
+			if (zone_id) {
+				zone_short_name = ZoneName(zone_id);
+			} else {
+				zone_short_name = sep->arg[2];
+			}
+
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"World Wide Zone | Zone: {} ({}) ID: {}",
+					ZoneLongName(
+						ZoneID(zone_short_name)
+					),
+					zone_short_name,
+					ZoneID(zone_short_name)
+				).c_str()
+			);
+
+			quest_manager.WorldWideMove(update_type, zone_short_name.c_str());
+		} else {
+			c->Message(
+				Chat::White,
+				"Usage: #worldwide move [Zone ID] or #worldwide move [Zone Short Name]"
+			);
+		}
+	} else if (sub_command == "moveinstance") {
+		if (Seperator::IsNumber(sep->arg[2])) {
+			uint8 update_type = WWMoveUpdateType_MoveZoneInstance;
+			const char* zone_short_name = "";
+			uint16 instance_id = std::stoi(sep->arg[2]);
+			
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"World Wide Zone Instance | Instance ID: {}",
+					instance_id
+				).c_str()
+			);
+
+			quest_manager.WorldWideMove(update_type, zone_short_name, instance_id);
+		} else {
+			c->Message(Chat::White, "Usage: #worldwide moveinstance [Instance ID]");
+		}	
 	}
 
 	if (!sep->arg[1]) {
-		c->Message(Chat::White, "This command is used to perform world-wide tasks");
-		c->Message(Chat::White, "Usage: #worldwide cast [spellid]");
+		c->Message(Chat::White, "This command is used to perform world-wide tasks.");
+		c->Message(Chat::White, "Usage: #worldwide cast [Spell ID] [Disable Message]");
+		c->Message(Chat::White, "Usage: #worldwide remove [Spell ID]");
+		c->Message(Chat::White, "Usage: #worldwide message [Message]");
+		c->Message(
+			Chat::White,
+			"Usage: #worldwide move [Zone ID] or #worldwide move [Zone Short Name]"
+		);
+		c->Message(Chat::White, "Usage: #worldwide moveinstance [Instance ID]");
 	}
 }
 void command_endurance(Client *c, const Seperator *sep)
@@ -1557,11 +1664,6 @@ void command_delpetition(Client *c, const Seperator *sep)
 
 }
 
-void command_listnpcs(Client *c, const Seperator *sep)
-{
-	c->Message(Chat::White, "Deprecated, use the #list command (#list npcs <search>)");
-}
-
 void command_list(Client *c, const Seperator *sep)
 {
 	std::string search_type;
@@ -1935,34 +2037,596 @@ void command_fov(Client *c, const Seperator *sep)
 
 void command_npcstats(Client *c, const Seperator *sep)
 {
-	if (c->GetTarget() == 0)
-		c->Message(Chat::White, "ERROR: No target!");
-	else if (!c->GetTarget()->IsNPC())
-		c->Message(Chat::White, "ERROR: Target is not a NPC!");
-	else {
-		auto target_npc = c->GetTarget()->CastToNPC();
-		c->Message(Chat::White, "# NPC Stats");
-		c->Message(Chat::White, "- Name: %s   NpcID: %u", target_npc->GetName(), target_npc->GetNPCTypeID());
-		c->Message(Chat::White, "- Race: %i  Level: %i  Class: %i  Material: %i", target_npc->GetRace(), target_npc->GetLevel(), target_npc->GetClass(), target_npc->GetTexture());
-		c->Message(Chat::White, "- Current HP: %i  Max HP: %i", target_npc->GetHP(), target_npc->GetMaxHP());
-		//c->Message(Chat::White, "Weapon Item Number: %s", target_npc->GetWeapNo());
-		c->Message(Chat::White, "- Gender: %i  Size: %f  Bodytype: %d", target_npc->GetGender(), target_npc->GetSize(), target_npc->GetBodyType());
-		c->Message(Chat::White, "- Runspeed: %.3f  Walkspeed: %.3f", static_cast<float>(0.025f * target_npc->GetRunspeed()), static_cast<float>(0.025f * target_npc->GetWalkspeed()));
-		c->Message(Chat::White, "- Spawn Group: %i  Grid: %i", target_npc->GetSpawnGroupId(), target_npc->GetGrid());
-		if (target_npc->proximity) {
-			c->Message(Chat::White, "- Proximity: Enabled");
-			c->Message(Chat::White, "-- Cur_X: %1.3f, Cur_Y: %1.3f, Cur_Z: %1.3f", target_npc->GetX(), target_npc->GetY(), target_npc->GetZ());
-			c->Message(Chat::White, "-- Min_X: %1.3f(%1.3f), Max_X: %1.3f(%1.3f), X_Range: %1.3f", target_npc->proximity->min_x, (target_npc->proximity->min_x - target_npc->GetX()), target_npc->proximity->max_x, (target_npc->proximity->max_x - target_npc->GetX()), (target_npc->proximity->max_x - target_npc->proximity->min_x));
-			c->Message(Chat::White, "-- Min_Y: %1.3f(%1.3f), Max_Y: %1.3f(%1.3f), Y_Range: %1.3f", target_npc->proximity->min_y, (target_npc->proximity->min_y - target_npc->GetY()), target_npc->proximity->max_y, (target_npc->proximity->max_y - target_npc->GetY()), (target_npc->proximity->max_y - target_npc->proximity->min_y));
-			c->Message(Chat::White, "-- Min_Z: %1.3f(%1.3f), Max_Z: %1.3f(%1.3f), Z_Range: %1.3f", target_npc->proximity->min_z, (target_npc->proximity->min_z - target_npc->GetZ()), target_npc->proximity->max_z, (target_npc->proximity->max_z - target_npc->GetZ()), (target_npc->proximity->max_z - target_npc->proximity->min_z));
-			c->Message(Chat::White, "-- Say: %s", (target_npc->proximity->say ? "Enabled" : "Disabled"));
+	if (c->GetTarget() && c->GetTarget()->IsNPC()) {
+		auto target = c->GetTarget()->CastToNPC();
+		std::string target_name = target->GetCleanName();
+		std::string target_last_name = target->GetLastName();
+		bool has_charmed_stats = (
+			target->GetCharmedAccuracy() != 0 ||
+			target->GetCharmedArmorClass() != 0 ||
+			target->GetCharmedAttack() != 0 ||
+			target->GetCharmedAttackDelay() != 0 ||
+			target->GetCharmedAvoidance() != 0 ||
+			target->GetCharmedMaxDamage() != 0 ||
+			target->GetCharmedMinDamage() != 0
+		);
+
+		// Spawn Data
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Group: {} Point: {} Grid: {}",
+				target->GetSpawnGroupId(),
+				target->GetSpawnPointID(),
+				target->GetGrid()
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Raid: {} Rare: {}",
+				target->IsRaidTarget() ? "Yes" : "No",
+				target->IsRareSpawn() ? "Yes" : "No",
+				target->GetSkipGlobalLoot() ? "Yes" : "No"
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Skip Global Loot: {} Ignore Despawn: {}",
+				target->GetSkipGlobalLoot() ? "Yes" : "No",
+				target->GetIgnoreDespawn() ? "Yes" : "No"
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Findable: {} Trackable: {} Underwater: {}",
+				target->IsFindable() ? "Yes" : "No",
+				target->IsTrackable() ? "Yes" : "No",
+				target->IsUnderwaterOnly() ? "Yes" : "No"
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Stuck Behavior: {} Fly Mode: {}",
+				target->GetStuckBehavior(),
+				static_cast<int>(target->GetFlyMode())
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Aggro NPCs: {} Always Aggro: {}",
+				target->GetNPCAggro() ? "Yes" : "No",
+				target->GetAlwaysAggro() ? "Yes" : "No"
+			).c_str()
+		);
+
+		// NPC
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"NPC | ID: {} Name: {}{} Level: {}",
+				target->GetNPCTypeID(),
+				target_name,
+				(
+					!target_last_name.empty() ?
+					fmt::format(" ({})", target_last_name) : 
+					""
+				),
+				target->GetLevel()
+			).c_str()
+		);
+		
+		// Race / Class / Gender
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Race: {} ({}) Class: {} ({}) Gender: {} ({})",
+				GetRaceIDName(target->GetRace()),
+				target->GetRace(),
+				GetClassIDName(target->GetClass()),
+				target->GetClass(),
+				GetGenderName(target->GetGender()),
+				target->GetGender()
+			).c_str()
+		);
+
+		// Faction
+		if (target->GetNPCFactionID()) {
+			auto faction_id = target->GetNPCFactionID();
+			auto faction_name = content_db.GetFactionName(faction_id);
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Faction: {} ({})",
+					faction_name,
+					faction_id
+				).c_str()
+			);
 		}
-		else {
-			c->Message(Chat::White, "-Proximity: Disabled");
+
+		// Adventure Template
+		if (target->GetAdventureTemplate()) {
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Adventure Template: {}",
+					target->GetAdventureTemplate()
+				).c_str()
+			);
 		}
-		c->Message(Chat::White, "");
-		c->Message(Chat::White, "EmoteID: %i", target_npc->GetEmoteID());
-		target_npc->QueryLoot(c);
+
+		// Body
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Body | Size: {:.2f} Type: {}",
+				target->GetSize(),
+				target->GetBodyType()
+			).c_str()
+		);
+
+		// Face
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Features | Face: {} Eye One: {} Eye Two: {}",
+				target->GetLuclinFace(),
+				target->GetEyeColor1(),
+				target->GetEyeColor2()
+			).c_str()
+		);
+
+		// Hair
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Features | Hair: {} Hair Color: {}",
+				target->GetHairStyle(),
+				target->GetHairColor()
+			).c_str()
+		);
+		
+		// Beard
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Features | Beard: {} Beard Color: {}",
+				target->GetBeard(),
+				target->GetBeardColor()
+			).c_str()
+		);
+
+		// Drakkin Features
+		if (target->GetRace() == RACE_DRAKKIN_522) {
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Drakkin Features | Heritage: {} Tattoo: {} Details: {}",
+					target->GetDrakkinHeritage(),
+					target->GetDrakkinTattoo(),
+					target->GetDrakkinDetails()
+				).c_str()
+			);
+		}
+
+		// Textures
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Textures | Armor: {} Helmet: {}",
+				target->GetTexture(),
+				target->GetHelmTexture()
+			).c_str()
+		);
+		
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Textures | Arms: {} Bracers: {} Hands: {}",
+				target->GetArmTexture(),
+				target->GetBracerTexture(),
+				target->GetHandTexture()
+			).c_str()
+		);
+		
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Textures | Legs: {} Feet: {}",
+				target->GetLegTexture(),
+				target->GetFeetTexture()
+			).c_str()
+		);
+
+		// Hero's Forge
+		if (target->GetHeroForgeModel()) {
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Hero's Forge: {}",
+					target->GetHeroForgeModel()
+				).c_str()
+			);
+		}
+
+		// Owner Data
+		if (target->GetOwner()) {
+			auto owner_name = target->GetOwner()->GetCleanName();
+			auto owner_type = (
+				target->GetOwner()->IsNPC() ?
+				"NPC" :
+				(
+					target->GetOwner()->IsClient() ?
+					"Client" :
+					"Other"
+				)
+			);
+			auto owner_id = target->GetOwnerID();
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Owner | Name: {} ({}) Type: {}",
+					owner_name,
+					owner_id,
+					owner_type
+				).c_str()
+			);
+		}
+
+		// Pet Data
+		if (target->GetPet()) {
+			auto pet_name = target->GetPet()->GetCleanName();
+			auto pet_id = target->GetPetID();
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Pet | Name: {} ({})",
+					pet_name,
+					pet_id
+				).c_str()
+			);
+		}
+
+		// Merchant Data
+		if (target->MerchantType) {
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Merchant | ID: {} Currency Type: {}",
+					target->MerchantType,
+					target->GetAltCurrencyType()
+				).c_str()
+			);
+		}
+
+		// Spell Data
+		if (target->AI_HasSpells() || target->AI_HasSpellsEffects()) {
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Spells | ID: {} Effects ID: {}",
+					target->GetNPCSpellsID(),
+					target->GetNPCSpellsEffectsID()
+				).c_str()
+			);
+		}
+
+		// Health
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Health: {}/{} ({:.2f}%) Regen: {}",
+				target->GetHP(),
+				target->GetMaxHP(),
+				target->GetHPRatio(),
+				target->GetHPRegen()
+			).c_str()
+		);
+
+		// Mana
+		if (target->GetMaxMana() > 0) {
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Mana: {}/{} ({:.2f}%) Regen: {}",
+					target->GetMana(),
+					target->GetMaxMana(),
+					target->GetManaRatio(),
+					target->GetManaRegen()
+				).c_str()
+			);
+		}
+
+		// Damage
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Damage | Min: {} Max: {}",
+				target->GetMinDMG(),
+				target->GetMaxDMG()
+			).c_str()
+		);
+
+		// Attack Count / Delay
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Attack | Count: {} Delay: {}",
+				target->GetNumberOfAttacks(),
+				target->GetAttackDelay()
+			).c_str()
+		);
+
+		// Weapon Textures
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Weapon Textures | Primary: {} Secondary: {} Ammo: {}",
+				target->GetEquipmentMaterial(EQ::textures::weaponPrimary),
+				target->GetEquipmentMaterial(EQ::textures::weaponSecondary),
+				target->GetAmmoIDfile()
+			).c_str()
+		);
+
+		// Weapon Types
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Weapon Types | Primary: {} ({}) Secondary: {} ({})",
+				EQ::skills::GetSkillName(static_cast<EQ::skills::SkillType>(target->GetPrimSkill())),
+				target->GetPrimSkill(),
+				EQ::skills::GetSkillName(static_cast<EQ::skills::SkillType>(target->GetSecSkill())),
+				target->GetSecSkill()
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Weapon Types | Ranged: {} ({})",
+				EQ::skills::GetSkillName(static_cast<EQ::skills::SkillType>(target->GetRangedSkill())),
+				target->GetRangedSkill()
+			).c_str()
+		);
+
+		// Combat Stats
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Combat Stats | Accuracy: {} Armor Class: {} Attack: {}",
+				target->GetAccuracyRating(),
+				target->GetAC(),
+				target->GetATK()
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Combat Stats | Avoidance: {} Slow Mitigation: {}",
+				target->GetAvoidanceRating(),
+				target->GetSlowMitigation()
+			).c_str()
+		);
+
+		// Stats
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Stats | Agility: {} Charisma: {} Dexterity: {} Intelligence: {}",
+				target->GetAGI(),
+				target->GetCHA(),
+				target->GetDEX(),
+				target->GetINT()
+			).c_str()
+		);
+		
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Stats | Stamina: {} Strength: {} Wisdom: {}",
+				target->GetSTA(),
+				target->GetSTR(),
+				target->GetWIS()
+			).c_str()
+		);
+
+		// Charmed Stats
+		if (has_charmed_stats) {
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Charmed Stats | Attack: {} Attack Delay: {}",
+					target->GetCharmedAttack(),
+					target->GetCharmedAttackDelay()
+				).c_str()
+			);
+
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Charmed Stats | Accuracy: {} Avoidance: {}",
+					target->GetCharmedAccuracy(),
+					target->GetCharmedAvoidance()
+				).c_str()
+			);
+			
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Charmed Stats | Min Damage: {} Max Damage: {}",
+					target->GetCharmedMinDamage(),
+					target->GetCharmedMaxDamage()
+				).c_str()
+			);
+		}
+
+		// Resists
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Resists | Cold: {} Disease: {} Fire: {} Magic: {}",
+				target->GetCR(),
+				target->GetDR(),
+				target->GetFR(),
+				target->GetMR()
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Resists | Poison: {} Corruption: {} Physical: {}",
+				target->GetPR(),
+				target->GetCorrup(),
+				target->GetPhR()
+			).c_str()
+		);
+
+		// Scaling
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Scaling | Heal: {} Spell: {}",
+				target->GetHealScale(),
+				target->GetSpellScale()
+			).c_str()
+		);
+
+		// See Invisible / Invisible vs. Undead / Hide / Improved Hide
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Can See | Invisible: {} Invisible vs. Undead: {}",
+				target->SeeInvisible() ? "Yes" : "No",
+				target->SeeInvisibleUndead() ? "Yes" : "No"
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Can See | Hide: {} Improved Hide: {}",
+				target->SeeHide() ? "Yes" : "No",
+				target->SeeImprovedHide() ? "Yes" : "No"
+			).c_str()
+		);
+
+		// Aggro / Assist Radius
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Radius | Aggro: {} Assist: {}",
+				target->GetAggroRange(),
+				target->GetAssistRange()
+			).c_str()
+		);
+
+		// Emote		
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Emote: {}",
+				target->GetEmoteID()
+			).c_str()
+		);
+
+		// Run/Walk Speed
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Speed | Run: {} Walk: {}",
+				target->GetRunspeed(),
+				target->GetWalkspeed()
+			).c_str()
+		);
+
+		// Position
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Position | {}, {}, {}, {}",
+				target->GetX(),
+				target->GetY(),
+				target->GetZ(),
+				target->GetHeading()
+			).c_str()
+		);
+
+		// Experience Modifier
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Experience Modifier: {}",
+				target->GetKillExpMod()
+			).c_str()
+		);
+
+		// Quest Globals
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Quest Globals: {}",
+				target->qglobal ? "Enabled" : "Disabled"
+			).c_str()
+		);
+
+		// Proximity
+		if (target->IsProximitySet()) {
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Proximity | Say: {}",
+					target->proximity->say ? "Enabled" : "Disabled"
+				).c_str()
+			);
+
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Proximity X | Min: {} Max: {} Range: {}",
+					target->GetProximityMinX(),
+					target->GetProximityMinX(),
+					(target->GetProximityMinX() - target->GetProximityMinX())
+				).c_str()
+			);
+			
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Proximity Y | Min: {} Max: {} Range: {}",
+					target->GetProximityMinY(),
+					target->GetProximityMaxY(),
+					(target->GetProximityMaxY() - target->GetProximityMinY())
+				).c_str()
+			);
+			
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"Proximity Z | Min: {} Max: {} Range: {}",
+					target->GetProximityMinZ(),
+					target->GetProximityMaxZ(),
+					(target->GetProximityMaxZ() - target->GetProximityMinZ())
+				).c_str()
+			);
+		}
+
+		// Loot Data
+		if (target->GetLoottableID()) {
+			target->QueryLoot(c);
+		}
+	} else {
+		c->Message(Chat::White, "You must target an NPC to use this command.");
 	}
 }
 
@@ -2017,12 +2681,208 @@ void command_npccast(Client *c, const Seperator *sep)
 
 void command_zstats(Client *c, const Seperator *sep)
 {
-	c->Message(Chat::White, "Zone Header Data:");
-	c->Message(Chat::White, "Sky Type: %i",  zone->newzone_data.sky);
-	c->Message(Chat::White, "Fog Colour: Red: %i; Blue: %i; Green %i",  zone->newzone_data.fog_red[0], zone->newzone_data.fog_green[0], zone->newzone_data.fog_blue[0]);
-	c->Message(Chat::White, "Safe Coords: %f, %f, %f",  zone->newzone_data.safe_x, zone->newzone_data.safe_y, zone->newzone_data.safe_z);
-	c->Message(Chat::White, "Underworld Coords: %f",  zone->newzone_data.underworld);
-	c->Message(Chat::White, "Clip Plane: %f - %f",  zone->newzone_data.minclip, zone->newzone_data.maxclip);
+	// Zone
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Zone | ID: {} Instance ID: {} Name: {} ({})",
+			zone->GetZoneID(),
+			zone->GetInstanceID(),
+			zone->GetLongName(),
+			zone->GetShortName()
+		).c_str()
+	);
+
+	// Type
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Type: {}",
+			zone->newzone_data.ztype
+		).c_str()
+	);
+
+	// Fog Data
+	for (int fog_index = 0; fog_index < 4; fog_index++) {
+		int fog_number = (fog_index + 1);
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Fog {} Colors | Red: {} Blue: {} Green: {} ",
+				fog_number,
+				zone->newzone_data.fog_red[fog_index],
+				zone->newzone_data.fog_green[fog_index],
+				zone->newzone_data.fog_blue[fog_index]
+			).c_str()
+		);
+
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Fog {} Clipping Distance | Min: {} Max: {}",
+				fog_number,
+				zone->newzone_data.fog_minclip[fog_index],
+				zone->newzone_data.fog_maxclip[fog_index]
+			).c_str()
+		);
+	}
+
+	// Fog Density
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Fog Density: {}",
+			zone->newzone_data.fog_density
+		).c_str()
+	);
+
+
+	// Gravity
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Gravity: {}",
+			zone->newzone_data.gravity
+		).c_str()
+	);
+
+	// Time Type
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Time Type: {}",
+			zone->newzone_data.time_type
+		).c_str()
+	);
+
+	// Experience Multiplier
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Experience Multiplier: {}",
+			zone->newzone_data.zone_exp_multiplier
+		).c_str()
+	);
+
+	// Safe Coordinates
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Safe Coordinates: {}, {}, {}",
+			zone->newzone_data.safe_x,
+			zone->newzone_data.safe_y,
+			zone->newzone_data.safe_z
+		).c_str()
+	);
+
+	// Max Z
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Max Z: {}",
+			zone->newzone_data.max_z
+		).c_str()
+	);
+
+	// Underworld Z
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Underworld Z: {}",
+			zone->newzone_data.underworld
+		).c_str()
+	);
+
+	// Clipping Distance
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Clipping Distance | Min: {} Max: {}",
+			zone->newzone_data.minclip,
+			zone->newzone_data.maxclip
+		).c_str()
+	);
+
+	// Weather Data
+	for (int weather_index = 0; weather_index < 4; weather_index++) {
+		int weather_number = (weather_index + 1);
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Rain {} | Chance: {} Duration: {} ",
+				weather_number,
+				zone->newzone_data.rain_chance[weather_index],
+				zone->newzone_data.rain_duration[weather_index]
+			).c_str()
+		);
+		
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Snow {} | Chance: {} Duration: {}",
+				weather_number,
+				zone->newzone_data.snow_chance[weather_index],
+				zone->newzone_data.snow_duration[weather_index]
+			).c_str()
+		);
+	}
+
+	// Sky Type
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Sky Type: {}",
+			zone->newzone_data.sky
+		).c_str()
+	);
+
+	// Suspend Buffs
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Suspend Buffs: {}",
+			zone->newzone_data.SuspendBuffs
+		).c_str()
+	);
+
+	// Regeneration Data
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Regen | Health: {} Mana: {} Endurance: {}",
+			zone->newzone_data.FastRegenHP,
+			zone->newzone_data.FastRegenMana,
+			zone->newzone_data.FastRegenEndurance
+		).c_str()
+	);
+
+	// NPC Max Aggro Distance
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"NPC Max Aggro Distance: {}",
+			zone->newzone_data.NPCAggroMaxDist
+		).c_str()
+	);
+
+	// Underworld Teleport Index
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Underworld Teleport Index: {}",
+			zone->newzone_data.underworld_teleport_index
+		).c_str()
+	);
+
+	// Lava Damage
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Lava Damage | Min: {} Max: {}",
+			zone->newzone_data.MinLavaDamage,
+			zone->newzone_data.LavaDamage
+		).c_str()
+	);
 }
 
 void command_permaclass(Client *c, const Seperator *sep)
@@ -2220,19 +3080,6 @@ void command_zcolor(Client *c, const Seperator *sep)
 	}
 }
 
-void command_spon(Client *c, const Seperator *sep)
-{
-	c->MemorizeSpell(0, SPELLBAR_UNLOCK, memSpellSpellbar);
-}
-
-void command_spoff(Client *c, const Seperator *sep)
-{
-	auto outapp = new EQApplicationPacket(OP_ManaChange, 0);
-	outapp->priority = 5;
-	c->QueuePacket(outapp);
-	safe_delete(outapp);
-}
-
 void command_gassign(Client *c, const Seperator *sep)
 {
 	if (sep->IsNumber(1) && c->GetTarget() && c->GetTarget()->IsNPC() && c->GetTarget()->CastToNPC()->GetSpawnPointID() > 0) {
@@ -2344,46 +3191,65 @@ void command_ai(Client *c, const Seperator *sep)
 void command_worldshutdown(Client *c, const Seperator *sep)
 {
 	// GM command to shutdown world server and all zone servers
-	uint32 time=0;
-	uint32 interval=0;
+	uint32 time = 0;
+	uint32 interval = 0;
 	if (worldserver.Connected()) {
-		if(sep->IsNumber(1) && sep->IsNumber(2) && ((time=atoi(sep->arg[1]))>0) && ((interval=atoi(sep->arg[2]))>0)) {
-			worldserver.SendEmoteMessage(0,0,15,"<SYSTEMWIDE MESSAGE>:SYSTEM MSG:World coming down in %i minutes, everyone log out before this time.",  (time / 60 ));
-			c->Message(Chat::White, "Sending shutdown packet now, World will shutdown in: %i minutes with an interval of: %i seconds",  (time / 60), interval);
+		if (
+			sep->IsNumber(1) &&
+			sep->IsNumber(2) &&
+			(time = std::stoi(sep->arg[1]) > 0) &&
+			(interval = std::stoi(sep->arg[2]) > 0)
+		) {
+			int time_minutes = (time / 60);
+			quest_manager.WorldWideMessage(
+				Chat::Yellow,
+				fmt::format(
+					"[SYSTEM] World will be shutting down in {} minutes.", 
+					time_minutes
+				).c_str()
+			);
+			c->Message(
+				Chat::White,
+				fmt::format(
+					"World will be shutting down in {} minutes, notifying every {} seconds",
+					time_minutes,
+					interval
+				).c_str()
+			);
 			auto pack = new ServerPacket(ServerOP_ShutdownAll, sizeof(WorldShutDown_Struct));
 			WorldShutDown_Struct* wsd = (WorldShutDown_Struct*)pack->pBuffer;
-			wsd->time=time*1000;
-			wsd->interval=(interval*1000);
+			wsd->time = (time * 1000);
+			wsd->interval = (interval * 1000);
 			worldserver.SendPacket(pack);
 			safe_delete(pack);
-		}
-		else if(strcasecmp(sep->arg[1], "now") == 0){
-			worldserver.SendEmoteMessage(0,0,15,"<SYSTEMWIDE MESSAGE>:SYSTEM MSG:World coming down, everyone log out now.");
-			c->Message(Chat::White, "Sending shutdown packet");
+		} else if (!strcasecmp(sep->arg[1], "now")){
+			quest_manager.WorldWideMessage(
+				Chat::Yellow,
+				"[SYSTEM] World is shutting down now."
+			);
+			c->Message(Chat::White, "World is shutting down now.");
 			auto pack = new ServerPacket;
 			pack->opcode = ServerOP_ShutdownAll;
-			pack->size=0;
+			pack->size = 0;
 			worldserver.SendPacket(pack);
 			safe_delete(pack);
-		}
-		else if(strcasecmp(sep->arg[1], "disable") == 0){
-			c->Message(Chat::White, "Shutdown prevented, next time I may not be so forgiving...");
+		} else if (!strcasecmp(sep->arg[1], "disable")) {
+			c->Message(Chat::White, "World shutdown has been aborted.");
 			auto pack = new ServerPacket(ServerOP_ShutdownAll, sizeof(WorldShutDown_Struct));
 			WorldShutDown_Struct* wsd = (WorldShutDown_Struct*)pack->pBuffer;
-			wsd->time=0;
-			wsd->interval=0;
+			wsd->time = 0;
+			wsd->interval = 0;
 			worldserver.SendPacket(pack);
 			safe_delete(pack);
-		}
-		else{
+		} else {
 			c->Message(Chat::White,"#worldshutdown - Shuts down the server and all zones.");
 			c->Message(Chat::White,"Usage: #worldshutdown now - Shuts down the server and all zones immediately.");
 			c->Message(Chat::White,"Usage: #worldshutdown disable - Stops the server from a previously scheduled shut down.");
-			c->Message(Chat::White,"Usage: #worldshutdown [timer] [interval] - Shuts down the server and all zones after [timer] seconds and sends warning every [interval] seconds.");
+			c->Message(Chat::White,"Usage: #worldshutdown [timer] [interval] - Shuts down the server and all zones after [timer] seconds and notifies players every [interval] seconds.");
 		}
+	} else {
+		c->Message(Chat::White, "Error: World server is disconnected.");
 	}
-	else
-		c->Message(Chat::White, "Error: World server disconnected");
 }
 
 void command_sendzonespawns(Client *c, const Seperator *sep)
@@ -3603,18 +4469,6 @@ void command_spawn(Client *c, const Seperator *sep)
 		c->Message(Chat::White, "Format: #spawn name race level material hp gender class priweapon secweapon merchantid bodytype - spawns a npc those parameters.");
 		c->Message(Chat::White, "Name Format: NPCFirstname_NPCLastname - All numbers in a name are stripped and \"_\" characters become a space.");
 		c->Message(Chat::White, "Note: Using \"-\" for gender will autoselect the gender for the race. Using \"-\" for HP will use the calculated maximum HP.");
-	}
-}
-
-void command_test(Client *c, const Seperator *sep)
-{
-	c->Message(Chat::Yellow, "Triggering test command");
-
-	if (sep->arg[1]) {
-		c->SetPrimaryWeaponOrnamentation(atoi(sep->arg[1]));
-	}
-	if (sep->arg[2]) {
-		c->SetSecondaryWeaponOrnamentation(atoi(sep->arg[2]));
 	}
 }
 
