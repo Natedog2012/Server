@@ -234,8 +234,8 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				snprintf(effect_desc, _EDLEN, "Current Hitpoints: %+i", effect_value);
 #endif
 				// SE_CurrentHP is calculated at first tick if its a dot/buff
-				//if (buffslot >= 0)
-				//	break;
+				if (buffslot >= 0)
+					break;
 
 				if (spells[spell_id].limit_value[i] && !PassCastRestriction(spells[spell_id].limit_value[i])) {
 					break; //no messages are given on live if this fails.
