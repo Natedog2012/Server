@@ -3410,6 +3410,9 @@ void Client::Handle_OP_AutoFire(const EQApplicationPacket *app)
 	}
 	bool *af = (bool*)app->pBuffer;
 	auto_fire = *af;
+	if(!RuleB(Character, EnableRangerAutoFire))
+		auto_fire = false;
+
 	auto_attack = false;
 	SetAttackTimer();
 }
