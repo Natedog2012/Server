@@ -176,6 +176,12 @@ public:
 	Timer                             mob_check_moving_timer;
 
 	//Somewhat sorted: needs documenting!
+	//Custom
+	bool QuestHidden(Client* client = 0);
+	void SetQuestHide(bool flag);
+	bool GetQuestHide(){ return questhidden; }
+	void RevealTo(Client *client);
+	void HideFrom(Client *client);
 
 	//Attack
 	virtual void RogueBackstab(Mob* other, bool min_damage = false, int ReuseTime = 10);
@@ -621,7 +627,7 @@ public:
 	virtual void StopMoving(float new_heading);
 	void SetSpawned() { spawned = true; };
 	bool Spawned() { return spawned; };
-	virtual bool ShouldISpawnFor(Client *c) { return true; }
+	virtual bool ShouldISpawnFor(Client *c) { return !QuestHidden(c); }
 	void SetFlyMode(GravityBehavior flymode);
 	void Teleport(const glm::vec3 &pos);
 	void Teleport(const glm::vec4 &pos);
@@ -1686,6 +1692,9 @@ protected:
 	bool m_can_open_doors;
 
 	MobMovementManager *mMovementManager;
+	
+	//Custom QuestHide
+	bool questhidden;
 
 private:
 	void _StopSong(); //this is not what you think it is

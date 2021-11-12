@@ -485,6 +485,7 @@ Mob::Mob(
 	PrimaryAggro = false;
 	AssistAggro = false;
 	npc_assist_cap = 0;
+	questhidden = false;
 
 	use_double_melee_round_dmg_bonus = false;
 
@@ -5919,4 +5920,63 @@ std::string Mob::GetBucketRemaining(std::string bucket_name) {
 void Mob::SetBucket(std::string bucket_name, std::string bucket_value, std::string expiration) {
 	std::string full_bucket_name = fmt::format("{}-{}", GetBucketKey(), bucket_name);
 	DataBucket::SetData(full_bucket_name, bucket_value, expiration);
+}
+
+bool Mob::QuestHidden(Client *client) {
+	if (questhidden && client) {
+		std::string ent_var = StringFormat("Reveal_%s", client->GetCleanName());
+		if (GetEntityVariable(ent_var.c_str()) == "1" || (client->Admin() >= 250 && client->GetGM())) {
+			return false; //This player can view them...
+		}
+		else {
+			return true; //This player cannot view them..
+		}
+	}
+	else {
+		return false; //This NPC is not questhidden...
+	}
+}
+
+void Mob::SetQuestHide(bool flag)
+{
+	EQApplicationPacket app;
+	questhidden = flag;
+
+	if (questhidden)
+	{
+		CreateDespawnPacket(&app, false);
+		entity_list.RemoveFromTargets(this);
+		trackable = false;
+	}
+	else
+	{
+		CreateSpawnPacket(&app);
+		trackable = true;
+	}
+
+	entity_list.QueueClients(this, &app, true);
+}
+
+void Mob::RevealTo(Client *client) 
+{
+	if (client != nullptr) {
+		std::string ent_var = StringFormat("Reveal_%s", client->GetCleanName());
+		SetEntityVariable(ent_var.c_str(), "1"); //We see the mob..
+		EQApplicationPacket app;
+		CreateSpawnPacket(&app);
+		client->QueuePacket(&app);
+	}
+
+}
+
+void Mob::HideFrom(Client *client)
+{
+	if (client != nullptr) {
+		std::string ent_var = StringFormat("Reveal_%s", client->GetCleanName());
+		SetEntityVariable(ent_var.c_str(), "0"); //We dont see the mob..
+		EQApplicationPacket app;
+		CreateDespawnPacket(&app, false);
+		client->QueuePacket(&app);
+	}
+
 }

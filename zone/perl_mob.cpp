@@ -36,6 +36,72 @@ typedef const char Const_char;
 			Perl_croak(aTHX_ "THIS is nullptr, avoiding crash."); \
 		} \
 	} while (0);
+	
+XS(XS_Mob_SetQuestHide); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Mob_SetQuestHide)
+{
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Mob::SetQuestHide(THIS, flag)");
+	{
+		Mob *		THIS;
+		bool		flag = (bool)SvTRUE(ST(1));
+		VALIDATE_THIS_IS_MOB;
+		THIS->SetQuestHide(flag);
+	}
+	XSRETURN_EMPTY;
+}
+
+XS(XS_Mob_RevealTo); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Mob_RevealTo)
+{
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Mob::RevealTo(THIS, client)");
+	{
+		Mob *		THIS;
+		Client*		client;
+		VALIDATE_THIS_IS_MOB;
+		
+		if (sv_derived_from(ST(1), "Client")) {
+			IV tmp = SvIV((SV*)SvRV(ST(1)));
+			client = INT2PTR(Client *,tmp);
+		}
+		else
+			Perl_croak(aTHX_ "client is not of type Client");
+		if(client == nullptr)
+			Perl_croak(aTHX_ "client is nullptr, avoiding crash.");
+
+		THIS->RevealTo(client);
+	}
+	XSRETURN_EMPTY;
+}
+
+XS(XS_Mob_HideFrom); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Mob_HideFrom)
+{
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Mob::HideFrom(THIS, client)");
+	{
+		Mob *		THIS;
+		Client*		client;
+
+		VALIDATE_THIS_IS_MOB;
+		
+		if (sv_derived_from(ST(1), "Client")) {
+			IV tmp = SvIV((SV*)SvRV(ST(1)));
+			client = INT2PTR(Client *,tmp);
+		}
+		else
+			Perl_croak(aTHX_ "client is not of type Client");
+		if(client == nullptr)
+			Perl_croak(aTHX_ "client is nullptr, avoiding crash.");
+
+		THIS->HideFrom(client);
+	}
+	XSRETURN_EMPTY;
+}
 
 XS(XS_Mob_IsClient); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Mob_IsClient) {
@@ -6431,6 +6497,9 @@ XS(boot_Mob) {
 	//add the strcpy stuff to get rid of const warnings....
 
 	XS_VERSION_BOOTCHECK;
+	newXSproto(strcpy(buf, "SetQuestHide"), XS_Mob_SetQuestHide, file, "$$");
+	newXSproto(strcpy(buf, "RevealTo"), XS_Mob_RevealTo, file, "$$");
+	newXSproto(strcpy(buf, "HideFrom"), XS_Mob_HideFrom, file, "$$");
 	newXSproto(strcpy(buf, "AddFeignMemory"), XS_Mob_AddFeignMemory, file, "$$");
 	newXSproto(strcpy(buf, "AddNimbusEffect"), XS_Mob_AddNimbusEffect, file, "$$");
 	newXSproto(strcpy(buf, "AddToHateList"), XS_Mob_AddToHateList, file, "$$;$$$$$");

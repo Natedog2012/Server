@@ -26,7 +26,12 @@ void Zone::mod_init() { return; }
 void Zone::mod_repop() { return; }
 
 //Pre-spawn hook called from the NPC object to be spawned
-void NPC::mod_prespawn(Spawn2 *sp) { return; }
+void NPC::mod_prespawn(Spawn2 *sp) { 
+	if (GetCHA() == 1337)
+		SetQuestHide(true);
+	
+return; 
+}
 
 //Base damage from NPC::Attack
 int NPC::mod_npc_damage(int damage, EQ::skills::SkillType skillinuse, int hand, const EQ::ItemData* weapon, Mob* other) { return(damage); }

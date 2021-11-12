@@ -695,7 +695,7 @@ void EntityList::AddNPC(NPC *npc, bool SendSpawnPacket, bool dontqueue)
 	if (emoteid != 0)
 		npc->DoNPCEmote(ONSPAWN, emoteid);
 	npc->SetSpawned();
-	if (SendSpawnPacket) {
+	if (SendSpawnPacket && !npc->GetQuestHide()) {
 		if (dontqueue) { // aka, SEND IT NOW BITCH!
 			auto app = new EQApplicationPacket;
 			npc->CreateSpawnPacket(app, npc);

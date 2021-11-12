@@ -202,6 +202,7 @@ Mob* QuestManager::spawn2(int npc_type, int grid, int unused, const glm::vec4& p
 	{
 		auto npc = new NPC(tmp, nullptr, position, GravityBehavior::Water);
 		npc->AddLootTable();
+		npc->mod_prespawn(0);
 		if (npc->DropsGlobalLoot())
 			npc->CheckGlobalLootTables();
 		entity_list.AddNPC(npc,true,true);
