@@ -7664,7 +7664,7 @@ bool Mob::PassCastRestriction(int value)
 			break;
 
 		case HAS_BETWEEN_1_TO_2_PETS_ON_HATELIST: {
-			int count = hate_list.GetSummonedPetCountOnHateList(this);
+			int count = hate_list.GetSummonedPetCountOnHateList();
 			if (count >= 1 && count <= 2) {
 				return true;
 			}
@@ -7672,7 +7672,7 @@ bool Mob::PassCastRestriction(int value)
 		}
 
 		case HAS_BETWEEN_3_TO_5_PETS_ON_HATELIST: {
-			int count = hate_list.GetSummonedPetCountOnHateList(this);
+			int count = hate_list.GetSummonedPetCountOnHateList();
 			if (count >= 3 && count <= 5) {
 				return true;
 			}
@@ -7680,7 +7680,7 @@ bool Mob::PassCastRestriction(int value)
 		}
 
 		case HAS_BETWEEN_6_TO_9_PETS_ON_HATELIST: {
-			int count = hate_list.GetSummonedPetCountOnHateList(this);
+			int count = hate_list.GetSummonedPetCountOnHateList();
 			if (count >= 6 && count <= 9) {
 				return true;
 			}
@@ -7688,7 +7688,7 @@ bool Mob::PassCastRestriction(int value)
 		}
 
 		case HAS_BETWEEN_10_TO_14_PETS_ON_HATELIST: {
-			int count = hate_list.GetSummonedPetCountOnHateList(this);
+			int count = hate_list.GetSummonedPetCountOnHateList();
 			if (count >= 10 && count <= 14) {
 				return true;
 			}
@@ -7696,7 +7696,7 @@ bool Mob::PassCastRestriction(int value)
 		}
 
 		case HAS_MORE_THAN_14_PETS_ON_HATELIST: {
-			int count = hate_list.GetSummonedPetCountOnHateList(this);
+			int count = hate_list.GetSummonedPetCountOnHateList();
 			if (count > 14) {
 				return true;
 			}
@@ -8252,7 +8252,7 @@ bool Mob::PassCastRestriction(int value)
 	}
 
 	if (value >= HAS_AT_LEAST_1_PET_ON_HATELIST && value <= HAS_AT_LEAST_20_PETS_ON_HATELIST) {
-		int count = hate_list.GetSummonedPetCountOnHateList(this);
+		int count = hate_list.GetSummonedPetCountOnHateList();
 		int minium_amount_of_pets_needed = (1 + value) - HAS_AT_LEAST_1_PET_ON_HATELIST;
 
 		if (count >= minium_amount_of_pets_needed) {
