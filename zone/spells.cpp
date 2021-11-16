@@ -4390,8 +4390,11 @@ void Mob::BuffFadeSongs()
 	int buff_count = GetMaxTotalSlots();
 	for (int j = 0; j < buff_count; j++)
 	{
-		if (spells[buffs[j].spellid].short_buff_box != 0)
-			BuffFadeBySlot(j, false);
+		if(buffs[j].spellid != SPELL_UNKNOWN) {
+			if (spells[buffs[j].spellid].short_buff_box != 0) {
+				BuffFadeBySlot(j, false);
+			}
+		}
 	}
 	CalcBonuses();
 }
