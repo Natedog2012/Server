@@ -821,7 +821,7 @@ public:
 	uint16 LearnDisciplines(uint8 min_level, uint8 max_level);
 	
 	//Custom
-	void Client::HandleAugmentation(int container_slot);
+	void HandleAugmentation(int container_slot);
 
 	// defer save used when bulk saving
 	void UnscribeSpell(int slot, bool update_client = true, bool defer_save = false);
