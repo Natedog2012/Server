@@ -65,7 +65,7 @@ void Object::HandleAugmentation(Client* user, const AugmentItem_Struct* in_augme
 		if (inst)
 		{
 			const EQ::ItemData* item = inst->GetItem();
-			if (item && inst->IsType(EQ::item::ItemClassBag) && item->BagType == 53)
+			if (item && inst->IsType(EQ::item::ItemClassBag) && (item->BagType == 53 || item->BagType == 57))
 			{
 				// We have found an appropriate inventory augmentation sealer
 				container = inst;

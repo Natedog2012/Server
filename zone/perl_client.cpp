@@ -5496,6 +5496,20 @@ XS(XS_Client_SetSpellScaleMod) {
 	XSRETURN_EMPTY;
 }
 
+XS(XS_Client_HandleAugmentation);
+XS(XS_Client_HandleAugmentation) {
+	dXSARGS;
+	if (items != 2)
+		Perl_croak(aTHX_ "Usage: Client::HandleAugmentation(THIS, int container)");
+	{
+		Client* THIS;
+		int container = SvIV(ST(1));
+		VALIDATE_THIS_IS_CLIENT;
+		THIS->HandleAugmentation(container);
+	}
+	XSRETURN_EMPTY;
+}
+
 XS(XS_Client_SetMeleeScaleMod);
 XS(XS_Client_SetMeleeScaleMod) {
 	dXSARGS;
@@ -6381,9 +6395,10 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "UseDiscipline"), XS_Client_UseDiscipline, file, "$$$");
 	newXSproto(strcpy(buf, "WorldKick"), XS_Client_WorldKick, file, "$");
 	//Custom-Natedog
-	newXSproto(strcpy(buf, "SetSpellScaleMod"), XS_Client_SetSpellScaleMod, file, "$");
-	newXSproto(strcpy(buf, "SetMeleeScaleMod"), XS_Client_SetMeleeScaleMod, file, "$");
-	newXSproto(strcpy(buf, "SetHealScaleMod"), XS_Client_SetHealScaleMod, file, "$");
+	newXSproto(strcpy(buf, "HandleAugmentation"), XS_Client_HandleAugmentation, file, "$$");
+	newXSproto(strcpy(buf, "SetSpellScaleMod"), XS_Client_SetSpellScaleMod, file, "$$");
+	newXSproto(strcpy(buf, "SetMeleeScaleMod"), XS_Client_SetMeleeScaleMod, file, "$$");
+	newXSproto(strcpy(buf, "SetHealScaleMod"), XS_Client_SetHealScaleMod, file, "$$");
 	newXSproto(strcpy(buf, "GetSpellDmg"), XS_Client_GetSpellDmg, file, "$");
 	newXSproto(strcpy(buf, "GetHealAmt"), XS_Client_GetHealAmt, file, "$");
 	newXSproto(strcpy(buf, "GetSPELL_MOD"), XS_Client_GetSPELL_MOD, file, "$");
