@@ -2524,3 +2524,37 @@ bool Group::DoesAnyMemberHaveExpeditionLockout(
 	}
 	return false;
 }
+
+void Group::SmartHealGroup(int64 heal_amt, Mob* caster, float range)
+{
+    if (!caster)
+        return;
+
+    if (!range)
+        range = 200;
+
+    float distance;
+    float range2 = range * range;
+
+    Mob* memberToHeal = nullptr;
+    float lowestPercent = 100.f;
+
+    int numMem = 0;
+    unsigned int gi = 0;
+    for (; gi < MAX_GROUP_MEMBERS; gi++)
+    {
+        if (members[gi]) {
+            distance = DistanceSquared(caster->GetPosition(), members[gi]->GetPosition());
+            if (distance <= range2 && members[gi]->GetHPRatio() < lowestPercent) {
+                lowestPercent = members[gi]->GetHPRatio();
+                memberToHeal = members[gi];
+            }
+        }
+    }
+
+    if (memberToHeal)
+    {
+        memberToHeal->HealDamage(heal_amt, caster);
+        memberToHeal->SendHPUpdate();
+    }
+}

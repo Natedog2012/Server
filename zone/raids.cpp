@@ -1889,3 +1889,37 @@ bool Raid::DoesAnyMemberHaveExpeditionLockout(
 		return Expedition::HasLockoutByCharacterName(raid_member.membername, expedition_name, event_name);
 	});
 }
+
+void Raid::SmartHealGroup(int64 heal_amt, Mob* caster, float range)
+{
+    if (!caster)
+        return;
+
+    if (!range)
+        range = 200;
+
+    float distance;
+    float range2 = range * range;
+
+    Mob* memberToHeal = nullptr;
+    float lowestPercent = 100.f;
+
+    int64 numMem = 0;
+    unsigned int gi = 0;
+    for (; gi < MAX_RAID_MEMBERS; gi++)
+    {
+        if (members[gi].member) {
+            distance = DistanceSquared(caster->GetPosition(), members[gi].member->GetPosition());
+            if (distance <= range2 && members[gi].member->GetHPRatio() < lowestPercent) {
+                memberToHeal = members[gi].member;
+                lowestPercent = members[gi].member->GetHPRatio();
+            }
+        }
+    }
+
+    if (memberToHeal)
+    {
+        memberToHeal->HealDamage(heal_amt, caster);
+        memberToHeal->SendHPUpdate();
+    }
+}
