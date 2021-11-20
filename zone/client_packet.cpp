@@ -2300,7 +2300,7 @@ void Client::Handle_OP_AdventureMerchantSell(const EQApplicationPacket *app)
 
 	if (!inst->IsStackable())
 	{
-		DeleteItemInInventory(ams_in->slot, 0, false);
+		DeleteItemInInventory(ams_in->slot);
 	}
 	else
 	{
@@ -2315,7 +2315,7 @@ void Client::Handle_OP_AdventureMerchantSell(const EQApplicationPacket *app)
 			return;
 		}
 
-		DeleteItemInInventory(ams_in->slot, ams_in->charges, false);
+		DeleteItemInInventory(ams_in->slot, ams_in->charges);
 		price *= ams_in->charges;
 	}
 
@@ -2786,7 +2786,7 @@ void Client::Handle_OP_AltCurrencySell(const EQApplicationPacket *app)
 
 		if (!inst->IsStackable())
 		{
-			DeleteItemInInventory(sell->slot_id, 0, false);
+			DeleteItemInInventory(sell->slot_id);
 		}
 		else
 		{
@@ -2801,7 +2801,7 @@ void Client::Handle_OP_AltCurrencySell(const EQApplicationPacket *app)
 				return;
 			}
 
-			DeleteItemInInventory(sell->slot_id, sell->charges, false);
+			DeleteItemInInventory(sell->slot_id, sell->charges);
 			cost *= sell->charges;
 		}
 
@@ -4778,7 +4778,7 @@ void Client::Handle_OP_ClientUpdate(const EQApplicationPacket *app) {
 		MakeSpawnUpdate(position_update);
 
 		if (gm_hide_me) {
-			entity_list.QueueClientsStatus(this, outapp, true, Admin(), 255);
+			entity_list.QueueClientsStatus(this, outapp, true, Admin(), AccountStatus::Max);
 		} else {
 			entity_list.QueueCloseClients(this, outapp, true, RuleI(Range, ClientPositionUpdates), nullptr, true);
 		}
@@ -6689,7 +6689,7 @@ void Client::Handle_OP_GMZoneRequest(const EQApplicationPacket *app)
 	GMZoneRequest_Struct* gmzr = (GMZoneRequest_Struct*)app->pBuffer;
 	float target_x = -1, target_y = -1, target_z = -1, target_heading;
 
-	int16 min_status = 0;
+	int16 min_status = AccountStatus::Player;
 	uint8 min_level = 0;
 	char target_zone[32];
 	uint16 zone_id = gmzr->zone_id;
@@ -7819,16 +7819,30 @@ void Client::Handle_OP_GuildInviteAccept(const EQApplicationPacket *app)
 		{
 			//dont care if the check fails (since we dont know the rank), just want to clear the entry.
 			guild_mgr.VerifyAndClearInvite(CharacterID(), gj->guildeqid, gj->response);
-			worldserver.SendEmoteMessage(gj->inviter, 0, 0, "%s has declined to join the guild.", this->GetName());
+			worldserver.SendEmoteMessage(
+				gj->inviter,
+				0,
+				Chat::White,
+				fmt::format(
+					"{} has declined to join the guild.",
+					GetCleanName()
+				).c_str()
+			);
 			return;
 		}
 	}
 	if (gj->response == 5 || gj->response == 4) {
 		//dont care if the check fails (since we dont know the rank), just want to clear the entry.
 		guild_mgr.VerifyAndClearInvite(CharacterID(), gj->guildeqid, gj->response);
-
-		worldserver.SendEmoteMessage(gj->inviter, 0, 0, "%s has declined to join the guild.", this->GetName());
-
+		worldserver.SendEmoteMessage(
+			gj->inviter,
+			0,
+			Chat::White,
+			fmt::format(
+				"{} has declined to join the guild.",
+				GetCleanName()
+			).c_str()
+		);
 		return;
 	}
 
@@ -7860,7 +7874,15 @@ void Client::Handle_OP_GuildInviteAccept(const EQApplicationPacket *app)
 		//we dont really care a lot about what this packet means, as long as
 		//it has been authorized with the guild manager
 		if (!guild_mgr.VerifyAndClearInvite(CharacterID(), gj->guildeqid, guildrank)) {
-			worldserver.SendEmoteMessage(gj->inviter, 0, 0, "%s has sent an invalid response to your invite!", GetName());
+			worldserver.SendEmoteMessage(
+				gj->inviter,
+				0,
+				Chat::White,
+				fmt::format(
+					"{} has sent an invalid response to your invite!",
+					GetCleanName()
+				).c_str()
+			);
 			Message(Chat::Red, "Invalid invite response packet!");
 			return;
 		}
@@ -9057,48 +9079,6 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 					{
 						LogDebug("Error: unknown item->Click.Type ([{}])", item->Click.Type);
 					}
-					else
-					{
-
-						/*
-						//This is food/drink - consume it
-						if (item->ItemType == EQ::item::ItemTypeFood && m_pp.hunger_level < 5000)
-						{
-							Consume(item, item->ItemType, slot_id, false);
-						}
-						else if (item->ItemType == EQ::item::ItemTypeDrink && m_pp.thirst_level < 5000)
-						{
-							Consume(item, item->ItemType, slot_id, false);
-						}
-						else if (item->ItemType == EQ::item::ItemTypeAlcohol)
-						{
-#if EQDEBUG >= 1
-							LogDebug("Drinking Alcohol from slot:[{}]", slot_id);
-#endif
-							// This Seems to be handled in OP_DeleteItem handling
-							//DeleteItemInInventory(slot_id, 1, false);
-							//entity_list.MessageCloseString(this, true, 50, 0, DRINKING_MESSAGE, GetName(), item->Name);
-							//Should add intoxication level to the PP at some point
-							//CheckIncreaseSkill(ALCOHOL_TOLERANCE, nullptr, 25);
-						}
-
-						EQApplicationPacket *outapp2 = nullptr;
-						outapp2 = new EQApplicationPacket(OP_Stamina, sizeof(Stamina_Struct));
-						Stamina_Struct* sta = (Stamina_Struct*)outapp2->pBuffer;
-
-						if (m_pp.hunger_level > 6000)
-							sta->food = 6000;
-						if (m_pp.thirst_level > 6000)
-							sta->water = 6000;
-
-						sta->food = m_pp.hunger_level;
-						sta->water = m_pp.thirst_level;
-
-						QueuePacket(outapp2);
-						safe_delete(outapp2);
-						*/
-					}
-
 				}
 				else
 				{
@@ -10935,7 +10915,17 @@ void Client::Handle_OP_Petition(const EQApplicationPacket *app)
 		database.InsertPetitionToDB(pet);
 		petition_list.UpdateGMQueue();
 		petition_list.UpdateZoneListQueue();
-		worldserver.SendEmoteMessage(0, 0, 80, 15, "%s has made a petition. #%i", GetName(), pet->GetID());
+		worldserver.SendEmoteMessage(
+			0,
+			0,
+			AccountStatus::QuestTroupe,
+			Chat::Yellow,
+			fmt::format(
+				"{} has made a petition. ID: {}",
+				GetCleanName(),
+				pet->GetID()
+			).c_str()
+		);
 	}
 	return;
 }
@@ -13403,26 +13393,14 @@ void Client::Handle_OP_ShopPlayerSell(const EQApplicationPacket *app)
 	// end QS code
 
 	// Now remove the item from the player, this happens regardless of outcome
-	if (!inst->IsStackable())
-		this->DeleteItemInInventory(mp->itemslot, 0, false);
-	else {
-		// HACK: DeleteItemInInventory uses int8 for quantity type. There is no consistent use of types in code in this path so for now iteratively delete from inventory.
-		if (mp->quantity > 255) {
-			uint32 temp = mp->quantity;
-			while (temp > 255 && temp != 0) {
-				// Delete chunks of 255
-				this->DeleteItemInInventory(mp->itemslot, 255, false);
-				temp -= 255;
-			}
-			if (temp != 0) {
-				// Delete remaining
-				this->DeleteItemInInventory(mp->itemslot, temp, false);
-			}
-		}
-		else {
-			this->DeleteItemInInventory(mp->itemslot, mp->quantity, false);
-		}
-	}
+	DeleteItemInInventory(
+		mp->itemslot,
+		(
+			!inst->IsStackable() ?
+			0 :
+			mp->quantity
+		)
+	);
 
 
 	//This forces the price to show up correctly for charged items.
@@ -15322,7 +15300,7 @@ void Client::Handle_OP_YellForHelp(const EQApplicationPacket *app)
 
 void Client::Handle_OP_ResetAA(const EQApplicationPacket *app)
 {
-	if (Admin() >= 50) {
+	if (Admin() >= AccountStatus::Guide) {
 		Message(0, "Resetting AA points.");
 		ResetAA();
 	}
