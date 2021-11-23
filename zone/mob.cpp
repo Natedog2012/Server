@@ -2943,13 +2943,21 @@ void Mob::CameraEffect(uint32 duration, uint32 intensity, Client *c, bool global
 	safe_delete(outapp);
 }
 
-void Mob::SendSpellEffect(uint32 effect_id, uint32 duration, uint32 finish_delay, bool zone_wide, uint32 unk020, bool perm_effect, Client *c) {
+void Mob::SendSpellEffect(uint32 effect_id, uint32 duration, uint32 finish_delay, bool zone_wide, uint32 unk020, bool perm_effect, Client *c, uint32 caster_id, uint32 target_id) {
+
+	if (!caster_id) {
+		caster_id = GetID();
+	}
+
+	if (!target_id) {
+		target_id = GetID();
+	}
 
 	auto outapp = new EQApplicationPacket(OP_SpellEffect, sizeof(SpellEffect_Struct));
 	SpellEffect_Struct* se = (SpellEffect_Struct*) outapp->pBuffer;
 	se->EffectID = effect_id;	// ID of the Particle Effect
-	se->EntityID = GetID();
-	se->EntityID2 = GetID();	// EntityID again
+	se->EntityID = caster_id; //casting graphic animation
+	se->EntityID2 = target_id;	// //target graphic animation
 	se->Duration = duration;	// In Milliseconds
 	se->FinishDelay = finish_delay;	// Seen 0
 	se->Unknown020 = unk020;	// Seen 3000
@@ -3032,12 +3040,15 @@ const int32& Mob::SetMana(int32 amount)
 
 
 void Mob::SetAppearance(EmuAppearance app, bool iIgnoreSelf) {
-	if (_appearance == app)
+	if (_appearance == app) {
 		return;
+	}
+
 	_appearance = app;
 	SendAppearancePacket(AT_Anim, GetAppearanceValue(app), true, iIgnoreSelf);
-	if (this->IsClient() && this->IsAIControlled())
+	if (IsClient() && IsAIControlled()) {
 		SendAppearancePacket(AT_Anim, ANIM_FREEZE, false, false);
+	}
 }
 
 bool Mob::UpdateActiveLight()
@@ -5745,7 +5756,7 @@ void Mob::ClearItemFactionBonuses() {
 
 FACTION_VALUE Mob::GetSpecialFactionCon(Mob* iOther) {
 	if (!iOther)
-		return FACTION_INDIFFERENT;
+		return FACTION_INDIFFERENTLY;
 
 	iOther = iOther->GetOwnerOrSelf();
 	Mob* self = this->GetOwnerOrSelf();
@@ -5756,9 +5767,9 @@ FACTION_VALUE Mob::GetSpecialFactionCon(Mob* iOther) {
 	int iOtherPrimaryFaction = iOther->GetPrimaryFaction();
 
 	if (selfPrimaryFaction >= 0 && selfAIcontrolled)
-		return FACTION_INDIFFERENT;
+		return FACTION_INDIFFERENTLY;
 	if (iOther->GetPrimaryFaction() >= 0)
-		return FACTION_INDIFFERENT;
+		return FACTION_INDIFFERENTLY;
 /* special values:
 	-2 = indiff to player, ally to AI on special values, indiff to AI
 	-3 = dub to player, ally to AI on special values, indiff to AI
@@ -5778,27 +5789,27 @@ FACTION_VALUE Mob::GetSpecialFactionCon(Mob* iOther) {
 			if (selfAIcontrolled && iOtherAIControlled)
 				return FACTION_ALLY;
 			else
-				return FACTION_INDIFFERENT;
+				return FACTION_INDIFFERENTLY;
 		case -3: // -3 = dub to player, ally to AI on special values, indiff to AI
 			if (selfAIcontrolled && iOtherAIControlled)
 				return FACTION_ALLY;
 			else
-				return FACTION_DUBIOUS;
+				return FACTION_DUBIOUSLY;
 		case -4: // -4 = atk to player, ally to AI on special values, indiff to AI
 			if (selfAIcontrolled && iOtherAIControlled)
 				return FACTION_ALLY;
 			else
 				return FACTION_SCOWLS;
 		case -5: // -5 = indiff to player, indiff to AI
-			return FACTION_INDIFFERENT;
+			return FACTION_INDIFFERENTLY;
 		case -6: // -6 = dub to player, indiff to AI
 			if (selfAIcontrolled && iOtherAIControlled)
-				return FACTION_INDIFFERENT;
+				return FACTION_INDIFFERENTLY;
 			else
-				return FACTION_DUBIOUS;
+				return FACTION_DUBIOUSLY;
 		case -7: // -7 = atk to player, indiff to AI
 			if (selfAIcontrolled && iOtherAIControlled)
-				return FACTION_INDIFFERENT;
+				return FACTION_INDIFFERENTLY;
 			else
 				return FACTION_SCOWLS;
 		case -8: // -8 = indiff to players, ally to AI on same value, indiff to AI
@@ -5806,25 +5817,25 @@ FACTION_VALUE Mob::GetSpecialFactionCon(Mob* iOther) {
 				if (selfPrimaryFaction == iOtherPrimaryFaction)
 					return FACTION_ALLY;
 				else
-					return FACTION_INDIFFERENT;
+					return FACTION_INDIFFERENTLY;
 			}
 			else
-				return FACTION_INDIFFERENT;
+				return FACTION_INDIFFERENTLY;
 		case -9: // -9 = dub to players, ally to AI on same value, indiff to AI
 			if (selfAIcontrolled && iOtherAIControlled) {
 				if (selfPrimaryFaction == iOtherPrimaryFaction)
 					return FACTION_ALLY;
 				else
-					return FACTION_INDIFFERENT;
+					return FACTION_INDIFFERENTLY;
 			}
 			else
-				return FACTION_DUBIOUS;
+				return FACTION_DUBIOUSLY;
 		case -10: // -10 = atk to players, ally to AI on same value, indiff to AI
 			if (selfAIcontrolled && iOtherAIControlled) {
 				if (selfPrimaryFaction == iOtherPrimaryFaction)
 					return FACTION_ALLY;
 				else
-					return FACTION_INDIFFERENT;
+					return FACTION_INDIFFERENTLY;
 			}
 			else
 				return FACTION_SCOWLS;
@@ -5836,7 +5847,7 @@ FACTION_VALUE Mob::GetSpecialFactionCon(Mob* iOther) {
 					return FACTION_SCOWLS;
 			}
 			else
-				return FACTION_INDIFFERENT;
+				return FACTION_INDIFFERENTLY;
 		case -12: // -12 = dub to players, ally to AI on same value, atk to AI
 			if (selfAIcontrolled && iOtherAIControlled) {
 				if (selfPrimaryFaction == iOtherPrimaryFaction)
@@ -5847,7 +5858,7 @@ FACTION_VALUE Mob::GetSpecialFactionCon(Mob* iOther) {
 
 			}
 			else
-				return FACTION_DUBIOUS;
+				return FACTION_DUBIOUSLY;
 		case -13: // -13 = atk to players, ally to AI on same value, atk to AI
 			if (selfAIcontrolled && iOtherAIControlled) {
 				if (selfPrimaryFaction == iOtherPrimaryFaction)
@@ -5858,7 +5869,7 @@ FACTION_VALUE Mob::GetSpecialFactionCon(Mob* iOther) {
 			else
 				return FACTION_SCOWLS;
 		default:
-			return FACTION_INDIFFERENT;
+			return FACTION_INDIFFERENTLY;
 	}
 }
 
