@@ -4814,6 +4814,67 @@ XS(XS_Mob_SendAppearanceEffect) {
 	XSRETURN_EMPTY;
 }
 
+XS(XS_Mob_SendAppearanceEffectExtra); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Mob_SendAppearanceEffectExtra) {
+	dXSARGS;
+	if (items < 2 || items > 17)
+		Perl_croak(aTHX_ "Usage: Mob::SendAppearanceEffect(THIS, int32 param_1, [int32 param_2 = 0], [int32 param_3 = 0], [int32 param_4 = 0], [int32 param_5 = 0], [Client* single_client_to_send_to = null])"); // @categories Script Utility
+	{
+		Mob *THIS;
+		int32 parm1 = (int32) SvIV(ST(1));
+		int32 parm2 = 0;
+		int32 parm3 = 0;
+		int32 parm4 = 0;
+		int32 parm5 = 0;
+		int32 p1a = 0;
+		int32 p1b = 0;
+		int32 p2a = 0;
+		int32 p2b = 0;
+		int32 p3a = 0;
+		int32 p3b = 0;
+		int32 p4a = 0;
+		int32 p4b = 0;
+		int32 p5a = 0;
+		int32 p5b = 0;
+		
+		Client *client = nullptr;
+		VALIDATE_THIS_IS_MOB;
+		if (items > 2) { p1a = (int32) SvIV(ST(2)); }
+		if (items > 3) { p1b = (int32) SvIV(ST(3)); }
+		if (items > 4) { parm2 = (int32) SvIV(ST(4)); }
+		if (items > 5) { p2a = (int32) SvIV(ST(5)); }
+		if (items > 6) { p2b = (int32) SvIV(ST(6)); }
+		
+		if (items > 7) { parm3 = (int32) SvIV(ST(7)); }
+		if (items > 8) { p3a = (int32) SvIV(ST(8)); }
+		if (items > 9) { p3b = (int32) SvIV(ST(9)); }
+		
+		if (items > 10) { parm4 = (int32) SvIV(ST(10)); }
+		if (items > 11) { p4a = (int32) SvIV(ST(11)); }
+		if (items > 12) { p4b = (int32) SvIV(ST(12)); }
+		
+		if (items > 13) { parm5 = (int32) SvIV(ST(13)); }
+		if (items > 14) { p5a = (int32) SvIV(ST(14)); }
+		if (items > 15) { p5b = (int32) SvIV(ST(15)); }
+		
+		
+		
+		if (items > 16) {
+			if (sv_derived_from(ST(6), "Client")) {
+				IV tmp = SvIV((SV *) SvRV(ST(16)));
+				client = INT2PTR(Client *, tmp);
+			} else
+				Perl_croak(aTHX_ "client is not of type Client");
+			if (client == nullptr)
+				Perl_croak(aTHX_ "client is nullptr, avoiding crash.");
+		}
+
+		THIS->SendAppearanceEffectExtra(parm1,p1a,p1b, parm2,p1a,p2b, parm3,p3a,p3b, parm4,p4a,p4b, parm5,p5a,p5b, client);
+	}
+	XSRETURN_EMPTY;
+}
+
+
 XS(XS_Mob_SetFlyMode); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Mob_SetFlyMode) {
 	dXSARGS;
@@ -6783,7 +6844,8 @@ XS(boot_Mob) {
 	newXSproto(strcpy(buf, "SeeImprovedHide"), XS_Mob_SeeImprovedHide, file, "$");
 	newXSproto(strcpy(buf, "SeeInvisible"), XS_Mob_SeeInvisible, file, "$");
 	newXSproto(strcpy(buf, "SeeInvisibleUndead"), XS_Mob_SeeInvisibleUndead, file, "$");
-	newXSproto(strcpy(buf, "SendAppearanceEffect"), XS_Mob_SendAppearanceEffect, file, "$$;$$$$");
+	newXSproto(strcpy(buf, "SendAppearanceEffect"), XS_Mob_SendAppearanceEffect, file, "$$;$$$$$");
+	newXSproto(strcpy(buf, "SendAppearanceEffectExtra"), XS_Mob_SendAppearanceEffectExtra, file, "$$;$$$$$$$$$$$$$$$");
 	newXSproto(strcpy(buf, "SendIllusion"), XS_Mob_SendIllusion, file, "$$;$$$$$$$$$$$$");
 	newXSproto(strcpy(buf, "SendTo"), XS_Mob_SendTo, file, "$$$$");
 	newXSproto(strcpy(buf, "SendToFixZ"), XS_Mob_SendToFixZ, file, "$$$$");

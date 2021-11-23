@@ -2870,6 +2870,37 @@ void Mob::SendAppearanceEffect(uint32 parm1, uint32 parm2, uint32 parm3, uint32 
 	safe_delete(outapp);
 }
 
+void Mob::SendAppearanceEffectExtra(int32 parm1, int32 p1a, int32 p1b, int32 parm2, int32 p2a, int32 p2b, int32 parm3, int32 p3a, int32 p3b, 
+									int32 parm4, int32 p4a, int32 p4b, int32 parm5, int32 p5a, int32 p5b, Client *specific_target){
+	auto outapp = new EQApplicationPacket(OP_LevelAppearance, sizeof(LevelAppearance_Struct));
+	LevelAppearance_Struct* la = (LevelAppearance_Struct*)outapp->pBuffer;
+	la->spawn_id = GetID();
+	la->parm1 = parm1;
+	la->parm2 = parm2;
+	la->parm3 = parm3;
+	la->parm4 = parm4;
+	la->parm5 = parm5;
+	// Note that setting the b values to 0 will disable the related effect from the corresponding parameter.
+	// Setting the a value appears to have no affect at all.s
+	la->value1a = p1a;
+	la->value1b = p1b;
+	la->value2a = p2a;
+	la->value2b = p2b;
+	la->value3a = p3a;
+	la->value3b = p3b;
+	la->value4a = p4a;
+	la->value4b = p4b;
+	la->value5a = p5a;
+	la->value5b = p5b;
+	if(specific_target == nullptr) {
+		entity_list.QueueClients(this,outapp);
+	}
+	else if (specific_target->IsClient()) {
+		specific_target->CastToClient()->QueuePacket(outapp, false);
+	}
+	safe_delete(outapp);
+}
+
 void Mob::SendTargetable(bool on, Client *specific_target) {
 	auto outapp = new EQApplicationPacket(OP_Untargetable, sizeof(Untargetable_Struct));
 	Untargetable_Struct *ut = (Untargetable_Struct*)outapp->pBuffer;
