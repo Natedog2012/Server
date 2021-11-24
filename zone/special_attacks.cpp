@@ -2179,13 +2179,19 @@ void Mob::DoMeleeSkillAttackDmg(Mob *other, uint16 weapon_damage, EQ::skills::Sk
 	
 	//Weapon scaled attacks
 	
-	if (weapon_damage == 0 && IsClient()) {
+	if ((weapon_damage == 0 || chance_mod < 0) && IsClient()) {
 
 		auto weapon = CastToClient()->GetInv().GetItem(EQ::invslot::slotPrimary);
 		if (weapon) {
-			weapon_damage = GetWeaponDamage(other, weapon, nullptr);
+			weapon_damage = weapon_damage + GetWeaponDamage(other, weapon, nullptr);
 		}
 	}
+	
+	if (chance_mod < 0) {
+		//custom these spells add extra damage + weapon damage and we just absolute value it back to positive hit chance
+		chance_mod = std::abs(chance_mod);
+	}
+	
 
 	int damage = 0;
 	uint32 hate = 0;
