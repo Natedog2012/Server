@@ -2176,6 +2176,16 @@ void Mob::DoMeleeSkillAttackDmg(Mob *other, uint16 weapon_damage, EQ::skills::Sk
 	*/
 	if (skillinuse == EQ::skills::SkillBegging)
 		skillinuse = EQ::skills::SkillOffense;
+	
+	//Weapon scaled attacks
+	
+	if (weapon_damage == 0 && IsClient()) {
+
+		auto weapon = CastToClient()->GetInv().GetItem(EQ::invslot::slotPrimary);
+		if (weapon) {
+			weapon_damage = GetWeaponDamage(other, weapon, nullptr);
+		}
+	}
 
 	int damage = 0;
 	uint32 hate = 0;
