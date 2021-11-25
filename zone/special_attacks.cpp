@@ -844,12 +844,34 @@ void Mob::DoArcheryAttackDmg(Mob *other, const EQ::ItemInstance *RangeWeapon, co
 	int TotalDmg = 0;
 	int WDmg = 0;
 	int ADmg = 0;
-	if (!weapon_damage) {
+	
+	int weapon_damage_before = weapon_damage;
+
+	if ((weapon_damage == 0 || chance_mod < 0) && IsClient()) {
+
+		auto weapon = CastToClient()->GetInv().GetItem(EQ::invslot::slotRange);
+		if (weapon) {
+			RangeWeapon = weapon;
+		}
+		auto ammo_custom = CastToClient()->GetInv().GetItem(EQ::invslot::slotAmmo);
+		if (ammo_custom) {
+			Ammo = ammo_custom;
+		}
+	}
+
+	
+	//Custom chance_mod under 0 so spell scales with weapon
+	if (!weapon_damage || chance_mod < 0) {
 		WDmg = GetWeaponDamage(other, RangeWeapon);
 		ADmg = GetWeaponDamage(other, Ammo);
 	} else {
 		WDmg = weapon_damage;
 	}
+
+	if (chance_mod < 0) {
+		WDmg += weapon_damage_before;
+	}
+	chance_mod = std::abs(chance_mod);
 
 	if (LaunchProjectile) { // 1: Shoot the Projectile once we calculate weapon damage.
 		TryProjectileAttack(other, AmmoItem, EQ::skills::SkillArchery, (WDmg + ADmg), RangeWeapon,
