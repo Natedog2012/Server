@@ -274,12 +274,35 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				if (buffslot >= 0)
 					break;
 
-				if (spells[spell_id].limit_value[i] && !PassCastRestriction(spells[spell_id].limit_value[i])) {
+				int current_limit = spells[spell_id].limit_value[i];
+				float purity_scale = 0;
+				//CUSTOM WEAPON SCALE
+				if (current_limit && current_limit < 0 && effect_value < 0 && caster && caster->IsClient()) {
+					if (current_limit == -1) {
+						current_limit = 0;
+					} else {
+						current_limit = std::abs(current_limit);
+					}
+
+					auto weapon = caster->CastToClient()->GetInv().GetItem(EQ::invslot::slotPrimary);
+					if (weapon) {
+						purity_scale = (float) weapon->GetItem()->Purity;
+						if (purity_scale > 100) {
+							effect_value -= ((float)caster->GetWeaponDamage(this, weapon, nullptr) * (purity_scale / 100.0f));
+						}
+						else {
+							effect_value -= caster->GetWeaponDamage(this, weapon, nullptr);
+						}
+					}
+				}
+
+				if (current_limit && !PassCastRestriction(current_limit)) {
 					break; //no messages are given on live if this fails.
 				}
 
 				// for offensive spells check if we have a spell rune on
 				int32 dmg = effect_value;
+				
 				if(dmg < 0)
 				{
 
@@ -3815,6 +3838,32 @@ void Mob::DoBuffTic(const Buffs_Struct &buff, int slot, Mob *caster)
 							    caster, buff.ticsremaining);
 			// Handle client cast DOTs here.
 			if (caster && effect_value < 0) {
+				
+				int current_limit = spells[buff.spellid].limit_value[i];
+				float purity_scale = 0;
+				int custom_extra_dmg = 0;
+				//CUSTOM WEAPON SCALE
+				if (current_limit && current_limit < 0 && effect_value < 0 && caster->IsClient()) {
+					auto weapon = caster->CastToClient()->GetInv().GetItem(EQ::invslot::slotPrimary);
+					if (weapon) {
+						purity_scale = (float) weapon->GetItem()->Purity;
+						if (purity_scale > 100) {
+							custom_extra_dmg = ((float)caster->GetWeaponDamage(this, weapon, nullptr) * (purity_scale / 100.0f));
+						}
+						else {
+							custom_extra_dmg = caster->GetWeaponDamage(this, weapon, nullptr);
+						}
+						
+						if (custom_extra_dmg) {
+							int duration_custom = CalcBuffDuration(caster, this, buff.spellid);
+							if (duration_custom > 0) {
+								custom_extra_dmg /= duration_custom;
+							}
+							
+							effect_value -= custom_extra_dmg;
+						}
+					}
+				}
 
 				if (IsDetrimentalSpell(buff.spellid)) {
 					if (caster->IsClient()) {
