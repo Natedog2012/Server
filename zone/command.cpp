@@ -152,7 +152,7 @@ int command_init(void)
 		command_add("depopzone", "- Depop the zone", AccountStatus::GMAdmin, command_depopzone) ||
 		command_add("devtools", "- Manages devtools", AccountStatus::GMMgmt, command_devtools) ||
 		command_add("details", "- Change the details of your target (Drakkin Only)", AccountStatus::QuestTroupe, command_details) ||
-		command_add("disablerecipe",  "[recipe_id] - Disables a recipe using the recipe id.", AccountStatus::QuestTroupe, command_disablerecipe) ||
+		command_add("disablerecipe",  "[Recipe ID] - Disables a Recipe", AccountStatus::QuestTroupe, command_disablerecipe) ||
 		command_add("disarmtrap",  "Analog for ldon disarm trap for the newer clients since we still don't have it working.", AccountStatus::QuestTroupe, command_disarmtrap) ||
 		command_add("distance", "- Reports the distance between you and your target.", AccountStatus::QuestTroupe, command_distance) ||
 		command_add("door", "Door editing command", AccountStatus::QuestTroupe, command_door) ||
@@ -164,9 +164,9 @@ int command_init(void)
 		command_add("emote", "['name'/'world'/'zone'] [type] [message] - Send an emote message", AccountStatus::QuestTroupe, command_emote) ||
 		command_add("emotesearch", "Searches NPC Emotes", AccountStatus::QuestTroupe, command_emotesearch) ||
 		command_add("emoteview", "Lists all NPC Emotes", AccountStatus::QuestTroupe, command_emoteview) ||
-		command_add("emptyinventory", "- Clears you or your target's entire inventory (Equipment, General, Bank, and Shared Bank)", AccountStatus::GMImpossible, command_emptyinventory) ||
-		command_add("enablerecipe",  "[recipe_id] - Enables a recipe using the recipe id.", AccountStatus::QuestTroupe, command_enablerecipe) ||
-		command_add("endurance", "Restores you or your target's endurance.", AccountStatus::Guide, command_endurance) ||
+		command_add("emptyinventory", "- Clears your or your target's entire inventory (Equipment, General, Bank, and Shared Bank)", AccountStatus::GMImpossible, command_emptyinventory) ||
+		command_add("enablerecipe",  "[Recipe ID] - Enables a Recipe", AccountStatus::QuestTroupe, command_enablerecipe) ||
+		command_add("endurance", "Restores your or your target's endurance.", AccountStatus::Guide, command_endurance) ||
 		command_add("equipitem", "[slotid(0-21)] - Equip the item on your cursor into the specified slot", AccountStatus::Guide, command_equipitem) ||
 		command_add("face", "- Change the face of your target", AccountStatus::QuestTroupe, command_face) ||
 		command_add("faction", "[Find (criteria | all ) | Review (criteria | all) | Reset (id)] - Resets Player's Faction", AccountStatus::QuestTroupe, command_faction) ||
@@ -189,14 +189,14 @@ int command_init(void)
 		command_add("gassign", "[id] - Assign targetted NPC to predefined wandering grid id", AccountStatus::GMAdmin, command_gassign) ||
 		command_add("gearup", "Developer tool to quickly equip a character", AccountStatus::GMMgmt, command_gearup) ||
 		command_add("gender", "[0/1/2] - Change your or your target's gender to male/female/neuter", AccountStatus::Guide, command_gender) ||
-		command_add("getplayerburiedcorpsecount", "- Get the target's total number of buried player corpses.", AccountStatus::GMAdmin, command_getplayerburiedcorpsecount) ||
+		command_add("getplayerburiedcorpsecount", "- Get your or your target's total number of buried player corpses.", AccountStatus::GMAdmin, command_getplayerburiedcorpsecount) ||
 		command_add("getvariable", "[varname] - Get the value of a variable from the database", AccountStatus::GMMgmt, command_getvariable) ||
 		command_add("ginfo", "- get group info on target.", AccountStatus::ApprenticeGuide, command_ginfo) ||
 		command_add("giveitem", "[itemid] [charges] - Summon an item onto your target's cursor. Charges are optional.", AccountStatus::GMMgmt, command_giveitem) ||
 		command_add("givemoney", "[Platinum] [Gold] [Silver] [Copper] - Gives specified amount of money to you or your player target", AccountStatus::GMMgmt, command_givemoney) ||
 		command_add("globalview", "Lists all qglobals in cache if you were to do a quest with this target.", AccountStatus::QuestTroupe, command_globalview) ||
-		command_add("gm", "- Turn player target's or your GM flag on or off", AccountStatus::QuestTroupe, command_gm) ||
-		command_add("gmspeed", "[on/off] - Turn GM speed hack on/off for you or your player target", AccountStatus::GMAdmin, command_gmspeed) ||
+		command_add("gm", "[On|Off] - Modify your or your target's GM Flag", AccountStatus::QuestTroupe, command_gm) ||
+		command_add("gmspeed", "[On|Off] - Turn GM Speed On or Off for you or your player target", AccountStatus::GMAdmin, command_gmspeed) ||
 		command_add("gmzone", "[zone_short_name] [zone_version=0] [identifier=gmzone] - Zones to a private GM instance", AccountStatus::GMAdmin, command_gmzone) ||
 		command_add("goto", "[playername] or [x y z] [h] - Teleport to the provided coordinates or to your target", AccountStatus::Steward, command_goto) ||
 		command_add("grid", "[add/delete] [grid_num] [wandertype] [pausetype] - Create/delete a wandering grid", AccountStatus::GMAreas, command_grid) ||
@@ -277,6 +277,7 @@ int command_init(void)
 		command_add("permaclass", "[Class ID] - Change your or your player target's class, changed client is disconnected", AccountStatus::QuestTroupe, command_permaclass) ||
 		command_add("permagender", "[Gender ID] - Change your or your player target's gender", AccountStatus::QuestTroupe, command_permagender) ||
 		command_add("permarace", "[Race ID] - Change your or your player target's race", AccountStatus::QuestTroupe, command_permarace) ||
+		command_add("petitems", "- View your pet's items if you have one", AccountStatus::ApprenticeGuide, command_petitems) ||
 		command_add("petitioninfo", "[petition number] - Get info about a petition", AccountStatus::ApprenticeGuide, command_petitioninfo) ||
 		command_add("pf", "- Display additional mob coordinate and wandering data", AccountStatus::Player, command_pf) ||
 		command_add("picklock",  "Analog for ldon pick lock for the newer clients since we still don't have it working.", AccountStatus::Player, command_picklock) ||
@@ -391,7 +392,7 @@ int command_init(void)
 		command_add("worldwide", "Performs world-wide GM functions such as cast (can be extended for other commands). Use caution", AccountStatus::GMImpossible, command_worldwide) ||
 		command_add("xtargets",  "Show your targets Extended Targets and optionally set how many xtargets they can have.", AccountStatus::GMImpossible, command_xtargets) ||
 		command_add("zclip", "[Minimum Clip] [Maximum Clip] [Fog Minimum Clip] [Fog Maximum Clip] [Permanent (0 = False, 1 = True)] - Change zone clipping", AccountStatus::QuestTroupe, command_zclip) ||
-		command_add("zcolor", "[red] [green] [blue] - Change sky color", AccountStatus::QuestTroupe, command_zcolor) ||
+		command_add("zcolor", "[Red] [Green] [Blue] [Permanent (0 = False, 1 = True)] - Change sky color", AccountStatus::QuestTroupe, command_zcolor) ||
 		command_add("zheader", "[Zone ID|Zone Short Name] [Version] - Load a zone header from the database", AccountStatus::QuestTroupe, command_zheader) ||
 		command_add("zone", "[zonename] [x] [y] [z] - Go to specified zone (coords optional)", AccountStatus::Guide, command_zone) ||
 		command_add("zonebootup", "[ZoneServerID] [shortname] - Make a zone server boot a specific zone", AccountStatus::GMLeadAdmin, command_zonebootup) ||
@@ -400,7 +401,7 @@ int command_init(void)
 		command_add("zoneshutdown", "[shortname] - Shut down a zone server", AccountStatus::GMLeadAdmin, command_zoneshutdown) ||
 		command_add("zonestatus", "- Show connected zoneservers, synonymous with /servers", AccountStatus::GMLeadAdmin, command_zonestatus) ||
 		command_add("zopp",  "Troubleshooting command - Sends a fake item packet to you. No server reference is created.", AccountStatus::GMImpossible, command_zopp) ||
-		command_add("zsafecoords", "[x] [y] [z] - Set safe coords", AccountStatus::QuestTroupe, command_zsafecoords) ||
+		command_add("zsafecoords", "[X] [Y] [Z] [Heading] [Permanent (0 = False, 1 = True)] - Set the current zone's safe coordinates", AccountStatus::QuestTroupe, command_zsafecoords) ||
 		command_add("zsave", " - Saves zheader to the database", AccountStatus::QuestTroupe, command_zsave) ||
 		command_add("zsky", "[Sky Type] [Permanent (0 = False, 1 = True)] - Change zone sky type", AccountStatus::QuestTroupe, command_zsky) ||
 		command_add("zstats", "- Show info about zone header", AccountStatus::QuestTroupe, command_zstats) ||
@@ -1098,39 +1099,40 @@ void command_emptyinventory(Client *c, const Seperator *sep)
 		}
 	}
 
-	if (c != target) {
-		auto target_name = target->GetCleanName();
-		if (removed_count) {
-			c->Message(
-				Chat::White,
-				fmt::format(
-					"Inventory cleared for {}, {} items deleted.",
-					target_name,
-					removed_count
-				).c_str()
-			);
-		} else {
-			c->Message(
-				Chat::White,
-				fmt::format(
-					"{} has no items to delete.",
-					target_name
-				).c_str()
-			);
-		}
+	if (removed_count) {
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Inventory cleared for {}, {} items deleted.",
+				(
+					c == target ?
+					"yourself" :
+					fmt::format(
+						"{} ({})",
+						target->GetCleanName(),
+						target->GetID()
+					)
+				),
+				removed_count
+			).c_str()
+		);
 	} else {
-		if (removed_count) {
-			c->Message(
-				Chat::White,
-				fmt::format(
-					"Your inventory has been cleared, {} items deleted.",
-					removed_count
-				).c_str()
-			);
-		} else {
-			c->Message(Chat::White, "You have no items to delete.");
-		}
-  }
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"{} no items to delete.",
+				(
+					c == target ?
+					"You have" :
+					fmt::format(
+						"{} ({}) has",
+						target->GetCleanName(),
+						target->GetID()
+					)
+				)
+			).c_str()
+		);
+	}
 }
 
 // All new code added to command.cpp should be BEFORE this comment line. Do no append code to this file below the BOTS code block.

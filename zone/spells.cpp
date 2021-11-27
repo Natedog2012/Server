@@ -1008,6 +1008,7 @@ void Mob::StopCasting()
 		mc->stamina = GetEndurance();
 		mc->spell_id = casting_spell_id;
 		mc->keepcasting = 0;
+		mc->slot = -1;
 		c->FastQueuePacket(&outapp);
 	}
 	ZeroCastingVars();
@@ -1464,6 +1465,24 @@ void Mob::CastedSpellFinished(uint16 spell_id, uint32 target_id, CastingSlot slo
 
 	if(DeleteChargeFromSlot >= 0)
 		CastToClient()->DeleteItemInInventory(DeleteChargeFromSlot, 1, true);
+
+	if (IsClient() && IsEffectInSpell(spell_id, SE_BindSight)) {
+		for (int i = 0; i < GetMaxTotalSlots(); i++) {
+			if (buffs[i].spellid == spell_id) {
+				CastToClient()->SendBuffNumHitPacket(buffs[i], i);//its hack, it works.
+			}
+		}
+	}
+
+	//Check if buffs has numhits, then resend packet so it displays the hit count.
+	if (IsClient() && (spells[spell_id].buff_duration > 0 || spells[spell_id].short_buff_box)) {
+		for (int i = 0; i < GetMaxTotalSlots(); i++) {
+			if (buffs[i].spellid == spell_id && buffs[i].hit_number > 0) {
+				CastToClient()->SendBuffNumHitPacket(buffs[i], i);
+				break;
+			}
+		}
+	}
 
 	//
 	// at this point the spell has successfully been cast
@@ -3656,11 +3675,7 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 	}
 
 	// select target
-	if	// Bind Sight line of spells
-	(
-		spell_id == 500 ||	// bind sight
-		spell_id == 407		// cast sight
-	)
+	if (IsEffectInSpell(spell_id, SE_BindSight))
 	{
 		action->target = GetID();
 	}
@@ -5231,6 +5246,7 @@ void Mob::SendSpellBarEnable(uint16 spell_id)
 	manachange->spell_id = spell_id;
 	manachange->stamina = CastToClient()->GetEndurance();
 	manachange->keepcasting = 0;
+	manachange->slot = -1;
 	outapp->priority = 6;
 	CastToClient()->QueuePacket(outapp);
 	safe_delete(outapp);
