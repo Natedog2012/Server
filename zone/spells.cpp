@@ -5246,7 +5246,7 @@ void Mob::SendSpellBarEnable(uint16 spell_id)
 	manachange->spell_id = spell_id;
 	manachange->stamina = CastToClient()->GetEndurance();
 	manachange->keepcasting = 0;
-	manachange->slot = -1;
+	manachange->slot = CastToClient()->FindMemmedSpellByID(spell_id);
 	outapp->priority = 6;
 	CastToClient()->QueuePacket(outapp);
 	safe_delete(outapp);
@@ -5453,6 +5453,15 @@ int Client::MemmedCount() {
 			memmed_count++;
 
 	return memmed_count;
+}
+
+int Client::FindMemmedSpellByID(uint16 spell_id) {
+	for (int i = 0; i < EQ::spells::SPELL_GEM_COUNT; i++) {
+		if (m_pp.mem_spells[i] == spell_id) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 
