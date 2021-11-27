@@ -278,6 +278,7 @@ namespace EQ
 		int GetItemHeroicDR(bool augments = false) const;
 		int GetItemHeroicCorrup(bool augments = false) const;
 		int GetItemHaste(bool augments = false) const;
+		int GetItemPurity(bool augments = false) const;
 
 	protected:
 		//////////////////////////

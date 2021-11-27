@@ -1682,6 +1682,20 @@ int EQ::ItemInstance::GetItemHaste(bool augments) const
 	return total;
 }
 
+int EQ::ItemInstance::GetItemPurity(bool augments) const
+{
+	int total = 0;
+	const auto item = GetItem();
+	if (item) {
+		total = item->Purity;
+		if (augments)
+			for (int i = invaug::SOCKET_BEGIN; i <= invaug::SOCKET_END; ++i)
+				if (GetAugment(i))
+					total += GetAugment(i)->GetItemPurity();
+	}
+	return total;
+}
+
 //
 // class EvolveInfo
 //
