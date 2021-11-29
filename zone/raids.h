@@ -113,7 +113,8 @@ public:
 	
 	//Custom
 	void	SmartHealGroup(int64 heal_amt, Mob* caster, float range);
-
+	void	SmartHealPercentGroup(int64 heal_amt, Mob* caster, float range);
+	
 	void	AddMember(Client *c, uint32 group = 0xFFFFFFFF, bool rleader=false, bool groupleader=false, bool looter=false);
 	void	RemoveMember(const char *c);
 	void	DisbandRaid();

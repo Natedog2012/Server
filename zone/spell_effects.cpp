@@ -241,7 +241,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					break;
 	
 				int64 value = effect_value;
-				uint64 heal_amt = caster->GetActSpellHealing(spell_id, value, this);
+				uint64 heal_amt = caster->GetActSpellHealing(spell_id, value, this);		
 	
 				Raid *r = entity_list.GetRaidByClient(caster->CastToClient());
 				if (r)
@@ -259,6 +259,42 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 	
 				if (!g) {
 					caster->HealDamage(heal_amt);
+					break;
+				}
+	
+				g->SmartHealGroup(heal_amt, caster, spells[spell_id].range);
+				break;	
+			}
+			case SE_SmartHealPercent:
+			{
+				if (spells[spell_id].limit_value[i] && !PassCastRestriction(spells[spell_id].limit_value[i])) {
+					break;
+				}
+				
+				if (!caster)
+					break;
+	
+				if (!caster->IsClient())
+					break;
+	
+				uint64 heal_amt = spell.base_value[i];;				
+	
+				Raid *r = entity_list.GetRaidByClient(caster->CastToClient());
+				if (r)
+				{
+					uint32 gid = 0xFFFFFFFF;
+					gid = r->GetGroup(caster->GetName());
+					if (gid < 11)
+					{
+						r->SmartHealGroup(heal_amt, caster, spells[spell_id].range);
+						break;
+					}
+				}
+	
+				Group *g = entity_list.GetGroupByClient(caster->CastToClient());
+	
+				if (!g) {
+					caster->HealDamage(caster->GetMaxHP() * heal_amt / 100);
 					break;
 				}
 	

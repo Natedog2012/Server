@@ -1230,7 +1230,8 @@ typedef enum {
 #define SE_Duration_HP_Pct				524 // implemented - Decrease Current Hit Points by % of Total Hit Points per Tick, up to a MAX per tick
 #define SE_Duration_Mana_Pct			525 // implemented - Decrease Current Mana by % of Total Mana per Tick, up to a MAX per tick
 #define SE_Duration_Endurance_Pct		526 // implemented - Decrease Current Endurance by % of Total Hit Points per Tick, up to a MAX per tick
-#define SE_SmartHeal						999 // Custom heal
+#define SE_SmartHealPercent				998 // Custom heal
+#define SE_SmartHeal					999 // Custom heal
 
 // LAST
 

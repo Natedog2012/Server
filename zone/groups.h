@@ -55,7 +55,7 @@ public:
 	
 	//Custom
 	void	SmartHealGroup(int64 heal_amt, Mob* caster, float range);
-
+	void	SmartHealPercentGroup(int64 heal_amt, Mob* caster, float range);
 	bool	AddMember(Mob* newmember, const char* NewMemberName = nullptr, uint32 CharacterID = 0, bool ismerc = false);
 	void	AddMember(const char* NewMemberName);
 	void	SendUpdate(uint32 type,Mob* member);

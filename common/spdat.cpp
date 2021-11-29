@@ -205,7 +205,7 @@ bool IsHarmonySpell(uint16 spell_id)
 
 bool IsPercentalHealSpell(uint16 spell_id)
 {
-	return IsEffectInSpell(spell_id, SE_PercentalHeal);
+	return IsEffectInSpell(spell_id, SE_PercentalHeal) || IsEffectInSpell(spell_id, SE_SmartHealPercent);
 }
 
 bool IsGroupOnlySpell(uint16 spell_id)
