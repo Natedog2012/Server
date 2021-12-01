@@ -319,8 +319,12 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					} else {
 						current_limit = std::abs(current_limit);
 					}
-
-					auto weapon = caster->CastToClient()->GetInv().GetItem(EQ::invslot::slotPrimary);
+					auto slot_check = EQ::invslot::slotPrimary;
+					if (caster->GetClass() == RANGER) {
+						slot_check = EQ::invslot::slotRange;
+					}
+					auto weapon = caster->CastToClient()->GetInv().GetItem(slot_check);
+					
 					if (weapon) {
 						purity_scale = (float) weapon->GetItemPurity(true);
 						if (purity_scale > 100) {
@@ -3884,7 +3888,11 @@ void Mob::DoBuffTic(const Buffs_Struct &buff, int slot, Mob *caster)
 				int custom_extra_dmg = 0;
 				//CUSTOM WEAPON SCALE
 				if (current_limit && current_limit < 0 && effect_value < 0 && caster->IsClient()) {
-					auto weapon = caster->CastToClient()->GetInv().GetItem(EQ::invslot::slotPrimary);
+					auto slot_check = EQ::invslot::slotPrimary;
+					if (caster->GetClass() == RANGER) {
+						slot_check = EQ::invslot::slotRange;
+					}
+					auto weapon = caster->CastToClient()->GetInv().GetItem(slot_check);
 					if (weapon) {
 						purity_scale = (float) weapon->GetItemPurity(true);
 						if (purity_scale > 100) {
