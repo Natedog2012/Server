@@ -5240,7 +5240,12 @@ int32 Client::CalcAAFocus(focusType type, const AA::Rank &rank, uint16 spell_id)
 
 			case SE_ReduceReuseTimer:
 				if (type == focusReduceRecastTime) {
-					value = base_value / 1000;
+					//Custom-Natedog recast delay focus with -
+					if (limit_value < 0) {
+						value = (spells[spell_id].recast_time * base_value) / 100000;
+					} else {
+						value = base_value / 1000;
+					}
 					try_apply_to_item_click = is_from_item_click ? true : false;
 				}
 				break;
@@ -6003,7 +6008,13 @@ int32 Mob::CalcFocusEffect(focusType type, uint16 focus_id, uint16 spell_id, boo
 
 			case SE_ReduceReuseTimer:
 				if (type == focusReduceRecastTime) {
-					value = focus_spell.base_value[i] / 1000;
+					//Custom-Natedog focus reduction
+					if (focus_spell.limit_value[i] < 0) {
+						value = spells[spell_id].recast_time * focus_spell.base_value[i] / 100000;
+					}
+					else {
+						value = focus_spell.base_value[i] / 1000;
+					}
 					try_apply_to_item_click = is_from_item_click ? true : false;
 				}
 				break;
