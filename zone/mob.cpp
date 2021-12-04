@@ -4439,6 +4439,8 @@ int32 Mob::GetVulnerability(Mob* caster, uint32 spell_id, uint32 ticsremaining)
 		*/
 		int buff_count = GetMaxTotalSlots();
 		for(int i = 0; i < buff_count; i++) {
+			if (buffs[i].spellid == SPELL_UNKNOWN)
+				continue;
 
 			if((IsValidSpell(buffs[i].spellid) && IsEffectInSpell(buffs[i].spellid, SE_FcSpellVulnerability))){
 
@@ -4477,6 +4479,8 @@ int32 Mob::GetVulnerability(Mob* caster, uint32 spell_id, uint32 ticsremaining)
 		*/
 		int buff_count = GetMaxTotalSlots();
 		for (int i = 0; i < buff_count; i++) {
+			if (buffs[i].spellid == SPELL_UNKNOWN)
+				continue;
 
 			if ((IsValidSpell(buffs[i].spellid) && IsEffectInSpell(buffs[i].spellid, SE_Fc_Spell_Damage_Pct_IncomingPC))) {
 
