@@ -4102,7 +4102,9 @@ void Mob::DoBuffTic(const Buffs_Struct &buff, int slot, Mob *caster)
 		case SE_CastOnFadeEffect:
 		case SE_CastOnFadeEffectNPC:
 		case SE_CastOnFadeEffectAlways: {
-			if (buff.ticsremaining == 0) {
+			if (spells[buff.spellid].limit_value[i] < 0 && buff.ticsremaining == 0 && caster) {
+				caster->SpellFinished(spells[buff.spellid].base_value[i], this, EQ::spells::CastingSlot::Item, 0, -1, spells[spells[buff.spellid].base_value[i]].resist_difficulty);
+			} else if (buff.ticsremaining == 0) {
 				SpellFinished(spells[buff.spellid].base_value[i], this, EQ::spells::CastingSlot::Item, 0, -1, spells[spells[buff.spellid].base_value[i]].resist_difficulty);
 			}
 			break;
