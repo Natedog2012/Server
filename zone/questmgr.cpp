@@ -159,7 +159,11 @@ void QuestManager::StopNPCTimers() {
 
 	end = QTimerList.end();
 	while (cur != end) {
-		if (cur->mob && cur->mob->IsNPC() && !cur->mob->IsPetOwnerClient()) {
+		if (cur->mob && (cur->mob->IsClient() || cur->mob->IsPetOwnerClient())) {
+			++cur;
+			continue;
+		}
+		else {
 			QTimerList.erase(cur);
 		}
 		++cur;
