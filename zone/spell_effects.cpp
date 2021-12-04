@@ -693,6 +693,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				snprintf(effect_desc, _EDLEN, "Invisibility to Animals");
 #endif
 				invisible_animals = true;
+				SetInvisible(Invisibility::Special);
 				break;
 			}
 
@@ -703,6 +704,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				snprintf(effect_desc, _EDLEN, "Invisibility to Undead");
 #endif
 				invisible_undead = true;
+				SetInvisible(Invisibility::Special);
 				break;
 			}
 			case SE_SeeInvis:
@@ -2391,7 +2393,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					else
 					{
 						entity_list.RemoveFromTargets(caster);
-						SetInvisible(1);
+						SetInvisible(Invisibility::Invisible);
 					}
 				}
 				break;
@@ -4326,7 +4328,7 @@ void Mob::BuffFadeBySlot(int slot, bool iRecalcBonuses)
 			case SE_Invisibility2:
 			case SE_Invisibility:
 			{
-				SetInvisible(0);
+				SetInvisible(Invisibility::Visible);
 				break;
 			}
 
@@ -7256,72 +7258,12 @@ bool Mob::DoHPToManaCovert(uint16 mana_cost)
 	return false;
 }
 
-int32 Mob::GetFcDamageAmtIncoming(Mob *caster, uint32 spell_id, bool use_skill, uint16 skill )
+int32 Mob::GetFcDamageAmtIncoming(Mob *caster, int32 spell_id)
 {
-	//Used to check focus derived from SE_FcDamageAmtIncoming which adds direct damage to Spells or Skill based attacks.
-	//Used to check focus derived from SE_Fc_Spell_Damage_Amt_IncomingPC which adds direct damage to Spells.
+	//THIS is target of spell cast
 	int32 dmg = 0;
-	bool limit_exists = false;
-	bool skill_found = false;
-
-	if (!caster)
-		return 0;
-
-	if (spellbonuses.FocusEffects[focusFcDamageAmtIncoming]){
-		int buff_count = GetMaxTotalSlots();
-		for(int i = 0; i < buff_count; i++){
-
-			if( (IsValidSpell(buffs[i].spellid) && (IsEffectInSpell(buffs[i].spellid, SE_FcDamageAmtIncoming))) ){
-
-				if (use_skill){
-					int32 temp_dmg = 0;
-					for (int e = 0; e < EFFECT_COUNT; e++) {
-
-						if (spells[buffs[i].spellid].effect_id[e] == SE_FcDamageAmtIncoming){
-							temp_dmg += spells[buffs[i].spellid].base_value[e];
-							continue;
-						}
-
-						if (!skill_found){
-							if ((spells[buffs[i].spellid].effect_id[e] == SE_LimitToSkill) ||
-								(spells[buffs[i].spellid].effect_id[e] == SE_LimitCastingSkill)){
-								limit_exists = true;
-
-								if (spells[buffs[i].spellid].base_value[e] == skill)
-									skill_found = true;
-							}
-						}
-					}
-					if ((!limit_exists) || (limit_exists && skill_found)){
-						dmg += temp_dmg;
-						CheckNumHitsRemaining(NumHit::MatchingSpells, i);
-					}
-				}
-
-				else{
-					int32 focus = caster->CalcFocusEffect(focusFcDamageAmtIncoming, buffs[i].spellid, spell_id);
-					if(focus){
-						dmg += focus;
-						CheckNumHitsRemaining(NumHit::MatchingSpells, i);
-					}
-				}
-			}
-		}
-	}
-	if (spellbonuses.FocusEffects[focusFcSpellDamageAmtIncomingPC]) {
-		int buff_count = GetMaxTotalSlots();
-		for (int i = 0; i < buff_count; i++) {
-
-			if ((IsValidSpell(buffs[i].spellid) && (IsEffectInSpell(buffs[i].spellid, SE_FcDamageAmtIncoming)))) {
-
-				int32 focus = caster->CalcFocusEffect(focusFcSpellDamageAmtIncomingPC, buffs[i].spellid, spell_id);
-				if (focus) {
-					dmg += focus;
-					CheckNumHitsRemaining(NumHit::MatchingSpells, i);
-				}
-			}
-		}
-	}
+	dmg += GetFocusEffect(focusFcDamageAmtIncoming, spell_id); //SPA 297 SE_FcDamageAmtIncoming
+	dmg += GetFocusEffect(focusFcSpellDamageAmtIncomingPC, spell_id); //SPA 484 SE_Fc_Spell_Damage_Amt_IncomingPC
 	return dmg;
 }
 
