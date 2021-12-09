@@ -308,10 +308,8 @@ bool Mob::CastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 	if(IsClient()) {
 		if (parse->EventPlayer(EVENT_CAST_BEGIN, CastToClient(), export_string, 0) != 0) {
 			if (IsDiscipline(spell_id)) {
-				InterruptSpell(0, 0x121, spell_id);
-				CastToClient()->SendDisciplineTimer(spells[spell_id].timer_id, 1);
+				CastToClient()->SendDisciplineTimer(spells[spell_id].timer_id, 0);
 			} else {
-				InterruptSpell(0, 0x121, spell_id);
 				CastToClient()->SendSpellBarEnable(spell_id);
 			}
 			return(false);
