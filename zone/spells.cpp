@@ -2081,7 +2081,7 @@ bool Mob::DetermineSpellTargets(uint16 spell_id, Mob *&spell_target, Mob *&ae_ce
 			if(!spell_target_tot)
 				return false;
 			//Verfied from live - Target's Target needs to be in combat range to recieve the effect
-			if (!this->CombatRange(spell_target))
+			if (!this->CombatRange(spell_target) && RuleB(Spell, TargetsTargetRequireMeleeRange))
 				return false;
 
 			spell_target = spell_target_tot;
