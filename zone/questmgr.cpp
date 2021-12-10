@@ -164,7 +164,7 @@ void QuestManager::StopNPCTimers() {
 			continue;
 		}
 		else {
-			QTimerList.erase(cur);
+			cur = QTimerList.erase(cur);
 		}
 		++cur;
 	}
