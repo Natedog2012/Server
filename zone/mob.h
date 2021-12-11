@@ -363,6 +363,7 @@ public:
 	void BeamDirectional(uint16 spell_id, int16 resist_adjust);
 	void ConeDirectional(uint16 spell_id, int16 resist_adjust);
 	void TryOnSpellFinished(Mob *caster, Mob *target, uint16 spell_id);
+	void ApplySpellEffectIllusion(int32 spell_id, Mob* caster, int buffslot, int base, int limit, int max);
 
 	//Buff
 	void BuffProcess();
@@ -432,6 +433,10 @@ public:
 	inline bool HasEndurUpkeep() const { return endur_upkeep; }
 	inline void SetEndurUpkeep(bool val) { endur_upkeep = val; }
 	bool HasBuffWithSpellGroup(int spell_group);
+	void SetAppearenceEffects(int32 slot, int32 value);
+	void GetAppearenceEffects();
+	void ClearAppearenceEffects();
+	void SendSavedAppearenceEffects(Client *receiver);
 
 	//Basic Stats/Inventory
 	virtual void SetLevel(uint8 in_level, bool command = false) { level = in_level; }
@@ -796,7 +801,7 @@ public:
 		uint8 in_haircolor = 0xFF, uint8 in_beardcolor = 0xFF, uint8 in_eyecolor1 = 0xFF, uint8 in_eyecolor2 = 0xFF,
 		uint8 in_hairstyle = 0xFF, uint8 in_luclinface = 0xFF, uint8 in_beard = 0xFF, uint8 in_aa_title = 0xFF,
 		uint32 in_drakkin_heritage = 0xFFFFFFFF, uint32 in_drakkin_tattoo = 0xFFFFFFFF,
-		uint32 in_drakkin_details = 0xFFFFFFFF, float in_size = -1.0f);
+		uint32 in_drakkin_details = 0xFFFFFFFF, float in_size = -1.0f, bool send_appearance_effects = true);
 	bool RandomizeFeatures(bool send_illusion = true, bool set_variables = true);
 	virtual void Stun(int duration);
 	virtual void UnStun();
@@ -1521,6 +1526,9 @@ protected:
 	int32 ranged_proclimit_spellid[MAX_PROC_LIMIT_TIMERS];		//SPA 512
 	Timer def_proclimit_timer[MAX_PROC_LIMIT_TIMERS];			//SPA 512
 	int32 def_proclimit_spellid[MAX_PROC_LIMIT_TIMERS];			//SPA 512
+
+	int32 appearance_effects_id[MAX_APPEARANCE_EFFECTS];
+	int32 appearance_effects_slot[MAX_APPEARANCE_EFFECTS];
 
 	Timer shield_timer;
 	uint32 m_shield_target_id;
