@@ -1828,6 +1828,7 @@ void SharedDatabase::LoadSpells(void *data, int max_spells) {
 			sp[tempid].deities[y]=atoi(row[126+y]);
 
 		sp[tempid].new_icon=atoi(row[144]);
+		sp[tempid].spellanim =atoi(row[145]);
 		sp[tempid].uninterruptable=atoi(row[146]) != 0;
 		sp[tempid].resist_difficulty=atoi(row[147]);
 		sp[tempid].unstackable_dot = atoi(row[148]) != 0;

@@ -1525,7 +1525,7 @@ int GetSpellStatValue(uint32 spell_id, const char* stat_identifier, uint8 slot)
 	else if (id == "castinganim") { return spells[spell_id].casting_animation; }
 	else if (id == "spellaffectindex") { return spells[spell_id].spell_affect_index; }
 	else if (id == "disallow_sit") { return spells[spell_id].disallow_sit; }
-	//else if (id == "spellanim") {stat = spells[spell_id].spellanim; } - Not implemented
+	else if (id == "spellanim") {return spells[spell_id].spellanim; } //- Not implemented
 	else if (id == "uninterruptable") { return spells[spell_id].uninterruptable; }
 	else if (id == "resistdiff") { return spells[spell_id].resist_difficulty; }
 	else if (id == "dot_stacking_exempt") { return spells[spell_id].unstackable_dot; }

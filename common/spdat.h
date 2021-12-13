@@ -1310,7 +1310,7 @@ struct SPDat_Spell_Struct
 /* 142 */	//int8 npc_no_cast;			// 142: between 0 & 100 -- NPC_NO_CAST
 /* 143 */	//int ai_pt_bonus;			// 143: always set to 0, client doesn't save this -- AI_PT_BONUS
 /* 144 */	int16 new_icon;	// Spell icon used by the client in uifiles/default/spells??.tga, both for spell gems & buff window. Looks to depreciate icon & memicon -- NEW_ICON
-/* 145 */	//int16 spellanim; // Doesn't look like it's the same as #doanim, so not sure what this is, particles I think -- SPELL_EFFECT_INDEX
+/* 145 */	int16 spellanim; // Doesn't look like it's the same as #doanim, so not sure what this is, particles I think -- SPELL_EFFECT_INDEX
 /* 146 */	bool uninterruptable;	// Looks like anything != 0 is uninterruptable. Values are mostly -1, 0, & 1 (Fetid Breath = 90?) -- NO_INTERRUPT
 /* 147 */	int16 resist_difficulty; // -- RESIST_MOD
 /* 148 */	bool unstackable_dot; // -- NOT_STACKABLE_DOT
