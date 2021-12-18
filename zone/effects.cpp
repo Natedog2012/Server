@@ -411,6 +411,10 @@ int32 Mob::GetActSpellHealing(uint16 spell_id, int32 value, Mob* target) {
 				extra_heal += GetExtraSpellAmt(spell_id, itembonuses.HealAmt, base_value);
 			}
 		}
+		
+		if (target) {
+			value += value * target->GetHealRate() / 100;  //SPA 120 modifies value after Focus Applied but before critical
+		}
 
 		if (extra_heal) {
 			int duration = CalcBuffDuration(this, target, spell_id);

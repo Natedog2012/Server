@@ -2246,16 +2246,27 @@ XS(XS_Mob_GetActSpellRange) {
 XS(XS_Mob_GetActSpellDamage); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Mob_GetActSpellDamage) {
 	dXSARGS;
-	if (items != 3)
-		Perl_croak(aTHX_ "Usage: Mob::GetActSpellDamage(THIS, uint16 spell_id, int32 value)"); // @categories Spells and Disciplines
+	if (items < 3 || items > 4)
+		Perl_croak(aTHX_ "Usage: Mob::GetActSpellDamage(THIS, uint16 spell_id, int32 value, mob* target)"); // @categories Spells and Disciplines
 	{
 		Mob *THIS;
 		int32  RETVAL;
 		dXSTARG;
 		uint16 spell_id = (uint16) SvUV(ST(1));
 		int32  value    = (int32) SvIV(ST(2));
+		Mob *target;
+		
+		if (sv_derived_from(ST(3), "Mob")) {
+			IV tmp = SvIV((SV*)SvRV(ST(3)));
+			target = INT2PTR(Mob *,tmp);
+		}
 		VALIDATE_THIS_IS_MOB;
-		RETVAL = THIS->GetActSpellDamage(spell_id, value);
+		
+		if(target == nullptr) {
+			RETVAL = THIS->GetActSpellDamage(spell_id, value);
+		} else {
+			RETVAL = THIS->GetActSpellDamage(spell_id, value, target);
+		}
 		XSprePUSH;
 		PUSHi((IV) RETVAL);
 	}
@@ -2265,16 +2276,27 @@ XS(XS_Mob_GetActSpellDamage) {
 XS(XS_Mob_GetActSpellHealing); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Mob_GetActSpellHealing) {
 	dXSARGS;
-	if (items != 3)
-		Perl_croak(aTHX_ "Usage: Mob::GetActSpellHealing(THIS, uint16 spell_id, int32 value)"); // @categories Spells and Disciplines
+	if (items < 3 || items > 4)
+		Perl_croak(aTHX_ "Usage: Mob::GetActSpellHealing(THIS, uint16 spell_id, int32 value, mob* target)"); // @categories Spells and Disciplines
 	{
 		Mob *THIS;
 		int32  RETVAL;
 		dXSTARG;
 		uint16 spell_id = (uint16) SvUV(ST(1));
 		int32  value    = (int32) SvIV(ST(2));
+		Mob *target;
+		
+		if (sv_derived_from(ST(3), "Mob")) {
+			IV tmp = SvIV((SV*)SvRV(ST(3)));
+			target = INT2PTR(Mob *,tmp);
+		}
+		
 		VALIDATE_THIS_IS_MOB;
-		RETVAL = THIS->GetActSpellHealing(spell_id, value);
+		if(target == nullptr) {
+			RETVAL = THIS->GetActSpellHealing(spell_id, value);
+		} else {
+			RETVAL = THIS->GetActSpellHealing(spell_id, value, target);
+		}
 		XSprePUSH;
 		PUSHi((IV) RETVAL);
 	}
@@ -6774,9 +6796,9 @@ XS(boot_Mob) {
 	newXSproto(strcpy(buf, "GetATK"), XS_Mob_GetATK, file, "$");
 	newXSproto(strcpy(buf, "GetActSpellCasttime"), XS_Mob_GetActSpellCasttime, file, "$$$");
 	newXSproto(strcpy(buf, "GetActSpellCost"), XS_Mob_GetActSpellCost, file, "$$$");
-	newXSproto(strcpy(buf, "GetActSpellDamage"), XS_Mob_GetActSpellDamage, file, "$$$");
+	newXSproto(strcpy(buf, "GetActSpellDamage"), XS_Mob_GetActSpellDamage, file, "$$$:$");
 	newXSproto(strcpy(buf, "GetActSpellDuration"), XS_Mob_GetActSpellDuration, file, "$$$");
-	newXSproto(strcpy(buf, "GetActSpellHealing"), XS_Mob_GetActSpellHealing, file, "$$$");
+	newXSproto(strcpy(buf, "GetActSpellHealing"), XS_Mob_GetActSpellHealing, file, "$$$:$");
 	newXSproto(strcpy(buf, "GetActSpellRange"), XS_Mob_GetActSpellRange, file, "$$$");
 	newXSproto(strcpy(buf, "GetAggroRange"), XS_Mob_GetAggroRange, file, "$");
 	newXSproto(strcpy(buf, "GetAllowBeneficial"), XS_Mob_GetAllowBeneficial, file, "$$");

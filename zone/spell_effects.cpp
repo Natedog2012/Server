@@ -3839,7 +3839,7 @@ void Mob::DoBuffTic(const Buffs_Struct &buff, int slot, Mob *caster)
 		case SE_HealOverTime: {
 			effect_value = CalcSpellEffectValue(buff.spellid, i, buff.casterlevel, buff.instrument_mod);
 			if (caster)
-				effect_value = caster->GetActSpellHealing(buff.spellid, effect_value);
+				effect_value = caster->GetActSpellHealing(buff.spellid, effect_value, this);
 
 			HealDamage(effect_value, caster, buff.spellid);
 			// healing aggro would go here; removed for now
