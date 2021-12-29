@@ -5916,7 +5916,7 @@ void Client::Handle_OP_FaceChange(const EQApplicationPacket *app)
 
 void Client::Handle_OP_FeignDeath(const EQApplicationPacket *app)
 {
-	if (!CanHaveSkill(EQ::skills::SkillFeignDeath)) {
+	if (!HasSkill(EQ::skills::SkillFeignDeath)) {
 		return;
 	}
 	
