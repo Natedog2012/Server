@@ -6741,3 +6741,7 @@ void Mob::HideFrom(Client *client)
 	}
 
 }
+
+bool Mob::IsValidXTarget() const {
+	return (GetID() > 0 || !IsCorpse());
+}
