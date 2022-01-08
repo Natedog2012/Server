@@ -302,6 +302,9 @@ Client::Client(EQStreamInterface* ieqs)
 	AreaEndRegen = 1.0f;
 	XPRate = 100;
 	current_endurance = 0;
+	total_heartbeats = 0;
+	CorrectHeartbeat = 0;
+	failed_heartbeat = false;
 
 	CanUseReport = true;
 	aa_los_them_mob = nullptr;

@@ -53,6 +53,10 @@ struct LoginInfo_Struct {
 /*488*/
 };
 
+struct Heartbeat_reply {
+		uint32 reply_code;
+};
+
 struct EnterWorld_Struct {
 /*000*/	char	name[64];
 /*064*/	uint32	tutorial;		// 01 on "Enter Tutorial", 00 if not

@@ -1936,11 +1936,16 @@ private:
 public:
 	void SetSharedTaskId(int64 shared_task_id);
 	int64 GetSharedTaskId() const;
+	void SendHeartbeat();
+	bool CheckHeartbeat();
 private:
 
 	//Anti Spam Stuff
 	Timer *KarmaUpdateTimer;
 	uint32 TotalKarma;
+	uint32 CorrectHeartbeat;
+	uint32 total_heartbeats;
+	bool failed_heartbeat;
 
 	Timer *GlobalChatLimiterTimer; //60 seconds
 	uint32 AttemptedMessages;

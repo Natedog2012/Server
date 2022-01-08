@@ -8252,6 +8252,17 @@ void Client::Handle_OP_GuildWar(const EQApplicationPacket *app)
 
 void Client::Handle_OP_Heartbeat(const EQApplicationPacket *app)
 {
+	if (app->size != sizeof(Heartbeat_reply)) {
+		LogError("Wrong size: OP_Heartbeat, size=[{}], expected [{}]", app->size, sizeof(Heartbeat_reply));
+		return;
+	}
+	Heartbeat_reply* hbr = (Heartbeat_reply*)app->pBuffer;
+	Message(315, "Heartbeat received value: %d", hbr->reply_code);
+	uint32 reply_code = hbr->reply_code;
+	if (reply_code == 400) {
+		CorrectHeartbeat++;
+	}
+
 	return;
 }
 
@@ -15573,4 +15584,35 @@ int64 Client::GetSharedTaskId() const
 void Client::SetSharedTaskId(int64 shared_task_id)
 {
 	Client::m_shared_task_id = shared_task_id;
+}
+
+void Client::SendHeartbeat()
+{
+	auto outapp = new EQApplicationPacket(OP_Heartbeat, sizeof(Heartbeat_reply));
+	char* Buffer = (char*)outapp->pBuffer;
+	Heartbeat_reply* hbr = (Heartbeat_reply*)outapp->pBuffer;
+	hbr->reply_code = 20;
+	QueuePacket(outapp);
+	safe_delete(outapp);
+	total_heartbeats++;
+}
+
+bool Client::CheckHeartbeat()
+{
+	if (total_heartbeats < 5) {
+		return true; //Wait till we get some back...
+	}
+
+	if (CorrectHeartbeat > 0) {
+		return true;
+	}
+
+	SendAppearancePacket(AT_Anim, ANIM_FREEZE); //FREEZE them for failing
+
+	if (!failed_heartbeat) {
+		Message(13, "Failed Heartbeat check too many times freezing in place!");
+		failed_heartbeat = true;
+	}
+
+	return false;
 }

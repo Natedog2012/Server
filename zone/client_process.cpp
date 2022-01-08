@@ -492,6 +492,8 @@ bool Client::Process() {
 			DoStaminaHungerUpdate();
 
 		if (tic_timer.Check() && !dead) {
+			//SendHeartbeat();
+			//CheckHeartbeat();
 			CalcMaxHP();
 			CalcMaxMana();
 			CalcATK();
