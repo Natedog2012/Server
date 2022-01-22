@@ -989,6 +989,19 @@ XS(XS__snow) {
 	XSRETURN_EMPTY;
 }
 
+XS(XS__sethotzone);
+XS(XS__sethotzone) {
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: quest::sethotzone(bool value)");
+
+	bool   value = ((int) SvIV(ST(0))) == 0 ? false : true;
+
+	quest_manager.sethotzone(value);
+
+	XSRETURN_EMPTY;
+}
+
 XS(XS__surname);
 XS(XS__surname) {
 	dXSARGS;
@@ -8486,6 +8499,7 @@ EXTERN_C XS(boot_quest) {
 	newXS(strcpy(buf, "setexpmodifierbycharid"), XS__setexpmodifierbycharid, file);
 	newXS(strcpy(buf, "setglobal"), XS__setglobal, file);
 	newXS(strcpy(buf, "setguild"), XS__setguild, file);
+	newXS(strcpy(buf, "sethotzone"), XS__sethotzone, file);
 	newXS(strcpy(buf, "sethp"), XS__sethp, file);
 	newXS(strcpy(buf, "setlanguage"), XS__setlanguage, file);
 	newXS(strcpy(buf, "setnexthpevent"), XS__setnexthpevent, file);

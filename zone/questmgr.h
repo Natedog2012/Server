@@ -123,6 +123,7 @@ public:
 	void safemove();
 	void rain(int weather);
 	void snow(int weather);
+	void sethotzone(bool value);
 	void rename(std::string name);
 	void surname(const char *name);
 	void permaclass(int class_id);
