@@ -36,6 +36,7 @@
 
 
 RULE_CATEGORY(Character)
+RULE_INT(Character, AA_XP_MINLVL, 51, "Default level for AA XP")
 RULE_INT(Character, Default_Spell_For_DMG_Display, 57, "Firestrike by default.. change to another spell to display properly for your server")
 RULE_INT(Character, Default_Spell_For_HEAL_Display, 12, "Healing by default.. change to another spell to display properly for your server")
 RULE_INT(Character, Mod_Start_Value, 255, "Start value for stats to start scaling once they hit start level")
