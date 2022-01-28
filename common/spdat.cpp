@@ -1257,6 +1257,7 @@ bool IsEffectIgnoredInStacking(int spa)
 	case SE_Ff_Value_Max:
 	case SE_Ff_FocusTimerMin:
 	//Custom-Natedog I feel like these should stack if in same slot.. seems silly
+	case SE_SpellOnDeath:
 	case SE_CastOnFadeEffect:
 	case SE_CastOnFadeEffectNPC:
 	case SE_CastOnFadeEffectAlways:
