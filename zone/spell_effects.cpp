@@ -2372,16 +2372,17 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				if (!caster) {
 					break;
 				}
+				int scaled_base_damage = caster->CalcSpellEffectValue_formula(spells[spell_id].formula[i], spells[spell_id].base_value[i], spells[spell_id].max_value[i], caster->GetLevel(), spell_id);
 
 				switch(spells[spell_id].skill) {
 				case EQ::skills::SkillThrowing:
-					caster->DoThrowingAttackDmg(this, nullptr, nullptr, spells[spell_id].base_value[i],spells[spell_id].limit_value[i], 0, ReuseTime, 0, 0, 4.0f, true);
+					caster->DoThrowingAttackDmg(this, nullptr, nullptr, scaled_base_damage,spells[spell_id].limit_value[i], 0, ReuseTime, 0, 0, 4.0f, true);
 					break;
 				case EQ::skills::SkillArchery:
-					caster->DoArcheryAttackDmg(this, nullptr, nullptr, spells[spell_id].base_value[i],spells[spell_id].limit_value[i], 0, ReuseTime, 0, 0, nullptr, 0, 4.0f, true);
+					caster->DoArcheryAttackDmg(this, nullptr, nullptr, scaled_base_damage,spells[spell_id].limit_value[i], 0, ReuseTime, 0, 0, nullptr, 0, 4.0f, true);
 					break;
 				default:
-					caster->DoMeleeSkillAttackDmg(this, spells[spell_id].base_value[i], spells[spell_id].skill, spells[spell_id].limit_value[i], 0, false, ReuseTime);
+					caster->DoMeleeSkillAttackDmg(this, scaled_base_damage, spells[spell_id].skill, spells[spell_id].limit_value[i], 0, false, ReuseTime);
 					break;
 				}
 				break;
