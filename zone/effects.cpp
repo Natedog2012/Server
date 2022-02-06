@@ -122,6 +122,10 @@ int32 Mob::GetActSpellDamage(uint16 spell_id, int32 value, Mob* target) {
 
 			else if (IsNPC() && CastToNPC()->GetSpellScale())
 				value = int(static_cast<float>(value) * CastToNPC()->GetSpellScale() / 100.0f);
+			
+			if (IsClient()) {
+				value += value*GetFocusEffect(focusImprovedDamage3, spell_id)/100;
+			}
 
 			entity_list.MessageCloseString(
 				this, true, 100, Chat::SpellCrit,
@@ -161,6 +165,10 @@ int32 Mob::GetActSpellDamage(uint16 spell_id, int32 value, Mob* target) {
 
 	if (IsNPC() && CastToNPC()->GetSpellScale())
 		value = int(static_cast<float>(value) * CastToNPC()->GetSpellScale() / 100.0f);
+	
+	if (IsClient()) {
+		value += value*GetFocusEffect(focusImprovedDamage3, spell_id)/100;
+	}
 
 	return value;
 }
@@ -278,6 +286,10 @@ int32 Mob::GetActDoTDamage(uint16 spell_id, int32 value, Mob* target) {
 
 	if (IsNPC() && CastToNPC()->GetSpellScale())
 		value = int(static_cast<float>(value) * CastToNPC()->GetSpellScale() / 100.0f);
+	
+	if (IsClient()) {
+		value += value*GetFocusEffect(focusImprovedDamage3, spell_id)/100;
+	}
 
 	return value;
 }

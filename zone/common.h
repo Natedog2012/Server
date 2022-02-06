@@ -118,6 +118,7 @@ typedef enum {	//focus types
 	focusImprovedHeal,					//@Fc, SPA: 125, SE_ImprovedHeal,					On Caster, spell healing mod pct, base: min pct, limit: max pct
 	focusImprovedDamage,				//@Fc, SPA: 124, SE_ImprovedDamage,					On Caster, spell damage mod pct, base: min pct, limit: max pct
 	focusImprovedDamage2,				//@Fc, SPA: 461, SE_ImprovedDamage2,				On Caster, spell damage mod pct, base: min pct, limit: max pct
+	focusImprovedDamage3,				//@FC, SPA: 997, SE_ImprovedDamage3,				On Caster, spell damage mod pct, base: min pct, limit: max pct (Scales after all other damage calcs)
 	focusFcDamagePctCrit,				//@Fc, SPA: 302, SE_FcDamagePctCrit,				On Caster, spell damage mod pct, base: min pct, limit: max pct
 	focusPetPower,						//@Fc, SPA: 167, SE_PetPowerIncrease,				On Caster, pet power mod, base: value
 	focusResistRate,					//@Fc, SPA: 126, SE_SpellResistReduction,			On Caster, casted spell resist mod pct, base: min pct, limit: max pct

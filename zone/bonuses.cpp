@@ -4448,6 +4448,8 @@ uint8 Mob::IsFocusEffect(uint16 spell_id,int effect_index, bool AA,uint32 aa_eff
 			return focusFcHealAmt;
 		case SE_FcHealAmtCrit:
 			return focusFcHealAmtCrit;
+		case SE_ImprovedDamage3:
+			return focusImprovedDamage3;
 
 	}
 	return 0;

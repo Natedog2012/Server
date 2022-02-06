@@ -5101,6 +5101,10 @@ int32 Bot::CalcBotAAFocus(focusType type, uint32 aa_ID, uint32 points, uint16 sp
 				if (type == focusImprovedDamage2 && base_value > value)
 					value = base_value;
 				break;
+			case SE_ImprovedDamage3:
+				if (type == focusImprovedDamage3 && base_value > value)
+					value = base_value;
+				break;
 			case SE_ImprovedHeal:
 				if (type == focusImprovedHeal && base_value > value)
 					value = base_value;

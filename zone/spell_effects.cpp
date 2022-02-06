@@ -5087,6 +5087,12 @@ int32 Client::CalcAAFocus(focusType type, const AA::Rank &rank, uint16 spell_id)
 					value = base_value;
 				}
 				break;
+				
+			case SE_ImprovedDamage3:
+				if (type == focusImprovedDamage3 && base_value > value) {
+					value = base_value;
+				}
+				break;
 
 			case SE_Fc_Amplify_Mod:
 				if (type == focusFcAmplifyMod && base_value > value) {
@@ -5868,6 +5874,12 @@ int32 Mob::CalcFocusEffect(focusType type, uint16 focus_id, uint16 spell_id, boo
 
 			case SE_ImprovedDamage2:
 				if (type == focusImprovedDamage2) {
+					value = GetFocusRandomEffectivenessValue(focus_spell.base_value[i], focus_spell.limit_value[i], best_focus);
+				}
+				break;
+			
+			case SE_ImprovedDamage3:
+				if (type == focusImprovedDamage3) {
 					value = GetFocusRandomEffectivenessValue(focus_spell.base_value[i], focus_spell.limit_value[i], best_focus);
 				}
 				break;
@@ -8792,6 +8804,7 @@ bool Mob::CanFocusUseRandomEffectivenessByType(focusType type)
 	switch (type) {
 	case focusImprovedDamage:
 	case focusImprovedDamage2:
+	case focusImprovedDamage3:
 	case focusImprovedHeal:
 	case focusManaCost:
 	case focusResistRate:
