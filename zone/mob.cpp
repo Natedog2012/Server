@@ -3127,6 +3127,7 @@ void Mob::TempName(const char *newname)
 	char temp_name[64];
 	char old_name[64];
 	strn0cpy(old_name, GetName(), 64);
+	clean_name[0] = 0;
 
 	if(newname)
 		strn0cpy(temp_name, newname, 64);
@@ -3135,7 +3136,6 @@ void Mob::TempName(const char *newname)
 	if(!newname) {
 		strn0cpy(temp_name, GetOrigName(), 64);
 		SetName(temp_name);
-		//CleanMobName(GetName(), temp_name);
 		strn0cpy(temp_name, GetCleanName(), 64);
 	}
 
@@ -3627,7 +3627,10 @@ bool Mob::HateSummon() {
 		if(summon_level == 1) {
 			entity_list.MessageClose(this, true, 500, Chat::Say, "%s says 'You will not evade me, %s!' ", GetCleanName(), target->GetCleanName() );
 
+			float summoner_zoff = this->GetZOffset();
+			float summoned_zoff = target->GetZOffset();
 			auto new_pos = m_Position;
+			new_pos.z -= (summoner_zoff - summoned_zoff);
 			float angle = new_pos.w - target->GetHeading();
 			new_pos.w = target->GetHeading();
 
@@ -6743,6 +6746,3 @@ void Mob::HideFrom(Client *client)
 
 }
 
-bool Mob::IsValidXTarget() const {
-	return (GetID() > 0 || !IsCorpse());
-}

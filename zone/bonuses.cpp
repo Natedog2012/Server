@@ -1697,6 +1697,10 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 			break;
 		}
 
+		case SE_Illusion:
+			newbon->Illusion = true;
+			break;
+
 		case SE_IllusionPersistence:
 			newbon->IllusionPersistence = base_value;
 			break;
@@ -3777,6 +3781,10 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 					new_bonus->FactionModPct = effect_value;
 				break;
 			}
+
+			case SE_Illusion:
+				new_bonus->Illusion = spell_id;
+				break;
 
 			case SE_IllusionPersistence:
 				new_bonus->IllusionPersistence = effect_value;

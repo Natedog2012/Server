@@ -1891,6 +1891,8 @@ bool Client::Death(Mob* killerMob, int32 damage, uint16 spell, EQ::skills::Skill
 			//m_epp.perAA = 0;	//reset to no AA exp on death.
 		}
 
+		int32 illusion_spell_id = spellbonuses.Illusion;
+
 		//this generates a lot of 'updates' to the client that the client does not need
 		BuffFadeNonPersistDeath();
 		if (RuleB(Character, UnmemSpellsOnDeath)) {
@@ -1936,13 +1938,12 @@ bool Client::Death(Mob* killerMob, int32 damage, uint16 spell, EQ::skills::Skill
 					}
 				}
 			}
-
 			entity_list.AddCorpse(new_corpse, GetID());
 			SetID(0);
 
 			//send the become corpse packet to everybody else in the zone.
 			entity_list.QueueClients(this, &app2, true);
-
+			ApplyIllusionToCorpse(illusion_spell_id, new_corpse);
 			LeftCorpse = true;
 		}
 	}
@@ -2340,6 +2341,8 @@ bool NPC::Death(Mob* killer_mob, int32 damage, uint16 spell, EQ::skills::SkillTy
 	if (p_depop == true)
 		return false;
 
+	int32 illusion_spell_id = spellbonuses.Illusion;
+
 	HasAISpellEffects = false;
 	BuffFadeAll();
 	uint8 killed_level = GetLevel();
@@ -2411,7 +2414,7 @@ bool NPC::Death(Mob* killer_mob, int32 damage, uint16 spell, EQ::skills::SkillTy
 		give_exp_client = give_exp->CastToClient();
 
 	//do faction hits even if we are a merchant, so long as a player killed us
-	if (give_exp_client && !RuleB(NPC, EnableMeritBasedFaction))
+	if (!IsCharmed() && give_exp_client && !RuleB(NPC, EnableMeritBasedFaction))
 		hate_list.DoFactionHits(GetNPCFactionID());
 
 	bool IsLdonTreasure = (this->GetClass() == LDON_TREASURE);
@@ -2583,9 +2586,6 @@ bool NPC::Death(Mob* killer_mob, int32 damage, uint16 spell, EQ::skills::SkillTy
 
 		entity_list.RemoveFromAutoXTargets(this);
 
-		if (killer != nullptr && killer->GetUltimateOwner() && killer->GetUltimateOwner()->IsClient()) {
-			killer->GetUltimateOwner()->CastToClient()->ProcessXTargetAutoHaters();
-		}
 		uint16 emoteid = this->GetEmoteID();
 		auto corpse = new Corpse(this, &itemlist, GetNPCTypeID(), &NPCTypedata,
 			level > 54 ? RuleI(NPC, MajorNPCCorpseDecayTimeMS)
@@ -2598,8 +2598,8 @@ bool NPC::Death(Mob* killer_mob, int32 damage, uint16 spell, EQ::skills::SkillTy
 
 		// entity_list.RemoveMobFromCloseLists(this);
 		close_mobs.clear();
-
 		this->SetID(0);
+		ApplyIllusionToCorpse(illusion_spell_id, corpse);
 
 		if (killer != 0 && emoteid != 0)
 			corpse->CastToNPC()->DoNPCEmote(AFTERDEATH, emoteid);
@@ -2872,7 +2872,7 @@ void Mob::AddToHateList(Mob* other, uint32 hate /*= 0*/, int32 damage /*= 0*/, b
 		}
 	} //MERC
 
-	  // then add pet owner if there's one
+	//if I am a pet, then add pet owner if there's one
 	if (owner) { // Other is a pet, add him and it
 				 // EverHood 6/12/06
 				 // Can't add a feigned owner to hate list
@@ -2887,8 +2887,9 @@ void Mob::AddToHateList(Mob* other, uint32 hate /*= 0*/, int32 damage /*= 0*/, b
 				!(this->GetSpecialAbility(IMMUNE_AGGRO_CLIENT) && owner->IsClient()) &&
 				!(this->GetSpecialAbility(IMMUNE_AGGRO_NPC) && owner->IsNPC())
 			) {
-				if (owner->IsClient() && !CheckAggro(owner))
+				if (owner->IsClient() && !CheckAggro(owner)) {
 					owner->CastToClient()->AddAutoXTarget(this);
+				}
 				hate_list.AddEntToHateList(owner, 0, 0, false, !iBuffTic);
 			}
 		}
@@ -2915,8 +2916,9 @@ void Mob::AddToHateList(Mob* other, uint32 hate /*= 0*/, int32 damage /*= 0*/, b
 		}
 	}
 
-	if (other->GetTempPetCount()) {
-		entity_list.AddTempPetsToHateList(other, this, bFrenzy);
+	//I have a swarm pet, add other to it.
+	if (GetTempPetCount()) {
+		entity_list.AddTempPetsToHateList(this, other, bFrenzy);
 	}
 
 	if (!wasengaged) {
@@ -3698,6 +3700,10 @@ void Mob::CommonDamage(Mob* attacker, int &damage, const uint16 spell_id, const 
 				pet->SetTarget(attacker);
 				MessageString(Chat::NPCQuestSay, PET_ATTACKING, pet->GetCleanName(), attacker->GetCleanName());
 			}
+		}
+
+		if (GetTempPetCount()) {
+			entity_list.AddTempPetsToHateListOnOwnerDamage(this, attacker, spell_id);
 		}
 
 		//see if any runes want to reduce this damage

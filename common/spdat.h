@@ -1030,7 +1030,7 @@ typedef enum {
 #define SE_ZoneSuspendMinion			308 // implemented, @Pet, allow suspended pets to be resummoned upon zoning, base: 1, limit: none, max: none, Calc: Bool
 #define SE_GateCastersBindpoint			309 // implemented - Gate to casters bind point
 #define SE_ReduceReuseTimer				310 // implemented, @Fc, On Caster, spell and disc reuse time mod by amount, base: milliseconds
-#define SE_LimitCombatSkills			311 // implemented, @Ff, Include or exclude combat skills or procs (non-memorizable spells) from being focused, base1: 0=Exclude if proc 1=Allow only if proc
+#define SE_LimitCombatSkills			311 // implemented, @Ff, Include or exclude combat skills or procs from being focused, base1: 0=Exclude if proc 1=Allow only if proc.
 #define SE_Sanctuary					312 // implemented - Places caster at bottom hate list, effect fades if cast cast spell on targets other than self.
 #define SE_ForageAdditionalItems		313	// implemented[AA] - chance to forage additional items
 #define SE_Invisibility2				314 // implemented - fixed duration invisible
@@ -1358,7 +1358,7 @@ struct SPDat_Spell_Struct
 /* 181 */	int pvp_duration; // buffdurationformula for PvP -- PVP_DURATION
 /* 182 */	int pvp_duration_cap; // buffduration for PvP -- PVP_DURATION_CAP
 /* 183 */	int pcnpc_only_flag; // valid values are 0, 1 = PCs (and mercs), and 2 = NPCs (and not mercs) -- PCNPC_ONLY_FLAG
-/* 184 */	bool cast_not_standing; // this is checked in the client's EQ_Spell::IsCastWhileInvisSpell, this also blocks SE_InterruptCasting from affecting this spell -- CAST_NOT_STANDING
+/* 184 */	bool cast_not_standing; // this is checked in the client's EQ_Spell::IsCastWhileInvisSpell, this also blocks SE_InterruptCasting from affecting this spell -- CAST_NOT_STANDING (Allows casting if DA, stun, mezed, charm? fear?, damage to invul targets)
 /* 185 */	bool can_mgb; // 0=no, -1 or 1 = yes -- CAN_MGB
 /* 186 */	int dispel_flag; // -- NO_DISPELL
 /* 187 */	//int npc_category; // -- NPC_MEM_CATEGORY
@@ -1538,6 +1538,7 @@ int GetViralMaxSpreadTime(int32 spell_id);
 int GetViralSpreadRange(int32 spell_id);
 bool IsInstrumentModAppliedToSpellEffect(int32 spell_id, int effect);
 uint32 GetProcLimitTimer(int32 spell_id, int proc_type);
+bool IgnoreCastingRestriction(int32 spell_id);
 
 int CalcPetHp(int levelb, int classb, int STA = 75);
 int GetSpellEffectDescNum(uint16 spell_id);

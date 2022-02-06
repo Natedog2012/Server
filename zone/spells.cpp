@@ -168,9 +168,9 @@ bool Mob::CastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 		casting_spell_id ||
 		delaytimer ||
 		spellend_timer.Enabled() ||
-		IsStunned() ||
+		(IsStunned() && !IgnoreCastingRestriction(spell_id)) ||
 		IsFeared() ||
-		IsMezzed() ||
+		(IsMezzed() && !IgnoreCastingRestriction(spell_id)) ||
 		(IsSilenced() && !IsDiscipline(spell_id)) ||
 		(IsAmnesiad() && IsDiscipline(spell_id))
 	)
@@ -217,7 +217,7 @@ bool Mob::CastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 	}
 
 	//cannot cast under divine aura, unless spell has 'cast_not_standing' flag. 
-	if(DivineAura() && !spells[spell_id].cast_not_standing) {
+	if(DivineAura() && !IgnoreCastingRestriction(spell_id)) {
 		LogSpells("Spell casting canceled: cannot cast while Divine Aura is in effect");
 		InterruptSpell(173, 0x121, false);
 		if(IsClient()) {
@@ -3667,10 +3667,11 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 		return false;
 	}
 
-	if(spelltar->IsClient() && spelltar->CastToClient()->IsHoveringForRespawn())
+	if (spelltar->IsClient() && spelltar->CastToClient()->IsHoveringForRespawn()) {
 		return false;
+	}
 
-	if(IsDetrimentalSpell(spell_id) && !IsAttackAllowed(spelltar, true) && !IsResurrectionEffects(spell_id)) {
+	if(IsDetrimentalSpell(spell_id) && !IsAttackAllowed(spelltar, true) && !IsResurrectionEffects(spell_id) && !IsEffectInSpell(spell_id, SE_BindSight)) {
 		if(!IsClient() || !CastToClient()->GetGM()) {
 			MessageString(Chat::SpellFailure, SPELL_NO_HOLD);
 			return false;
@@ -3795,7 +3796,7 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 	// invuln mobs can't be affected by any spells, good or bad, except if caster is casting a spell with 'cast_not_standing' on self.
 	if ((spelltar->GetInvul() && !spelltar->DivineAura()) ||
 		(spelltar != this && spelltar->DivineAura()) ||
-		(spelltar == this && spelltar->DivineAura() && !spells[spell_id].cast_not_standing)) {
+		(spelltar == this && spelltar->DivineAura() && !IgnoreCastingRestriction(spell_id))) {
 		LogSpells("Casting spell [{}] on [{}] aborted: they are invulnerable", spell_id, spelltar->GetName());
 		safe_delete(action_packet);
 		return false;
@@ -3939,7 +3940,7 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 				}
 			}
 		}
-		else if	( !IsAttackAllowed(spelltar, true) && !IsResurrectionEffects(spell_id)) // Detrimental spells - PVP check
+		else if	( !IsAttackAllowed(spelltar, true) && !IsResurrectionEffects(spell_id) && !IsEffectInSpell(spell_id, SE_BindSight)) // Detrimental spells - PVP check
 		{
 			LogSpells("Detrimental spell [{}] can't take hold [{}] -> [{}]", spell_id, GetName(), spelltar->GetName());
 			spelltar->MessageString(Chat::SpellFailure, YOU_ARE_PROTECTED, GetCleanName());
@@ -4238,7 +4239,7 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 				spelltar->CastToClient()->cheat_manager.SetExemptStatus(KnockBack, true);
 			}
 		}
-		else if (RuleB(Spells, NPCSpellPush) && !permarooted && !IsPseudoRooted() && spelltar->ForcedMovement == 0) {
+		else if (RuleB(Spells, NPCSpellPush) && !spelltar->IsPermaRooted() && !spelltar->IsPseudoRooted() && spelltar->ForcedMovement == 0) {
 			spelltar->m_Delta.x += action->force * g_Math.FastSin(action->hit_heading);
 			spelltar->m_Delta.y += action->force * g_Math.FastCos(action->hit_heading);
 			spelltar->m_Delta.z += action->hit_pitch;
@@ -5855,31 +5856,27 @@ bool Mob::IsCombatProc(uint16 spell_id) {
 	if (spell_id == SPELL_UNKNOWN) {
 		return(false);
 	}
-
-	if ((spells[spell_id].cast_time == 0) && (spells[spell_id].recast_time == 0) && (spells[spell_id].recovery_time == 0))
-	{
-
-		for (int i = 0; i < MAX_PROCS; i++){
-			if (PermaProcs[i].spellID == spell_id || 
-				SpellProcs[i].spellID == spell_id ||
-				RangedProcs[i].spellID == spell_id || 
-				DefensiveProcs[i].spellID == spell_id){
-				return true;
-			}
-		}
-
-		if (IsClient()) {
-			for (int i = 0; i < MAX_AA_PROCS; i += 4) {
-
-				if (aabonuses.SpellProc[i + 1] == spell_id ||
-					aabonuses.RangedProc[i + 1] == spell_id ||
-					aabonuses.DefensiveProc[i + 1] == spell_id) {
-					return true;
-				}
-			}
+	/*
+		Procs that originate from casted spells are still limited by SPA 311 (~Kayen confirmed on live 2/4/22)
+	*/
+	for (int i = 0; i < MAX_PROCS; i++) {
+		if (PermaProcs[i].spellID == spell_id ||
+			SpellProcs[i].spellID == spell_id ||
+			RangedProcs[i].spellID == spell_id ||
+			DefensiveProcs[i].spellID == spell_id) {
+			return true;
 		}
 	}
 
+	if (IsClient()) {
+		for (int i = 0; i < MAX_AA_PROCS; i += 4) {
+			if (aabonuses.SpellProc[i + 1] == spell_id ||
+				aabonuses.RangedProc[i + 1] == spell_id ||
+				aabonuses.DefensiveProc[i + 1] == spell_id) {
+				return true;
+			}
+		}
+	}
 	return false;
 }
 
@@ -6301,6 +6298,22 @@ void Client::SendSpellAnim(uint16 targetid, uint16 spell_id)
 
 	app.priority = 1;
 	entity_list.QueueCloseClients(this, &app, false, RuleI(Range, SpellParticles));
+}
+
+void Client::SendItemRecastTimer(uint32 recast_type, uint32 recast_delay)
+{
+	if (!recast_delay) {
+		recast_delay = GetPTimers().GetRemainingTime(pTimerItemStart + recast_type);
+	}
+
+	if (recast_delay) {
+		auto outapp = new EQApplicationPacket(OP_ItemRecastDelay, sizeof(ItemRecastDelay_Struct));
+		ItemRecastDelay_Struct *ird = (ItemRecastDelay_Struct *)outapp->pBuffer;
+		ird->recast_delay = recast_delay;
+		ird->recast_type = recast_type;
+		QueuePacket(outapp);
+		safe_delete(outapp);
+	}
 }
 
 void Mob::CalcDestFromHeading(float heading, float distance, float MaxZDiff, float StartX, float StartY, float &dX, float &dY, float &dZ)

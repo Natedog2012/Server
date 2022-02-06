@@ -2300,11 +2300,10 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				snprintf(effect_desc, _EDLEN, "Fading Memories");
 #endif
 				if(zone->random.Roll(spells[spell_id].base_value[i])) {
-
-					if(caster && caster->IsClient())
-						caster->CastToClient()->Escape();
-					else
-					{
+					if (IsClient()) {
+						CastToClient()->Escape();
+					}
+					else{
 						entity_list.RemoveFromTargets(caster);
 						SetInvisible(Invisibility::Invisible);
 					}
@@ -3337,6 +3336,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 			case SE_Ff_FocusTimerMin:
 			case SE_Proc_Timer_Modifier:
 			case SE_FFItemClass:
+			case SE_SpellEffectResistChance:
 			{
 				break;
 			}
@@ -4046,7 +4046,7 @@ void Mob::DoBuffTic(const Buffs_Struct &buff, int slot, Mob *caster)
 		case SE_InterruptCasting: {
 			if (IsCasting()) {
 				const auto &spell = spells[casting_spell_id];
-				if (!spell.cast_not_standing && zone->random.Roll(spells[buff.spellid].base_value[i])) {
+				if (!IgnoreCastingRestriction(spell.id) && zone->random.Roll(spells[buff.spellid].base_value[i])) {
 					InterruptSpell();
 				}
 			}
@@ -9120,6 +9120,44 @@ void Mob::SetProcLimitTimer(int32 base_spell_id, uint32 proc_reuse_time, int pro
 	}
 }
 
+void Mob::SendIllusionWearChange(Client* c) {
+
+	/*
+		We send this to client on Client::CompleteConnect() to properly update textures of
+		other mobs in zone with illusions on them.
+	*/
+	if (!c) {
+		return;
+	}
+
+	if (!spellbonuses.Illusion && !itembonuses.Illusion && !aabonuses.Illusion) {
+		return;
+	}
+
+	for (int x = EQ::textures::textureBegin; x <= EQ::textures::LastTintableTexture; x++) {
+		SendWearChange(x, c);
+	}
+}
+
+void Mob::ApplyIllusionToCorpse(int32 spell_id, Corpse* new_corpse) {
+
+	//Transfers most illusions over to the corpse upon death
+	if (!IsValidSpell(spell_id)) {
+		return;
+	}
+
+	if (!new_corpse) {
+		return;
+	}
+
+	for (int i = 0; i < EFFECT_COUNT; i++){
+		if (spells[spell_id].effect_id[i] == SE_Illusion) {
+			new_corpse->ApplySpellEffectIllusion(spell_id, nullptr, -1, spells[spell_id].base_value[i], spells[spell_id].limit_value[i], spells[spell_id].max_value[i]);
+			return;
+		}
+	}
+}
+
 void Mob::ApplySpellEffectIllusion(int32 spell_id, Mob *caster, int buffslot, int base, int limit, int max)
 {
 	// Gender Illusions
@@ -9228,12 +9266,14 @@ void Mob::ApplySpellEffectIllusion(int32 spell_id, Mob *caster, int buffslot, in
 		SendWearChange(x);
 	}
 
-	if (caster == this && spell_id != SPELL_MINOR_ILLUSION && spell_id != SPELL_ILLUSION_TREE &&
-		(spellbonuses.IllusionPersistence || aabonuses.IllusionPersistence || itembonuses.IllusionPersistence)) {
-		buffs[buffslot].persistant_buff = 1;
-	}
-	else {
-		buffs[buffslot].persistant_buff = 0;
+	if (buffslot != -1) {
+		if (caster == this && spell_id != SPELL_MINOR_ILLUSION && spell_id != SPELL_ILLUSION_TREE &&
+			(spellbonuses.IllusionPersistence || aabonuses.IllusionPersistence || itembonuses.IllusionPersistence)) {
+			buffs[buffslot].persistant_buff = 1;
+		}
+		else {
+			buffs[buffslot].persistant_buff = 0;
+		}
 	}
 }
 

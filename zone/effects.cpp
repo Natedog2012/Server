@@ -729,8 +729,13 @@ void Client::SendDisciplineUpdate() {
 
 bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 	// Dont let client waste a reuse timer if they can't use the disc
+
 	bool disc_failed = false;
-	if (IsStunned() || IsFeared() || IsMezzed() || IsAmnesiad() || IsPet())
+	if ((IsStunned() && !IgnoreCastingRestriction(spell_id))||
+		IsFeared() || 
+		(IsMezzed() && !IgnoreCastingRestriction(spell_id)) ||
+		IsAmnesiad() || 
+		IsPet())
 	{
 		if (IsAmnesiad()) {
 			MessageString(Chat::Red, MELEE_SILENCE);
@@ -753,7 +758,7 @@ bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 		return(false);
 	}
 
-	if (DivineAura() && !spells[spell_id].cast_not_standing) {
+	if (DivineAura() && !IgnoreCastingRestriction(spell_id)) {
 		return false;
 	}
 
