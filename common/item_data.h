@@ -392,18 +392,18 @@ namespace EQ
 
 		bool	BenefitFlag;
 		bool	Tradeskills;	// Is this a tradeskill item?
-		int8	CR;				// Save vs Cold
-		int8	DR;				// Save vs Disease
-		int8	PR;				// Save vs Poison
-		int8	MR;				// Save vs Magic
-		int8	FR;				// Save vs Fire
-		int8	AStr;			// Strength
-		int8	ASta;			// Stamina
-		int8	AAgi;			// Agility
-		int8	ADex;			// Dexterity
-		int8	ACha;			// Charisma
-		int8	AInt;			// Intelligence
-		int8	AWis;			// Wisdom
+		int32	CR;				// Save vs Cold
+		int32	DR;				// Save vs Disease
+		int32	PR;				// Save vs Poison
+		int32	MR;				// Save vs Magic
+		int32	FR;				// Save vs Fire
+		int32	AStr;			// Strength
+		int32	ASta;			// Stamina
+		int32	AAgi;			// Agility
+		int32	ADex;			// Dexterity
+		int32	ACha;			// Charisma
+		int32	AInt;			// Intelligence
+		int32	AWis;			// Wisdom
 		int32	HP;				// HP
 		int32	Mana;			// Mana
 		int32	AC;				// AC

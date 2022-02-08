@@ -2254,9 +2254,9 @@ XS(XS_Mob_GetActSpellDamage) {
 		dXSTARG;
 		uint16 spell_id = (uint16) SvUV(ST(1));
 		int32  value    = (int32) SvIV(ST(2));
-		Mob *target;
+		Mob *target = nullptr;
 		
-		if (sv_derived_from(ST(3), "Mob")) {
+		if (items == 4 && sv_derived_from(ST(3), "Mob")) {
 			IV tmp = SvIV((SV*)SvRV(ST(3)));
 			target = INT2PTR(Mob *,tmp);
 		}

@@ -907,19 +907,19 @@ void EQ::ItemInstance::ScaleItem() {
 
 	float Mult = (float)(GetExp()) / 10000;	// scaling is determined by exp, with 10,000 being full stats
 
-	m_scaledItem->AStr = (int8)((float)m_item->AStr*Mult);
-	m_scaledItem->ASta = (int8)((float)m_item->ASta*Mult);
-	m_scaledItem->AAgi = (int8)((float)m_item->AAgi*Mult);
-	m_scaledItem->ADex = (int8)((float)m_item->ADex*Mult);
-	m_scaledItem->AInt = (int8)((float)m_item->AInt*Mult);
-	m_scaledItem->AWis = (int8)((float)m_item->AWis*Mult);
-	m_scaledItem->ACha = (int8)((float)m_item->ACha*Mult);
+	m_scaledItem->AStr = (int32)((float)m_item->AStr*Mult);
+	m_scaledItem->ASta = (int32)((float)m_item->ASta*Mult);
+	m_scaledItem->AAgi = (int32)((float)m_item->AAgi*Mult);
+	m_scaledItem->ADex = (int32)((float)m_item->ADex*Mult);
+	m_scaledItem->AInt = (int32)((float)m_item->AInt*Mult);
+	m_scaledItem->AWis = (int32)((float)m_item->AWis*Mult);
+	m_scaledItem->ACha = (int32)((float)m_item->ACha*Mult);
 
-	m_scaledItem->MR = (int8)((float)m_item->MR*Mult);
-	m_scaledItem->PR = (int8)((float)m_item->PR*Mult);
-	m_scaledItem->DR = (int8)((float)m_item->DR*Mult);
-	m_scaledItem->CR = (int8)((float)m_item->CR*Mult);
-	m_scaledItem->FR = (int8)((float)m_item->FR*Mult);
+	m_scaledItem->MR = (int32)((float)m_item->MR*Mult);
+	m_scaledItem->PR = (int32)((float)m_item->PR*Mult);
+	m_scaledItem->DR = (int32)((float)m_item->DR*Mult);
+	m_scaledItem->CR = (int32)((float)m_item->CR*Mult);
+	m_scaledItem->FR = (int32)((float)m_item->FR*Mult);
 
 	m_scaledItem->HP = (int32)((float)m_item->HP*Mult);
 	m_scaledItem->Mana = (int32)((float)m_item->Mana*Mult);
