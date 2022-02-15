@@ -327,6 +327,7 @@ RULE_INT(Character, MagicianTrackingDistanceMultiplier, 0, "If you want magician
 RULE_INT(Character, EnchanterTrackingDistanceMultiplier, 0, "If you want enchanters to be able to track, increase this above 0.  0 disables tracking packets.")
 RULE_INT(Character, BeastlordTrackingDistanceMultiplier, 0, "If you want beastlords to be able to track, increase this above 0.  0 disables tracking packets.")
 RULE_INT(Character, BerserkerTrackingDistanceMultiplier, 0, "If you want berserkers to be able to track, increase this above 0.  0 disables tracking packets.")
+RULE_BOOL(Character, OnInviteReceiveAlreadyinGroupMessage, true, "If you want clients to receive a message when trying to invite a player into a group that is currently in another group.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Mercs)
@@ -538,7 +539,7 @@ RULE_BOOL(Spells, July242002PetResists, true, "Enable Pets using PCs resist chan
 RULE_INT(Spells, AOEMaxTargets, 0, "Max number of targets a Targeted AOE spell can cast on. Set to 0 for no limit.")
 RULE_BOOL(Spells, CazicTouchTargetsPetOwner, true, "If True, causes Cazic Touch to swap targets from pet to pet owner if a pet is tanking.")
 RULE_BOOL(Spells, PreventFactionWarOnCharmBreak, false, "Enable spell interupts and dot removal on charm break to prevent faction wars.")
-RULE_BOOL(Spells, AllowDoubleInvis, false, "Allows you to cast invisibility spells on a player that is already invisible")
+RULE_BOOL(Spells, AllowDoubleInvis, true, "Allows you to cast invisibility spells on a player that is already invisible, live like behavior.")
 RULE_BOOL(Spells, AllowSpellMemorizeFromItem, false, "Allows players to memorize spells by right-clicking spell scrolls")
 RULE_BOOL(Spells, InvisRequiresGroup, false, "Invis requires the the target to be in group.")
 RULE_INT(Spells, ClericInnateHealFocus, 5, "Clerics on live get a 5 pct innate heal focus")

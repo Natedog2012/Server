@@ -1601,7 +1601,7 @@ void Mob::CastedSpellFinished(uint16 spell_id, uint32 target_id, CastingSlot slo
 	}
 
 	// we're done casting, now try to apply the spell
-	if(!SpellFinished(spell_id, spell_target, slot, mana_used, inventory_slot, resist_adjust, false,-1, true))
+	if(!SpellFinished(spell_id, spell_target, slot, mana_used, inventory_slot, resist_adjust, false,-1, 0xFFFFFFFF, 0, true))
 	{
 		LogSpells("Casting of [{}] canceled: SpellFinished returned false", spell_id);
 		// most of the cases we return false have a message already or are logic errors that shouldn't happen
@@ -2221,7 +2221,7 @@ bool Mob::DetermineSpellTargets(uint16 spell_id, Mob *&spell_target, Mob *&ae_ce
 // if you need to abort the casting, return false
 bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, uint16 mana_used,
 						uint32 inventory_slot, int16 resist_adjust, bool isproc, int level_override,
-						bool from_casted_spell, uint32 aa_id)
+						uint32 timer, uint32 timer_duration, bool from_casted_spell, uint32 aa_id)
 {
 	Mob *ae_center = nullptr;
 
@@ -2395,9 +2395,6 @@ bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, ui
 
 				else if(!SpellOnTarget(spell_id, spell_target, 0, true, resist_adjust, false, level_override)) {
 					if(IsBuffSpell(spell_id) && IsBeneficialSpell(spell_id)) {
-						// Prevent mana usage/timers being set for beneficial buffs
-						if(casting_spell_aa_id)
-							InterruptSpell();
 						return false;
 					}
 				}
@@ -2418,16 +2415,6 @@ bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, ui
 		case AECaster:
 		case AETarget:
 		{
-#ifdef BOTS
-			if(IsBot()) {
-				bool StopLogic = false;
-				if(!this->CastToBot()->DoFinishedSpellAETarget(spell_id, spell_target, slot, StopLogic))
-					return false;
-				if(StopLogic)
-					break;
-			}
-#endif //BOTS
-
 			// we can't cast an AE spell without something to center it on
 			assert(ae_center != nullptr);
 
@@ -2599,54 +2586,39 @@ bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, ui
 	if (mgb) {
 		SetMGB(false);
 	}
+	/*
+		Set Recast Timer on spells.
+	*/
 
-	//all spell triggers use Item slot, but don't have an item associated. We don't need to check recast timers on these.
-	bool is_triggered_spell = false;
-	if (slot == CastingSlot::Item && inventory_slot == 0xFFFFFFFF) {
-		is_triggered_spell = true;
-	}
-
-	if (IsClient() && !isproc && !is_triggered_spell)
+	if(IsClient() && !isproc && !IsFromTriggeredSpell(slot, inventory_slot))
 	{
-		//Set Item or Augment Click Recast Timer
-		if (slot == CastingSlot::Item || slot == CastingSlot::PotionBelt) {
-			CastToClient()->SetItemRecastTimer(spell_id, inventory_slot);
-		}
-		//Set Discipline Recast Timer
-		else if (slot == CastingSlot::Discipline) {
-			if (spell_id == casting_spell_id || (GetClass() == BARD && spells[spell_id].cast_time == 0 && spell_id != casting_spell_id)) {
-				CastToClient()->SetDisciplineRecastTimer(spell_id);
+		if (slot == CastingSlot::AltAbility) {
+			if (!aa_id) {
+				aa_id = casting_spell_aa_id;
+			}
+			if (aa_id) {
+				AA::Rank *rank = zone->GetAlternateAdvancementRank(aa_id);
+				//handle expendable AA's
+				if (rank && rank->base_ability) {
+					ExpendAlternateAdvancementCharge(rank->base_ability->id);
+				}
+				//set AA recast timer
+				CastToClient()->SendAlternateAdvancementTimer(rank->spell_type, 0, 0);
 			}
 		}
-		//Set AA Recast Timer.
-		else if (slot == CastingSlot::AltAbility){
-			uint32 active_aa_id = 0;
-			//aa_id is only passed directly into spellfinished when a bard is using AA while casting, this supports casting an AA while clicking an instant AA.
-			if (GetClass() == BARD && spells[spell_id].cast_time == 0 && aa_id) {
-				active_aa_id = aa_id;
-			}
-			else {
-				active_aa_id = casting_spell_aa_id;
-			}
-					   
-			AA::Rank *rank = zone->GetAlternateAdvancementRank(active_aa_id);
-
-			CastToClient()->SetAARecastTimer(rank, spell_id);
-
-			if (rank && rank->base_ability) {
-				ExpendAlternateAdvancementCharge(rank->base_ability->id);
-			}
+		//handle bard AA and Discipline recast timers when singing
+		if (GetClass() == BARD && spell_id != casting_spell_id && timer != 0xFFFFFFFF) {
+			CastToClient()->GetPTimers().Start(timer, timer_duration);
+			LogSpells("Spell [{}]: Setting BARD custom reuse timer [{}] to [{}]", spell_id, casting_spell_timer, casting_spell_timer_duration);
 		}
-		//Set Custom Recast Timer
+		//handles AA and Discipline recast timers
 		else if (spell_id == casting_spell_id && casting_spell_timer != 0xFFFFFFFF)
 		{
-			//aa new todo: aa expendable charges here
 			CastToClient()->GetPTimers().Start(casting_spell_timer, casting_spell_timer_duration);
 			LogSpells("Spell [{}]: Setting custom reuse timer [{}] to [{}]", spell_id, casting_spell_timer, casting_spell_timer_duration);
 		}
-		//Set Spell Recast Timer
-		else if (spells[spell_id].recast_time > 1000 && !spells[spell_id].is_discipline) {
-			int recast = spells[spell_id].recast_time / 1000;
+		else if(spells[spell_id].recast_time > 1000 && !spells[spell_id].is_discipline) {
+			int recast = spells[spell_id].recast_time/1000;
 			if (spell_id == SPELL_LAY_ON_HANDS)	//lay on hands
 			{
 				recast -= GetAA(aaFervrentBlessing) * 420;
@@ -2666,13 +2638,19 @@ bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, ui
 				}
 				recast = std::max(recast, 0);
 			}
-
+			
 			LogSpells("Spell [{}]: Setting long reuse timer to [{}] s (orig [{}])", spell_id, recast, spells[spell_id].recast_time);
-
+			
 			if (recast > 0) {
 				CastToClient()->GetPTimers().Start(pTimerSpellStart + spell_id, recast);
 			}
 		}
+	}
+	/*
+		Set Recast Timer on item clicks, including augmenets.	
+	*/
+	if(IsClient() && (slot == CastingSlot::Item || slot == CastingSlot::PotionBelt)){
+		CastToClient()->SetItemRecastTimer(spell_id, inventory_slot);
 	}
 
 	if (IsNPC()) {
@@ -3226,9 +3204,8 @@ bool Mob::HasDiscBuff()
 // stacking problems, and -2 if this is not a buff
 // if caster is null, the buff will be added with the caster level being
 // the level of the mob
-int Mob::AddBuff(Mob *caster, uint16 spell_id, int duration, int32 level_override)
+int Mob::AddBuff(Mob *caster, uint16 spell_id, int duration, int32 level_override, bool disable_buff_overrwrite)
 {
-
 	int buffslot, ret, caster_level, emptyslot = -1;
 	bool will_overwrite = false;
 	std::vector<int> overwrite_slots;
@@ -3249,7 +3226,7 @@ int Mob::AddBuff(Mob *caster, uint16 spell_id, int duration, int32 level_overrid
 		LogSpells("Buff [{}] failed to add because its duration came back as 0", spell_id);
 		return -2;	// no duration? this isn't a buff
 	}
-
+	
 	LogSpells("Trying to add buff [{}] cast by [{}] (cast level [{}]) with duration [{}]",
 		spell_id, caster?caster->GetName():"UNKNOWN", caster_level, duration);
 
@@ -3323,7 +3300,7 @@ int Mob::AddBuff(Mob *caster, uint16 spell_id, int duration, int32 level_overrid
 
 	// at this point we know that this buff will stick, but we have
 	// to remove some other buffs already worn if will_overwrite is true
-	if (will_overwrite) {
+	if (will_overwrite && !disable_buff_overrwrite) {
 		std::vector<int>::iterator cur, end;
 		cur = overwrite_slots.begin();
 		end = overwrite_slots.end();
@@ -3339,9 +3316,6 @@ int Mob::AddBuff(Mob *caster, uint16 spell_id, int duration, int32 level_overrid
 				emptyslot = *cur;
 		}
 	}
-
-	// now add buff at emptyslot
-	assert(buffs[emptyslot].spellid == SPELL_UNKNOWN);	// sanity check
 
 	buffs[emptyslot].spellid = spell_id;
 	buffs[emptyslot].casterlevel = caster_level;
@@ -3472,7 +3446,7 @@ int Mob::CanBuffStack(uint16 spellid, uint8 caster_level, bool iFailIfOverwrite)
 // break stuff
 //
 bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectiveness, bool use_resist_adjust, int16 resist_adjust,
-			bool isproc, int level_override, int32 duration_override)
+			bool isproc, int level_override, int32 duration_override, bool disable_buff_overrwrite)
 {
 	// well we can't cast a spell on target without a target
 	if(!spelltar)
@@ -3648,7 +3622,7 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 
 	// Prevent double invising, which made you uninvised
 	// Not sure if all 3 should be stacking
-
+	//This is not live like behavior (~Kayen confirmed 2/2/22)
 	if (!RuleB(Spells, AllowDoubleInvis)) {
 		if (IsEffectInSpell(spell_id, SE_Invisibility))
 		{
@@ -4020,13 +3994,14 @@ bool Mob::SpellOnTarget(uint16 spell_id, Mob *spelltar, int reflect_effectivenes
 	}
 
 	// cause the effects to the target
-	if(!spelltar->SpellEffect(this, spell_id, spell_effectiveness, level_override, reflect_effectiveness, duration_override))
+	if(!spelltar->SpellEffect(this, spell_id, spell_effectiveness, level_override, reflect_effectiveness, duration_override, disable_buff_overrwrite))
 	{
 		// if SpellEffect returned false there's a problem applying the
 		// spell. It's most likely a buff that can't stack.
 		LogSpells("Spell [{}] could not apply its effects [{}] -> [{}]\n", spell_id, GetName(), spelltar->GetName());
-		if(casting_spell_aa_id)
+		if (casting_spell_aa_id) {
 			MessageString(Chat::SpellFailure, SPELL_NO_HOLD);
+		}
 		safe_delete(action_packet);
 		return false;
 	}
@@ -6249,40 +6224,6 @@ bool Client::HasItemRecastTimer(int32 spell_id, uint32 inventory_slot)
 	return false;
 }
 
-void Client::SetDisciplineRecastTimer(int32 spell_id) {
-
-	if (!IsValidSpell(spell_id)) {
-		return;
-	}
-
-	if (spells[spell_id].recast_time == 0) {
-		return;
-	}
-
-	pTimerType DiscTimer = pTimerDisciplineReuseStart + spells[spell_id].timer_id;
-	uint32 timer_duration = spells[spell_id].recast_time / 1000;
-	auto focus = GetFocusEffect(focusReduceRecastTime, spell_id);
-
-	if (focus > timer_duration) {
-		timer_duration = 0;
-		if (GetPTimers().Enabled((uint32)DiscTimer)) {
-			GetPTimers().Clear(&database, (uint32)DiscTimer);
-		}
-	}
-	else {
-		timer_duration -= focus;
-	}
-
-	if (timer_duration <= 0) {
-		return;
-	}
-
-	CastToClient()->GetPTimers().Start((uint32)DiscTimer, timer_duration);
-	CastToClient()->SendDisciplineTimer(spells[spell_id].timer_id, timer_duration);
-	LogSpells("Spell [{}]: Setting disciple reuse timer [{}] to [{}]", spell_id, spells[spell_id].timer_id, timer_duration);
-}
-
-
 void Mob::CalcDestFromHeading(float heading, float distance, float MaxZDiff, float StartX, float StartY, float &dX, float &dY, float &dZ)
 {
 	if (!distance) { return; }
@@ -6576,7 +6517,6 @@ void Mob::DoBardCastingFromItemClick(bool is_casting_bard_song, uint32 cast_time
 			CastToClient()->QueuePacket(outapp);
 			safe_delete(outapp);
 
-			SendSpellBarDisable();
 			ZeroCastingVars();
 			ZeroBardPulseVars();
 		}
@@ -6712,4 +6652,12 @@ bool Mob::CheckItemRaceClassDietyRestrictionsOnCast(uint32 inventory_slot) {
 	}
 
 	return true;
+}
+
+bool Mob::IsFromTriggeredSpell(CastingSlot slot, uint32 item_slot) {
+	//spells triggered using spells finished use item slot, but there is no item set.
+	if ((slot == CastingSlot::Item) && (item_slot == 0xFFFFFFFF)) {
+		return true;
+	}
+	return false;
 }

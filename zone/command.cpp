@@ -259,7 +259,7 @@ int command_init(void)
 		command_add("npcedit", "[column] [value] - Mega NPC editing command", AccountStatus::GMAdmin, command_npcedit) ||
 		command_add("npceditmass", "[name-search] [column] [value] - Mass (Zone wide) NPC data editing command", AccountStatus::GMAdmin, command_npceditmass) ||
 		command_add("npcemote", "[message] - Make your NPC target emote a message.", AccountStatus::GMLeadAdmin, command_npcemote) ||
-		command_add("npcloot", "[show/money/add/remove] [itemid/all/money: pp gp sp cp] - Manipulate the loot an NPC is carrying", AccountStatus::QuestTroupe, command_npcloot) ||
+		command_add("npcloot", "- Manipulate the loot an NPC is carrying. Use #npcloot help for more information.", AccountStatus::QuestTroupe, command_npcloot) ||
 		command_add("npcsay", "[message] - Make your NPC target say a message.", AccountStatus::GMLeadAdmin, command_npcsay) ||
 		command_add("npcshout", "[message] - Make your NPC target shout a message.", AccountStatus::GMLeadAdmin, command_npcshout) ||
 		command_add("npcspawn", "[create/add/update/remove/delete] - Manipulate spawn DB", AccountStatus::GMAreas, command_npcspawn) ||
@@ -339,7 +339,7 @@ int command_init(void)
 		command_add("setpass", "[accountname] [password] - Set local password for accountname", AccountStatus::GMLeadAdmin, command_setpass) ||
 		command_add("setpvppoints", "[Amount] - Set your or your player target's PVP points", AccountStatus::GMAdmin, command_setpvppoints) ||
 		command_add("setskill", "[skillnum] [value] - Set your target's skill skillnum to value", AccountStatus::Guide, command_setskill) ||
-		command_add("setskillall", "[value] - Set all of your target's skills to value", AccountStatus::Guide, command_setskillall) ||
+		command_add("setskillall", "[Skill Level] - Set all of your or your target's skills to the specified skill level", AccountStatus::Guide, command_setskillall) ||
 		command_add("setstartzone", "[Zone ID|Zone Short Name] - Sets your or your target's starting zone (Use '0' or 'Reset' to allow the player use of /setstartcity)", AccountStatus::QuestTroupe, command_setstartzone) ||
 		command_add("setstat", "- Sets the stats to a specific value.", AccountStatus::Max, command_setstat) ||
 		command_add("setxp", "[value] - Set your or your player target's experience", AccountStatus::GMAdmin, command_setxp) ||
@@ -347,7 +347,7 @@ int command_init(void)
 		command_add("showbuffs", "- List buffs active on your target or you if no target", AccountStatus::Guide, command_showbuffs) ||
 		command_add("shownumhits",  "Shows buffs numhits for yourself.", AccountStatus::Player, command_shownumhits) ||
 		command_add("shownpcgloballoot", "Show GlobalLoot entires on this npc", AccountStatus::Guide, command_shownpcgloballoot) ||
-		command_add("showskills", "- Show the values of your or your player target's skills", AccountStatus::Guide, command_showskills) ||
+		command_add("showskills", "[Start Skill ID] [All] - Show the values of your or your player target's skills in a popup 50 at a time, use 'all' as second argument to show non-usable skill's values", AccountStatus::Guide, command_showskills) ||
 		command_add("showspellslist", "Shows spell list of targeted NPC", AccountStatus::GMAdmin, command_showspellslist) ||
 		command_add("showstats", "- Show details about you or your target", AccountStatus::Guide, command_showstats) ||
 		command_add("showzonegloballoot", "Show GlobalLoot entires on this zone", AccountStatus::Guide, command_showzonegloballoot) ||
