@@ -845,7 +845,10 @@ bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 				}
 			}
 			else {
-				CastSpell(spell_id, target, EQ::spells::CastingSlot::Discipline, -1, -1, 0, -1, (uint32)DiscTimer, reduced_recast);
+				if (!CastSpell(spell_id, target, EQ::spells::CastingSlot::Discipline, -1, -1, 0, -1, (uint32)DiscTimer, reduced_recast)) {
+					return false;
+				}
+				
 			}
 
 			SendDisciplineTimer(spells[spell_id].timer_id, reduced_recast);
