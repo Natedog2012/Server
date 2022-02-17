@@ -10453,7 +10453,7 @@ int Mob::GetBuffStatValueBySpell(int32 spell_id, const char* stat_identifier)
 	
 	std::string id = str_tolower(stat_identifier);
 
-	int buff_count = GetMaxBuffSlots();
+	int buff_count = GetMaxTotalSlots();
 	for (int slot = 0; slot < buff_count; slot++) {
 		if (buffs[slot].spellid != SPELL_UNKNOWN && buffs[slot].spellid == spell_id) {
 			return GetBuffStatValueBySlot(slot, stat_identifier);
@@ -10464,7 +10464,7 @@ int Mob::GetBuffStatValueBySpell(int32 spell_id, const char* stat_identifier)
 
 int Mob::GetBuffStatValueBySlot(uint8 slot, const char* stat_identifier) 
 {
-	if (slot > GetMaxBuffSlots()) {
+	if (slot > GetMaxTotalSlots()) {
 		return 0;
 	}
 
