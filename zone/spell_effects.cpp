@@ -10404,7 +10404,7 @@ void Mob::SetBuffDuration(int32 spell_id, int32 duration) {
 		duration = PERMANENT_BUFF_DURATION;
 	}
 
-	int buff_count = GetMaxBuffSlots();
+	int buff_count = GetMaxTotalSlots();
 	for (int slot = 0; slot < buff_count; slot++) {
 		
 		if (!adjust_all_buffs) {
