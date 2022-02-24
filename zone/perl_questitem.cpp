@@ -58,8 +58,20 @@ XS(XS_QuestItem_SetScale) {
 		VALIDATE_THIS_IS_ITEM;
 		Mult = (float) SvNV(ST(1));
 
+		auto item_data = THIS->GetItem();
+
 		if (THIS->IsScaling()) {
-			THIS->SetExp((int) (Mult * 10000 + .5));
+			if (Mult > 0) {
+				THIS->SetExp((int) (Mult * 10000 + .5));
+			}
+			else {
+				if (item_data && item_data->ItemType == 54) {
+					THIS->SetExp((int)((Mult * 10000 + .5))); //Augs allowed to go negative
+				}
+				else {
+					THIS->SetExp((int)(0)); //Base slot items do not scale negative
+				}
+			}
 		}
 	}
 	XSRETURN_EMPTY;

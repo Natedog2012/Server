@@ -4246,7 +4246,7 @@ bool Client::CalcItemScale(uint32 slot_x, uint32 slot_y) {
 		bool update_slot = false;
 		if(inst->IsScaling())
 		{
-			uint16 oldexp = inst->GetExp();
+			uint32 oldexp = inst->GetExp();
 			parse->EventItem(EVENT_SCALE_CALC, this, inst, nullptr, "", 0);
 
 			if (inst->GetExp() != oldexp) {	// if the scaling factor changed, rescale the item and update the client
@@ -4265,7 +4265,7 @@ bool Client::CalcItemScale(uint32 slot_x, uint32 slot_y) {
 
 			if(a_inst->IsScaling())
 			{
-				uint16 oldexp = a_inst->GetExp();
+				uint32 oldexp = a_inst->GetExp();
 				parse->EventItem(EVENT_SCALE_CALC, this, a_inst, nullptr, "", 0);
 
 				if (a_inst->GetExp() != oldexp)
@@ -4332,7 +4332,7 @@ bool Client::DoItemEnterZone(uint32 slot_x, uint32 slot_y) {
 		bool update_slot = false;
 		if(inst->IsScaling())
 		{
-			uint16 oldexp = inst->GetExp();
+			uint32 oldexp = inst->GetExp();
 
 			parse->EventItem(EVENT_ITEM_ENTER_ZONE, this, inst, nullptr, "", 0);
 			if (i <= EQ::invslot::EQUIPMENT_END) {
@@ -4361,7 +4361,7 @@ bool Client::DoItemEnterZone(uint32 slot_x, uint32 slot_y) {
 
 			if(a_inst->IsScaling())
 			{
-				uint16 oldexp = a_inst->GetExp();
+				uint32 oldexp = a_inst->GetExp();
 
 				parse->EventItem(EVENT_ITEM_ENTER_ZONE, this, a_inst, nullptr, "", 0);
 

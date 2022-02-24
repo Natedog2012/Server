@@ -904,60 +904,83 @@ void EQ::ItemInstance::ScaleItem() {
 	else {
 		m_scaledItem = new ItemData(*m_item);
 	}
+	uint32 item_exp = GetExp();
+	bool negative_stats = false;
 
-	float Mult = (float)(GetExp()) / 10000;	// scaling is determined by exp, with 10,000 being full stats
+	if (item_exp > 2147483647) {
+		//These are negative stat items~
+		negative_stats = true;
+		item_exp = (4294967295 - item_exp) + 5;
+	}
 
-	m_scaledItem->AStr = (int32)((float)m_item->AStr*Mult);
-	m_scaledItem->ASta = (int32)((float)m_item->ASta*Mult);
-	m_scaledItem->AAgi = (int32)((float)m_item->AAgi*Mult);
-	m_scaledItem->ADex = (int32)((float)m_item->ADex*Mult);
-	m_scaledItem->AInt = (int32)((float)m_item->AInt*Mult);
-	m_scaledItem->AWis = (int32)((float)m_item->AWis*Mult);
-	m_scaledItem->ACha = (int32)((float)m_item->ACha*Mult);
+	float Mult = (float)(item_exp) / 10000;	// scaling is determined by exp, with 10,000 being full stats
+	if (negative_stats) {
+		Mult *= -1;
+	}
 
-	m_scaledItem->MR = (int32)((float)m_item->MR*Mult);
-	m_scaledItem->PR = (int32)((float)m_item->PR*Mult);
-	m_scaledItem->DR = (int32)((float)m_item->DR*Mult);
-	m_scaledItem->CR = (int32)((float)m_item->CR*Mult);
-	m_scaledItem->FR = (int32)((float)m_item->FR*Mult);
 
-	m_scaledItem->HP = (int32)((float)m_item->HP*Mult);
-	m_scaledItem->Mana = (int32)((float)m_item->Mana*Mult);
-	m_scaledItem->AC = (int32)((float)m_item->AC*Mult);
+	m_scaledItem->AStr = (int32)((float)m_item->AStr * Mult);
+	m_scaledItem->ASta = (int32)((float)m_item->ASta * Mult);
+	m_scaledItem->AAgi = (int32)((float)m_item->AAgi * Mult);
+	m_scaledItem->ADex = (int32)((float)m_item->ADex * Mult);
+	m_scaledItem->AInt = (int32)((float)m_item->AInt * Mult);
+	m_scaledItem->AWis = (int32)((float)m_item->AWis * Mult);
+	m_scaledItem->ACha = (int32)((float)m_item->ACha * Mult);
+
+	m_scaledItem->MR = (int32)((float)m_item->MR * Mult);
+	m_scaledItem->PR = (int32)((float)m_item->PR * Mult);
+	m_scaledItem->DR = (int32)((float)m_item->DR * Mult);
+	m_scaledItem->CR = (int32)((float)m_item->CR * Mult);
+	m_scaledItem->FR = (int32)((float)m_item->FR * Mult);
+
+	m_scaledItem->HP = (int32)((float)m_item->HP * Mult);
+	m_scaledItem->Mana = (int32)((float)m_item->Mana * Mult);
+	m_scaledItem->AC = (int32)((float)m_item->AC * Mult);
 
 	// check these..some may not need to be modified (really need to check all stats/bonuses)
-	//m_scaledItem->SkillModValue = (int32)((float)m_item->SkillModValue*Mult);
-	//m_scaledItem->BaneDmgAmt = (int8)((float)m_item->BaneDmgAmt*Mult);	// watch (10 entries with charmfileid)
-	m_scaledItem->BardValue = (int32)((float)m_item->BardValue*Mult);		// watch (no entries with charmfileid)
-	m_scaledItem->ElemDmgAmt = (uint8)((float)m_item->ElemDmgAmt*Mult);		// watch (no entries with charmfileid)
-	m_scaledItem->Damage = (uint32)((float)m_item->Damage*Mult);			// watch
+	m_scaledItem->BardValue = (int32)((float)m_item->BardValue * Mult);		// watch (no entries with charmfileid)
+	//m_scaledItem->ElemDmgAmt = (int8)((float)m_item->ElemDmgAmt * Mult);		//These do not scale from my testing (Natedog)
+	
+	m_scaledItem->Damage = (int32)((float)m_item->Damage * Mult);			// watch
 
-	m_scaledItem->CombatEffects = (int8)((float)m_item->CombatEffects*Mult);
-	m_scaledItem->Shielding = (int8)((float)m_item->Shielding*Mult);
-	m_scaledItem->StunResist = (int8)((float)m_item->StunResist*Mult);
-	m_scaledItem->StrikeThrough = (int8)((float)m_item->StrikeThrough*Mult);
-	m_scaledItem->ExtraDmgAmt = (uint32)((float)m_item->ExtraDmgAmt*Mult);
-	m_scaledItem->SpellShield = (int8)((float)m_item->SpellShield*Mult);
-	m_scaledItem->Avoidance = (int8)((float)m_item->Avoidance*Mult);
-	m_scaledItem->Accuracy = (int8)((float)m_item->Accuracy*Mult);
+	m_scaledItem->BaneDmgAmt = (int32)((float)m_item->BaneDmgAmt * Mult);
+	if (m_scaledItem->BaneDmgAmt < 0) {
+		m_scaledItem->BaneDmgAmt = 0;//Does not go negative
+	}
+	m_scaledItem->BaneDmgRaceAmt = (int32)((float)m_item->BaneDmgRaceAmt * Mult);
+	if (m_scaledItem->BaneDmgRaceAmt < 0) {
+		m_scaledItem->BaneDmgRaceAmt = 0;//Does not go negative
+	}
 
-	m_scaledItem->FactionAmt1 = (int32)((float)m_item->FactionAmt1*Mult);
-	m_scaledItem->FactionAmt2 = (int32)((float)m_item->FactionAmt2*Mult);
-	m_scaledItem->FactionAmt3 = (int32)((float)m_item->FactionAmt3*Mult);
-	m_scaledItem->FactionAmt4 = (int32)((float)m_item->FactionAmt4*Mult);
+	m_scaledItem->CombatEffects = (int8)((float)m_item->CombatEffects * Mult);
+	m_scaledItem->Shielding = (int8)((float)m_item->Shielding * Mult);
+	m_scaledItem->StunResist = (int8)((float)m_item->StunResist * Mult);
+	m_scaledItem->StrikeThrough = (int8)((float)m_item->StrikeThrough * Mult);
+	m_scaledItem->ExtraDmgAmt = (int32)((float)m_item->ExtraDmgAmt * Mult);
+	m_scaledItem->SpellShield = (int8)((float)m_item->SpellShield * Mult);
+	m_scaledItem->Avoidance = (int8)((float)m_item->Avoidance * Mult);
+	m_scaledItem->Accuracy = (int8)((float)m_item->Accuracy * Mult);
 
-	m_scaledItem->Endur = (uint32)((float)m_item->Endur*Mult);
-	m_scaledItem->DotShielding = (uint32)((float)m_item->DotShielding*Mult);
-	m_scaledItem->Attack = (uint32)((float)m_item->Attack*Mult);
-	m_scaledItem->Regen = (uint32)((float)m_item->Regen*Mult);
-	m_scaledItem->ManaRegen = (uint32)((float)m_item->ManaRegen*Mult);
-	m_scaledItem->EnduranceRegen = (uint32)((float)m_item->EnduranceRegen*Mult);
-	m_scaledItem->Haste = (uint32)((float)m_item->Haste*Mult);
-	m_scaledItem->DamageShield = (uint32)((float)m_item->DamageShield*Mult);
+	m_scaledItem->FactionAmt1 = (int32)((float)m_item->FactionAmt1 * Mult);
+	m_scaledItem->FactionAmt2 = (int32)((float)m_item->FactionAmt2 * Mult);
+	m_scaledItem->FactionAmt3 = (int32)((float)m_item->FactionAmt3 * Mult);
+	m_scaledItem->FactionAmt4 = (int32)((float)m_item->FactionAmt4 * Mult);
 
-	m_scaledItem->Purity = (uint32)((float)m_item->Purity*Mult);
-	m_scaledItem->BackstabDmg = (uint32)((float)m_item->BackstabDmg*Mult);
-	m_scaledItem->DSMitigation = (uint32)((float)m_item->DSMitigation*Mult);
+	m_scaledItem->Endur = (int32)((float)m_item->Endur * Mult);
+	m_scaledItem->DotShielding = (int32)((float)m_item->DotShielding * Mult);
+	m_scaledItem->Attack = (int32)((float)m_item->Attack * Mult);
+	m_scaledItem->Regen = (int32)((float)m_item->Regen * Mult);
+	m_scaledItem->ManaRegen = (int32)((float)m_item->ManaRegen * Mult);
+	m_scaledItem->EnduranceRegen = (int32)((float)m_item->EnduranceRegen * Mult);
+	m_scaledItem->Haste = (int32)((float)m_item->Haste * Mult);
+	if (m_scaledItem->Haste < 0) {
+		m_scaledItem->Haste = 0; //Does not go negative
+	}
+	m_scaledItem->DamageShield = (int32)((float)m_item->DamageShield*Mult);
+
+	m_scaledItem->Purity = (int32)((float)m_item->Purity*Mult);
+	m_scaledItem->BackstabDmg = (int32)((float)m_item->BackstabDmg*Mult);
+	m_scaledItem->DSMitigation = (int32)((float)m_item->DSMitigation*Mult);
 	m_scaledItem->HeroicStr = (int32)((float)m_item->HeroicStr*Mult);
 	m_scaledItem->HeroicInt = (int32)((float)m_item->HeroicInt*Mult);
 	m_scaledItem->HeroicWis = (int32)((float)m_item->HeroicWis*Mult);
@@ -973,7 +996,7 @@ void EQ::ItemInstance::ScaleItem() {
 	m_scaledItem->HeroicSVCorrup = (int32)((float)m_item->HeroicSVCorrup*Mult);
 	m_scaledItem->HealAmt = (int32)((float)m_item->HealAmt*Mult);
 	m_scaledItem->SpellDmg = (int32)((float)m_item->SpellDmg*Mult);
-	m_scaledItem->Clairvoyance = (uint32)((float)m_item->Clairvoyance*Mult);
+	m_scaledItem->Clairvoyance = (int32)((float)m_item->Clairvoyance*Mult);
 
 	m_scaledItem->CharmFileID = 0;	// this stops the client from trying to scale the item itself.
 }
