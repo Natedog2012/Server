@@ -361,6 +361,18 @@ bool lua_is_paused_timer(const char *timer) {
 	return quest_manager.ispausedtimer(timer);
 }
 
+bool lua_has_timer(const char *timer) {
+	return quest_manager.hastimer(timer);
+}
+
+uint32 lua_get_remaining_time(const char *timer) {
+	return quest_manager.getremainingtimeMS(timer);
+}
+
+uint32 lua_get_timer_duration(const char *timer) {
+	return quest_manager.gettimerdurationMS(timer);
+}
+
 void lua_depop() {
 	quest_manager.depop(0);
 }
@@ -3376,6 +3388,10 @@ std::string lua_get_environmental_damage_name(uint8 damage_type) {
 	return quest_manager.getenvironmentaldamagename(damage_type);
 }
 
+std::string lua_commify(std::string number) {
+	return commify(number);
+}
+
 #define LuaCreateNPCParse(name, c_type, default_value) do { \
 	cur = table[#name]; \
 	if(luabind::type(cur) != LUA_TNIL) { \
@@ -3583,6 +3599,9 @@ luabind::scope lua_register_general() {
 		luabind::def("spawn_from_spawn2", (Lua_Mob(*)(uint32))&lua_spawn_from_spawn2),
 		luabind::def("enable_spawn2", &lua_enable_spawn2),
 		luabind::def("disable_spawn2", &lua_disable_spawn2),
+		luabind::def("has_timer", (bool(*)(const char*))&lua_has_timer),
+		luabind::def("get_remaining_time", (uint32(*)(const char*))&lua_get_remaining_time),
+		luabind::def("get_timer_duration", (uint32(*)(const char*))&lua_get_timer_duration),
 		luabind::def("set_timer", (void(*)(const char*, int))&lua_set_timer),
 		luabind::def("set_timer", (void(*)(const char*, int, Lua_ItemInst))&lua_set_timer),
 		luabind::def("set_timer", (void(*)(const char*, int, Lua_Mob))&lua_set_timer),
@@ -3825,6 +3844,7 @@ luabind::scope lua_register_general() {
 		luabind::def("get_body_type_name", &lua_get_body_type_name),
 		luabind::def("get_consider_level_name", &lua_get_consider_level_name),
 		luabind::def("get_environmental_damage_name", &lua_get_environmental_damage_name),
+		luabind::def("commify", &lua_commify),
 
 		/*
 			Cross Zone
@@ -4215,7 +4235,9 @@ luabind::scope lua_register_events() {
 			luabind::value("consider_corpse", static_cast<int>(EVENT_CONSIDER_CORPSE)),
 			luabind::value("loot_zone", static_cast<int>(EVENT_LOOT_ZONE)),
 			luabind::value("equip_item_client", static_cast<int>(EVENT_EQUIP_ITEM_CLIENT)),
-			luabind::value("unequip_item_client", static_cast<int>(EVENT_UNEQUIP_ITEM_CLIENT))
+			luabind::value("unequip_item_client", static_cast<int>(EVENT_UNEQUIP_ITEM_CLIENT)),
+			luabind::value("skill_up", static_cast<int>(EVENT_SKILL_UP)),
+			luabind::value("language_skill_up", static_cast<int>(EVENT_LANGUAGE_SKILL_UP))
 		];
 }
 

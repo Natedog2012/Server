@@ -53,7 +53,7 @@ void Mob::CalcBonuses()
 	/* Fast walking NPC's are prone to disappear into walls/hills
 		We set this here because NPC's can cast spells to change walkspeed/runspeed
 	*/
-	float get_walk_speed = static_cast<float>(0.025f * this->GetWalkspeed());
+	float get_walk_speed = static_cast<float>(0.025f * GetWalkspeed());
 	rooted = FindType(SE_Root);
 }
 
@@ -1355,7 +1355,7 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 
 		case SE_Proc_Timer_Modifier: {
 			/*
-				AA can multiples of this in a single effect, proc should use the timer 
+				AA can multiples of this in a single effect, proc should use the timer
 				that comes after the respective proc spell effect, thus rank.id will be already set
 				when this is checked.
 			*/
@@ -1457,7 +1457,7 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 					newbon->SkillAttackProc[i + SBIndex::SKILLATK_PROC_SPELL_ID] = rank.spell; // spell to proc
 					newbon->SkillAttackProc[i + SBIndex::SKILLATK_PROC_CHANCE] = base_value; // Chance base 1000 = 100% proc rate
 					newbon->SkillAttackProc[i + SBIndex::SKILLATK_PROC_SKILL] = limit_value; // Skill to Proc Offr
-					
+
 					if (limit_value < EQ::skills::HIGHEST_SKILL) {
 						newbon->HasSkillAttackProc[limit_value] = true; //check first before looking for any effects.
 					}
@@ -1578,7 +1578,7 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 		}
 
 		case SE_MitigateDamageShield: {
-			
+
 			//AA that increase mitigation are set to negative.
 			if (base_value < 0) {
 				base_value = base_value * (-1);
@@ -1973,7 +1973,7 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 			break;
 		}
 
-		case SE_ExtendedShielding: 
+		case SE_ExtendedShielding:
 		{
 			if (newbon->ExtendedShielding < base_value) {
 				newbon->ExtendedShielding = base_value;
@@ -1981,7 +1981,7 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 			break;
 		}
 
-		case SE_ShieldDuration: 
+		case SE_ShieldDuration:
 		{
 			if (newbon->ShieldDuration < base_value) {
 				newbon->ShieldDuration = base_value;
@@ -1999,7 +1999,7 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 				newbon->SecondaryForte = base_value;
 			}
 			break;
-        
+
 		case SE_ZoneSuspendMinion:
 			newbon->ZoneSuspendMinion = base_value;
 			break;
@@ -3847,7 +3847,7 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 						new_bonus->SkillAttackProc[i + SBIndex::SKILLATK_PROC_SPELL_ID] = max_value; // spell to proc
 						new_bonus->SkillAttackProc[i + SBIndex::SKILLATK_PROC_CHANCE] = effect_value; // Chance base 1000 = 100% proc rate
 						new_bonus->SkillAttackProc[i + SBIndex::SKILLATK_PROC_SKILL] = limit_value; // Skill to Proc Offr
-						
+
 						if (limit_value < EQ::skills::HIGHEST_SKILL) {
 							new_bonus->HasSkillAttackProc[limit_value] = true; //check first before looking for any effects.
 						}
@@ -4045,7 +4045,7 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 							if (spells[new_bonus->WeaponStance[limit_value]].rank < spells[effect_value].rank) { //If so, check if any new spellids with higher rank exist (live spells for this are ranked).
 								new_bonus->WeaponStance[limit_value] = effect_value; //Overwrite with new effect
 								SetWeaponStanceEnabled(true);
-								
+
 								if (WornType) {
 									weaponstance.itembonus_enabled = true;
 								}
@@ -4084,6 +4084,7 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 				break;
 
 			case SE_InvisVsAnimals:
+			case SE_ImprovedInvisAnimals:
 				effect_value = std::min({ effect_value, MAX_INVISIBILTY_LEVEL });
 				if (new_bonus->invisibility_verse_animal < effect_value)
 					new_bonus->invisibility_verse_animal = effect_value;

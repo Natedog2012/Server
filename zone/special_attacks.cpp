@@ -165,7 +165,7 @@ void Mob::DoSpecialAttackDamage(Mob *who, EQ::skills::SkillType skill, int32 bas
 	if (who->GetSpecialAbility(IMMUNE_MELEE_EXCEPT_BANE) && skill != EQ::skills::SkillBackstab)
 		my_hit.damage_done = DMG_INVULNERABLE;
 
-	uint32 hate = my_hit.base_damage;
+	uint64 hate = my_hit.base_damage;
 	if (hate_override > -1)
 		hate = hate_override;
 
@@ -293,9 +293,9 @@ void Client::OPCombatAbility(const CombatAbility_Struct *ca_atk)
 	else
 		HasteMod = (100 - ClientHaste); //-100% haste = 1/2 as many attacks
 
-	int32 dmg = 0;
+	int64 dmg = 0;
 
-	int32 skill_reduction = this->GetSkillReuseTime(ca_atk->m_skill);
+	int32 skill_reduction = GetSkillReuseTime(ca_atk->m_skill);
 
 	// not sure what the '100' indicates..if ->m_atk is not used as 'slot' reference, then change SlotRange above back to '11'
 	if (ca_atk->m_atk == 100 &&
@@ -339,6 +339,11 @@ void Client::OPCombatAbility(const CombatAbility_Struct *ca_atk)
 
 		ReuseTime = FrenzyReuseTime - 1 - skill_reduction;
 		ReuseTime = (ReuseTime * HasteMod) / 100;
+
+		auto primary_in_use = GetInv().GetItem(EQ::invslot::slotPrimary);
+		if (primary_in_use && GetWeaponDamage(GetTarget(), primary_in_use) <= 0) {
+			max_dmg = DMG_INVULNERABLE;
+		}
 
 		while (AtkRounds > 0) {
 			if (GetTarget())
@@ -447,7 +452,7 @@ int Mob::MonkSpecialAttack(Mob *other, uint8 unchecked_type)
 	if (!other)
 		return 0;
 
-	int32 ndamage = 0;
+	int64 ndamage = 0;
 	int32 max_dmg = 0;
 	int32 min_dmg = 0;
 	int reuse = 0;
@@ -604,7 +609,7 @@ void Mob::RogueBackstab(Mob* other, bool min_damage, int ReuseTime)
 	if (!other)
 		return;
 
-	uint32 hate = 0;
+	uint64 hate = 0;
 
 	// make sure we can hit (bane, magical, etc)
 	if (IsClient()) {
@@ -816,7 +821,7 @@ void Mob::DoArcheryAttackDmg(Mob *other, const EQ::ItemInstance *RangeWeapon, co
 			if (!RangeWeapon && !Ammo && range_id && ammo_id) {
 				if (IsClient()) {
 					_RangeWeapon = CastToClient()->m_inv[EQ::invslot::slotRange];
-					if (_RangeWeapon && _RangeWeapon->GetItem() && 
+					if (_RangeWeapon && _RangeWeapon->GetItem() &&
 					    _RangeWeapon->GetItem()->ID == range_id)
 						RangeWeapon = _RangeWeapon;
 
@@ -834,8 +839,8 @@ void Mob::DoArcheryAttackDmg(Mob *other, const EQ::ItemInstance *RangeWeapon, co
 
 	LogCombat("Ranged attack hit [{}]", other->GetName());
 
-	uint32 hate = 0;
-	int TotalDmg = 0;
+	uint64 hate = 0;
+	int64 TotalDmg = 0;
 	int WDmg = 0;
 	int ADmg = 0;
 	
@@ -958,7 +963,7 @@ void Mob::DoArcheryAttackDmg(Mob *other, const EQ::ItemInstance *RangeWeapon, co
 }
 
 bool Mob::TryProjectileAttack(Mob *other, const EQ::ItemData *item, EQ::skills::SkillType skillInUse,
-			      uint16 weapon_dmg, const EQ::ItemInstance *RangeWeapon,
+			      uint64 weapon_dmg, const EQ::ItemInstance *RangeWeapon,
 			      const EQ::ItemInstance *Ammo, int AmmoSlot, float speed, bool DisableProcs)
 {
 	if (!other)
@@ -1326,7 +1331,7 @@ void Client::ThrowingAttack(Mob* other, bool CanDoubleAttack) { //old was 51
 
 	int ammo_slot = EQ::invslot::slotRange;
 	const EQ::ItemInstance* RangeWeapon = m_inv[EQ::invslot::slotRange];
-	
+
 	if (!RangeWeapon || !RangeWeapon->IsClassCommon()) {
 		LogCombat("Ranged attack canceled. Missing or invalid ranged weapon ([{}]) in slot [{}]", GetItemIDAt(EQ::invslot::slotRange), EQ::invslot::slotRange);
 		Message(0, "Error: Rangeweapon: GetItem(%i)==0, you have nothing to throw!", GetItemIDAt(EQ::invslot::slotRange));
@@ -1683,7 +1688,7 @@ void NPC::DoClassAttacks(Mob *target) {
 	//general stuff, for all classes....
 	//only gets used when their primary ability get used too
 	if (taunting && HasOwner() && target->IsNPC() && target->GetBodyType() != BT_Undead && taunt_time) {
-		this->GetOwner()->MessageString(Chat::PetResponse, PET_TAUNTING);
+		GetOwner()->MessageString(Chat::PetResponse, PET_TAUNTING);
 		Taunt(target->CastToNPC(), false);
 	}
 
@@ -1721,7 +1726,7 @@ void NPC::DoClassAttacks(Mob *target) {
 			if(level >= RuleI(Combat, NPCBashKickLevel)){
 				if(zone->random.Roll(75)) { //tested on live, warrior mobs both kick and bash, kick about 75% of the time, casting doesn't seem to make a difference.
 					DoAnim(animKick, 0, false);
-					int32 dmg = GetBaseSkillDamage(EQ::skills::SkillKick);
+					int64 dmg = GetBaseSkillDamage(EQ::skills::SkillKick);
 
 					if (GetWeaponDamage(target, boots) <= 0) {
 						dmg = DMG_INVULNERABLE;
@@ -1733,7 +1738,7 @@ void NPC::DoClassAttacks(Mob *target) {
 				}
 				else {
 					DoAnim(animTailRake, 0, false);
-					int32 dmg = GetBaseSkillDamage(EQ::skills::SkillBash);
+					int64 dmg = GetBaseSkillDamage(EQ::skills::SkillBash);
 
 					if (GetWeaponDamage(target, (const EQ::ItemData*)nullptr) <= 0)
 						dmg = DMG_INVULNERABLE;
@@ -1772,7 +1777,7 @@ void NPC::DoClassAttacks(Mob *target) {
 			//kick
 			if(level >= RuleI(Combat, NPCBashKickLevel)){
 				DoAnim(animKick, 0, false);
-				int32 dmg = GetBaseSkillDamage(EQ::skills::SkillKick);
+				int64 dmg = GetBaseSkillDamage(EQ::skills::SkillKick);
 
 				if (GetWeaponDamage(target, boots) <= 0)
 					dmg = DMG_INVULNERABLE;
@@ -1788,7 +1793,7 @@ void NPC::DoClassAttacks(Mob *target) {
 		case PALADIN: case PALADINGM:{
 			if(level >= RuleI(Combat, NPCBashKickLevel)){
 				DoAnim(animTailRake, 0, false);
-				int32 dmg = GetBaseSkillDamage(EQ::skills::SkillBash);
+				int64 dmg = GetBaseSkillDamage(EQ::skills::SkillBash);
 
 				if (GetWeaponDamage(target, (const EQ::ItemData*)nullptr) <= 0)
 					dmg = DMG_INVULNERABLE;
@@ -1882,7 +1887,7 @@ void Client::DoClassAttacks(Mob *ca_target, uint16 skill, bool IsRiposte)
 	if(skill_to_use == -1)
 		return;
 
-	int dmg = GetBaseSkillDamage(static_cast<EQ::skills::SkillType>(skill_to_use), GetTarget());
+	int64 dmg = GetBaseSkillDamage(static_cast<EQ::skills::SkillType>(skill_to_use), GetTarget());
 
 	if (skill_to_use == EQ::skills::SkillBash) {
 		if (ca_target!=this) {
@@ -2255,8 +2260,8 @@ void Mob::DoMeleeSkillAttackDmg(Mob *other, uint16 weapon_damage, EQ::skills::Sk
 	}
 	
 
-	int damage = 0;
-	uint32 hate = 0;
+	int64 damage = 0;
+	uint64 hate = 0;
 	if (hate == 0 && weapon_damage > 1)
 		hate = weapon_damage;
 

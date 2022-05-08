@@ -644,6 +644,9 @@ bool ClientTaskState::UpdateTasksByNPC(Client *client, TaskActivityType activity
 					if (!task_manager->m_goal_list_manager.IsInList(
 						activity_info->goal_id,
 						npc_type_id
+					) && !TaskGoalListManager::IsInMatchList(
+						activity_info->goal_match_list,
+						std::to_string(npc_type_id)
 					)) {
 						continue;
 					}
@@ -827,6 +830,9 @@ void ClientTaskState::UpdateTasksForItem(Client *client, TaskActivityType activi
 					if (!task_manager->m_goal_list_manager.IsInList(
 						activity_info->goal_id,
 						item_id
+					) && !TaskGoalListManager::IsInMatchList(
+						activity_info->goal_match_list,
+						std::to_string(item_id)
 					)) { continue; }
 					break;
 
@@ -896,6 +902,9 @@ void ClientTaskState::UpdateTasksOnExplore(Client *client, int explore_id)
 					if (!task_manager->m_goal_list_manager.IsInList(
 						activity_info->goal_id,
 						explore_id
+					) && !TaskGoalListManager::IsInMatchList(
+						activity_info->goal_match_list,
+						std::to_string(explore_id)
 					)) {
 						continue;
 					}
@@ -999,7 +1008,11 @@ bool ClientTaskState::UpdateTasksOnDeliver(
 						case METHODLIST:
 							if (!task_manager->m_goal_list_manager.IsInList(
 								activity_info->goal_id,
-								item->GetID())) {
+								item->GetID()
+							) && !TaskGoalListManager::IsInMatchList(
+								activity_info->goal_match_list,
+								std::to_string(item->GetID())
+							)) {
 								continue;
 							}
 							break;
@@ -1682,22 +1695,27 @@ void ClientTaskState::ShowClientTaskInfoMessage(ClientTaskInformation *task, Cli
 
 	c->Message(Chat::White, "------------------------------------------------");
 	c->Message(
-		Chat::White, "# [%s] | task_id [%i] title [%s] slot (%i)",
-		Tasks::GetTaskTypeDescription(task_data->type).c_str(),
-		task->task_id,
-		task_data->title.c_str(),
-		task->slot
+		Chat::White,
+		fmt::format(
+			"Task {} | Title: {} ID: {} Type: {}",
+			task->slot,
+			task_data->title,
+			task->task_id,
+			Tasks::GetTaskTypeDescription(task_data->type)
+		).c_str()
 	);
 	c->Message(Chat::White, "------------------------------------------------");
 	c->Message(
 		Chat::White,
-		" -- Description [%s]\n",
-		task_data->description.c_str()
+		fmt::format(
+			"Description | {}",
+			task_data->description
+		).c_str()
 	);
 
 	for (int activity_id = 0; activity_id < task_manager->GetActivityCount(task->task_id); activity_id++) {
-		std::vector<std::string> update_increments = {"1", "5", "50"};
-		std::string              update_saylinks;
+		std::vector<std::string> update_increments = { "1", "5", "10", "20", "50" };
+		std::vector<std::string> update_saylinks;
 
 		for (auto &increment: update_increments) {
 			auto task_update_saylink = EQ::SayLinkEngine::GenerateQuestSaylink(
@@ -1711,32 +1729,41 @@ void ClientTaskState::ShowClientTaskInfoMessage(ClientTaskInformation *task, Cli
 				increment
 			);
 
-			update_saylinks += "[" + task_update_saylink + "] ";
+			update_saylinks.push_back(task_update_saylink);
 		}
 
 		c->Message(
 			Chat::White,
-			" --- Update %s activity_id [%i] done_count [%i] state [%d] (%s)",
-			update_saylinks.c_str(),
-			task->activity[activity_id].activity_id,
-			task->activity[activity_id].done_count,
-			task->activity[activity_id].activity_state,
-			Tasks::GetActivityStateDescription(task->activity[activity_id].activity_state).c_str()
+			fmt::format(
+				"Activity {} | Count: {} State: {} ({}) [{}]",
+				task->activity[activity_id].activity_id,
+				task->activity[activity_id].done_count,
+				task->activity[activity_id].activity_state,
+				Tasks::GetActivityStateDescription(task->activity[activity_id].activity_state),
+				implode(" | ", update_saylinks)
+			).c_str()
 		);
 	}
 }
 
-void ClientTaskState::ShowClientTasks(Client *client)
+void ClientTaskState::ShowClientTasks(Client* who, Client *to)
 {
-	client->Message(Chat::White, "------------------------------------------------");
-	client->Message(Chat::White, "# Task Information | Client [%s]", client->GetCleanName());
-//	client->Message(Chat::White, "------------------------------------------------");
+	to->SendChatLineBreak();
+
+	to->Message(
+		Chat::White,
+		fmt::format(
+			"Task Information for {}",
+			to->GetTargetDescription(who, TargetDescriptionType::UCSelf)
+		).c_str()
+	);
+
 	if (m_active_task.task_id != TASKSLOTEMPTY) {
-		ShowClientTaskInfoMessage(&m_active_task, client);
+		ShowClientTaskInfoMessage(&m_active_task, to);
 	}
 
 	if (m_active_shared_task.task_id != TASKSLOTEMPTY) {
-		ShowClientTaskInfoMessage(&m_active_shared_task, client);
+		ShowClientTaskInfoMessage(&m_active_shared_task, to);
 	}
 
 	for (auto &active_quest : m_active_quests) {
@@ -1744,10 +1771,10 @@ void ClientTaskState::ShowClientTasks(Client *client)
 			continue;
 		}
 
-		ShowClientTaskInfoMessage(&active_quest, client);
+		ShowClientTaskInfoMessage(&active_quest, to);
 	}
 
-	client->Message(Chat::White, "------------------------------------------------");
+	to->SendChatLineBreak();
 }
 
 // TODO: Shared Task
@@ -2213,7 +2240,7 @@ void ClientTaskState::RemoveTaskByTaskID(Client *client, uint32 task_id)
 		}
 		case TaskType::Quest: {
 			for (int active_quest = 0; active_quest < MAXACTIVEQUESTS; active_quest++) {
-				if (m_active_quests[active_quest].task_id == task_id) {					
+				if (m_active_quests[active_quest].task_id == task_id) {
 					LogTasks("[UPDATE] RemoveTaskByTaskID found Quest [{}] at index [{}]", task_id, active_quest);
 					CancelTask(client, active_quest, TaskType::Quest, true);
 				}

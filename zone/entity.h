@@ -331,7 +331,7 @@ public:
 
 	void	StopMobAI();
 
-	void DescribeAggro(Client *towho, NPC *from_who, float dist, bool verbose);
+	void DescribeAggro(Client *to_who, NPC *from_who, float dist, bool verbose);
 
 	void	Message(uint32 to_guilddbid, uint32 type, const char* message, ...);
 	void	MessageStatus(uint32 to_guilddbid, int to_minstatus, uint32 type, const char* message, ...);
@@ -460,7 +460,7 @@ public:
 	void    ClearWaterAggro(Mob* targ);
 	void	ClearFeignAggro(Mob* targ);
 	void	ClearZoneFeignAggro(Mob* targ);
-	void	AggroZone(Mob* who, uint32 hate = 0);
+	void	AggroZone(Mob* who, uint64 hate = 0);
 
 	bool	Fighting(Mob* targ);
 	void	RemoveFromHateLists(Mob* mob, bool settoone = false);
@@ -526,6 +526,8 @@ public:
 	inline const std::unordered_map<uint16, Client *> &GetClientList() { return client_list; }
 #ifdef BOTS
 	inline const std::list<Bot *> &GetBotList() { return bot_list; }
+	std::vector<Bot *> GetBotListByCharacterID(uint32 character_id);
+	std::vector<Bot *> GetBotListByClientName(std::string client_name);
 #endif
 	inline const std::unordered_map<uint16, Corpse *> &GetCorpseList() { return corpse_list; }
 	inline const std::unordered_map<uint16, Object *> &GetObjectList() { return object_list; }

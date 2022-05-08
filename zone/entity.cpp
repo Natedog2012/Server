@@ -3618,7 +3618,7 @@ void EntityList::ClearZoneFeignAggro(Mob *targ)
 	}
 }
 
-void EntityList::AggroZone(Mob *who, uint32 hate)
+void EntityList::AggroZone(Mob *who, uint64 hate)
 {
 	auto it = npc_list.begin();
 	while (it != npc_list.end()) {
@@ -3645,7 +3645,7 @@ bool EntityList::MakeTrackPacket(Client *client)
 	uint32 distance = 0;
 	float MobDistance;
 
-	distance = (client->GetSkill(EQ::skills::SkillTracking) * client->GetClassTrackingDistanceMultiplier(client->GetClass()));	
+	distance = (client->GetSkill(EQ::skills::SkillTracking) * client->GetClassTrackingDistanceMultiplier(client->GetClass()));
 
 	if (distance <= 0)
 		return false;
@@ -5057,9 +5057,43 @@ void EntityList::GetClientList(std::list<Client *> &c_list)
 void EntityList::GetBotList(std::list<Bot *> &b_list)
 {
 	b_list.clear();
-	for (auto bot_iterator : bot_list) {
-		b_list.push_back(bot_iterator);
+	for (auto bot : bot_list) {
+		b_list.push_back(bot);
 	}
+}
+
+std::vector<Bot *> EntityList::GetBotListByCharacterID(uint32 character_id)
+{
+	std::vector<Bot *> client_bot_list;
+
+	if (!character_id) {
+		return client_bot_list;
+	}
+
+	for (auto bot : bot_list) {
+		if (bot->GetOwner() && bot->GetBotOwnerCharacterID() == character_id) {
+			client_bot_list.push_back(bot);
+		}
+	}
+
+	return client_bot_list;
+}
+
+std::vector<Bot *> EntityList::GetBotListByClientName(std::string client_name)
+{
+	std::vector<Bot *> client_bot_list;
+
+	if (client_name.empty()) {
+		return client_bot_list;
+	}
+
+	for (auto bot : bot_list) {
+		if (bot->GetOwner() && str_tolower(bot->GetOwner()->GetCleanName()) == str_tolower(client_name)) {
+			client_bot_list.push_back(bot);
+		}
+	}
+
+	return client_bot_list;
 }
 #endif
 
@@ -5423,6 +5457,15 @@ void EntityList::GetTargetsForConeArea(Mob *start, float min_radius, float radiu
 			++it;
 			continue;
 		}
+		if (ptr->IsClient() && !ptr->CastToClient()->ClientFinishedLoading()) {
+			++it;
+			continue;
+		}
+		if (ptr->IsAura() || ptr->IsTrap()) {
+			++it;
+			continue;
+		}
+
 		float x_diff = ptr->GetX() - start->GetX();
 		float y_diff = ptr->GetY() - start->GetY();
 		float z_diff = ptr->GetZ() - start->GetZ();
@@ -5466,8 +5509,8 @@ std::vector<Mob*> EntityList::GetTargetsForVirusEffect(Mob *spreader, Mob *origi
 	for (auto          &it : entity_list.GetCloseMobList(spreader, range)) {
 		Mob *mob = it.second;
 
-		if (!mob) { 
-			continue; 
+		if (!mob) {
+			continue;
 		}
 
 		if (mob == spreader) {
@@ -5558,7 +5601,7 @@ void EntityList::StopMobAI()
 }
 
 void EntityList::SendAlternateAdvancementStats() {
-	for(auto &c : client_list) {
+	for (auto &c : client_list) {
 		c.second->SendClearPlayerAA();
 		c.second->SendAlternateAdvancementTable();
 		c.second->SendAlternateAdvancementStats();
