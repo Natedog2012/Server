@@ -55,7 +55,7 @@ XS(XS_Client_Save) {
 		uint8 iCommitNow = (uint8) SvUV(ST(1));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->Save(iCommitNow);
-		ST(0)            = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -1449,7 +1449,7 @@ XS(XS_Client_TakeMoneyFromPP) {
 		Client *THIS;
 		bool has_money;
 		bool update_client = false;
-		uint32 copper = (uint32) SvUV(ST(1));
+		uint64 copper = (uint64) SvUV(ST(1));
 		VALIDATE_THIS_IS_CLIENT;
 
 		if (items == 3) {
@@ -2705,7 +2705,7 @@ XS(XS_Client_DecreaseByID) {
 		int16  quantity  = (int16) SvIV(ST(2));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->DecreaseByID(type, quantity);
-		ST(0)       = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -2843,7 +2843,7 @@ XS(XS_Client_UseDiscipline) {
 		uint32 target   = (uint32) SvUV(ST(2));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->UseDiscipline(spell_id, target);
-		ST(0)           = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -2938,7 +2938,7 @@ XS(XS_Client_HasZoneFlag) {
 		uint32 zone_id = (uint32) SvUV(ST(1));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->HasZoneFlag(zone_id);
-		ST(0)          = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -3330,7 +3330,7 @@ XS(XS_Client_KeyRingCheck) {
 		uint32 item_id = (uint32) SvUV(ST(1));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->KeyRingCheck(item_id);;
-		ST(0)          = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -3722,7 +3722,7 @@ XS(XS_Client_GrantAlternateAdvancementAbility) {
 		}
 
 		RETVAL = THIS->GrantAlternateAdvancementAbility(aa_id, points, ignore_cost);
-		ST(0)            = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -3827,7 +3827,7 @@ XS(XS_Client_GetSpellIDByBookSlot) {
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->GetSpellIDByBookSlot(slot_id);
 		XSprePUSH;
-		PUSHi((IV)RETVAL);
+		PUSHi((IV) RETVAL);
 	}
 	XSRETURN(1);
 }
@@ -3878,20 +3878,24 @@ XS(XS_Client_GetTaskActivityDoneCount) {
 XS(XS_Client_AssignTask); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Client_AssignTask) {
 	dXSARGS;
-	if (items != 3 && items != 4)
-		Perl_croak(aTHX_ "Usage: Client::AssignTask(THIS, int task_id, int npc_id, [bool enforce_level_requirement = false])"); // @categories Tasks and Activities
+	if (items < 2 || items > 4)
+		Perl_croak(aTHX_ "Usage: Client::AssignTask(THIS, int task_id, [int npc_id = 0, bool enforce_level_requirement = false])"); // @categories Tasks and Activities
 	{
 		Client *THIS;
-		int  TaskID                    = (int) SvIV(ST(1));
-		int  NPCID                     = (int) SvIV(ST(2));
+		int task_id = (int) SvIV(ST(1));
+		int npc_id = 0;
 		bool enforce_level_requirement = false;
-		if (items == 4) {
-			if ((int) SvIV(ST(3)) == 1) {
-				enforce_level_requirement = true;
-			}
-		}
 		VALIDATE_THIS_IS_CLIENT;
-		THIS->AssignTask(TaskID, NPCID, enforce_level_requirement);
+
+		if (items > 2) {
+			npc_id = (int) SvIV(ST(2));
+		}
+
+		if (items > 3) {
+			enforce_level_requirement = SvTRUE(ST(3));
+		}
+
+		THIS->AssignTask(task_id, npc_id, enforce_level_requirement);
 	}
 	XSRETURN_EMPTY;
 }
@@ -3921,7 +3925,7 @@ XS(XS_Client_IsTaskCompleted) {
 		int TaskID = (int) SvIV(ST(1));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->IsTaskCompleted(TaskID);
-		ST(0)      = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -3938,7 +3942,7 @@ XS(XS_Client_IsTaskActive) {
 		int  TaskID = (int) SvIV(ST(1));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->IsTaskActive(TaskID);
-		ST(0)       = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -3956,7 +3960,7 @@ XS(XS_Client_IsTaskActivityActive) {
 		int  ActivityID = (int) SvIV(ST(2));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->IsTaskActivityActive(TaskID, ActivityID);
-		ST(0)           = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -4297,7 +4301,7 @@ XS(XS_Client_HasSpellScribed) {
 		int  spell_id = (int) SvUV(ST(1));
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->HasSpellScribed(spell_id);
-		ST(0)         = boolSV(RETVAL);
+		ST(0) = boolSV(RETVAL);
 		sv_2mortal(ST(0));
 	}
 	XSRETURN(1);
@@ -4674,7 +4678,7 @@ XS(XS_Client_GetMoney) {
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->GetMoney(type, subtype);
 		XSprePUSH;
-		PUSHn((uint32) RETVAL);
+		PUSHu((UV) RETVAL);
 	}
 	XSRETURN(1);
 }
@@ -4691,7 +4695,7 @@ XS(XS_Client_GetAccountAge) {
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->GetAccountAge();
 		XSprePUSH;
-		PUSHn((int) RETVAL);
+		PUSHi((IV) RETVAL);
 	}
 	XSRETURN(1);
 }
@@ -4786,7 +4790,7 @@ XS(XS_Client_GetClientMaxLevel) {
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->GetClientMaxLevel();
 		XSprePUSH;
-		PUSHu((UV)RETVAL);
+		PUSHu((UV) RETVAL);
 	}
 	XSRETURN(1);
 }
@@ -6188,7 +6192,7 @@ XS(XS_Client_GetEnvironmentDamageModifier) {
 		VALIDATE_THIS_IS_CLIENT;
 		RETVAL = THIS->GetEnvironmentDamageModifier();
 		XSprePUSH;
-		PUSHi((IV)RETVAL);
+		PUSHi((IV) RETVAL);
 	}
 	XSRETURN(1);
 }
@@ -6325,7 +6329,7 @@ XS(XS_Client_CountAugmentEquippedByID) {
 		VALIDATE_THIS_IS_CLIENT;
 		quantity = THIS->GetInv().CountAugmentEquippedByID(item_id);
 		XSprePUSH;
-		PUSHi((IV)quantity);
+		PUSHi((IV) quantity);
 	}
 	XSRETURN(1);
 }
@@ -6397,7 +6401,7 @@ XS(XS_Client_CountItemEquippedByID) {
 		VALIDATE_THIS_IS_CLIENT;
 		quantity = THIS->GetInv().CountItemEquippedByID(item_id);
 		XSprePUSH;
-		PUSHi((IV)quantity);
+		PUSHi((IV) quantity);
 	}
 	XSRETURN(1);
 }
@@ -6505,6 +6509,60 @@ XS(XS_Client_SetPEQZoneFlag) {
 	XSRETURN_EMPTY;
 }
 
+XS(XS_Client_GetHealAmount);
+XS(XS_Client_GetHealAmount) {
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: Client::GetHealAmount(THIS)"); // @categories Stats and Attributes, Scriot Utility
+	{
+		Client *THIS;
+		int RETVAL;
+		dXSTARG;
+		VALIDATE_THIS_IS_CLIENT;
+		RETVAL = THIS->GetHealAmt();
+		XSprePUSH;
+		PUSHi((IV) RETVAL);
+	}
+	XSRETURN(1);
+}
+
+XS(XS_Client_GetSpellDamage);
+XS(XS_Client_GetSpellDamage) {
+	dXSARGS;
+	if (items != 1)
+		Perl_croak(aTHX_ "Usage: Client::GetSpellDamage(THIS)"); // @categories Stats and Attributes, Scriot Utility
+	{
+		Client *THIS;
+		int RETVAL;
+		dXSTARG;
+		VALIDATE_THIS_IS_CLIENT;
+		RETVAL = THIS->GetSpellDmg();
+		XSprePUSH;
+		PUSHi((IV) RETVAL);
+	}
+	XSRETURN(1);
+}
+
+XS(XS_Client_TaskSelector); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Client_TaskSelector) {
+	dXSARGS;
+	if (items < 2 || items > 41) {
+		Perl_croak(aTHX_ "Usage: Client::TaskSelector(THIS, int task_id, 2, 3, 4, 5 [up to 40])");
+	}
+
+	Client *THIS;
+	VALIDATE_THIS_IS_CLIENT;
+
+	int tasks[MAXCHOOSERENTRIES];
+	int task_count = (items - 1);
+	for (int i = 1; i <= task_count; i++) {
+		tasks[i] = (int) SvIV(ST(i));
+	}
+
+	THIS->TaskQuestSetSelector(THIS, task_count, tasks);
+	XSRETURN_EMPTY;
+}
+
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -6539,7 +6597,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "AddPVPPoints"), XS_Client_AddPVPPoints, file, "$$");
 	newXSproto(strcpy(buf, "AddSkill"), XS_Client_AddSkill, file, "$$$");
 	newXSproto(strcpy(buf, "Admin"), XS_Client_Admin, file, "$");
-	newXSproto(strcpy(buf, "AssignTask"), XS_Client_AssignTask, file, "$$$;$");
+	newXSproto(strcpy(buf, "AssignTask"), XS_Client_AssignTask, file, "$$;$$");
 	newXSproto(strcpy(buf, "AssignToInstance"), XS_Client_AssignToInstance, file, "$$");
 	newXSproto(strcpy(buf, "AutoSplitEnabled"), XS_Client_AutoSplitEnabled, file, "$");
 	newXSproto(strcpy(buf, "BreakInvis"), XS_Client_BreakInvis, file, "$");
@@ -6635,6 +6693,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "GetGM"), XS_Client_GetGM, file, "$");
 	newXSproto(strcpy(buf, "GetGroup"), XS_Client_GetGroup, file, "$");
 	newXSproto(strcpy(buf, "GetGroupPoints"), XS_Client_GetGroupPoints, file, "$");
+	newXSproto(strcpy(buf, "GetHealAmount"), XS_Client_GetHealAmount, file, "$");
 	newXSproto(strcpy(buf, "GetHorseId"), XS_Client_GetHorseId, file, "$");
 	newXSproto(strcpy(buf, "GetHunger"), XS_Client_GetHunger, file, "$$");
 	newXSproto(strcpy(buf, "GetIP"), XS_Client_GetIP, file, "$");
@@ -6672,6 +6731,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "GetScribedSpells"), XS_Client_GetScribedSpells, file, "$");
 	newXSproto(strcpy(buf, "GetSkillPoints"), XS_Client_GetSkillPoints, file, "$");
 	newXSproto(strcpy(buf, "GetSpellBookSlotBySpellID"), XS_Client_GetSpellBookSlotBySpellID, file, "$$");
+	newXSproto(strcpy(buf, "GetSpellDamage"), XS_Client_GetSpellDamage, file, "$");
 	newXSproto(strcpy(buf, "GetSpellIDByBookSlot"), XS_Client_GetSpellIDByBookSlot, file, "$$");
 	newXSproto(strcpy(buf, "GetSpentAA"), XS_Client_GetSpentAA, file, "$$");
 	newXSproto(strcpy(buf, "GetStartZone"), XS_Client_GetStartZone, file, "$");
@@ -6829,6 +6889,7 @@ XS(boot_Client) {
 	newXSproto(strcpy(buf, "TGB"), XS_Client_TGB, file, "$");
 	newXSproto(strcpy(buf, "TakeMoneyFromPP"), XS_Client_TakeMoneyFromPP, file, "$$;$");
 	newXSproto(strcpy(buf, "TakePlatinum"), XS_Client_TakePlatinum, file, "$$;$");
+	newXSproto(strcpy(buf, "TaskSelector"), XS_Client_TaskSelector, file, "$$;$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
 	newXSproto(strcpy(buf, "Thirsty"), XS_Client_Thirsty, file, "$");
 	newXSproto(strcpy(buf, "TrainDiscBySpellID"), XS_Client_TrainDiscBySpellID, file, "$$");
 	newXSproto(strcpy(buf, "UnFreeze"), XS_Client_UnFreeze, file, "$");

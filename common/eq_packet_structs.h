@@ -2320,9 +2320,12 @@ struct FaceChange_Struct {
 /*004*/	uint8	hairstyle;
 /*005*/	uint8	beard;
 /*006*/	uint8	face;
-/*007*/ uint32	drakkin_heritage;
-/*011*/ uint32	drakkin_tattoo;
-/*015*/ uint32	drakkin_details;
+/*007*/ uint8  unused_padding;
+/*008*/ uint32 drakkin_heritage;
+/*012*/ uint32 drakkin_tattoo;
+/*016*/ uint32 drakkin_details;
+/*020*/ uint32 entity_id;
+/*024*/
 //there are only 10 faces for barbs changing woad just
 //increase the face value by ten so if there were 8 woad
 //designs then there would be 80 barb faces
@@ -3625,14 +3628,17 @@ struct LevelAppearance_Struct { //Sends a little graphic on level up
 };
 
 struct MerchantList {
-	uint32	id;
-	uint32	slot;
-	uint32	item;
-	int16	faction_required;
-	int8	level_required;
-	uint16	alt_currency_cost;
-	uint32	classes_required;
-	uint8	probability;
+	uint32 id;
+	uint32 slot;
+	uint32 item;
+	int16 faction_required;
+	int8 level_required;
+	uint16 alt_currency_cost;
+	uint32 classes_required;
+	uint8 probability;
+	std::string bucket_name;
+	std::string bucket_value;
+	uint8 bucket_comparison; 
 };
 
 struct TempMerchantList {
