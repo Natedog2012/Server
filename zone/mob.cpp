@@ -1474,7 +1474,7 @@ void Mob::SendHPUpdate(bool force_update_all)
 			safe_delete(client_packet);
 
 			ResetHPUpdateTimer();
-			//CastToClient()->SendEdgeHPStats();
+			CastToClient()->SendEdgeHPStats();
 
 			// Used to check if HP has changed to update self next round
 			last_hp = current_hp;
