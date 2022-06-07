@@ -1318,7 +1318,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	drakkin_details = m_pp.drakkin_details;
 
 	// Max Level for Character:PerCharacterQglobalMaxLevel and Character:PerCharacterBucketMaxLevel
-	int client_max_level = 0;
+	uint8 client_max_level = 0;
 	if (RuleB(Character, PerCharacterQglobalMaxLevel)) {
 		client_max_level = GetCharMaxLevelFromQGlobal();
 	} else if (RuleB(Character, PerCharacterBucketMaxLevel)) {
@@ -1897,7 +1897,7 @@ void Client::Handle_OP_AdventureMerchantPurchase(const EQApplicationPacket *app)
 	Adventure_Purchase_Struct* aps = (Adventure_Purchase_Struct*)app->pBuffer;
 	uint32 merchantid = 0;
 	Mob* tmp = entity_list.GetMob(aps->npcid);
-	if (tmp == 0 || !tmp->IsNPC() || ((tmp->GetClass() != ADVENTUREMERCHANT) &&
+	if (tmp == 0 || !tmp->IsNPC() || ((tmp->GetClass() != ADVENTURE_MERCHANT) &&
 		(tmp->GetClass() != DISCORD_MERCHANT) && (tmp->GetClass() != NORRATHS_KEEPERS_MERCHANT) && (tmp->GetClass() != DARK_REIGN_MERCHANT)))
 		return;
 
@@ -2078,7 +2078,7 @@ void Client::Handle_OP_AdventureMerchantRequest(const EQApplicationPacket *app)
 	uint32 merchantid = 0;
 
 	Mob* tmp = entity_list.GetMob(eid->entity_id);
-	if (tmp == 0 || !tmp->IsNPC() || ((tmp->GetClass() != ADVENTUREMERCHANT) &&
+	if (tmp == 0 || !tmp->IsNPC() || ((tmp->GetClass() != ADVENTURE_MERCHANT) &&
 		(tmp->GetClass() != DISCORD_MERCHANT) && (tmp->GetClass() != NORRATHS_KEEPERS_MERCHANT) && (tmp->GetClass() != DARK_REIGN_MERCHANT)))
 		return;
 
@@ -2149,7 +2149,7 @@ void Client::Handle_OP_AdventureMerchantSell(const EQApplicationPacket *app)
 	Adventure_Sell_Struct *ams_in = (Adventure_Sell_Struct*)app->pBuffer;
 
 	Mob* vendor = entity_list.GetMob(ams_in->npcid);
-	if (vendor == 0 || !vendor->IsNPC() || ((vendor->GetClass() != ADVENTUREMERCHANT) &&
+	if (vendor == 0 || !vendor->IsNPC() || ((vendor->GetClass() != ADVENTURE_MERCHANT) &&
 		(vendor->GetClass() != NORRATHS_KEEPERS_MERCHANT) && (vendor->GetClass() != DARK_REIGN_MERCHANT)))
 	{
 		Message(Chat::Red, "Vendor was not found.");
@@ -2246,7 +2246,7 @@ void Client::Handle_OP_AdventureMerchantSell(const EQApplicationPacket *app)
 
 	switch (vendor->GetClass())
 	{
-	case ADVENTUREMERCHANT:
+	case ADVENTURE_MERCHANT:
 	{
 		UpdateLDoNPoints(6, price);
 		break;
@@ -6397,7 +6397,7 @@ void Client::Handle_OP_GMNameChange(const EQApplicationPacket *app)
 	}
 	Client* client = entity_list.GetClientByName(gmn->oldname);
 	LogInfo("GM([{}]) changeing players name. Old:[{}] New:[{}]", GetName(), gmn->oldname, gmn->newname);
-	bool usedname = database.CheckUsedName((const char*)gmn->newname);
+	bool usedname = database.CheckUsedName(gmn->newname);
 	if (client == 0) {
 		Message(Chat::Red, "%s not found for name change. Operation failed!", gmn->oldname);
 		return;
@@ -9806,7 +9806,7 @@ void Client::Handle_OP_MercenaryDataRequest(const EQApplicationPacket *app)
 		if (DistanceSquared(m_Position, tar->GetPosition()) > USE_NPC_RANGE2)
 			return;
 
-		if (tar->GetClass() != MERCERNARY_MASTER) {
+		if (tar->GetClass() != MERCENARY_MASTER) {
 			return;
 		}
 
@@ -12908,7 +12908,7 @@ void Client::Handle_OP_SetTitle(const EQApplicationPacket *app)
 		return;
 	}
 
-	SetTitle_Struct *sts = (SetTitle_Struct *)app->pBuffer;
+	auto sts = (SetTitle_Struct *) app->pBuffer;
 
 	if (sts->title_id && !title_manager.HasTitle(this, sts->title_id)) {
 		return;
@@ -12925,9 +12925,9 @@ void Client::Handle_OP_SetTitle(const EQApplicationPacket *app)
 	);
 
 	if (!sts->is_suffix) {
-		SetAATitle(title.c_str());
+		SetAATitle(title);
 	} else {
-		SetTitleSuffix(title.c_str());
+		SetTitleSuffix(title);
 	}
 }
 

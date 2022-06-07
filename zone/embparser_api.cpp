@@ -1054,11 +1054,11 @@ XS(XS__surname);
 XS(XS__surname) {
 	dXSARGS;
 	if (items != 1)
-		Perl_croak(aTHX_ "Usage: quest::surname(string name)");
+		Perl_croak(aTHX_ "Usage: quest::surname(string last_name)");
 
-	char *name = (char *) SvPV_nolen(ST(0));
+	std::string last_name = (std::string) SvPV_nolen(ST(0));
 
-	quest_manager.surname(name);
+	quest_manager.surname(last_name);
 
 	XSRETURN_EMPTY;
 }
@@ -1173,13 +1173,26 @@ XS(XS__untraindiscs) {
 XS(XS__givecash);
 XS(XS__givecash) {
 	dXSARGS;
-	if (items != 4)
-		Perl_croak(aTHX_ "Usage: quest::givecash(int copper, int silver, int gold, int platinum)");
+	if (items < 1 || items > 4) {
+		Perl_croak(aTHX_ "Usage: quest::givecash(uint32 copper, [uint32 silver = 0, uint32 gold = 0, uint32 platinum = 0])");
+	}
 
-	int copper   = (int) SvIV(ST(0));
-	int silver   = (int) SvIV(ST(1));
-	int gold     = (int) SvIV(ST(2));
-	int platinum = (int) SvIV(ST(3));
+	uint32 copper = (uint32) SvUV(ST(0));
+	uint32 silver = 0;
+	uint32 gold = 0;
+	uint32 platinum = 0;
+
+	if (items > 1) {
+		silver = (uint32) SvUV(ST(1));
+	}
+
+	if (items > 2) {
+		gold = (uint32) SvUV(ST(2));
+	}
+
+	if (items > 3) {
+		platinum = (uint32) SvUV(ST(3));
+	}
 
 	quest_manager.givecash(copper, silver, gold, platinum);
 
@@ -7691,15 +7704,18 @@ XS(XS__worldwideaddldonloss) {
 		Perl_croak(aTHX_ "Usage: quest::worldwideaddldonloss(uint32 theme_id, [min_status = 0, max_status = 0])");
 	{
 		uint8 update_type = CZLDoNUpdateSubtype_AddLoss;
-		uint32 theme_id = (uint32)SvUV(ST(0));
+		uint32 theme_id = (uint32) SvUV(ST(0));
 		int points = 1;
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8)SvUV(ST(1));
 
-		if (items == 3)
-			max_status = (uint8)SvUV(ST(2));
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
+			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideLDoNUpdate(update_type, theme_id, points, min_status, max_status);
 	}
@@ -7710,21 +7726,25 @@ XS(XS__worldwideaddldonpoints);
 XS(XS__worldwideaddldonpoints) {
 	dXSARGS;
 	if (items < 1 || items > 4)
-		Perl_croak(aTHX_ "Usage: quest::worldwideaddldonpoints(uint32 theme_id. [int points = 1, min_status = 0, max_status = 0])");
+		Perl_croak(aTHX_ "Usage: quest::worldwideaddldonpoints(uint32 theme_id, [int points = 1, min_status = 0, max_status = 0])");
 	{
 		uint8 update_type = CZLDoNUpdateSubtype_AddPoints;
-		uint32 theme_id = (uint32)SvUV(ST(0));
+		uint32 theme_id = (uint32) SvUV(ST(0));
 		int points = 1;
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			points = (int)SvIV(ST(1));
 
-		if (items == 3)
-			min_status = (uint8)SvUV(ST(2));
+		if (items > 1) {
+			points = (int) SvIV(ST(1));
+		}
 
-		if (items == 4)
-			max_status = (uint8)SvUV(ST(3));
+		if (items > 2) {
+			min_status = (uint8) SvUV(ST(2));
+		}
+
+		if (items > 3) {
+			max_status = (uint8) SvUV(ST(3));
+		}
 
 		quest_manager.WorldWideLDoNUpdate(update_type, theme_id, points, min_status, max_status);
 	}
@@ -7738,15 +7758,18 @@ XS(XS__worldwideaddldonwin) {
 		Perl_croak(aTHX_ "Usage: quest::worldwideaddldonwin(uint32 theme_id, [min_status = 0, max_status = 0])");
 	{
 		uint8 update_type = CZLDoNUpdateSubtype_AddWin;
-		uint32 theme_id = (uint32)SvUV(ST(0));
+		uint32 theme_id = (uint32) SvUV(ST(0));
 		int points = 1;
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8)SvUV(ST(1));
 
-		if (items == 3)
-			max_status = (uint8)SvUV(ST(2));
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
+			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideLDoNUpdate(update_type, theme_id, points, min_status, max_status);
 	}
@@ -7766,11 +7789,14 @@ XS(XS__worldwideassigntask) {
 		int task_subidentifier = -1;
 		int update_count = 1;
 		bool enforce_level_requirement = false;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideTaskUpdate(update_type, task_identifier, task_subidentifier, update_count, enforce_level_requirement, min_status, max_status);
 	}
@@ -7787,11 +7813,14 @@ XS(XS__worldwidecastspell) {
 		uint32 spell_id = (uint32) SvUV(ST(0));
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideSpell(update_type, spell_id, min_status, max_status);
 	}
@@ -7807,11 +7836,14 @@ XS(XS__worldwidedialoguewindow) {
 		const char* message = (const char*) SvPV_nolen(ST(0));
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8)SvUV(ST(1));
 
-		if (items == 3)
-			max_status = (uint8)SvUV(ST(2));
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
+			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideDialogueWindow(message, min_status, max_status);
 	}
@@ -7831,11 +7863,14 @@ XS(XS__worldwidedisabletask) {
 		int task_subidentifier = -1;
 		int update_count = 1;
 		bool enforce_level_requirement = false;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideTaskUpdate(update_type, task_identifier, task_subidentifier, update_count, enforce_level_requirement, min_status, max_status);
 	}
@@ -7855,11 +7890,14 @@ XS(XS__worldwideenabletask) {
 		int task_subidentifier = -1;
 		int update_count = 1;
 		bool enforce_level_requirement = false;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideTaskUpdate(update_type, task_identifier, task_subidentifier, update_count, enforce_level_requirement, min_status, max_status);
 	}
@@ -7879,11 +7917,14 @@ XS(XS__worldwidefailtask) {
 		int task_subidentifier = -1;
 		int update_count = 1;
 		bool enforce_level_requirement = false;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideTaskUpdate(update_type, task_identifier, task_subidentifier, update_count, enforce_level_requirement, min_status, max_status);
 	}
@@ -7904,11 +7945,14 @@ XS(XS__worldwidemarquee) {
 		const char* message = (const char*) SvPV_nolen(ST(5));
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 7)
-			min_status = (uint8) SvUV(ST(6));
 
-		if (items == 8)
+		if (items > 6) {
+			min_status = (uint8) SvUV(ST(6));
+		}
+
+		if (items > 7) {
 			max_status = (uint8) SvUV(ST(7));
+		}
 
 		quest_manager.WorldWideMarquee(type, priority, fade_in, fade_out, duration, message, min_status, max_status);
 	}
@@ -7925,11 +7969,14 @@ XS(XS__worldwidemessage) {
 		const char* message = (const char*) SvPV_nolen(ST(1));
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 3)
-			min_status = (uint8) SvUV(ST(2));
 
-		if (items == 4)
+		if (items > 2) {
+			min_status = (uint8) SvUV(ST(2));
+		}
+
+		if (items > 3) {
 			max_status = (uint8) SvUV(ST(3));
+		}
 
 		quest_manager.WorldWideMessage(type, message, min_status, max_status);
 	}
@@ -7947,11 +7994,14 @@ XS(XS__worldwidemove) {
 		uint16 instance_id = 0;
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideMove(update_type, zone_short_name, instance_id, min_status, max_status);
 	}
@@ -7969,11 +8019,14 @@ XS(XS__worldwidemoveinstance) {
 		uint16 instance_id = (uint16) SvUV(ST(0));
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideMove(update_type, zone_short_name, instance_id, min_status, max_status);
 	}
@@ -7991,11 +8044,14 @@ XS(XS__worldwideremoveldonloss) {
 		int points = 1;
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8)SvUV(ST(1));
 
-		if (items == 3)
-			max_status = (uint8)SvUV(ST(2));
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
+			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideLDoNUpdate(update_type, theme_id, points, min_status, max_status);
 	}
@@ -8013,11 +8069,14 @@ XS(XS__worldwideremoveldonwin) {
 		int points = 1;
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8)SvUV(ST(1));
 
-		if (items == 3)
-			max_status = (uint8)SvUV(ST(2));
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
+			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideLDoNUpdate(update_type, theme_id, points, min_status, max_status);
 	}
@@ -8034,11 +8093,14 @@ XS(XS__worldwideremovespell) {
 		uint32 spell_id = (uint32) SvUV(ST(0));
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideSpell(update_type, spell_id, min_status, max_status);
 	}
@@ -8058,11 +8120,14 @@ XS(XS__worldwideremovetask) {
 		int task_subidentifier = -1;
 		int update_count = 1;
 		bool enforce_level_requirement = false;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideTaskUpdate(update_type, task_identifier, task_subidentifier, update_count, enforce_level_requirement, min_status, max_status);
 	}
@@ -8083,11 +8148,14 @@ XS(XS__worldwideresetactivity) {
 		uint8 max_status = AccountStatus::Player;
 		int update_count = 1;
 		bool enforce_level_requirement = false;
-		if (items == 3)
-			min_status = (uint8) SvUV(ST(2));
 
-		if (items == 4)
+		if (items > 2) {
+			min_status = (uint8) SvUV(ST(2));
+		}
+
+		if (items > 3) {
 			max_status = (uint8) SvUV(ST(3));
+		}
 
 		quest_manager.WorldWideTaskUpdate(update_type, task_identifier, task_subidentifier, update_count, enforce_level_requirement, min_status, max_status);
 	}
@@ -8105,11 +8173,14 @@ XS(XS__worldwidesetentityvariableclient) {
 		const char* variable_value = (const char*) SvPV_nolen(ST(1));
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 3)
-			min_status = (uint8) SvUV(ST(2));
 
-		if (items == 4)
+		if (items > 2) {
+			min_status = (uint8) SvUV(ST(2));
+		}
+
+		if (items > 3) {
 			max_status = (uint8) SvUV(ST(3));
+		}
 
 		quest_manager.WorldWideSetEntityVariable(update_type, variable_name, variable_value, min_status, max_status);
 	}
@@ -8153,11 +8224,14 @@ XS(XS__worldwidesignalclient) {
 		uint32 signal = (uint32) SvUV(ST(0));
 		uint8 min_status = AccountStatus::Player;
 		uint8 max_status = AccountStatus::Player;
-		if (items == 2)
-			min_status = (uint8) SvUV(ST(1));
 
-		if (items == 3)
+		if (items > 1) {
+			min_status = (uint8) SvUV(ST(1));
+		}
+
+		if (items > 2) {
 			max_status = (uint8) SvUV(ST(2));
+		}
 
 		quest_manager.WorldWideSignal(update_type, signal, min_status, max_status);
 	}
@@ -8177,14 +8251,18 @@ XS(XS__worldwideupdateactivity) {
 		uint8 max_status = AccountStatus::Player;
 		int update_count = 1;
 		bool enforce_level_requirement = false;
-		if (items == 3)
+
+		if (items > 2) {
 			update_count = (int) SvIV(ST(2));
+		}
 
-		if (items == 4)
+		if (items > 3) {
 			min_status = (uint8) SvUV(ST(3));
+		}
 
-		if (items == 5)
+		if (items > 4) {
 			max_status = (uint8) SvUV(ST(4));
+		}
 
 		quest_manager.WorldWideTaskUpdate(update_type, task_identifier, task_subidentifier, update_count, enforce_level_requirement, min_status, max_status);
 	}
@@ -8360,6 +8438,21 @@ XS(XS__commify) {
 	XSRETURN(1);
 }
 
+XS(XS__checknamefilter);
+XS(XS__checknamefilter) {
+	dXSARGS;
+	if (items != 1) {
+		Perl_croak(aTHX_ "Usage: quest::checknamefilter(string name)");
+	}
+
+	dXSTARG;
+	std::string name = (std::string) SvPV_nolen(ST(0));
+	bool passes = database.CheckNameFilter(name);
+	ST(0) = boolSV(passes);
+	sv_2mortal(ST(0));
+	XSRETURN(1);
+}
+
 /*
 This is the callback perl will look for to setup the
 quest package's XSUBs
@@ -8447,6 +8540,7 @@ EXTERN_C XS(boot_quest) {
 	newXS(strcpy(buf, "buryplayercorpse"), XS__buryplayercorpse, file);
 	newXS(strcpy(buf, "castspell"), XS__castspell, file);
 	newXS(strcpy(buf, "changedeity"), XS__changedeity, file);
+	newXS(strcpy(buf, "checknamefilter"), XS__checknamefilter, file);
 	newXS(strcpy(buf, "checktitle"), XS__checktitle, file);
 	newXS(strcpy(buf, "clear_npctype_cache"), XS__clear_npctype_cache, file);
 	newXS(strcpy(buf, "clear_proximity"), XS__clear_proximity, file);
