@@ -17,7 +17,7 @@
 */
 
 #include "../common/spdat.h"
-#include "../common/string_util.h"
+#include "../common/strings.h"
 #include "../common/misc_functions.h"
 
 #include "data_bucket.h"
@@ -513,6 +513,8 @@ Mob::Mob(
 	mob_close_scan_timer.Trigger();
 
 	SetCanOpenDoors(true);
+
+	is_boat = IsBoat();
 }
 
 Mob::~Mob()
@@ -1157,6 +1159,7 @@ void Mob::CreateSpawnPacket(EQApplicationPacket *app, Mob *ForWho)
 {
 	app->SetOpcode(OP_NewSpawn);
 	app->size = sizeof(NewSpawn_Struct);
+	safe_delete_array(app->pBuffer);
 	app->pBuffer = new uchar[app->size];
 	memset(app->pBuffer, 0, app->size);
 	auto ns = (NewSpawn_Struct *) app->pBuffer;
@@ -1174,7 +1177,7 @@ void Mob::CreateSpawnPacket(EQApplicationPacket *app, Mob *ForWho)
 void Mob::CreateSpawnPacket(EQApplicationPacket* app, NewSpawn_Struct* ns) {
 	app->SetOpcode(OP_NewSpawn);
 	app->size = sizeof(NewSpawn_Struct);
-
+	safe_delete_array(app->pBuffer);
 	app->pBuffer = new uchar[sizeof(NewSpawn_Struct)];
 
 	// Copy ns directly into packet
@@ -1366,6 +1369,7 @@ void Mob::CreateDespawnPacket(EQApplicationPacket* app, bool Decay)
 {
 	app->SetOpcode(OP_DeleteSpawn);
 	app->size = sizeof(DeleteSpawn_Struct);
+	safe_delete_array(app->pBuffer);
 	app->pBuffer = new uchar[app->size];
 	memset(app->pBuffer, 0, app->size);
 	DeleteSpawn_Struct* ds = (DeleteSpawn_Struct*)app->pBuffer;
@@ -1379,6 +1383,7 @@ void Mob::CreateHPPacket(EQApplicationPacket* app)
 	IsFullHP=(current_hp>=max_hp);
 	app->SetOpcode(OP_MobHealth);
 	app->size = sizeof(SpawnHPUpdate_Struct2);
+	safe_delete_array(app->pBuffer);
 	app->pBuffer = new uchar[app->size];
 	memset(app->pBuffer, 0, sizeof(SpawnHPUpdate_Struct2));
 	SpawnHPUpdate_Struct2* ds = (SpawnHPUpdate_Struct2*)app->pBuffer;
@@ -1682,101 +1687,6 @@ void Mob::ShowStats(Client* client)
 			target->GetCharmedAvoidance() != 0 ||
 			target->GetCharmedMaxDamage() != 0 ||
 			target->GetCharmedMinDamage() != 0
-		);
-
-		// Spawn Data
-		if (
-			target->GetGrid() ||
-			target->GetSpawnGroupId() ||
-			target->GetSpawnPointID()
-		) {
-			client->Message(
-				Chat::White,
-				fmt::format(
-					"Spawn | Group: {} Point: {} Grid: {}",
-					target->GetSpawnGroupId(),
-					target->GetSpawnPointID(),
-					target->GetGrid()
-				).c_str()
-			);
-		}
-
-		client->Message(
-			Chat::White,
-			fmt::format(
-				"Spawn | Raid: {} Rare: {}",
-				target->IsRaidTarget() ? "Yes" : "No",
-				target->IsRareSpawn() ? "Yes" : "No",
-				target->GetSkipGlobalLoot() ? "Yes" : "No"
-			).c_str()
-		);
-
-		client->Message(
-			Chat::White,
-			fmt::format(
-				"Spawn | Skip Global Loot: {} Ignore Despawn: {}",
-				target->GetSkipGlobalLoot() ? "Yes" : "No",
-				target->GetIgnoreDespawn() ? "Yes" : "No"
-			).c_str()
-		);
-
-		client->Message(
-			Chat::White,
-			fmt::format(
-				"Spawn | Findable: {} Trackable: {} Underwater: {}",
-				target->IsFindable() ? "Yes" : "No",
-				target->IsTrackable() ? "Yes" : "No",
-				target->IsUnderwaterOnly() ? "Yes" : "No"
-			).c_str()
-		);
-
-		client->Message(
-			Chat::White,
-			fmt::format(
-				"Spawn | Stuck Behavior: {} Fly Mode: {}",
-				target->GetStuckBehavior(),
-				static_cast<int>(target->GetFlyMode())
-			).c_str()
-		);
-
-		client->Message(
-			Chat::White,
-			fmt::format(
-				"Spawn | Aggro NPCs: {} Always Aggro: {}",
-				target->GetNPCAggro() ? "Yes" : "No",
-				target->GetAlwaysAggro() ? "Yes" : "No"
-			).c_str()
-		);
-
-		// NPC
-		client->Message(
-			Chat::White,
-			fmt::format(
-				"NPC | ID: {} Entity ID: {} Name: {}{} Level: {}",
-				target->GetNPCTypeID(),
-				target->GetID(),
-				target_name,
-				(
-					!target_last_name.empty() ?
-					fmt::format(" ({})", target_last_name) :
-					""
-				),
-				target->GetLevel()
-			).c_str()
-		);
-
-		// Race / Class / Gender
-		client->Message(
-			Chat::White,
-			fmt::format(
-				"Race: {} ({}) Class: {} ({}) Gender: {} ({})",
-				GetRaceIDName(target->GetRace()),
-				target->GetRace(),
-				GetClassIDName(target->GetClass()),
-				target->GetClass(),
-				GetGenderName(target->GetGender()),
-				target->GetGender()
-			).c_str()
 		);
 
 		// Faction
@@ -2312,6 +2222,101 @@ void Mob::ShowStats(Client* client)
 				).c_str()
 			);
 		}
+
+		// Spawn Data
+		if (
+			target->GetGrid() ||
+			target->GetSpawnGroupId() ||
+			target->GetSpawnPointID()
+		) {
+			client->Message(
+				Chat::White,
+				fmt::format(
+					"Spawn | Group: {} Point: {} Grid: {}",
+					target->GetSpawnGroupId(),
+					target->GetSpawnPointID(),
+					target->GetGrid()
+				).c_str()
+			);
+		}
+
+		client->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Raid: {} Rare: {}",
+				target->IsRaidTarget() ? "Yes" : "No",
+				target->IsRareSpawn() ? "Yes" : "No",
+				target->GetSkipGlobalLoot() ? "Yes" : "No"
+			).c_str()
+		);
+
+		client->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Skip Global Loot: {} Ignore Despawn: {}",
+				target->GetSkipGlobalLoot() ? "Yes" : "No",
+				target->GetIgnoreDespawn() ? "Yes" : "No"
+			).c_str()
+		);
+
+		client->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Findable: {} Trackable: {} Underwater: {}",
+				target->IsFindable() ? "Yes" : "No",
+				target->IsTrackable() ? "Yes" : "No",
+				target->IsUnderwaterOnly() ? "Yes" : "No"
+			).c_str()
+		);
+
+		client->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Stuck Behavior: {} Fly Mode: {}",
+				target->GetStuckBehavior(),
+				static_cast<int>(target->GetFlyMode())
+			).c_str()
+		);
+
+		client->Message(
+			Chat::White,
+			fmt::format(
+				"Spawn | Aggro NPCs: {} Always Aggro: {}",
+				target->GetNPCAggro() ? "Yes" : "No",
+				target->GetAlwaysAggro() ? "Yes" : "No"
+			).c_str()
+		);
+
+		// Race / Class / Gender
+		client->Message(
+			Chat::White,
+			fmt::format(
+				"Race: {} ({}) Class: {} ({}) Gender: {} ({})",
+				GetRaceIDName(target->GetRace()),
+				target->GetRace(),
+				GetClassIDName(target->GetClass()),
+				target->GetClass(),
+				GetGenderName(target->GetGender()),
+				target->GetGender()
+			).c_str()
+		);
+
+		// NPC
+		client->Message(
+			Chat::White,
+			fmt::format(
+				"NPC | ID: {} Entity ID: {} Name: {}{} Level: {}",
+				target->GetNPCTypeID(),
+				target->GetID(),
+				target_name,
+				(
+					!target_last_name.empty() ?
+					fmt::format(" ({})", target_last_name) :
+					""
+				),
+				target->GetLevel()
+			).c_str()
+		);
 	}
 }
 
@@ -2874,6 +2879,7 @@ uint8 Mob::GetDefaultGender(uint16 in_race, uint8 in_gender) {
 		in_race == RACE_FAYGUARD_112 ||
 		in_race == RACE_ERUDITE_GHOST_118 ||
 		in_race == RACE_IKSAR_CITIZEN_139 ||
+		in_race == RACE_SHADE_224 ||
 		in_race == RACE_TROLL_CREW_MEMBER_331 ||
 		in_race == RACE_PIRATE_DECKHAND_332 ||
 		in_race == RACE_GNOME_PIRATE_338 ||
@@ -2886,7 +2892,12 @@ uint8 Mob::GetDefaultGender(uint16 in_race, uint8 in_gender) {
 		in_race == RACE_WARLOCK_OF_HATE_352 ||
 		in_race == RACE_UNDEAD_VAMPIRE_359 ||
 		in_race == RACE_VAMPIRE_360 ||
+		in_race == RACE_SAND_ELF_364 ||
+		in_race == RACE_TAELOSIAN_NATIVE_385 ||
+		in_race == RACE_TAELOSIAN_EVOKER_386 ||
+		in_race == RACE_DRACHNID_461 ||
 		in_race == RACE_ZOMBIE_471 ||
+		in_race == RACE_ELDDAR_489 ||
 		in_race == RACE_VAMPIRE_497 ||
 		in_race == RACE_KERRAN_562 ||
 		in_race == RACE_BROWNIE_568 ||
@@ -2913,11 +2924,22 @@ uint8 Mob::GetDefaultGender(uint16 in_race, uint8 in_gender) {
 		in_race == RACE_SPECTRAL_IKSAR_147 ||
 		in_race == RACE_INVISIBLE_MAN_127 ||
 		in_race == RACE_VAMPYRE_208 ||
+		in_race == RACE_RECUSO_237 ||
 		in_race == RACE_BROKEN_SKULL_PIRATE_333 ||
+		in_race == RACE_INVISIBLE_MAN_OF_ZOMM_600 ||
+		in_race == RACE_OGRE_NPC_MALE_624 ||
+		in_race == RACE_BEEFEATER_667 ||
 		in_race == RACE_ERUDITE_678
 	) { // Male only races
 		return 0;
-	} else if (in_race == RACE_FAIRY_25 || in_race == RACE_PIXIE_56) { // Female only races
+	} else if (
+		in_race == RACE_FAIRY_25 ||
+		in_race == RACE_PIXIE_56 ||
+		in_race == RACE_BANSHEE_487 ||
+		in_race == RACE_BANSHEE_488 ||
+		in_race == RACE_AYONAE_RO_498 ||
+		in_race == RACE_SULLON_ZEK_499
+	) { // Female only races
 		return 1;
 	} else { // Neutral default for NPC Races
 		return 2;
@@ -3160,7 +3182,7 @@ void Mob::SendTargetable(bool on, Client *specific_target) {
 	safe_delete(outapp);
 }
 
-void Mob::CameraEffect(uint32 duration, uint32 intensity, Client *c, bool global) {
+void Mob::CameraEffect(uint32 duration, float intensity, Client *c, bool global) {
 
 
 	if(global == true)
@@ -3177,7 +3199,7 @@ void Mob::CameraEffect(uint32 duration, uint32 intensity, Client *c, bool global
 	auto outapp = new EQApplicationPacket(OP_CameraEffect, sizeof(Camera_Struct));
 	Camera_Struct* cs = (Camera_Struct*) outapp->pBuffer;
 	cs->duration = duration;	// Duration in milliseconds
-	cs->intensity = ((intensity * 6710886) + 1023410176);	// Intensity ranges from 1023410176 to 1090519040, so simplify it from 0 to 10.
+	cs->intensity = intensity;
 
 	if(c)
 		c->QueuePacket(outapp, false, Client::CLIENT_CONNECTED);
@@ -3757,7 +3779,7 @@ bool Mob::HateSummon() {
 
 void Mob::FaceTarget(Mob* mob_to_face /*= 0*/) {
 
-	if (IsBoat()) {
+	if (GetIsBoat()) {
 		return;
 	}
 
@@ -6242,9 +6264,9 @@ void Mob::ClearSpecialAbilities() {
 void Mob::ProcessSpecialAbilities(const std::string &str) {
 	ClearSpecialAbilities();
 
-	std::vector<std::string> sp = SplitString(str, '^');
+	std::vector<std::string> sp = Strings::Split(str, '^');
 	for(auto iter = sp.begin(); iter != sp.end(); ++iter) {
-		std::vector<std::string> sub_sp = SplitString((*iter), ',');
+		std::vector<std::string> sub_sp = Strings::Split((*iter), ',');
 		if(sub_sp.size() >= 2) {
 			int ability = std::stoi(sub_sp[0]);
 			int value = std::stoi(sub_sp[1]);

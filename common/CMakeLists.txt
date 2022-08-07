@@ -7,6 +7,7 @@ SET(common_sources
 	compression.cpp
 	condition.cpp
 	content/world_content_service.cpp
+	discord/discord.cpp
 	crash.cpp
 	crc16.cpp
 	crc32.cpp
@@ -34,6 +35,7 @@ SET(common_sources
 	event_sub.cpp
 	expedition_lockout_timer.cpp
 	extprofile.cpp
+	discord_manager.cpp
 	faction.cpp
 	file_util.cpp
 	guild_base.cpp
@@ -75,7 +77,7 @@ SET(common_sources
 	shareddb.cpp
 	skills.cpp
 	spdat.cpp
-	string_util.cpp
+	strings.cpp
 	struct_strategy.cpp
 	textures.cpp
 	timer.cpp
@@ -183,6 +185,7 @@ SET(repositories
 	repositories/base/base_doors_repository.h
 	repositories/base/base_dynamic_zones_repository.h
 	repositories/base/base_dynamic_zone_members_repository.h
+	repositories/base/base_dynamic_zone_templates_repository.h
 	repositories/base/base_eventlog_repository.h
 	repositories/base/base_expeditions_repository.h
 	repositories/base/base_expedition_lockouts_repository.h
@@ -356,6 +359,7 @@ SET(repositories
 	repositories/doors_repository.h
 	repositories/dynamic_zones_repository.h
 	repositories/dynamic_zone_members_repository.h
+	repositories/dynamic_zone_templates_repository.h
 	repositories/eventlog_repository.h
 	repositories/expeditions_repository.h
 	repositories/expedition_lockouts_repository.h
@@ -470,7 +474,6 @@ SET(repositories
 
 SET(common_headers
 	additive_lagged_fibonacci_engine.h
-	any.h
 	base_packet.h
 	base_data.h
 	bodytypes.h
@@ -491,6 +494,8 @@ SET(common_headers
 	database_schema.h
 	dbcore.h
 	deity.h
+	discord/discord.h
+	discord_manager.h
 	dynamic_zone_base.h
 	emu_constants.h
 	emu_limits.h
@@ -575,7 +580,7 @@ SET(common_headers
 	shareddb.h
 	skills.h
 	spdat.h
-    string_util.h
+	strings.h
 	struct_strategy.h
 	tasks.h
 	textures.h

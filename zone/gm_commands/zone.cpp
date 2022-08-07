@@ -10,7 +10,7 @@ void command_zone(Client *c, const Seperator *sep)
 
 	std::string zone_identifier = sep->arg[1];
 
-	if (StringIsNumber(zone_identifier) && zone_identifier == "0") {
+	if (Strings::IsNumber(zone_identifier) && zone_identifier == "0") {
 		c->Message(Chat::White, "Sending you to the safe coordinates of this zone.");
 
 		c->MovePC(
@@ -41,7 +41,7 @@ void command_zone(Client *c, const Seperator *sep)
 		return;
 	}
 
-	auto min_status = database.GetMinStatus(zone_id, 0);
+	auto min_status = content_db.GetMinStatus(zone_id, 0);
 	if (c->Admin() < min_status) {
 		c->Message(Chat::White, "Your status is not high enough to go to this zone.");
 		return;

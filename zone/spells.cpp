@@ -74,7 +74,7 @@ Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
 #include "../common/rulesys.h"
 #include "../common/skills.h"
 #include "../common/spdat.h"
-#include "../common/string_util.h"
+#include "../common/strings.h"
 #include "../common/data_verification.h"
 #include "../common/misc_functions.h"
 
@@ -302,8 +302,7 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 	casting_spell_id = spell_id;
 	casting_spell_slot = slot;
 	casting_spell_inventory_slot = item_slot;
-	if(casting_spell_timer != 0xFFFFFFFF)
-	{
+	if (casting_spell_timer != 0xFFFFFFFF) {
 		casting_spell_timer = timer;
 		casting_spell_timer_duration = timer_duration;
 	}
@@ -334,6 +333,7 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 	//		Chat::SpellFailure,
 	//		(IsClient() ? FilterPCSpells : FilterNPCSpells),
 	//		(fizzle_msg == MISS_NOTE ? MISSED_NOTE_OTHER : SPELL_FIZZLE_OTHER),
+	//		0,
 	//		/*
 	//			MessageFormat: You miss a note, bringing your song to a close! (if missed note)
 	//			MessageFormat: A missed note brings %1's song to a close!
@@ -352,13 +352,16 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 	// if this spell doesn't require a target, or if it's an optional target
 	// and a target wasn't provided, then it's us; unless TGB is on and this
 	// is a TGB compatible spell.
-	if((IsGroupSpell(spell_id) ||
-		spell.target_type == ST_AEClientV1 ||
-		spell.target_type == ST_Self ||
-		spell.target_type == ST_AECaster ||
-		spell.target_type == ST_Ring ||
-		spell.target_type == ST_Beam) && target_id == 0)
-	{
+	if (
+		(
+			IsGroupSpell(spell_id) ||
+			spell.target_type == ST_AEClientV1 ||
+			spell.target_type == ST_Self ||
+			spell.target_type == ST_AECaster ||
+			spell.target_type == ST_Ring ||
+			spell.target_type == ST_Beam
+		) && target_id == 0
+	) {
 		LogSpells("Spell [{}] auto-targeted the caster. Group? [{}], target type [{}]", spell_id, IsGroupSpell(spell_id), spell.target_type);
 		target_id = GetID();
 	}
@@ -377,8 +380,7 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 		if (cast_time) {
 			cast_time = GetActSpellCasttime(spell_id, cast_time);
 		}
-	}
-	else {
+	} else {
 		orgcasttime = cast_time;
 	}
 
@@ -408,23 +410,21 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 	// If you're at full mana, let it cast even if you dont have enough mana
 
 	// we calculated this above, now enforce it
-	if(mana_cost > 0 && slot != CastingSlot::Item) {
+	if (mana_cost > 0 && slot != CastingSlot::Item) {
 		int my_curmana = GetMana();
 		int my_maxmana = GetMaxMana();
-		if(my_curmana < mana_cost) {// not enough mana
+		if (my_curmana < mana_cost) {// not enough mana
 			//this is a special case for NPCs with no mana...
-			if(IsNPC() && my_curmana == my_maxmana){
+			if (IsNPC() && my_curmana == my_maxmana){
 				mana_cost = 0;
-			}
-			else {
+			} else {
 				//The client will prevent spell casting if insufficient mana, this is only for serverside enforcement.
 				LogSpells("Spell Error not enough mana spell=[{}] mymana=[{}] cost=[{}]\n", spell_id, my_curmana, mana_cost);
-				if(IsClient()) {
+				if (IsClient()) {
 					//clients produce messages... npcs should not for this case
 					MessageString(Chat::Red, INSUFFICIENT_MANA);
 					InterruptSpell();
-				}
-				else {
+				} else {
 					InterruptSpell(0, 0, 0);	//the 0 args should cause no messages
 				}
 				ZeroCastingVars();
@@ -463,22 +463,24 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 	// ok we know it has a cast time so we can start the timer now
 	spellend_timer.Start(cast_time);
 
-	if (IsAIControlled())
-	{
+	if (IsAIControlled()) {
 		SetRunAnimSpeed(0);
 		pMob = entity_list.GetMob(target_id);
-		if (pMob && this != pMob)
+		if (pMob && this != pMob) {
 			FaceTarget(pMob);
+		}
 	}
 
 	// if we got here we didn't fizzle, and are starting our cast
-	if (oSpellWillFinish)
+	if (oSpellWillFinish) {
 		*oSpellWillFinish = Timer::GetCurrentTime() + cast_time + 100;
+	}
 
-	if (IsClient() && slot == CastingSlot::Item && item_slot != 0xFFFFFFFF) {
+	if (RuleB(Spells, UseItemCastMessage) && IsClient() && slot == CastingSlot::Item && item_slot != 0xFFFFFFFF) {
 		auto item = CastToClient()->GetInv().GetItem(item_slot);
-		if (item && item->GetItem())
-			MessageString(Chat::Spells, BEGINS_TO_GLOW, item->GetItem()->Name);
+		if (item && item->GetItem()) {
+			MessageString(Chat::FocusEffect, BEGINS_TO_GLOW, item->GetItem()->Name);
+		}
 	}
 
 	return(true);
@@ -1286,7 +1288,7 @@ void Mob::StopCastSpell(int32 spell_id, bool send_spellbar_enable)
 // just check timed spell specific things before passing off to SpellFinished
 // which figures out proper targets etc
 void Mob::CastedSpellFinished(uint16 spell_id, uint32 target_id, CastingSlot slot,
-							uint16 mana_used, uint32 inventory_slot, int16 resist_adjust)
+							int32  mana_used, uint32 inventory_slot, int16 resist_adjust)
 {
 	if (!IsValidSpell(spell_id))
 	{
@@ -2196,11 +2198,14 @@ bool Mob::DetermineSpellTargets(uint16 spell_id, Mob *&spell_target, Mob *&ae_ce
 		case ST_TargetsTarget:
 		{
 			Mob *spell_target_tot = spell_target ? spell_target->GetTarget() : nullptr;
-			if(!spell_target_tot)
+			if (!spell_target_tot) {
 				return false;
+			}
+
 			//Verfied from live - Target's Target needs to be in combat range to recieve the effect
-			if (!CombatRange(spell_target) && RuleB(Spell, TargetsTargetRequireMeleeRange))
+			if (RuleB(Spells, TargetsTargetRequiresCombatRange) && !CombatRange(spell_target)) {
 				return false;
+			}
 
 			spell_target = spell_target_tot;
 			CastAction = SingleTarget;
@@ -2255,7 +2260,7 @@ bool Mob::DetermineSpellTargets(uint16 spell_id, Mob *&spell_target, Mob *&ae_ce
 // only used from CastedSpellFinished, and procs
 // we can't interrupt in this, or anything called from this!
 // if you need to abort the casting, return false
-bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, uint16 mana_used,
+bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, int32 mana_used,
 						uint32 inventory_slot, int16 resist_adjust, bool isproc, int level_override,
 						uint32 timer, uint32 timer_duration, bool from_casted_spell, uint32 aa_id)
 {
@@ -5558,7 +5563,7 @@ bool Client::SpellGlobalCheck(uint16 spell_id, uint32 character_id) {
 	query = fmt::format(
 		"SELECT value FROM quest_globals WHERE charid = {} AND name = '{}'",
 		character_id,
-		EscapeString(spell_global_name)
+		Strings::Escape(spell_global_name)
 	);
 
 	results = database.QueryDatabase(query);
@@ -5586,7 +5591,7 @@ bool Client::SpellGlobalCheck(uint16 spell_id, uint32 character_id) {
 
 	row = results.begin();
 	std::string global_value = row[0];
-	if (StringIsNumber(global_value) && StringIsNumber(spell_global_value)) {
+	if (Strings::IsNumber(global_value) && Strings::IsNumber(spell_global_value)) {
 		if (std::stoi(global_value) >= std::stoi(spell_global_value)) {
 			return true; // If value is greater than or equal to spell global value, allow scribing.
 		}
@@ -5640,11 +5645,11 @@ bool Client::SpellBucketCheck(uint16 spell_id, uint32 character_id) {
 
 	auto bucket_value = DataBucket::GetData(new_bucket_name);
 	if (!bucket_value.empty()) {
-		if (StringIsNumber(bucket_value) && StringIsNumber(spell_bucket_value)) {
+		if (Strings::IsNumber(bucket_value) && Strings::IsNumber(spell_bucket_value)) {
 			if (std::stoi(bucket_value) >= std::stoi(spell_bucket_value)) {
 				return true; // If value is greater than or equal to spell bucket value, allow scribing.
 			}
-		} else {				
+		} else {
 			if (bucket_value == spell_bucket_value) {
 				return true; // If value is equal to spell bucket value, allow scribing.
 			}
@@ -5659,11 +5664,11 @@ bool Client::SpellBucketCheck(uint16 spell_id, uint32 character_id) {
 
 	bucket_value = DataBucket::GetData(old_bucket_name);
 	if (!bucket_value.empty()) {
-		if (StringIsNumber(bucket_value) && StringIsNumber(spell_bucket_value)) {
+		if (Strings::IsNumber(bucket_value) && Strings::IsNumber(spell_bucket_value)) {
 			if (std::stoi(bucket_value) >= std::stoi(spell_bucket_value)) {
 				return true; // If value is greater than or equal to spell bucket value, allow scribing.
 			}
-		} else {				
+		} else {
 			if (bucket_value == spell_bucket_value) {
 				return true; // If value is equal to spell bucket value, allow scribing.
 			}

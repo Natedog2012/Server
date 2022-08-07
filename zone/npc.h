@@ -349,6 +349,7 @@ public:
 	int32				GetEquipmentMaterial(uint8 material_slot) const;
 
 	void				NextGuardPosition();
+	void				SaveGuardSpot(bool ClearGuardSpot = false);
 	void				SaveGuardSpot(const glm::vec4 &pos);
 	inline bool			IsGuarding() const { return(m_GuardPoint.w != 0); }
 	void				SaveGuardSpotCharm();
@@ -488,6 +489,7 @@ public:
 	void	SetHeroForgeModel(uint32 model) { herosforgemodel = model; }
 
 	bool IsRaidTarget() const { return raid_target; };
+	bool IsRareSpawn() const { return rare_spawn; }
 	void ResetHPUpdateTimer() { send_hp_update_timer.Start(); }
 
 	bool IgnoreDespawn() { return ignore_despawn; }

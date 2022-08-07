@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 #include "../common/features.h"
 #include "../common/rulesys.h"
-#include "../common/string_util.h"
+#include "../common/strings.h"
 #include "../common/misc_functions.h"
 #include "../common/eqemu_logsys.h"
 
@@ -116,7 +116,7 @@ void NPC::DisplayWaypointInfo(Client *client) {
 					current_waypoint.pause ?
 					fmt::format(
 						"{} ({})",
-						ConvertSecondsToTime(current_waypoint.pause),
+						Strings::SecondsToTime(current_waypoint.pause),
 						current_waypoint.pause
 					) :
 					""
@@ -557,6 +557,20 @@ void NPC::SetWaypointPause()
 	}
 }
 
+void NPC::SaveGuardSpot(bool ClearGuardSpot) {
+	if (ClearGuardSpot) {
+		LogAI("Clearing guard order.");
+		m_GuardPoint = glm::vec4();
+	} else {
+		m_GuardPoint = m_Position;
+
+		if (m_GuardPoint.w == 0) {
+			m_GuardPoint.w = 0.0001; //hack to make IsGuarding simpler
+		}
+		LogAI("Setting guard position to {0}", to_string(static_cast<glm::vec3>(m_GuardPoint)));
+	}
+}
+
 void NPC::SaveGuardSpot(const glm::vec4 &pos)
 {
 	m_GuardPoint = pos;
@@ -792,6 +806,10 @@ float Mob::GetFixedZ(const glm::vec3 &destination, int32 z_find_offset) {
 
 void Mob::FixZ(int32 z_find_offset /*= 5*/, bool fix_client_z /*= false*/) {
 	if (IsClient() && !fix_client_z) {
+		return;
+	}
+
+	if (GetIsBoat()) {
 		return;
 	}
 
@@ -1138,7 +1156,7 @@ void ZoneDatabase::AddWP(Client *client, uint32 gridid, uint32 wpnum, const glm:
 * DeleteWaypoint - Removes a specific waypoint from the grid
 *	grid_id:	The ID number of the grid whose wp is being deleted
 *	wp_num:		The number of the waypoint being deleted
-*	zoneid:		The ID number of the zone that contains the waypoint being deleted
+*	zoneid:		The ID number of the zone that Contains the waypoint being deleted
 */
 void ZoneDatabase::DeleteWaypoint(Client *client, uint32 grid_num, uint32 wp_num, uint16 zoneid)
 {

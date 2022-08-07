@@ -15,7 +15,7 @@
 #include "zone.h"
 #include "string_ids.h"
 
-#include "../common/string_util.h"
+#include "../common/strings.h"
 #include "../common/rulesys.h"
 
 extern volatile bool is_zone_loaded;
@@ -2616,7 +2616,7 @@ int64 Merc::GetFocusEffect(focusType type, uint16 spell_id, bool from_buff_tic) 
 			realTotal = CalcFocusEffect(type, UsedFocusID, spell_id);
 
 		if (realTotal != 0 && UsedItem)
-			MessageString(Chat::Spells, BEGINS_TO_GLOW, UsedItem->Name);
+			MessageString(Chat::FocusEffect, BEGINS_TO_GLOW, UsedItem->Name);
 	}
 
 	//Check if spell focus effect exists for the client.

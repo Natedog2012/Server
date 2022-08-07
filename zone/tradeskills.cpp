@@ -26,7 +26,7 @@
 #endif
 
 #include "../common/rulesys.h"
-#include "../common/string_util.h"
+#include "../common/strings.h"
 
 #include "queryserv.h"
 #include "quest_parser_collection.h"
@@ -134,7 +134,7 @@ void Object::HandleAugmentation(Client* user, const AugmentItem_Struct* in_augme
 
 			EQ::ItemInstance *aug = tobe_auged->GetAugment(slot);
 			if(aug) {
-				std::vector<EQ::Any> args;
+				std::vector<std::any> args;
 				args.push_back(aug);
 				parse->EventItem(EVENT_AUGMENT_ITEM, user, tobe_auged, nullptr, "", slot, &args);
 
@@ -164,7 +164,7 @@ void Object::HandleAugmentation(Client* user, const AugmentItem_Struct* in_augme
 				user->Message(Chat::Red, "Error: Wrong augmentation distiller for safely removing this augment.");
 				return;
 			}
-			std::vector<EQ::Any> args;
+			std::vector<std::any> args;
 			args.push_back(aug);
 			parse->EventItem(EVENT_UNAUGMENT_ITEM, user, tobe_auged, nullptr, "", slot, &args);
 
@@ -507,6 +507,15 @@ void Object::HandleAutoCombine(Client* user, const RecipeAutoCombine_Struct* rac
 	if ((spec.must_learn&0xf) && !spec.has_learnt) {
 		// Made up message for the client. Just giving a DNC is the other option.
 		user->Message(Chat::LightBlue, "You need to learn how to combine these first.");
+		user->QueuePacket(outapp);
+		safe_delete(outapp);
+		return;
+	}
+
+	// Character does not have the required skill.
+	if (spec.skill_needed > 0 && user->GetSkill(spec.tradeskill) < spec.skill_needed) {
+		// Notify client.
+		user->Message(Chat::Red, "You are not skilled enough.");
 		user->QueuePacket(outapp);
 		safe_delete(outapp);
 		return;
@@ -1051,9 +1060,9 @@ bool Client::TradeskillExecute(DBTradeskillRecipe_Struct *spec) {
 		itr = spec->onsuccess.begin();
 		while(itr != spec->onsuccess.end() && !spec->quest) {
 
-			SummonItem(itr->first, itr->second);
 			item = database.GetItem(itr->first);
 			if (item) {
+				SummonItem(itr->first, itr->second);
 				if (GetGroup()) {
 					entity_list.MessageGroup(this, true, Chat::Skills, "%s has successfully fashioned %s!", GetName(), item->Name);
 				}

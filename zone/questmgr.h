@@ -338,6 +338,7 @@ public:
 	int getspellstat(uint32 spell_id, std::string stat_identifier, uint8 slot = 0);
 	const SPDat_Spell_Struct *getspell(uint32 spell_id);
 	std::string getenvironmentaldamagename(uint8 damage_type);
+	void TrackNPC(uint32 entity_id);
 
 	Client *GetInitiator() const;
 	NPC *GetNPC() const;
@@ -355,7 +356,6 @@ public:
 	bool createBot(const char *name, const char *lastname, uint8 level, uint16 race, uint8 botclass, uint8 gender);
 #endif
 
-	inline uint16 GetMana(uint32 spell_id) { return( spells[spell_id].mana); }
 
 private:
 	std::stack<running_quest> quests_running_;

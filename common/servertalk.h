@@ -169,6 +169,8 @@
 #define ServerOP_DzExpireWarning              0x045b
 #define ServerOP_DzCreated                    0x045c
 #define ServerOP_DzDeleted                    0x045d
+#define ServerOP_DzSetSwitchID                0x045e
+#define ServerOP_DzMovePC                     0x045f
 
 #define ServerOP_LSInfo				0x1000
 #define ServerOP_LSStatus			0x1001
@@ -219,6 +221,7 @@
 #define ServerOP_UCSServerStatusReply 0x4005
 #define ServerOP_UCSServerStatusRequest 0x4006
 #define ServerOP_UpdateSchedulerEvents 0x4007
+#define ServerOP_DiscordWebhookMessage 0x4008
 
 #define ServerOP_ReloadAAData 0x4100
 #define ServerOP_ReloadAlternateCurrencies 0x4101
@@ -241,6 +244,7 @@
 #define ServerOP_ReloadVeteranRewards 0x4118
 #define ServerOP_ReloadWorld 0x4119
 #define ServerOP_ReloadZonePoints 0x4120
+#define ServerOP_ReloadDzTemplates 0x4121
 
 #define ServerOP_CZDialogueWindow 0x4500
 #define ServerOP_CZLDoNUpdate 0x4501
@@ -1283,7 +1287,7 @@ struct ServerLeaderboardRequest_Struct
 struct ServerCameraShake_Struct
 {
 	uint32 duration; // milliseconds
-	uint32 intensity; // number from 1-10
+	float intensity;
 };
 
 struct ServerMailMessageHeader_Struct {
@@ -1447,6 +1451,11 @@ struct QSMerchantLogTransaction_Struct {
 	MoneyUpdate_Struct		char_money;
 	uint16 char_count;
 	QSTransactionItems_Struct items[0];
+};
+
+struct DiscordWebhookMessage_Struct {
+	uint32 webhook_id;
+	char message[2000];
 };
 
 struct QSGeneralQuery_Struct {
@@ -1665,6 +1674,13 @@ struct ServerDzMemberStatuses_Struct {
 	ServerDzMemberStatusEntry_Struct entries[0];
 };
 
+struct ServerDzMovePC_Struct {
+	uint32 dz_id;
+	uint16 sender_zone_id;
+	uint16 sender_instance_id;
+	uint32 character_id;
+};
+
 struct ServerExpeditionLockout_Struct {
 	uint32 expedition_id;
 	uint64 expire_time;
@@ -1744,6 +1760,11 @@ struct ServerDzLocation_Struct {
 	float  x;
 	float  z;
 	float  heading;
+};
+
+struct ServerDzSwitchID_Struct {
+	uint32 dz_id;
+	int    dz_switch_id;
 };
 
 struct ServerDzMember_Struct {

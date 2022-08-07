@@ -318,6 +318,16 @@ void Lua_NPC::NextGuardPosition() {
 	self->NextGuardPosition();
 }
 
+void Lua_NPC::SaveGuardSpot() {
+	Lua_Safe_Call_Void();
+	self->SaveGuardSpot();
+}
+
+void Lua_NPC::SaveGuardSpot(bool clear) {
+	Lua_Safe_Call_Void();
+	self->SaveGuardSpot(clear);
+}
+
 void Lua_NPC::SaveGuardSpot(float x, float y, float z, float heading) {
 	Lua_Safe_Call_Void();
 	self->SaveGuardSpot(glm::vec4(x, y, z, heading));
@@ -659,6 +669,12 @@ float Lua_NPC::GetNPCStat(const char* identifier)
 	return self->GetNPCStat(identifier);
 }
 
+bool Lua_NPC::IsRareSpawn()
+{
+	Lua_Safe_Call_Bool();
+	return self->IsRareSpawn();
+}
+
 luabind::scope lua_register_npc() {
 	return luabind::class_<Lua_NPC, Lua_Mob>("NPC")
 	.def(luabind::constructor<>())
@@ -743,6 +759,7 @@ luabind::scope lua_register_npc() {
 	.def("IsGuarding", (bool(Lua_NPC::*)(void))&Lua_NPC::IsGuarding)
 	.def("IsOnHatelist", (bool(Lua_NPC::*)(Lua_Mob))&Lua_NPC::IsOnHatelist)
 	.def("IsRaidTarget", (bool(Lua_NPC::*)(void))&Lua_NPC::IsRaidTarget)
+	.def("IsRareSpawn", (bool(Lua_NPC::*)(void))&Lua_NPC::IsRareSpawn)
 	.def("IsTaunting", (bool(Lua_NPC::*)(void))&Lua_NPC::IsTaunting)
 	.def("MerchantCloseShop", (void(Lua_NPC::*)(void))&Lua_NPC::MerchantCloseShop)
 	.def("MerchantOpenShop", (void(Lua_NPC::*)(void))&Lua_NPC::MerchantOpenShop)
@@ -759,6 +776,8 @@ luabind::scope lua_register_npc() {
 	.def("RemoveItem", (void(Lua_NPC::*)(int,int))&Lua_NPC::RemoveItem)
 	.def("RemoveItem", (void(Lua_NPC::*)(int,int,int))&Lua_NPC::RemoveItem)
 	.def("ResumeWandering", (void(Lua_NPC::*)(void))&Lua_NPC::ResumeWandering)
+	.def("SaveGuardSpot", (void(Lua_NPC::*)(void))&Lua_NPC::SaveGuardSpot)
+	.def("SaveGuardSpot", (void(Lua_NPC::*)(bool))&Lua_NPC::SaveGuardSpot)
 	.def("SaveGuardSpot", (void(Lua_NPC::*)(float,float,float,float))&Lua_NPC::SaveGuardSpot)
 	.def("ScaleNPC", (void(Lua_NPC::*)(uint8))&Lua_NPC::ScaleNPC)
 	.def("SetCopper", (void(Lua_NPC::*)(uint32))&Lua_NPC::SetCopper)

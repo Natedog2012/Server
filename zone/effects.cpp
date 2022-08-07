@@ -586,7 +586,7 @@ bool Client::TrainDiscipline(uint32 itemid) {
 
 	uint32 spell_id = item->Scroll.Effect;
 	if(!IsValidSpell(spell_id)) {
-		Message(Chat::Red, "This tome contains invalid knowledge.");
+		Message(Chat::Red, "This tome Contains invalid knowledge.");
 		return(false);
 	}
 
@@ -664,7 +664,7 @@ bool Client::MemorizeSpellFromItem(uint32 item_id) {
 
 	uint32 spell_id = item->Scroll.Effect;
 	if(!IsValidSpell(spell_id)) {
-		Message(Chat::Red, "This scroll contains invalid knowledge.");
+		Message(Chat::Red, "This scroll Contains invalid knowledge.");
 		return false;
 	}
 
@@ -772,7 +772,7 @@ bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 
 	//make sure we can use it..
 	if(!IsValidSpell(spell_id)) {
-		Message(Chat::Red, "This tome contains invalid knowledge.");
+		Message(Chat::Red, "This tome Contains invalid knowledge.");
 		return(false);
 	}
 
@@ -818,7 +818,7 @@ bool Client::UseDiscipline(uint32 spell_id, uint32 target) {
 			Chat::White,
 			fmt::format(
 				"You can use this discipline in {}.",
-				ConvertSecondsToTime(remaining_time)
+				Strings::SecondsToTime(remaining_time)
 			).c_str()
 		);
 		return false;
@@ -1253,11 +1253,9 @@ void EntityList::AEAttack(
 			) {
 
 			for (int i = 0; i < attack_rounds; i++) {
-
 				if (!attacker->IsClient() || attacker->GetClass() == MONK || attacker->GetClass() == RANGER) {
 					attacker->Attack(current_mob, Hand, false, false, is_from_spell);
-				}
-				else {
+				} else {
 					attacker->CastToClient()->DoAttackRounds(current_mob, Hand, is_from_spell);
 				}
 			}
