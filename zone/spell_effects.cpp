@@ -6479,7 +6479,7 @@ uint16 Client::GetSympatheticFocusEffect(focusType type, uint16 spell_id) {
 
 int64 Client::GetFocusEffect(focusType type, uint16 spell_id, Mob *caster, bool from_buff_tic)
 {
-	if (IsBardSong(spell_id) && type != focusFcBaseEffects && type != focusSpellDuration && type != focusReduceRecastTime) {
+	if (IsBardSong(spell_id) && type != focusFcBaseEffects && type != focusSpellDuration && type != focusReduceRecastTime && type != focusImprovedDamage3) {
 		return 0;
 	}
 
