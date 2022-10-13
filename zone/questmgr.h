@@ -114,8 +114,8 @@ public:
 	void changedeity(int deity_id);
 	void exp(int amt);
 	void level(int newlevel);
-	void traindisc(int discipline_tome_item_id);
-	bool isdisctome(int item_id);
+	void traindisc(uint32 discipline_tome_item_id);
+	bool isdisctome(uint32 item_id);
 	std::string getracename(uint16 race_id);
 	std::string getspellname(uint32 spell_id);
 	std::string getskillname(int skill_id);
@@ -152,6 +152,7 @@ public:
 	void attacknpctype(int npc_type_id);
 	void save();
 	void faction(int faction_id, int faction_value, int temp);
+	void rewardfaction(int faction_id, int faction_value);
 	void setsky(uint8 new_sky);
 	void setguild(uint32 new_guild_id, uint8 new_rank);
 	void CreateGuild(const char *guild_name, const char *leader);
@@ -211,8 +212,8 @@ public:
 	void playerfeature(char *feature, int setting);
 	void npcfeature(char *feature, int setting);
 	void popup(const char *title, const char *text, uint32 popupid, uint32 buttons, uint32 Duration);
-	void taskselector(int taskcount, int *tasks);
-	void tasksetselector(int tasksettid);
+	void taskselector(const std::vector<int>& tasks, bool ignore_cooldown = false);
+	void tasksetselector(int tasksettid, bool ignore_cooldown = false);
 	void enabletask(int taskcount, int *tasks);
 	void disabletask(int taskcount, int *tasks);
 	bool istaskenabled(int taskid);
@@ -221,7 +222,6 @@ public:
 	int gettaskactivitydonecount(int task, int activity);
 	void updatetaskactivity(int task, int activity, int count, bool ignore_quest_update = false);
 	void resettaskactivity(int task, int activity);
-	void taskexploredarea(int exploreid);
 	void assigntask(int taskid, bool enforce_level_requirement = false);
 	void failtask(int taskid);
 	int tasktimeleft(int taskid);
@@ -256,7 +256,7 @@ public:
 	void UpdateSpawnTimer(uint32 id, uint32 newTime);
 	void MerchantSetItem(uint32 NPCid, uint32 itemid, uint32 quantity = 0);
 	uint32 MerchantCountItem(uint32 NPCid, uint32 itemid);
-	uint16 CreateInstance(const char *zone, int16 version, uint32 duration);
+	uint16 CreateInstance(const char *zone_short_name, int16 instance_version, uint32 duration);
 	void UpdateInstanceTimer(uint16 instance_id, uint32 new_duration);
 	void UpdateZoneHeader(std::string type, std::string value);
 	uint32 GetInstanceTimer();
@@ -327,10 +327,10 @@ public:
 	void ReloadZoneStaticData();
 	std::string secondstotime(int duration);
 	std::string gethexcolorcode(std::string color_name);
-	double GetAAEXPModifierByCharID(uint32 character_id, uint32 zone_id) const;
-	double GetEXPModifierByCharID(uint32 character_id, uint32 zone_id) const;
-	void SetAAEXPModifierByCharID(uint32 character_id, uint32 zone_id, double aa_modifier);
-	void SetEXPModifierByCharID(uint32 character_id, uint32 zone_id, double exp_modifier);
+	double GetAAEXPModifierByCharID(uint32 character_id, uint32 zone_id, int16 instance_version = -1) const;
+	double GetEXPModifierByCharID(uint32 character_id, uint32 zone_id, int16 instance_version = -1) const;
+	void SetAAEXPModifierByCharID(uint32 character_id, uint32 zone_id, double aa_modifier, int16 instance_version = -1);
+	void SetEXPModifierByCharID(uint32 character_id, uint32 zone_id, double exp_modifier, int16 instance_version = -1);
 	std::string getgendername(uint32 gender_id);
 	std::string getdeityname(uint32 deity_id);
 	std::string getinventoryslotname(int16 slot_id);
@@ -339,6 +339,9 @@ public:
 	const SPDat_Spell_Struct *getspell(uint32 spell_id);
 	std::string getenvironmentaldamagename(uint8 damage_type);
 	void TrackNPC(uint32 entity_id);
+	int GetRecipeMadeCount(uint32 recipe_id);
+	std::string GetRecipeName(uint32 recipe_id);
+	bool HasRecipeLearned(uint32 recipe_id);
 
 	Client *GetInitiator() const;
 	NPC *GetNPC() const;

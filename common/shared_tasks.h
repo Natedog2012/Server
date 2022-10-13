@@ -3,6 +3,7 @@
 
 #include "database.h"
 #include "timer.h"
+#include "tasks.h"
 #include "types.h"
 #include "repositories/character_data_repository.h"
 #include "repositories/tasks_repository.h"
@@ -79,8 +80,8 @@ struct SharedTaskMember {
 
 // used in shared task requests to validate group/raid members
 struct SharedTaskRequest {
-	int  lowest_level;
-	int  highest_level;
+	uint32_t lowest_level;
+	uint32_t highest_level;
 	uint32_t leader_id;
 	SharedTaskRequestGroupType group_type;
 	std::vector<uint32_t> character_ids;
@@ -108,8 +109,10 @@ struct SharedTaskActivityStateEntry {
 	uint32 max_done_count; // goalcount
 	uint32 updated_time;
 	uint32 completed_time;
+	int    req_activity_id;
 	int    step;
 	bool   optional;
+	ActivityState activity_state; // world only uses Hidden and Completed states
 };
 
 struct ServerSharedTaskActivityUpdate_Struct {

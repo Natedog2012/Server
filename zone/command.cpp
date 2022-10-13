@@ -19,7 +19,7 @@
 #include "../common/strings.h"
 #include "../common/say_link.h"
 #include "../common/net/eqstream.h"
-#include "../common/file_util.h"
+#include "../common/file.h"
 #include "../common/repositories/dynamic_zones_repository.h"
 
 #include "data_bucket.h"
@@ -53,6 +53,7 @@ int (*command_dispatch)(Client *,std::string) = command_notavail;
 std::map<std::string, CommandRecord *> commandlist;
 std::map<std::string, std::string> commandaliases;
 std::vector<CommandRecord *> command_delete_list;
+std::map<std::string, uint8> commands_map;
 
 /*
  * command_notavail
@@ -82,7 +83,9 @@ int command_notavail(Client *c, std::string message)
 
 int command_init(void)
 {
-	commandaliases.clear();
+	if (!commandaliases.empty()) {
+		command_deinit();
+	}
 
 	if (
 		command_add("acceptrules", "[acceptrules] - Accept the EQEmu Agreement", AccountStatus::Player, command_acceptrules) ||
@@ -137,12 +140,14 @@ int command_init(void)
 		command_add("endurance", "Restores your or your target's endurance.", AccountStatus::Guide, command_endurance) ||
 		command_add("equipitem", "[slotid(0-21)] - Equip the item on your cursor into the specified slot", AccountStatus::Guide, command_equipitem) ||
 		command_add("faction", "[Find (criteria | all ) | Review (criteria | all) | Reset (id)] - Resets Player's Faction", AccountStatus::QuestTroupe, command_faction) ||
+		command_add("factionassociation", "[factionid] [amount] - triggers a faction hits via association", AccountStatus::GMLeadAdmin, command_faction_association) ||
 		command_add("feature", "Change your or your target's feature's temporarily", AccountStatus::QuestTroupe, command_feature) ||
 		command_add("findaliases", "[Search Criteria]- Searches for available command aliases, by alias or command", AccountStatus::Player, command_findaliases) ||
 		command_add("findclass", "[Search Criteria] - Search for a class", AccountStatus::Guide, command_findclass) ||
 		command_add("findfaction", "[Search Criteria] - Search for a faction", AccountStatus::Guide, command_findfaction) ||
 		command_add("findnpctype", "[Search Criteria] - Search database NPC types", AccountStatus::GMAdmin, command_findnpctype) ||
 		command_add("findrace", "[Search Criteria] - Search for a race", AccountStatus::Guide, command_findrace) ||
+		command_add("findrecipe", "[Search Criteria] - Search for a recipe", AccountStatus::Guide, command_findrecipe) ||
 		command_add("findskill", "[Search Criteria] - Search for a skill", AccountStatus::Guide, command_findskill) ||
 		command_add("findspell", "[Search Criteria] - Search for a spell", AccountStatus::Guide, command_findspell) ||
 		command_add("findtask", "[Search Criteria] - Search for a task", AccountStatus::Guide, command_findtask) ||
@@ -198,6 +203,7 @@ int command_init(void)
 		command_add("level", "[Level] - Set your target's level", AccountStatus::Steward, command_level) ||
 		command_add("list", "[npcs|players|corpses|doors|objects] [search] - Search entities", AccountStatus::ApprenticeGuide, command_list) ||
 		command_add("listpetition", "List petitions", AccountStatus::Guide, command_listpetition) ||
+		command_add("lootsim", "[npc_type_id] [loottable_id] [iterations] - Runs benchmark simulations using real loot logic to report numbers and data", AccountStatus::GMImpossible, command_lootsim) ||
 		command_add("load_shared_memory", "[shared_memory_name] - Reloads shared memory and uses the input as output", AccountStatus::GMImpossible, command_load_shared_memory) ||
 		command_add("loc", "Print out your or your target's current location and heading", AccountStatus::Player, command_loc) ||
 		command_add("logs",  "Manage anything to do with logs", AccountStatus::GMImpossible, command_logs) ||
@@ -280,7 +286,7 @@ int command_init(void)
 		command_add("setendurance", "[Endurance] - Set your or your target's Endurance", AccountStatus::GMAdmin, command_setendurance) ||
 		command_add("setfaction", "[Faction ID] - Sets targeted NPC's faction in the database", AccountStatus::GMAreas, command_setfaction) ||
 		command_add("sethp", "[Health] - Set your or your target's Health", AccountStatus::GMAdmin, command_sethp) ||
-		command_add("setlanguage", "[language ID] [value] - Set your target's language skillnum to value", AccountStatus::Guide, command_setlanguage) ||
+		command_add("setlanguage", "[Language ID] [Value] - Set your or your target's Language by ID to Value", AccountStatus::Guide, command_setlanguage) ||
 		command_add("setlsinfo", "[Email] [Password] - Set loginserver email address and password (if supported by loginserver)", AccountStatus::Steward, command_setlsinfo) ||
 		command_add("setmana", "[Mana] - Set your or your target's Mana", AccountStatus::GMAdmin, command_setmana) ||
 		command_add("setpass", "[Account Name] [Password] - Set local password by account name", AccountStatus::GMLeadAdmin, command_setpass) ||
@@ -337,6 +343,7 @@ int command_init(void)
 		command_add("viewcurrencies", "View your or your target's currencies", AccountStatus::GMAdmin, command_viewcurrencies) ||
 		command_add("viewnpctype", "[NPC ID] - Show stats for an NPC by NPC ID", AccountStatus::GMAdmin, command_viewnpctype) ||
 		command_add("viewpetition", "[petition number] - View a petition", AccountStatus::ApprenticeGuide, command_viewpetition) ||
+		command_add("viewrecipe", "[Recipe ID] - Show a recipe's entries", AccountStatus::GMAdmin, command_viewrecipe) ||
 		command_add("viewzoneloot", "[item id] - Allows you to search a zone's loot for a specific item ID. (0 shows all loot in the zone)", AccountStatus::QuestTroupe, command_viewzoneloot) ||
 		command_add("wc", "[wear slot] [material] - Sends an OP_WearChange for your target", AccountStatus::GMMgmt, command_wc) ||
 		command_add("weather", "[0/1/2/3] (Off/Rain/Snow/Manual) - Change the weather", AccountStatus::QuestTroupe, command_weather) ||
@@ -468,8 +475,10 @@ int command_init(void)
  */
 void command_deinit(void)
 {
-	for (auto &c : command_delete_list)
+	for (auto &c : command_delete_list) {
 		delete c;
+	}
+
 	command_delete_list.clear();
 	commandlist.clear();
 	commandaliases.clear();
@@ -520,12 +529,19 @@ int command_add(std::string command_name, std::string description, uint8 admin, 
 	c->description = description;
 	c->function = function;
 
+	commands_map[command_name] = admin;
+
 	commandlist[command_name] = c;
 	commandaliases[command_name] = command_name;
 	command_delete_list.push_back(c);
 	command_count++;
 
 	return 0;
+}
+
+uint8 GetCommandStatus(Client *c, std::string command_name) {
+	auto command_status = commands_map[command_name];
+	return command_status;
 }
 
 /*
@@ -606,13 +622,7 @@ void command_help(Client *c, const Seperator *sep)
 			continue;
 		}
 
-		command_link = Saylink::Create(
-			fmt::format(
-				"{}{}",
-				COMMAND_CHAR,
-				cur.first
-			),
-			false,
+		command_link = Saylink::Silent(
 			fmt::format(
 				"{}{}",
 				COMMAND_CHAR,
@@ -623,8 +633,9 @@ void command_help(Client *c, const Seperator *sep)
 		c->Message(
 			Chat::White,
 			fmt::format(
-				"{} | {}",
+				"{} | Status: {} | {}",
 				command_link,
+				cur.second->admin,
 				!cur.second->description.empty() ? cur.second->description : ""
 			).c_str()
 		);
@@ -688,13 +699,7 @@ void command_findaliases(Client *c, const Seperator *sep)
 		return;
 	}
 
-	auto current_commmand_link = Saylink::Create(
-		fmt::format(
-			"{}{}",
-			COMMAND_CHAR,
-			command_iter->first
-		),
-		false,
+	auto current_commmand_link = Saylink::Silent(
 		fmt::format(
 			"{}{}",
 			COMMAND_CHAR,
@@ -713,13 +718,7 @@ void command_findaliases(Client *c, const Seperator *sep)
 			continue;
 		}
 
-		alias_link = Saylink::Create(
-			fmt::format(
-				"{}{}",
-				COMMAND_CHAR,
-				a.first
-			),
-			false,
+		alias_link = Saylink::Silent(
 			fmt::format(
 				"{}{}",
 				COMMAND_CHAR,
@@ -812,7 +811,7 @@ void command_hotfix(Client *c, const Seperator *sep)
 
 #ifdef WIN32
 			shared_memory_path = "shared_memory";
-			if (file_exists("bin/shared_memory.exe")) {
+			if (File::Exists("bin/shared_memory.exe")) {
 				shared_memory_path = "bin\\shared_memory.exe";
 			}
 
@@ -828,7 +827,7 @@ void command_hotfix(Client *c, const Seperator *sep)
 			if (system(hotfix_command.c_str())) {}
 #else
 			shared_memory_path = "./shared_memory";
-			if (file_exists("./bin/shared_memory")) {
+			if (File::Exists("./bin/shared_memory")) {
 				shared_memory_path = "./bin/shared_memory";
 			}
 
@@ -985,6 +984,7 @@ void command_bot(Client *c, const Seperator *sep)
 #include "gm_commands/findfaction.cpp"
 #include "gm_commands/findnpctype.cpp"
 #include "gm_commands/findrace.cpp"
+#include "gm_commands/findrecipe.cpp"
 #include "gm_commands/findskill.cpp"
 #include "gm_commands/findspell.cpp"
 #include "gm_commands/findtask.cpp"
@@ -1038,6 +1038,7 @@ void command_bot(Client *c, const Seperator *sep)
 #include "gm_commands/level.cpp"
 #include "gm_commands/list.cpp"
 #include "gm_commands/listpetition.cpp"
+#include "gm_commands/lootsim.cpp"
 #include "gm_commands/loc.cpp"
 #include "gm_commands/logcommand.cpp"
 #include "gm_commands/logs.cpp"
@@ -1146,6 +1147,7 @@ void command_bot(Client *c, const Seperator *sep)
 #include "gm_commands/spawnfix.cpp"
 #include "gm_commands/spawnstatus.cpp"
 #include "gm_commands/spellinfo.cpp"
+#include "gm_commands/faction_association.cpp"
 #include "gm_commands/stun.cpp"
 #include "gm_commands/summon.cpp"
 #include "gm_commands/summonburiedplayercorpse.cpp"
@@ -1177,6 +1179,7 @@ void command_bot(Client *c, const Seperator *sep)
 #include "gm_commands/viewcurrencies.cpp"
 #include "gm_commands/viewnpctype.cpp"
 #include "gm_commands/viewpetition.cpp"
+#include "gm_commands/viewrecipe.cpp"
 #include "gm_commands/viewzoneloot.cpp"
 #include "gm_commands/wc.cpp"
 #include "gm_commands/weather.cpp"

@@ -27,6 +27,7 @@ int command_add(std::string command_name, std::string description, uint8 admin, 
 int command_notavail(Client *c, std::string message);
 int command_realdispatch(Client *c, std::string message);
 void command_logcommand(Client *c, std::string message);
+uint8 GetCommandStatus(Client *c, std::string command_name);
 
 // Commands
 void command_acceptrules(Client *c, const Seperator *sep);
@@ -76,12 +77,14 @@ void command_enablerecipe(Client *c, const Seperator *sep);
 void command_endurance(Client *c, const Seperator *sep);
 void command_equipitem(Client *c, const Seperator *sep);
 void command_faction(Client *c, const Seperator *sep);
+void command_faction_association(Client *c, const Seperator *sep);
 void command_feature(Client *c, const Seperator *sep);
 void command_findaliases(Client *c, const Seperator *sep);
 void command_findclass(Client *c, const Seperator *sep);
 void command_findfaction(Client *c, const Seperator *sep);
 void command_findnpctype(Client *c, const Seperator *sep);
 void command_findrace(Client *c, const Seperator *sep);
+void command_findrecipe(Client *c, const Seperator *sep);
 void command_findskill(Client *c, const Seperator *sep);
 void command_findspell(Client *c, const Seperator *sep);
 void command_findtask(Client *c, const Seperator *sep);
@@ -137,6 +140,7 @@ void command_lastname(Client *c, const Seperator *sep);
 void command_level(Client *c, const Seperator *sep);
 void command_list(Client *c, const Seperator *sep);
 void command_listpetition(Client *c, const Seperator *sep);
+void command_lootsim(Client *c, const Seperator *sep);
 void command_load_shared_memory(Client *c, const Seperator *sep);
 void command_loc(Client *c, const Seperator *sep);
 void command_logs(Client *c, const Seperator *sep);
@@ -289,6 +293,7 @@ void command_version(Client *c, const Seperator *sep);
 void command_viewcurrencies(Client *c, const Seperator *sep);
 void command_viewnpctype(Client *c, const Seperator *sep);
 void command_viewpetition(Client *c, const Seperator *sep);
+void command_viewrecipe(Client *c, const Seperator *sep);
 void command_viewzoneloot(Client *c, const Seperator *sep);
 void command_wc(Client *c, const Seperator *sep);
 void command_weather(Client *c, const Seperator *sep);

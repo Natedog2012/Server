@@ -1168,11 +1168,11 @@ void Merc::CalcRestState() {
 		}
 	}
 
-	RestRegenHP = 6 * (GetMaxHP() / zone->newzone_data.FastRegenHP);
+	RestRegenHP = 6 * (GetMaxHP() / zone->newzone_data.fast_regen_hp);
 
-	RestRegenMana = 6 * (GetMaxMana() / zone->newzone_data.FastRegenMana);
+	RestRegenMana = 6 * (GetMaxMana() / zone->newzone_data.fast_regen_mana);
 
-	RestRegenEndurance = 6 * (GetMaxEndurance() / zone->newzone_data.FastRegenEndurance);
+	RestRegenEndurance = 6 * (GetMaxEndurance() / zone->newzone_data.fast_regen_endurance);
 }
 
 bool Merc::HasSkill(EQ::skills::SkillType skill_id) const {
@@ -2713,7 +2713,7 @@ int32 Merc::GetActSpellCost(uint16 spell_id, int32 cost)
 	// Formula = Unknown exact, based off a random percent chance up to mana cost(after focuses) of the cast spell
 	if(itembonuses.Clairvoyance && spells[spell_id].classes[(GetClass()%17) - 1] >= GetLevel() - 5)
 	{
-		int16 mana_back = itembonuses.Clairvoyance * zone->random.Int(1, 100) / 100;
+		int mana_back = itembonuses.Clairvoyance * zone->random.Int(1, 100) / 100;
 		// Doesnt generate mana, so best case is a free spell
 		if(mana_back > cost)
 			mana_back = cost;

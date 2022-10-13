@@ -115,7 +115,8 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 	npc_type_data->feettexture,
 	npc_type_data->use_model,
 	npc_type_data->always_aggro,
-	npc_type_data->hp_regen_per_second
+	npc_type_data->hp_regen_per_second,
+	npc_type_data->heroic_strikethrough
 ),
 	  attacked_timer(CombatEventTimer_expire),
 	  swarm_timer(100),
@@ -147,6 +148,12 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 
 	if (size <= 0.0f) {
 		size = GetRaceGenderDefaultHeight(race, gender);
+	}
+
+	// lava dragon is a fixed size model and should always use its default
+	// otherwise pathing issues
+	if (race == RACE_LAVA_DRAGON_49) {
+		size = 5;
 	}
 
 	taunting       = false;
@@ -203,6 +210,7 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 	accuracy_rating  = npc_type_data->accuracy_rating;
 	avoidance_rating = npc_type_data->avoidance_rating;
 	ATK              = npc_type_data->ATK;
+	heroic_strikethrough = npc_type_data->heroic_strikethrough;
 
 	// used for when switch back to charm
 	default_ac               = npc_type_data->AC;
@@ -257,6 +265,7 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 	rare_spawn            = npc_type_data->rare_spawn;
 	no_target_hotkey      = npc_type_data->no_target_hotkey;
 	primary_faction       = 0;
+	faction_amount        = npc_type_data->faction_amount;
 
 	SetNPCFactionID(npc_type_data->npc_faction_id);
 
@@ -264,6 +273,7 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 	HasAISpell           = false;
 	HasAISpellEffects    = false;
 	innate_proc_spell_id = 0;
+	m_record_loot_stats  = false;
 
 	if (GetClass() == MERCENARY_MASTER && RuleB(Mercs, AllowMercs)) {
 		LoadMercTypes();
@@ -399,7 +409,7 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 
 	qGlobals = nullptr;
 
-	SetEmoteID(static_cast<uint16>(npc_type_data->emoteid));
+	SetEmoteID(static_cast<uint32>(npc_type_data->emoteid));
 	InitializeBuffSlots();
 	CalcBonuses();
 
@@ -1118,7 +1128,7 @@ void NPC::UpdateEquipmentLight()
 }
 
 void NPC::Depop(bool StartSpawnTimer) {
-	uint16 emoteid = GetEmoteID();
+	uint32 emoteid = GetEmoteID();
 	if(emoteid != 0)
 		DoNPCEmote(ONDESPAWN,emoteid);
 	p_depop = true;
@@ -2677,6 +2687,10 @@ void NPC::ModifyNPCStat(const char *identifier, const char *new_value)
 		CalcBonuses();
 		return;
 	}
+	else if (id == "heroic_strikethrough") {
+		heroic_strikethrough = atoi(val.c_str());
+		return;
+	}
 }
 
 float NPC::GetNPCStat(const char *identifier)
@@ -2815,6 +2829,9 @@ float NPC::GetNPCStat(const char *identifier)
 	}
 	else if (id == "npc_spells_effects_id") {
 		return npc_spells_effects_id;
+	}
+	else if (id == "heroic_strikethrough") {
+		return heroic_strikethrough;
 	}
 	//default values
 	else if (id == "default_ac") {
@@ -3043,7 +3060,7 @@ void NPC::SignalNPC(int _signal_id)
 	signal_q.push_back(_signal_id);
 }
 
-NPC_Emote_Struct* NPC::GetNPCEmote(uint16 emoteid, uint8 event_) {
+NPC_Emote_Struct* NPC::GetNPCEmote(uint32 emoteid, uint8 event_) {
 	LinkedListIterator<NPC_Emote_Struct*> iterator(zone->NPCEmoteList);
 	iterator.Reset();
 	while(iterator.MoreElements())
@@ -3057,7 +3074,7 @@ NPC_Emote_Struct* NPC::GetNPCEmote(uint16 emoteid, uint8 event_) {
 	return (nullptr);
 }
 
-void NPC::DoNPCEmote(uint8 event_, uint16 emoteid)
+void NPC::DoNPCEmote(uint8 event_, uint32 emoteid)
 {
 	if(this == nullptr || emoteid == 0)
 	{
@@ -3663,10 +3680,18 @@ void NPC::RecalculateSkills()
 	}
 }
 
+void NPC::ReloadSpells() {
+	AI_AddNPCSpells(GetNPCSpellsID());
+	AI_AddNPCSpellsEffects(GetNPCSpellsEffectsID());
+}
+
 void NPC::ScaleNPC(uint8 npc_level) {
 	if (GetLevel() != npc_level) {
 		SetLevel(npc_level);
+		RecalculateSkills();
+		ReloadSpells();
 	}
+
 	npc_scale_manager->ResetNPCScaling(this);
 	npc_scale_manager->ScaleNPC(this);
 }
@@ -3719,4 +3744,36 @@ std::vector<int> NPC::GetLootList() {
 		npc_items.push_back(loot_item->item_id);
 	}
 	return npc_items;
+}
+
+bool NPC::IsRecordLootStats() const
+{
+	return m_record_loot_stats;
+}
+
+void NPC::SetRecordLootStats(bool record_loot_stats)
+{
+	NPC::m_record_loot_stats = record_loot_stats;
+}
+
+void NPC::FlushLootStats()
+{
+	m_rolled_items = {};
+}
+
+const std::vector<uint32> &NPC::GetRolledItems() const
+{
+	return m_rolled_items;
+}
+
+int NPC::GetRolledItemCount(uint32 item_id)
+{
+	int rolled_count = 0;
+	for (auto &e: m_rolled_items) {
+		if (item_id == e) {
+			rolled_count++;
+		}
+	}
+
+	return rolled_count;
 }

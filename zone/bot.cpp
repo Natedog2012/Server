@@ -5025,7 +5025,7 @@ void Bot::Damage(Mob *from, int64 damage, uint16 spell_id, EQ::skills::SkillType
 		int64 healed = GetActSpellHealing(spell_id, damage);
 		LogCombat("Applying lifetap heal of [{}] to [{}]", healed, GetCleanName());
 		HealDamage(healed);
-		entity_list.MessageClose(this, true, 300, Chat::Spells, "%s beams a smile at %s", GetCleanName(), from->GetCleanName() );
+		entity_list.FilteredMessageClose(this, true, RuleI(Range, SpellMessages), Chat::Emote, FilterSocials, "%s beams a smile at %s", GetCleanName(), from->GetCleanName() );
 	}
 
 	CommonDamage(from, damage, spell_id, attack_skill, avoidable, buffslot, iBuffTic, special);
@@ -8188,9 +8188,9 @@ void Bot::CalcRestState() {
 		}
 	}
 
-	RestRegenHP = 6 * (GetMaxHP() / zone->newzone_data.FastRegenHP);
-	RestRegenMana = 6 * (GetMaxMana() / zone->newzone_data.FastRegenMana);
-	RestRegenEndurance = 6 * (GetMaxEndurance() / zone->newzone_data.FastRegenEndurance);
+	RestRegenHP = 6 * (GetMaxHP() / zone->newzone_data.fast_regen_hp);
+	RestRegenMana = 6 * (GetMaxMana() / zone->newzone_data.fast_regen_mana);
+	RestRegenEndurance = 6 * (GetMaxEndurance() / zone->newzone_data.fast_regen_endurance);
 }
 
 int32 Bot::LevelRegen() {

@@ -23,7 +23,7 @@
 #include "mob.h"
 #include "qglobals.h"
 #include "zonedb.h"
-#include "zone_store.h"
+#include "../common/zone_store.h"
 #include "zonedump.h"
 #include "../common/loottable.h"
 
@@ -108,6 +108,13 @@ public:
 	static NPC* SpawnNPC(const char* spawncommand, const glm::vec4& position, Client* client = nullptr);
 	static bool	SpawnZoneController();
 	static int8 GetAILevel(bool iForceReRead = false);
+
+	// loot recording / simulator
+	bool IsRecordLootStats() const;
+	void SetRecordLootStats(bool record_loot_stats);
+	void FlushLootStats();
+	const std::vector<uint32> &GetRolledItems() const;
+	int GetRolledItemCount(uint32 item_id);
 
 	NPC(const NPCType* npc_type_data, Spawn2* respawn, const glm::vec4& position, GravityBehavior iflymode, bool IsCorpse = false);
 
@@ -271,6 +278,9 @@ public:
 
 	inline int32 GetPrimaryFaction() const
 	{ return primary_faction; }
+
+	inline int32 GetFactionAmount() const
+	{ return faction_amount; }
 
 	int64 GetNPCHate(Mob *in_ent)
 	{ return hate_list.GetEntHateAmount(in_ent); }
@@ -459,8 +469,8 @@ public:
 	Timer *GetRefaceTimer() const { return reface_timer; }
 	const uint32 GetAltCurrencyType() const { return NPCTypedata->alt_currency_type; }
 
-	NPC_Emote_Struct* GetNPCEmote(uint16 emoteid, uint8 event_);
-	void DoNPCEmote(uint8 event_, uint16 emoteid);
+	NPC_Emote_Struct* GetNPCEmote(uint32 emoteid, uint8 event_);
+	void DoNPCEmote(uint8 event_, uint32 emoteid);
 	bool CanTalk();
 	void DoQuestPause(Mob *other);
 
@@ -535,6 +545,7 @@ public:
 	void ScaleNPC(uint8 npc_level);
 
 	void RecalculateSkills();
+	void ReloadSpells();
 
 	static LootDropEntries_Struct NewLootDropEntry();
 protected:
@@ -555,6 +566,7 @@ protected:
 
 	int32	npc_faction_id;
 	int32	primary_faction;
+	int32	faction_amount;
 
 	Timer	attacked_timer;		//running while we are being attacked (damaged)
 	Timer	swarm_timer;
@@ -679,10 +691,12 @@ protected:
 
 
 private:
-	uint32 loottable_id;
-	bool   skip_global_loot;
-	bool   skip_auto_scale;
-	bool   p_depop;
+	uint32              loottable_id;
+	bool                skip_global_loot;
+	bool                skip_auto_scale;
+	bool                p_depop;
+	bool                m_record_loot_stats;
+	std::vector<uint32> m_rolled_items = {};
 };
 
 #endif

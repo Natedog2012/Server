@@ -385,7 +385,7 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 	*
 	* Formula (all int math)
 	* (posted for parry, assume rest at the same)
-	* Chance = (((SKILL + 100) + [((SKILL+100) * SPA(175).Base1) / 100]) / 45) + [(hDex / 25) - min([hDex / 25], hStrikethrough)].
+	* Chance = (((SKILL + 100) + [((SKILL+100) * SPA(175).Base1) / 100]) / 45) + [(hDex / 25) - min([hStrikethrough, hDex / 25])].
 	* hStrikethrough is a mob stat that was added to counter the bonuses of heroic stats
 	* Number rolled against 100, if the chance is greater than 100 it happens 100% of time
 	*
@@ -398,8 +398,7 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 
 	/*
 	This special ability adds a negative modifer to the defenders riposte/block/parry/chance
-	therefore reducing the defenders chance to successfully avoid the melee attack. At present
-	time this is the only way to fine tune counter these mods on players. This may
+	therefore reducing the defenders chance to successfully avoid the melee attack. Works in tandem with Heroic Strikethrough. This may
 	ultimately end up being more useful as fields in npc_types.
 	*/
 
@@ -430,6 +429,24 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 		modify_parry   = GetSpecialAbilityParam(MODIFY_AVOID_DAMAGE, 3);
 		modify_dodge   = GetSpecialAbilityParam(MODIFY_AVOID_DAMAGE, 4);
 	}
+
+	/* Heroic Strikethrough Implementation per Dev Quotes (2018):
+	* https://forums.daybreakgames.com/eq/index.php?threads/illusions-benefit-neza-10-dodge.246757/#post-3622670
+	* Step1 = HeroicStrikethrough(NPC)
+	* Step2 = HeroicAgility / 25
+	* Step3 = MIN( Step1, Step2 )
+	* Step4 = DodgeSkill + 100
+	* Step5 = Step4 + ( DodgeSkill * DodgeSPA ) / 100
+	* Step6 = Step5 / 45
+	* DodgeChance = Step6 + ( Step2 - Step3 )
+
+	* Formula (all int math)
+	* (posted for parry, dodge appears to be the same as confirmed per Dev, assuming Riposte/Block are the same)
+	* Chance = (((SKILL + 100) + [((SKILL+100) * SPA(175).Base1) / 100]) / 45) + [(hDex / 25) - min([hStrikethrough, hDex / 25])].
+	If an NPC's Heroic Strikethrough is higher than your character's Heroic Agility bonus, you are disqualified from the "bonus" you would have gotten at the end. 
+	*/
+	
+	int hstrikethrough = attacker->GetHeroicStrikethrough();
 
 	// riposte -- it may seem crazy, but if the attacker has SPA 173 on them, they are immune to Ripo
 	bool ImmuneRipo = false;
@@ -465,7 +482,7 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 		int chance = GetSkill(EQ::skills::SkillRiposte) + 100;
 		chance += (chance * (aabonuses.RiposteChance + spellbonuses.RiposteChance + itembonuses.RiposteChance)) / 100;
 		chance /= 50;
-		chance += itembonuses.HeroicDEX / 25; // live has "heroic strickthrough" here to counter
+		chance += (itembonuses.HeroicDEX / 25) - std::min(hstrikethrough,(itembonuses.HeroicDEX / 25)); // "Heroic Strikethrough" subtracted here to counter HeroicDEX
 		if (counter_riposte || counter_all) {
 			float counter = (counter_riposte + counter_all) / 100.0f;
 			chance -= chance * counter;
@@ -508,7 +525,7 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 		int chance = GetSkill(EQ::skills::SkillBlock) + 100;
 		chance += (chance * (aabonuses.IncreaseBlockChance + spellbonuses.IncreaseBlockChance + itembonuses.IncreaseBlockChance)) / 100;
 		chance /= 25;
-		chance += itembonuses.HeroicDEX / 25; // live has "heroic strickthrough" here to counter
+		chance += (itembonuses.HeroicDEX / 25) - std::min(hstrikethrough,(itembonuses.HeroicDEX / 25)); // "Heroic Strikethrough" subtracted here to counter HeroicDEX
 		if (counter_block || counter_all) {
 			float counter = (counter_block + counter_all) / 100.0f;
 			chance -= chance * counter;
@@ -535,7 +552,7 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 		int chance = GetSkill(EQ::skills::SkillParry) + 100;
 		chance += (chance * (aabonuses.ParryChance + spellbonuses.ParryChance + itembonuses.ParryChance)) / 100;
 		chance /= 45;
-		chance += itembonuses.HeroicDEX / 25; // live has "heroic strickthrough" here to counter
+		chance += (itembonuses.HeroicDEX / 25) - std::min(hstrikethrough,(itembonuses.HeroicDEX / 25)); // "Heroic Strikethrough" subtracted here to counter HeroicDEX
 		if (counter_parry || counter_all) {
 			float counter = (counter_parry + counter_all) / 100.0f;
 			chance -= chance * counter;
@@ -562,7 +579,7 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 		int chance = GetSkill(EQ::skills::SkillDodge) + 100;
 		chance += (chance * (aabonuses.DodgeChance + spellbonuses.DodgeChance + itembonuses.DodgeChance)) / 100;
 		chance /= 45;
-		chance += itembonuses.HeroicAGI / 25; // live has "heroic strickthrough" here to counter
+		chance += (itembonuses.HeroicAGI / 25) - std::min(hstrikethrough,(itembonuses.HeroicAGI / 25)); // "Heroic Strikethrough" subtracted here to counter HeroicAGI
 		if (counter_dodge || counter_all) {
 			float counter = (counter_dodge + counter_all) / 100.0f;
 			chance -= chance * counter;
@@ -1779,7 +1796,7 @@ bool Client::Death(Mob* killerMob, int64 damage, uint16 spell, EQ::skills::Skill
 
 			mod_client_death_npc(killerMob);
 
-			uint16 emoteid = killerMob->GetEmoteID();
+			uint32 emoteid = killerMob->GetEmoteID();
 			if (emoteid != 0)
 				killerMob->CastToNPC()->DoNPCEmote(KILLEDPC, emoteid);
 			killerMob->TrySpellOnKill(killed_level, spell);
@@ -2439,7 +2456,7 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 
 	//do faction hits even if we are a merchant, so long as a player killed us
 	if (!IsCharmed() && give_exp_client && !RuleB(NPC, EnableMeritBasedFaction))
-		hate_list.DoFactionHits(GetNPCFactionID());
+		hate_list.DoFactionHits(GetNPCFactionID(), GetPrimaryFaction(), GetFactionAmount());
 
 	bool IsLdonTreasure = (GetClass() == LDON_TREASURE);
 
@@ -2457,7 +2474,7 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 				give_exp_client->GetCleanName(),
 				GetNPCTypeID()
 			);
-			task_manager->HandleUpdateTasksOnKill(give_exp_client, GetNPCTypeID(), this);
+			task_manager->HandleUpdateTasksOnKill(give_exp_client, this);
 		}
 
 		if (kr) {
@@ -2610,7 +2627,7 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 
 		entity_list.RemoveFromAutoXTargets(this);
 
-		uint16 emoteid = GetEmoteID();
+		uint32 emoteid = GetEmoteID();
 		auto corpse = new Corpse(this, &itemlist, GetNPCTypeID(), &NPCTypedata,
 			level > 54 ? RuleI(NPC, MajorNPCCorpseDecayTimeMS)
 			: RuleI(NPC, MinorNPCCorpseDecayTimeMS));
@@ -2708,12 +2725,12 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 	if (oos) {
 		mod_npc_killed(oos);
 
-		uint16 emoteid = GetEmoteID();
+		uint32 emoteid = GetEmoteID();
 		if (emoteid != 0)
 			DoNPCEmote(ONDEATH, emoteid);
 		if (oos->IsNPC()) {
 			parse->EventNPC(EVENT_NPC_SLAY, oos->CastToNPC(), this, "", 0);
-			uint16 emoteid = oos->GetEmoteID();
+			uint32 emoteid = oos->GetEmoteID();
 			if (emoteid != 0)
 				oos->CastToNPC()->DoNPCEmote(KILLEDNPC, emoteid);
 			killer_mob->TrySpellOnKill(killed_level, spell);
@@ -3687,7 +3704,7 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 
 				//we used to do a message to the client, but its gone now.
 				// emote goes with every one ... even npcs
-				entity_list.MessageClose(this, false, RuleI(Range, SpellMessages), Chat::Emote, "%s beams a smile at %s", attacker->GetCleanName(), GetCleanName());
+				entity_list.FilteredMessageClose(this, false, RuleI(Range, SpellMessages), Chat::Emote, FilterSocials, "%s beams a smile at %s", attacker->GetCleanName(), GetCleanName());
 			}
 
 			// If a client pet is damaged while sitting, stand, fix sit button,
@@ -4033,12 +4050,14 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 							attacker->MessageString(Chat::DamageShield, OTHER_HIT_NONMELEE, GetCleanName(), ConvertArray(damage, val1));
 					}
 					else {
-						entity_list.MessageCloseString(
-							this, /* Sender */
-							true, /* Skip Sender */
+						entity_list.FilteredMessageCloseString(
+							attacker, /* Sender */
+							false, /* Sender is attacker, so do not skip */
 							RuleI(Range, SpellMessages),
 							Chat::NonMelee, /* 283 */
+							FilterSpellDamage, /* FilterType: 13 */
 							HIT_NON_MELEE, /* %1 hit %2 for %3 points of non-melee damage. */
+							0,
 							attacker->GetCleanName(), /* Message1 */
 							GetCleanName(), /* Message2 */
 							ConvertArray(damage, val1) /* Message3 */
@@ -4198,7 +4217,7 @@ void Mob::HealDamage(uint64 amount, Mob *caster, uint16 spell_id)
 				// message to target
 				if (IsClient() && caster != this) {
 					if (CastToClient()->ClientVersionBit() & EQ::versions::maskSoFAndLater)
-						FilteredMessageString(this, Chat::NonMelee, FilterHealOverTime,
+						FilteredMessageString(caster, Chat::NonMelee, FilterHealOverTime,
 							HOT_HEALED_OTHER, caster->GetCleanName(),
 							itoa(acthealed), spells[spell_id].name);
 					else
@@ -4214,7 +4233,7 @@ void Mob::HealDamage(uint64 amount, Mob *caster, uint16 spell_id)
 						YOU_HEAL, GetCleanName(), itoa(acthealed));
 			}
 		}
-		else {
+		else if (CastToClient()->GetFilter(FilterHealOverTime) != (FilterShowSelfOnly || FilterHide)) {
 			Message(Chat::NonMelee, "You have been healed for %d points of damage.", acthealed);
 		}
 	}

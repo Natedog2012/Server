@@ -567,7 +567,6 @@ void EntityList::MobProcess()
 				in.s_addr = mob->CastToClient()->GetIP();
 				LogInfo("Dropping client: Process=false, ip=[{}] port=[{}]", inet_ntoa(in), mob->CastToClient()->GetPort());
 #endif
-				zone->StartShutdownTimer();
 				Group *g = GetGroupByMob(mob);
 				if(g) {
 					LogError("About to delete a client still in a group");
@@ -699,7 +698,7 @@ void EntityList::AddNPC(NPC *npc, bool SendSpawnPacket, bool dontqueue)
 	}
 	parse->EventNPC(EVENT_SPAWN, npc, nullptr, "", 0);
 
-	uint16 emoteid = npc->GetEmoteID();
+	uint32 emoteid = npc->GetEmoteID();
 	if (emoteid != 0)
 		npc->DoNPCEmote(ONSPAWN, emoteid);
 	npc->SetSpawned();
@@ -4258,10 +4257,12 @@ bool EntityList::LimitCheckName(const char *npc_name)
 {
 	auto it = npc_list.begin();
 	while (it != npc_list.end()) {
-		NPC* npc = it->second;
-		if (npc)
-			if (strcasecmp(npc_name, npc->GetRawNPCTypeName()) == 0)
+		NPC *npc = it->second;
+		if (npc) {
+			if (strcasecmp(npc_name, npc->GetRawNPCTypeName()) == 0) {
 				return false;
+			}
+		}
 		++it;
 	}
 	return true;

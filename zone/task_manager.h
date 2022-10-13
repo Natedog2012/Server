@@ -3,8 +3,6 @@
 
 #include "tasks.h"
 #include "task_client_state.h"
-#include "task_proximity_manager.h"
-#include "task_goal_list_manager.h"
 #include "../common/types.h"
 #include "../common/repositories/character_tasks_repository.h"
 #include <list>
@@ -19,32 +17,19 @@ class Mob;
 class TaskManager {
 
 public:
-	TaskManager();
-	~TaskManager();
 	int GetActivityCount(int task_id);
 	bool LoadTasks(int single_task = 0);
-	void ReloadGoalLists();
-	inline void LoadProximities(int zone_id)
-	{
-		m_proximity_manager.LoadProximities(zone_id);
-	}
 	bool LoadTaskSets();
-	bool LoadClientState(Client *client, ClientTaskState *client_task_state);
-	bool SaveClientState(Client *client, ClientTaskState *client_task_state);
-	void SendTaskSelector(Client *client, Mob *mob, int task_count, int *task_list);
+	bool LoadClientState(Client *client, ClientTaskState *cts);
+	bool SaveClientState(Client *client, ClientTaskState *cts);
+	void SendTaskSelector(Client* client, Mob* mob, const std::vector<int>& tasks);
 	bool ValidateLevel(int task_id, int player_level);
 	std::string GetTaskName(uint32 task_id);
 	TaskType GetTaskType(uint32 task_id);
-	void TaskSetSelector(Client *client, ClientTaskState *client_task_state, Mob *mob, int task_set_id);
+	void TaskSetSelector(Client* client, Mob* mob, int task_set_id, bool ignore_cooldown);
 	// task list provided by QuestManager (perl/lua)
-	void TaskQuestSetSelector(
-		Client *client,
-		ClientTaskState *client_task_state,
-		Mob *mob,
-		int count,
-		int *tasks
-	);
-	void SharedTaskSelector(Client* client, Mob* mob, int count, const int* tasks);
+	void TaskQuestSetSelector(Client* client, Mob* mob, const std::vector<int>& tasks, bool ignore_cooldown);
+	void SharedTaskSelector(Client* client, Mob* mob, const std::vector<int>& tasks, bool ignore_cooldown);
 	void SendActiveTasksToClient(Client *client, bool task_complete = false);
 	void SendSingleActiveTaskToClient(
 		Client *client,
@@ -60,8 +45,7 @@ public:
 		int client_task_index,
 		bool task_complete = false
 	);
-	void SendCompletedTasksToClient(Client *c, ClientTaskState *client_task_state);
-	void ExplainTask(Client *client, int task_id);
+	void SendCompletedTasksToClient(Client *c, ClientTaskState *cts);
 	int FirstTaskInSet(int task_set);
 	int LastTaskInSet(int task_set);
 	int NextTaskInSet(int task_set, int task_id);
@@ -73,13 +57,18 @@ public:
 	// shared tasks
 	void SyncClientSharedTaskState(Client *c, ClientTaskState *cts);
 
-	void HandleUpdateTasksOnKill(Client *client, uint32 npc_type_id, NPC* npc);
+	void HandleUpdateTasksOnKill(Client* client, NPC* npc);
+
+	const std::unordered_map<uint32_t, TaskInformation>& GetTaskData() const { return m_task_data; }
+	TaskInformation* GetTaskData(int task_id)
+	{
+		auto it = m_task_data.find(task_id);
+		return it != m_task_data.end() ? &it->second : nullptr;
+	}
 
 private:
-	TaskGoalListManager  m_goal_list_manager;
-	TaskProximityManager m_proximity_manager;
-	TaskInformation      *m_task_data[MAXTASKS]{};
-	std::vector<int>     m_task_sets[MAXTASKSETS];
+	std::vector<int>                              m_task_sets[MAXTASKSETS];
+	std::unordered_map<uint32_t, TaskInformation> m_task_data;
 	void SendActiveTaskDescription(
 		Client *client,
 		int task_id,
@@ -94,7 +83,7 @@ private:
 	// shared tasks
 	void SyncClientSharedTaskWithPersistedState(Client *c, ClientTaskState *cts);
 	void SyncClientSharedTaskRemoveLocalIfNotExists(Client *c, ClientTaskState *cts);
-	void SendSharedTaskSelector(Client* client, Mob* mob, int task_count, int* task_list);
+	void SendSharedTaskSelector(Client* client, Mob* mob, const std::vector<int>& tasks);
 	void SyncClientSharedTaskStateToLocal(Client *c);
 };
 
