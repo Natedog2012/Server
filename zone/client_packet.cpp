@@ -909,10 +909,6 @@ void Client::CompleteConnect()
 		GoToSafeCoords(ZoneID("arena"), 0);
 		return;
 	}
-
-	// force resending of position when finally complete
-	// in hopes to alleviating race condition under-world issues
-	MovePC(zone->GetZoneID(), zone->GetInstanceID(), GetX(), GetY(), GetZ(), GetHeading());
 }
 
 // connecting opcode handlers
@@ -1772,11 +1768,14 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	outapp = new EQApplicationPacket(OP_Weather, 12);
 	Weather_Struct *ws = (Weather_Struct *)outapp->pBuffer;
 	ws->val1 = 0x000000FF;
-	if (zone->zone_weather == 1) { ws->type = 0x31; } // Rain
-	if (zone->zone_weather == 2) {
+
+	if (zone->zone_weather == EQ::constants::WeatherTypes::Raining) {
+		ws->type = 0x31;
+	} else if (zone->zone_weather == EQ::constants::WeatherTypes::Snowing) {
 		outapp->pBuffer[8] = 0x01;
-		ws->type = 0x02;
+		ws->type = EQ::constants::WeatherTypes::Snowing;
 	}
+
 	outapp->priority = 6;
 	QueuePacket(outapp);
 	safe_delete(outapp);
@@ -8954,10 +8953,10 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 			else if (item->ItemType == EQ::item::ItemTypeSpell)
 			{
 				spell_id = item->Scroll.Effect;
-				if (RuleB(Spells, AllowSpellMemorizeFromItem)) 
+				if (RuleB(Spells, AllowSpellMemorizeFromItem))
 				{
 					int highest_spell_id = GetHighestScribedSpellinSpellGroup(spells[spell_id].spell_group);
-					if (spells[spell_id].spell_group > 0 && highest_spell_id > 0) 
+					if (spells[spell_id].spell_group > 0 && highest_spell_id > 0)
 					{
 						if (spells[spell_id].rank > spells[highest_spell_id].rank)
 						{
@@ -8966,12 +8965,12 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 							SetEntityVariable("spell_id",itoa(item->ID));
 							SendPopupToClient("", message.c_str(), 1000001, 1, 10);
 							return;
-						} 
+						}
 						else if (spells[spell_id].rank < spells[highest_spell_id].rank)
 						{
 							MessageString(Chat::Red, LESSER_SPELL_VERSION, spells[spell_id].name, spells[highest_spell_id].name);
 							return;
-						} 
+						}
 					}
 					DeleteItemInInventory(slot_id, 1, true);
 					MemorizeSpellFromItem(item->ID);
@@ -13012,10 +13011,14 @@ void Client::Handle_OP_Shielding(const EQApplicationPacket *app)
 		return;
 	}
 
-	pTimerType timer = pTimerShieldAbility;
+	if (!RuleB(Combat, EnableWarriorShielding)) {
+		Message(Chat::White, "/shield is disabled.");
+		return;
+	}
 
+	pTimerType timer = pTimerShieldAbility;
 	if (!p_timers.Expired(&database, timer, false)) {
-		uint32 remaining_time = p_timers.GetRemainingTime(timer);
+		auto remaining_time = p_timers.GetRemainingTime(timer);
 		Message(
 			Chat::White,
 			fmt::format(
@@ -13026,8 +13029,7 @@ void Client::Handle_OP_Shielding(const EQApplicationPacket *app)
 		return;
 	}
 
-	Shielding_Struct* shield = (Shielding_Struct*)app->pBuffer;
-
+	auto shield = (Shielding_Struct*) app->pBuffer;
 	if (ShieldAbility(shield->target_id, 15, 12000, 50, 25, true, false)) {
 		p_timers.Start(timer, SHIELD_ABILITY_RECAST_TIME);
 	}
