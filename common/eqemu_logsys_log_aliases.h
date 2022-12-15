@@ -38,6 +38,11 @@
         OutF(LogSys, Logs::General, Logs::AI, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
 } while (0)
 
+#define LogAIModerate(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Moderate, Logs::AI))\
+        OutF(LogSys, Logs::Moderate, Logs::AI, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
 #define LogAIDetail(message, ...) do {\
     if (LogSys.IsLogEnabled(Logs::Detail, Logs::AI))\
         OutF(LogSys, Logs::Detail, Logs::AI, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
@@ -76,6 +81,11 @@
 #define LogCombat(message, ...) do {\
     if (LogSys.IsLogEnabled(Logs::General, Logs::Combat))\
         OutF(LogSys, Logs::General, Logs::Combat, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogCombatModerate(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Moderate, Logs::Combat))\
+        OutF(LogSys, Logs::Moderate, Logs::Combat, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
 } while (0)
 
 #define LogCombatDetail(message, ...) do {\
@@ -256,6 +266,11 @@
 #define LogSpells(message, ...) do {\
     if (LogSys.IsLogEnabled(Logs::General, Logs::Spells))\
         OutF(LogSys, Logs::General, Logs::Spells, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogSpellsModerate(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Moderate, Logs::Spells))\
+        OutF(LogSys, Logs::Moderate, Logs::Spells, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
 } while (0)
 
 #define LogSpellsDetail(message, ...) do {\
@@ -579,6 +594,11 @@
         OutF(LogSys, Logs::General, Logs::AIScanClose, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
 } while (0)
 
+#define LogAIScanCloseModerate(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Moderate, Logs::AIScanClose))\
+        OutF(LogSys, Logs::Moderate, Logs::AIScanClose, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
 #define LogAIScanCloseDetail(message, ...) do {\
     if (LogSys.IsLogEnabled(Logs::Detail, Logs::AIScanClose))\
         OutF(LogSys, Logs::Detail, Logs::AIScanClose, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
@@ -831,6 +851,26 @@
         OutF(LogSys, Logs::Moderate, Logs::Expeditions, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
 } while (0)
 
+#define LogBugs(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::Bugs))\
+        OutF(LogSys, Logs::General, Logs::Bugs, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogBugsDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::Bugs))\
+        OutF(LogSys, Logs::Detail, Logs::Bugs, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogQuestErrors(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::QuestErrors))\
+        OutF(LogSys, Logs::General, Logs::QuestErrors, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogQuestErrorsDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::QuestErrors))\
+        OutF(LogSys, Logs::Detail, Logs::QuestErrors, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
 #define Log(debug_level, log_category, message, ...) do {\
     if (LogSys.IsLogEnabled(debug_level, log_category))\
         LogSys.Out(debug_level, log_category, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
@@ -879,6 +919,9 @@
 #define LogAI(message, ...) do {\
 } while (0)
 
+#define LogAIModerate(message, ...) do {\
+} while (0)
+
 #define LogAIDetail(message, ...) do {\
 } while (0)
 
@@ -901,6 +944,9 @@
 } while (0)
 
 #define LogCombat(message, ...) do {\
+} while (0)
+
+#define LogCombatModerate(message, ...) do {\
 } while (0)
 
 #define LogCombatDetail(message, ...) do {\
@@ -1003,6 +1049,9 @@
 } while (0)
 
 #define LogSpells(message, ...) do {\
+} while (0)
+
+#define LogSpellsModerate(message, ...) do {\
 } while (0)
 
 #define LogSpellsDetail(message, ...) do {\
@@ -1129,6 +1178,9 @@
 } while (0)
 
 #define LogAIScanClose(message, ...) do {\
+} while (0)
+
+#define LogAIScanCloseModerate(message, ...) do {\
 } while (0)
 
 #define LogAIScanCloseDetail(message, ...) do {\
@@ -1279,6 +1331,12 @@
 } while (0)
 
 #define LogFactionDetail(message, ...) do {\
+} while (0)
+
+#define LogBugs(message, ...) do {\
+} while (0)
+
+#define LogBugsDetail(message, ...) do {\
 } while (0)
 
 #define Log(debug_level, log_category, message, ...) do {\

@@ -2322,24 +2322,18 @@ void Mob::ShowStats(Client* client)
 	}
 }
 
-void Mob::DoAnim(const int animnum, int type, bool ackreq, eqFilterType filter)
+void Mob::DoAnim(const int animation_id, int animation_speed, bool ackreq, eqFilterType filter)
 {
 	if (!attack_anim_timer.Check()) {
 		return;
 	}
 
 	auto outapp = new EQApplicationPacket(OP_Animation, sizeof(Animation_Struct));
-	auto *anim  = (Animation_Struct *) outapp->pBuffer;
-	anim->spawnid = GetID();
+	auto *a  = (Animation_Struct *) outapp->pBuffer;
 
-	if (type == 0) {
-		anim->action = animnum;
-		anim->speed  = 10;
-	}
-	else {
-		anim->action = animnum;
-		anim->speed  = type;
-	}
+	a->spawnid = GetID();
+	a->action  = animation_id;
+	a->speed   = animation_speed ? animation_speed : 10;
 
 	entity_list.QueueCloseClients(
 		this, /* Sender */
@@ -2559,7 +2553,7 @@ void Mob::SendIllusionPacket(
 	}
 
 	LogSpells(
-		"Illusion: Race [{}] Gender [{}] Texture [{}] HelmTexture [{}] HairColor [{}] BeardColor [{}] EyeColor1 [{}] EyeColor2 [{}] HairStyle [{}] Face [{}] DrakkinHeritage [{}] DrakkinTattoo [{}] DrakkinDetails [{}] Size [{}]",
+		"[Mob::SendIllusionPacket] Illusion: Race [{}] Gender [{}] Texture [{}] HelmTexture [{}] HairColor [{}] BeardColor [{}] EyeColor1 [{}] EyeColor2 [{}] HairStyle [{}] Face [{}] DrakkinHeritage [{}] DrakkinTattoo [{}] DrakkinDetails [{}] Size [{}]",
 		race,
 		gender,
 		new_texture,
@@ -4202,7 +4196,7 @@ void Mob::ExecWeaponProc(const EQ::ItemInstance *inst, uint16 spell_id, Mob *on,
 	if(!IsValidSpell(spell_id)) { // Check for a valid spell otherwise it will crash through the function
 		if(IsClient()){
 			Message(0, "Invalid spell proc %u", spell_id);
-			LogSpells("Player [{}], Weapon Procced invalid spell [{}]", GetName(), spell_id);
+			LogSpells("[Mob::ExecWeaponProc] Player [{}] Weapon Procced invalid spell [{}]", GetName(), spell_id);
 		}
 		return;
 	}
@@ -4339,6 +4333,8 @@ void Mob::SetTarget(Mob *mob)
 
 #ifdef BOTS
 		CastToClient()->SetBotPrecombat(false); // Any change in target will nullify this flag (target == mob checked above)
+	} else if (IsBot()) {
+		parse->EventBot(EVENT_TARGET_CHANGE, CastToBot(), mob, "", 0);
 #endif
 	}
 
@@ -4498,29 +4494,80 @@ void Mob::SetDelta(const glm::vec4& delta) {
 	m_Delta = delta;
 }
 
-void Mob::SetEntityVariable(const char *id, const char *m_var)
+bool Mob::ClearEntityVariables()
 {
-	std::string n_m_var = m_var;
-	m_EntityVariables[id] = n_m_var;
-}
-
-const char *Mob::GetEntityVariable(const char *id)
-{
-	auto iter = m_EntityVariables.find(id);
-	if (iter != m_EntityVariables.end()) {
-		return iter->second.c_str();
+	if (m_EntityVariables.empty()) {
+		return false;
 	}
-	return nullptr;
+
+	m_EntityVariables.clear();
+	return true;
 }
 
-bool Mob::EntityVariableExists(const char *id)
+bool Mob::DeleteEntityVariable(std::string variable_name)
 {
-	auto iter = m_EntityVariables.find(id);
-	if(iter != m_EntityVariables.end())
-	{
+	if (m_EntityVariables.empty() || variable_name.empty()) {
+		return false;
+	}
+
+	auto v = m_EntityVariables.find(variable_name);
+	if (v == m_EntityVariables.end()) {
+		return false;
+	}
+
+	m_EntityVariables.erase(v);
+	return true;
+}
+
+std::string Mob::GetEntityVariable(std::string variable_name)
+{
+	if (m_EntityVariables.empty() || variable_name.empty()) {
+		return std::string();
+	}
+
+	const auto& v = m_EntityVariables.find(variable_name);
+	if (v != m_EntityVariables.end()) {
+		return v->second;
+	}
+
+	return std::string();
+}
+
+std::vector<std::string> Mob::GetEntityVariables()
+{
+	std::vector<std::string> l;
+	if (m_EntityVariables.empty()) {
+		return l;
+	}
+
+	for (const auto& v : m_EntityVariables) {
+		l.push_back(v.first);
+	}
+
+	return l;
+}
+
+bool Mob::EntityVariableExists(std::string variable_name)
+{
+	if (m_EntityVariables.empty() || variable_name.empty()) {
+		return false;
+	}
+
+	const auto& v = m_EntityVariables.find(variable_name);
+	if (v != m_EntityVariables.end()) {
 		return true;
 	}
+
 	return false;
+}
+
+void Mob::SetEntityVariable(std::string variable_name, std::string variable_value)
+{
+	if (variable_name.empty()) {
+		return;
+	}
+
+	m_EntityVariables[variable_name] = variable_value;
 }
 
 void Mob::SetFlyMode(GravityBehavior flymode)
@@ -6269,37 +6316,44 @@ void Mob::ClearSpecialAbilities() {
 void Mob::ProcessSpecialAbilities(const std::string &str) {
 	ClearSpecialAbilities();
 
-	std::vector<std::string> sp = Strings::Split(str, '^');
-	for(auto iter = sp.begin(); iter != sp.end(); ++iter) {
-		std::vector<std::string> sub_sp = Strings::Split((*iter), ',');
-		if(sub_sp.size() >= 2) {
-			int ability = std::stoi(sub_sp[0]);
+	const auto& sp = Strings::Split(str, '^');
+	for (const auto& s : sp) {
+		const auto& sub_sp = Strings::Split(s, ',');
+		if (
+			sub_sp.size() >= 2 &&
+			Strings::IsNumber(sub_sp[0]) &&
+			Strings::IsNumber(sub_sp[1])
+		) {
+			int ability_id = std::stoi(sub_sp[0]);
 			int value = std::stoi(sub_sp[1]);
 
-			SetSpecialAbility(ability, value);
-			switch(ability) {
-			case SPECATK_QUAD:
-				if(value > 0) {
-					SetSpecialAbility(SPECATK_TRIPLE, 1);
-				}
-				break;
-			case DESTRUCTIBLE_OBJECT:
-				if(value == 0) {
-					SetDestructibleObject(false);
-				} else {
-					SetDestructibleObject(true);
-				}
-				break;
-			default:
-				break;
+			SetSpecialAbility(ability_id, value);
+
+			switch (ability_id) {
+				case SPECATK_QUAD:
+					if (value > 0) {
+						SetSpecialAbility(SPECATK_TRIPLE, 1);
+					}
+					break;
+				case DESTRUCTIBLE_OBJECT:
+					if (value == 0) {
+						SetDestructibleObject(false);
+					} else {
+						SetDestructibleObject(true);
+					}
+					break;
+				default:
+					break;
 			}
 
-			for(size_t i = 2, p = 0; i < sub_sp.size(); ++i, ++p) {
-				if(p >= MAX_SPECIAL_ATTACK_PARAMS) {
+			for (size_t i = 2, param_id = 0; i < sub_sp.size(); ++i, ++param_id) {
+				if (param_id >= MAX_SPECIAL_ATTACK_PARAMS) {
 					break;
 				}
 
-				SetSpecialAbilityParam(ability, p, std::stoi(sub_sp[i]));
+				if (Strings::IsNumber(sub_sp[i])) {
+					SetSpecialAbilityParam(ability_id, param_id, std::stoi(sub_sp[i]));
+				}
 			}
 		}
 	}
@@ -6900,6 +6954,10 @@ std::string Mob::GetBucketKey() {
 		return fmt::format("character-{}", CastToClient()->CharacterID());
 	} else if (IsNPC()) {
 		return fmt::format("npc-{}", GetNPCTypeID());
+#ifdef BOTS
+	} else if (IsBot()) {
+		return fmt::format("bot-{}", CastToBot()->GetBotID());
+#endif
 	}
 	return std::string();
 }
@@ -6986,4 +7044,121 @@ std::string Mob::GetMobDescription()
 		GetCleanName(),
 		GetID()
 	);
+}
+
+uint8 Mob::ConvertItemTypeToSkillID(uint8 item_type)
+{
+	if (item_type >= EQ::item::ItemTypeCount) {
+		return EQ::skills::SkillHandtoHand;
+	}
+
+	std::map<uint8, uint8> convert_item_types_map = {
+		{ EQ::item::ItemType1HSlash, EQ::skills::Skill1HSlashing },
+		{ EQ::item::ItemType2HSlash, EQ::skills::Skill2HSlashing },
+		{ EQ::item::ItemType1HPiercing, EQ::skills::Skill1HPiercing },
+		{ EQ::item::ItemType2HPiercing, EQ::skills::Skill2HPiercing },
+		{ EQ::item::ItemType1HBlunt, EQ::skills::Skill1HBlunt },
+		{ EQ::item::ItemType2HBlunt, EQ::skills::Skill2HBlunt },
+		{ EQ::item::ItemTypeBow, EQ::skills::SkillArchery },
+		{ EQ::item::ItemTypeSmallThrowing, EQ::skills::SkillThrowing },
+		{ EQ::item::ItemTypeLargeThrowing, EQ::skills::SkillThrowing },
+		{ EQ::item::ItemTypeShield, EQ::skills::SkillBash },
+		{ EQ::item::ItemTypeArmor, EQ::skills::SkillHandtoHand },
+		{ EQ::item::ItemTypeMartial, EQ::skills::SkillHandtoHand }
+	};
+
+	const auto& s = convert_item_types_map.find(item_type);
+	if (s != convert_item_types_map.end()) {
+		return s->second;
+	}
+
+	return EQ::skills::SkillHandtoHand;
+}
+
+void Mob::CloneAppearance(Mob* other, bool clone_name)
+{
+	if (!other) {
+		return;
+	}
+
+	SendIllusionPacket(
+		other->GetRace(),
+		other->GetGender(),
+		other->GetTexture(),
+		other->GetHelmTexture(),
+		other->GetHairColor(),
+		other->GetBeardColor(),
+		other->GetEyeColor1(),
+		other->GetEyeColor2(),
+		other->GetHairStyle(),
+		other->GetBeard(),
+		0xFF,
+		other->GetRace() == DRAKKIN ? other->GetDrakkinHeritage() : 0xFFFFFFFF,
+		other->GetRace() == DRAKKIN ? other->GetDrakkinTattoo() : 0xFFFFFFFF,
+		other->GetRace() == DRAKKIN ? other->GetDrakkinDetails() : 0xFFFFFFFF,
+		other->GetSize()
+	);
+
+	for (
+		uint8 slot = EQ::textures::armorHead;
+		slot <= EQ::textures::armorFeet;
+		slot++
+	) {
+		auto color = 0;
+		auto material = 0;
+		if (other->IsClient()) {
+			color = other->CastToClient()->GetEquipmentColor(slot);
+			material = other->CastToClient()->GetEquipmentMaterial(slot);
+		} else {
+			color = other->GetArmorTint(slot);
+			material = !slot ? other->GetHelmTexture() : other->GetTexture();
+		}
+
+		WearChange(slot, material, color);
+	}
+
+	WearChange(
+		EQ::textures::weaponPrimary,
+		other->GetEquipmentMaterial(EQ::textures::weaponPrimary),
+		other->GetEquipmentColor(EQ::textures::weaponPrimary)
+	);
+
+	WearChange(
+		EQ::textures::weaponSecondary,
+		other->GetEquipmentMaterial(EQ::textures::weaponSecondary),
+		other->GetEquipmentColor(EQ::textures::weaponSecondary)
+	);
+
+	if (IsNPC()) {
+		auto primary_skill = (
+			other->IsNPC() ?
+			other->CastToNPC()->GetPrimSkill() :
+			ConvertItemTypeToSkillID(other->GetEquipmentType(EQ::textures::weaponSecondary))
+		);
+
+		auto secondary_skill = (
+			other->IsNPC() ?
+			other->CastToNPC()->GetSecSkill()  :
+			ConvertItemTypeToSkillID(other->GetEquipmentType(EQ::textures::weaponSecondary))
+		);
+
+		CastToNPC()->SetPrimSkill(primary_skill);
+		CastToNPC()->SetSecSkill(secondary_skill);
+	}
+
+	if (clone_name) {
+		TempName(other->GetCleanName());
+	}
+}
+
+void Mob::CopyHateList(Mob* to) {
+	if (hate_list.IsHateListEmpty() || !to || to->IsClient()) {
+		return;
+	}
+
+	for (const auto& h : hate_list.GetHateList()) {
+		if (h->entity_on_hatelist) {
+			to->AddToHateList(h->entity_on_hatelist, h->stored_hate_amount, h->hatelist_damage);
+		}
+	}
 }

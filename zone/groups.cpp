@@ -825,7 +825,7 @@ void Group::CastGroupSpell(Mob* caster, uint16 spell_id) {
 					caster->SpellOnTarget(spell_id, members[z]->GetPet());
 #endif
 			} else
-				LogSpells("Group spell: [{}] is out of range [{}] at distance [{}] from [{}]", members[z]->GetName(), range, distance, caster->GetName());
+				LogSpells("[Group::CastGroupSpell] Group spell: [{}] is out of range [{}] at distance [{}] from [{}]", members[z]->GetName(), range, distance, caster->GetName());
 		}
 	}
 
@@ -833,26 +833,28 @@ void Group::CastGroupSpell(Mob* caster, uint16 spell_id) {
 	disbandcheck = true;
 }
 
-bool Group::IsGroupMember(Mob* client)
+bool Group::IsGroupMember(Mob* c)
 {
-	bool Result = false;
-
-	if(client) {
-		for (uint32 i = 0; i < MAX_GROUP_MEMBERS; i++) {
-			if (members[i] == client)
-				Result = true;
+	if (c) {
+		for (const auto &m: members) {
+			if (m == c) {
+				return true;
+			}
 		}
 	}
 
-	return Result;
+	return false;
 }
 
-bool Group::IsGroupMember(const char *Name)
+bool Group::IsGroupMember(const char *name)
 {
-	if(Name)
-		for(uint32 i = 0; i < MAX_GROUP_MEMBERS; i++)
-			if((strlen(Name) == strlen(membername[i])) && !strncmp(membername[i], Name, strlen(Name)))
+	if (name) {
+		for (const auto& m : membername) {
+			if (!strcmp(m, name)) {
 				return true;
+			}
+		}
+	}
 
 	return false;
 }
@@ -2511,34 +2513,46 @@ void Group::SmartHealGroup(int64 heal_amt, Mob* caster, float range)
 
 void Group::SmartHealPercentGroup(int64 heal_amt, Mob* caster, float range)
 {
-    if (!caster)
-        return;
+	if (!caster)
+		return;
 
-    if (!range)
-        range = 200;
+	if (!range)
+		range = 200;
 
-    float distance;
-    float range2 = range * range;
+	float distance;
+	float range2 = range * range;
 
-    Mob* memberToHeal = nullptr;
-    float lowestPercent = 100.f;
+	Mob* memberToHeal = nullptr;
+	float lowestPercent = 100.f;
 
-    int numMem = 0;
-    unsigned int gi = 0;
-    for (; gi < MAX_GROUP_MEMBERS; gi++)
-    {
-        if (members[gi]) {
-            distance = DistanceSquared(caster->GetPosition(), members[gi]->GetPosition());
-            if (distance <= range2 && members[gi]->GetHPRatio() < lowestPercent) {
-                lowestPercent = members[gi]->GetHPRatio();
-                memberToHeal = members[gi];
-            }
-        }
-    }
+	int numMem = 0;
+	unsigned int gi = 0;
+	for (; gi < MAX_GROUP_MEMBERS; gi++)
+	{
+		if (members[gi]) {
+			distance = DistanceSquared(caster->GetPosition(), members[gi]->GetPosition());
+			if (distance <= range2 && members[gi]->GetHPRatio() < lowestPercent) {
+				lowestPercent = members[gi]->GetHPRatio();
+				memberToHeal = members[gi];
+			}
+		}
+	}
 
-    if (memberToHeal)
-    {
-        memberToHeal->HealDamage(memberToHeal->GetMaxHP() * heal_amt/100, caster);
-        memberToHeal->SendHPUpdate();
-    }
+	if (memberToHeal)
+	{
+		memberToHeal->HealDamage(memberToHeal->GetMaxHP() * heal_amt / 100, caster);
+		memberToHeal->SendHPUpdate();
+	}
+}
+
+bool Group::IsLeader(const char* name) {
+	if (name) {
+		for (const auto& m : membername) {
+			if (!strcmp(m, name)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }

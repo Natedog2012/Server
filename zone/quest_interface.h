@@ -43,11 +43,35 @@ public:
 		std::vector<std::any> *extra_pointers) { return 0; }
 	virtual int EventItem(QuestEventID evt, Client *client, EQ::ItemInstance *item, Mob *mob, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) { return 0; }
-	virtual int EventSpell(QuestEventID evt, NPC* npc, Client *client, uint32 spell_id, std::string data, uint32 extra_data,
+	virtual int EventSpell(QuestEventID evt, Mob* mob, Client *client, uint32 spell_id, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) { return 0; }
 	virtual int EventEncounter(QuestEventID evt, std::string encounter_name, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) { return 0; }
-	
+
+#ifdef BOTS
+	virtual int EventBot(
+		QuestEventID evt,
+		Bot *bot,
+		Mob *init,
+		std::string data,
+		uint32 extra_data,
+		std::vector<std::any> *extra_pointer
+	) {
+		return 0;
+	}
+
+	virtual int EventGlobalBot(
+		QuestEventID evt,
+		Bot *bot,
+		Mob *init,
+		std::string data,
+		uint32 extra_data,
+		std::vector<std::any> *extra_pointers
+	) {
+		return 0;
+	}
+#endif
+
 	virtual bool HasQuestSub(uint32 npcid, QuestEventID evt) { return false; }
 	virtual bool HasGlobalQuestSub(QuestEventID evt) { return false; }
 	virtual bool PlayerHasQuestSub(QuestEventID evt) { return false; }
@@ -57,6 +81,11 @@ public:
 	virtual bool EncounterHasQuestSub(std::string encounter_name, QuestEventID evt) { return false; }
 	virtual bool HasEncounterSub(const std::string& package_name, QuestEventID evt) { return false; }
 
+#ifdef BOTS
+	virtual bool BotHasQuestSub(QuestEventID evt) { return false; }
+	virtual bool GlobalBotHasQuestSub(QuestEventID evt) { return false; }
+#endif
+
 	virtual void LoadNPCScript(std::string filename, int npc_id) { }
 	virtual void LoadGlobalNPCScript(std::string filename) { }
 	virtual void LoadPlayerScript(std::string filename) { }
@@ -65,22 +94,40 @@ public:
 	virtual void LoadSpellScript(std::string filename, uint32 spell_id) { }
 	virtual void LoadEncounterScript(std::string filename, std::string encounter_name) { }
 
+#ifdef BOTS
+	virtual void LoadBotScript(std::string filename) { }
+	virtual void LoadGlobalBotScript(std::string filename) { }
+#endif
+
 	virtual int DispatchEventNPC(QuestEventID evt, NPC* npc, Mob *init, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) { return 0; }
 	virtual int DispatchEventPlayer(QuestEventID evt, Client *client, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) { return 0; }
 	virtual int DispatchEventItem(QuestEventID evt, Client *client, EQ::ItemInstance *item, Mob *mob, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) { return 0; }
-	virtual int DispatchEventSpell(QuestEventID evt, NPC* npc, Client *client, uint32 spell_id, std::string data, uint32 extra_data,
+	virtual int DispatchEventSpell(QuestEventID evt, Mob* mob, Client *client, uint32 spell_id, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) { return 0; }
-	
+
+#ifdef BOTS
+	virtual int DispatchEventBot(
+		QuestEventID evt,
+		Bot *bot,
+		Mob *init,
+		std::string data,
+		uint32 extra_data,
+		std::vector<std::any> *extra_pointers
+	) {
+		return 0;
+	}
+#endif
+
 	virtual void AddVar(std::string name, std::string val) { }
 	virtual std::string GetVar(std::string name) { return std::string(); }
 	virtual void Init() { }
 	virtual void ReloadQuests() { }
 	virtual uint32 GetIdentifier() = 0;
 	virtual void RemoveEncounter(const std::string &name) { }
-	
+
 	//TODO: Set maximum quest errors instead of hard coding it
 	virtual void GetErrors(std::list<std::string> &quest_errors) {
 		quest_errors.insert(quest_errors.end(), errors_.begin(), errors_.end());
@@ -88,13 +135,14 @@ public:
 
 	virtual void AddError(std::string error) {
 		LogQuests("{}", error);
+		LogQuestErrors("{}", Strings::Trim(error));
 
 		errors_.push_back(error);
 		if(errors_.size() > 30) {
 			errors_.pop_front();
 		}
 	}
-	
+
 protected:
 	std::list<std::string> errors_;
 };

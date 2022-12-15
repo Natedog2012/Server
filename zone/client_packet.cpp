@@ -1606,28 +1606,32 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	outapp->priority = 6;
 	FastQueuePacket(&outapp);
 
-	if (m_pp.RestTimer)
+	if (m_pp.RestTimer) {
 		rest_timer.Start(m_pp.RestTimer * 1000);
+	}
 
-	/* Load Pet */
-	database.LoadPetInfo(this);
-	if (m_petinfo.SpellID > 1 && !GetPet() && m_petinfo.SpellID <= SPDAT_RECORDS) {
-		MakePoweredPet(m_petinfo.SpellID, spells[m_petinfo.SpellID].teleport_zone, m_petinfo.petpower, m_petinfo.Name, m_petinfo.size);
-		if (GetPet() && GetPet()->IsNPC()) {
-			NPC *pet = GetPet()->CastToNPC();
-			pet->SetPetState(m_petinfo.Buffs, m_petinfo.Items);
-			pet->CalcBonuses();
-			pet->SetHP(m_petinfo.HP);
-			pet->SetMana(m_petinfo.Mana);
+	if (RuleB(NPC, PetZoneWithOwner)) {
+		/* Load Pet */
+		database.LoadPetInfo(this);
+		if (m_petinfo.SpellID > 1 && !GetPet() && m_petinfo.SpellID <= SPDAT_RECORDS) {
+			MakePoweredPet(m_petinfo.SpellID, spells[m_petinfo.SpellID].teleport_zone, m_petinfo.petpower,
+						   m_petinfo.Name, m_petinfo.size);
+			if (GetPet() && GetPet()->IsNPC()) {
+				NPC *pet = GetPet()->CastToNPC();
+				pet->SetPetState(m_petinfo.Buffs, m_petinfo.Items);
+				pet->CalcBonuses();
+				pet->SetHP(m_petinfo.HP);
+				pet->SetMana(m_petinfo.Mana);
 
-			// Taunt persists when zoning on newer clients, overwrite default.
-			if (m_ClientVersionBit & EQ::versions::maskUFAndLater) {
-				if (!firstlogon) {
-					pet->SetTaunting(m_petinfo.taunting);
+				// Taunt persists when zoning on newer clients, overwrite default.
+				if (m_ClientVersionBit & EQ::versions::maskUFAndLater) {
+					if (!firstlogon) {
+						pet->SetTaunting(m_petinfo.taunting);
+					}
 				}
 			}
+			m_petinfo.SpellID = 0;
 		}
-		m_petinfo.SpellID = 0;
 	}
 	/* Moved here so it's after where we load the pet data. */
 	if (!aabonuses.ZoneSuspendMinion && !spellbonuses.ZoneSuspendMinion && !itembonuses.ZoneSuspendMinion) {
@@ -1725,8 +1729,8 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	 * DevTools Load Settings
 	 */
 	if (Admin() >= EQ::DevTools::GM_ACCOUNT_STATUS_LEVEL) {
-		std::string dev_tools_window_key = StringFormat("%i-dev-tools-disabled", AccountID());
-		if (DataBucket::GetData(dev_tools_window_key) == "true") {
+		const auto dev_tools_key = fmt::format("{}-dev-tools-disabled", AccountID());
+		if (DataBucket::GetData(dev_tools_key) == "true") {
 			dev_tools_enabled = false;
 		}
 	}
@@ -2233,7 +2237,14 @@ void Client::Handle_OP_AdventureMerchantSell(const EQApplicationPacket *app)
 	}
 
 	// 06/11/2016 This formula matches RoF2 client side calculation.
-	int32 price = (item->LDoNPrice + 1) * item->LDoNSellBackRate / 100;
+	uint32 price = EQ::Clamp(
+		price,
+		EQ::ClampUpper(
+			(item->LDoNPrice + 1) * item->LDoNSellBackRate / 100,
+			item->LDoNPrice
+		),
+		item->LDoNPrice
+	);
 
 	if (price == 0)
 	{
@@ -2717,7 +2728,15 @@ void Client::Handle_OP_AltCurrencySell(const EQApplicationPacket *app)
 				continue;
 
 			if (item->ID == inst->GetItem()->ID) {
-				cost = ml.alt_currency_cost;
+				// 06/11/2016 This formula matches RoF2 client side calculation.
+				cost = EQ::Clamp(
+					cost,
+					EQ::ClampUpper(
+						static_cast<uint32>((ml.alt_currency_cost + 1) * item->LDoNSellBackRate / 100),
+						static_cast<uint32>(ml.alt_currency_cost)
+					),
+					static_cast<uint32>(ml.alt_currency_cost)
+				);
 				found = true;
 				break;
 			}
@@ -2821,7 +2840,15 @@ void Client::Handle_OP_AltCurrencySellSelection(const EQApplicationPacket *app)
 					continue;
 
 				if (item->ID == inst->GetItem()->ID) {
-					cost = ml.alt_currency_cost;
+					// 06/11/2016 This formula matches RoF2 client side calculation.
+					cost = EQ::Clamp(
+						cost,
+						EQ::ClampUpper(
+							static_cast<uint32>((ml.alt_currency_cost + 1) * item->LDoNSellBackRate / 100),
+							static_cast<uint32>(ml.alt_currency_cost)
+						),
+						static_cast<uint32>(ml.alt_currency_cost)
+					);
 					found = true;
 					break;
 				}
@@ -3891,14 +3918,14 @@ void Client::Handle_OP_Buff(const EQApplicationPacket *app)
 	*/
 	if (app->size != sizeof(SpellBuffPacket_Struct))
 	{
-		LogError("Size mismatch in OP_Buff. expected [{}] got [{}]", sizeof(SpellBuffPacket_Struct), app->size);
+		LogError("[Client::Handle_OP_Buff] Size mismatch in OP_Buff. expected [{}] got [{}]", sizeof(SpellBuffPacket_Struct), app->size);
 		DumpPacket(app);
 		return;
 	}
 
 	SpellBuffPacket_Struct* sbf = (SpellBuffPacket_Struct*)app->pBuffer;
 	uint32 spid = sbf->buff.spellid;
-	LogSpells("Client requested that buff with spell id [{}] be canceled", spid);
+	LogSpells("[Client::Handle_OP_Buff] Client requested that buff with spell id [{}] be canceled", spid);
 
 	//something about IsDetrimentalSpell() crashes this portion of code..
 	//tbh we shouldn't use it anyway since this is a simple red vs blue buff check and
@@ -3958,23 +3985,17 @@ void Client::Handle_OP_BuffRemoveRequest(const EQApplicationPacket *app)
 void Client::Handle_OP_Bug(const EQApplicationPacket *app)
 {
 	if (!RuleB(Bugs, ReportingSystemActive)) {
-		Message(0, "Bug reporting is disabled on this server.");
+		Message(Chat::White, "Bug reporting is disabled on this server.");
 		return;
 	}
 
 	if (app->size != sizeof(BugReport_Struct)) {
-		printf("Wrong size of BugReport_Struct got %d expected %zu!\n", app->size, sizeof(BugReport_Struct));
-	}
-	else {
-		BugReport_Struct* bug_report = (BugReport_Struct*)app->pBuffer;
-
-		if (RuleB(Bugs, UseOldReportingMethod))
-			database.RegisterBug(bug_report);
-		else
-			database.RegisterBug(this, bug_report);
+		LogError("Wrong size of BugReport_Struct got {} expected {}!", app->size, sizeof(BugReport_Struct));
+		return;
 	}
 
-	return;
+	auto *r = (BugReport_Struct *) app->pBuffer;
+	RegisterBug(r);
 }
 
 void Client::Handle_OP_Camp(const EQApplicationPacket *app)
@@ -4068,7 +4089,7 @@ void Client::Handle_OP_CastSpell(const EQApplicationPacket *app)
 
 	m_TargetRing = glm::vec3(castspell->x_pos, castspell->y_pos, castspell->z_pos);
 
-	LogSpells("OP CastSpell: slot [{}] spell [{}] target [{}] inv [{}]", castspell->slot, castspell->spell_id, castspell->target_id, (unsigned long)castspell->inventoryslot);
+	LogSpells("[Client::Handle_OP_CastSpell] OP CastSpell: slot [{}] spell [{}] target [{}] inv [{}]", castspell->slot, castspell->spell_id, castspell->target_id, (unsigned long)castspell->inventoryslot);
 	CastingSlot slot = static_cast<CastingSlot>(castspell->slot);
 
 	/* Memorized Spell */
@@ -4168,7 +4189,7 @@ void Client::Handle_OP_CastSpell(const EQApplicationPacket *app)
 	/* Discipline -- older clients use the same slot as items, but we translate to it's own */
 	else if (slot == CastingSlot::Discipline) {
 		if (!UseDiscipline(castspell->spell_id, castspell->target_id)) {
-			LogSpells("Unknown ability being used by [{}], spell being cast is: [{}]\n", GetName(), castspell->spell_id);
+			LogSpells("[Client::Handle_OP_CastSpell] Unknown ability being used by [{}] spell being cast is: [{}]\n", GetName(), castspell->spell_id);
 			InterruptSpell(castspell->spell_id);
 			return;
 		}
@@ -8813,7 +8834,7 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 	using EQ::spells::CastingSlot;
 	if (app->size != sizeof(ItemVerifyRequest_Struct))
 	{
-		LogError("OP size error: OP_ItemVerifyRequest expected:[{}] got:[{}]", sizeof(ItemVerifyRequest_Struct), app->size);
+		LogError("[Client::Handle_OP_ItemVerifyRequest] OP size error: OP_ItemVerifyRequest expected:[{}] got:[{}]", sizeof(ItemVerifyRequest_Struct), app->size);
 		return;
 	}
 
@@ -8842,7 +8863,7 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 	}
 
 	if (slot_id < 0) {
-		LogDebug("Unknown slot being used by [{}], slot being used is: [{}]", GetName(), request->slot);
+		LogDebug("[Client::Handle_OP_ItemVerifyRequest] Unknown slot being used by [{}] slot being used is [{}]", GetName(), request->slot);
 		return;
 	}
 
@@ -8903,7 +8924,7 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 	if (spell_id > 0 && (spells[spell_id].target_type == ST_Pet || spells[spell_id].target_type == ST_SummonedPet))
 		target_id = GetPetID();
 
-	LogDebug("OP ItemVerifyRequest: spell=[{}], target=[{}], inv=[{}]", spell_id, target_id, slot_id);
+	LogDebug("[Client::Handle_OP_ItemVerifyRequest] OP ItemVerifyRequest: spell=[{}] target=[{}] inv=[{}]", spell_id, target_id, slot_id);
 
 	if (m_inv.SupportsClickCasting(slot_id) || ((item->ItemType == EQ::item::ItemTypePotion || item->PotionBelt) && m_inv.SupportsPotionBeltCasting(slot_id))) // sanity check
 	{
@@ -8941,7 +8962,7 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 
 		if ((spell_id <= 0) && (item->ItemType != EQ::item::ItemTypeFood && item->ItemType != EQ::item::ItemTypeDrink && item->ItemType != EQ::item::ItemTypeAlcohol && item->ItemType != EQ::item::ItemTypeSpell))
 		{
-			LogDebug("Item with no effect right clicked by [{}]", GetName());
+			LogDebug("[Client::Handle_OP_ItemVerifyRequest] Item with no effect right clicked by [{}]", GetName());
 		}
 		else if (inst->IsClassCommon())
 		{
@@ -8995,7 +9016,7 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 							SendItemRecastTimer(item->RecastType); //Problem: When you loot corpse, recast display is not present. This causes it to display again. Could not get to display when sending from looting.
 							MessageString(Chat::Red, SPELL_RECAST);
 							SendSpellBarEnable(item->Click.Effect);
-							LogSpells("Casting of [{}] canceled: item spell reuse timer not expired", spell_id);
+							LogSpells("[Client::Handle_OP_ItemVerifyRequest] Casting of [{}] canceled: item spell reuse timer not expired", spell_id);
 							return;
 						}
 					}
@@ -9037,7 +9058,7 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 					if (augitem->RecastDelay > 0)
 					{
 						if (!GetPTimers().Expired(&database, (pTimerItemStart + augitem->RecastType), false)) {
-							LogSpells("Casting of [{}] canceled: item spell reuse timer from augment not expired", spell_id);
+							LogSpells("[Client::Handle_OP_ItemVerifyRequest] Casting of [{}] canceled: item spell reuse timer from augment not expired", spell_id);
 							MessageString(Chat::Red, SPELL_RECAST);
 							SendSpellBarEnable(augitem->Click.Effect);
 							return;
@@ -9075,12 +9096,12 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 				{
 					if (item->ItemType != EQ::item::ItemTypeFood && item->ItemType != EQ::item::ItemTypeDrink && item->ItemType != EQ::item::ItemTypeAlcohol)
 					{
-						LogDebug("Error: unknown item->Click.Type ([{}])", item->Click.Type);
+						LogDebug("[Client::Handle_OP_ItemVerifyRequest] Error: unknown item->Click.Type ([{}])", item->Click.Type);
 					}
 				}
 				else
 				{
-					LogDebug("Error: unknown item->Click.Type ([{}])", item->Click.Type);
+					LogDebug("[Client::Handle_OP_ItemVerifyRequest] Error: unknown item->Click.Type ([{}])", item->Click.Type);
 				}
 			}
 		}
@@ -9188,7 +9209,13 @@ void Client::Handle_OP_LDoNInspect(const EQApplicationPacket *app)
 {
 	Mob * target = GetTarget();
 	if (target && target->GetClass() == LDON_TREASURE && !target->IsAura())
-		Message(Chat::Yellow, "%s", target->GetCleanName());
+	{
+		std::vector<std::any> args = { target };
+		if (parse->EventPlayer(EVENT_INSPECT, this, "", target->GetID(), &args) == 0)
+		{
+			Message(Chat::Yellow, "%s", target->GetCleanName());
+		}
+	}
 }
 
 void Client::Handle_OP_LDoNOpen(const EQApplicationPacket *app)
@@ -11202,8 +11229,8 @@ void Client::Handle_OP_PopupResponse(const EQApplicationPacket *app)
 			break;
 
 		case POPUPID_DIAWIND_ONE:
-			if (EntityVariableExists(DIAWIND_RESPONSE_ONE_KEY.c_str())) {
-				response = GetEntityVariable(DIAWIND_RESPONSE_ONE_KEY.c_str());
+			if (EntityVariableExists(DIAWIND_RESPONSE_ONE_KEY)) {
+				response = GetEntityVariable(DIAWIND_RESPONSE_ONE_KEY);
 				if (!response.empty()) {
 					ChannelMessageReceived(8, 0, 100, response.c_str(), nullptr, true);
 				}
@@ -11211,8 +11238,8 @@ void Client::Handle_OP_PopupResponse(const EQApplicationPacket *app)
 			break;
 
 		case POPUPID_DIAWIND_TWO:
-			if (EntityVariableExists(DIAWIND_RESPONSE_TWO_KEY.c_str())) {
-				response = GetEntityVariable(DIAWIND_RESPONSE_TWO_KEY.c_str());
+			if (EntityVariableExists(DIAWIND_RESPONSE_TWO_KEY)) {
+				response = GetEntityVariable(DIAWIND_RESPONSE_TWO_KEY);
 				if (!response.empty()) {
 					ChannelMessageReceived(8, 0, 100, response.c_str(), nullptr, true);
 				}
@@ -11227,13 +11254,19 @@ void Client::Handle_OP_PopupResponse(const EQApplicationPacket *app)
 			break;
 	}
 
-	std::string export_string = fmt::format("{}", popup_response->popupid);
+	const auto export_string = fmt::format("{}", popup_response->popupid);
 
 	parse->EventPlayer(EVENT_POPUP_RESPONSE, this, export_string, 0);
 
-	Mob *Target = GetTarget();
-	if (Target && Target->IsNPC()) {
-		parse->EventNPC(EVENT_POPUP_RESPONSE, Target->CastToNPC(), this, export_string, 0);
+	auto t = GetTarget();
+	if (t) {
+		if (t->IsNPC()) {
+			parse->EventNPC(EVENT_POPUP_RESPONSE, t->CastToNPC(), this, export_string, 0);
+#ifdef BOTS
+		} else if (t->IsBot()) {
+			parse->EventBot(EVENT_POPUP_RESPONSE, t->CastToBot(), this, export_string, 0);
+#endif
+		}
 	}
 }
 
@@ -12636,7 +12669,7 @@ void Client::Handle_OP_RezzAnswer(const EQApplicationPacket *app)
 
 	const Resurrect_Struct* ra = (const Resurrect_Struct*)app->pBuffer;
 
-	LogSpells("Received OP_RezzAnswer from client. Pendingrezzexp is [{}], action is [{}]",
+	LogSpells("[Client::Handle_OP_RezzAnswer] Received OP_RezzAnswer from client. Pendingrezzexp is [{}] action is [{}]",
 		PendingRezzXP, ra->action ? "ACCEPT" : "DECLINE");
 
 
