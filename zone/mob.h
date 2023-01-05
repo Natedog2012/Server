@@ -165,6 +165,7 @@ public:
 		uint16 in_usemodel,
 		bool in_always_aggros_foes,
 		int32 in_heroic_strikethrough,
+		bool keeps_sold_items,
 		int64 in_hp_regen_per_second = 0
 	);
 	virtual ~Mob();
@@ -450,7 +451,7 @@ public:
 	int32 RuneAbsorb(int64 damage, uint16 type);
 	bool FindBuff(uint16 spell_id);
 	uint16 FindBuffBySlot(int slot);
-	uint32 BuffCount();
+	uint32 BuffCount(bool is_beneficial = true, bool is_detrimental = true);
 	bool FindType(uint16 type, bool bOffensive = false, uint16 threshold = 100);
 	int16 GetBuffSlotFromType(uint16 type);
 	uint16 GetSpellIDFromSlot(uint8 slot);
@@ -662,6 +663,8 @@ public:
 	bool IsControllableBoat() const;
 	inline const bool AlwaysAggro() const { return always_aggro; }
 	inline int32 GetHeroicStrikethrough() const  { return heroic_strikethrough; }
+	inline const bool GetKeepsSoldItems() const { return keeps_sold_items; }
+	inline void SetKeepsSoldItems(bool in_keeps_sold_items)  { keeps_sold_items = in_keeps_sold_items; }
 
 	void CopyHateList(Mob* to);
 
@@ -882,7 +885,7 @@ public:
 	void Shout(const char *format, ...);
 	void Emote(const char *format, ...);
 	void QuestJournalledSay(Client *QuestInitiator, const char *str, Journal::Options &opts);
-	int32 GetItemStat(uint32 itemid, const char *identifier);
+	const int GetItemStat(uint32 item_id, std::string identifier);
 
 	int64 CalcFocusEffect(focusType type, uint16 focus_id, uint16 spell_id, bool best_focus=false, uint16 casterid = 0, Mob *caster = nullptr);
 	uint8 IsFocusEffect(uint16 spellid, int effect_index, bool AA=false,uint32 aa_effect=0);
@@ -1238,7 +1241,6 @@ public:
 	bool CheckWillAggro(Mob *mob);
 
 	void InstillDoubt(Mob *who);
-	int16 GetResist(uint8 type) const;
 	bool Charmed() const { return typeofpet == petCharmed; }
 	static uint32 GetLevelHP(uint8 tlevel);
 	uint32 GetZoneID() const; //for perl
@@ -1411,6 +1413,7 @@ public:
 	int GetAlternateAdvancementCooldownReduction(AA::Rank *rank_in);
 	void ExpendAlternateAdvancementCharge(uint32 aa_id);
 	void CalcAABonuses(StatBonuses* newbon);
+	int64 CalcAAFocus(focusType type, const AA::Rank &rank, uint16 spell_id);
 	void ApplyAABonuses(const AA::Rank &rank, StatBonuses* newbon);
 	bool CheckAATimer(int timer);
 
@@ -1546,6 +1549,7 @@ protected:
 	bool no_target_hotkey;
 	bool rare_spawn;
 	int32 heroic_strikethrough;
+	bool keeps_sold_items;
 
 	uint32 m_PlayerState;
 	uint32 GetPlayerState() { return m_PlayerState; }
@@ -1607,7 +1611,8 @@ protected:
 	virtual
 #endif
 	int GetBaseSkillDamage(EQ::skills::SkillType skill, Mob *target = nullptr);
-	virtual int64 GetFocusEffect(focusType type, uint16 spell_id, Mob *caster = nullptr, bool from_buff_tic = false) { return 0; }
+	int64 GetFocusEffect(focusType type, uint16 spell_id, Mob *caster = nullptr, bool from_buff_tic = false);
+	virtual EQ::InventoryProfile& GetInv() { return m_inv; }
 	void CalculateNewFearpoint();
 	float FindGroundZ(float new_x, float new_y, float z_offset=0.0);
 	float FindDestGroundZ(glm::vec3 dest, float z_offset=0.0);
@@ -1879,7 +1884,7 @@ protected:
 
 private:
 	Mob* target;
-
+	EQ::InventoryProfile m_inv;
 
 #ifdef BOTS
 	std::shared_ptr<HealRotation> m_target_of_heal_rotation;

@@ -28,6 +28,7 @@
 #include "item_instance.h"
 
 #include <list>
+#include <vector>
 
 
 //FatherNitwit: location bits for searching specific
@@ -152,6 +153,9 @@ namespace EQ
 		// Check how many of a specific augment the player has equipped by Item ID
 		int CountAugmentEquippedByID(uint32 item_id);
 
+		// Get a list of augments from a specific slot ID
+		std::vector<uint32> GetAugmentIDsBySlotID(int16 slot_id);
+
 		// Check whether there is space for the specified number of the specified item.
 		bool HasSpaceForItem(const ItemData *ItemToTry, int16 Quantity);
 
@@ -202,7 +206,7 @@ namespace EQ
 		void SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, float value);
 		void SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, bool value);
 		std::string GetCustomItemData(int16 slot_id, std::string identifier);
-		static int GetItemStatValue(uint32 item_id, const char* identifier);
+		static const int GetItemStatValue(uint32 item_id, std::string identifier);
 	protected:
 		///////////////////////////////
 		// Protected Methods

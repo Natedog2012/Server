@@ -881,12 +881,6 @@ int lua_merchant_count_item(uint32 npc_id, uint32 item_id) {
 	return quest_manager.MerchantCountItem(npc_id, item_id);
 }
 
-std::string lua_item_link(int item_id) {
-	char text[250] = { 0 };
-
-	return quest_manager.varlink(text, item_id);
-}
-
 std::string lua_get_item_name(uint32 item_id) {
 	return quest_manager.getitemname(item_id);
 }
@@ -2018,8 +2012,8 @@ std::string lua_get_data_remaining(std::string bucket_name) {
 	return DataBucket::GetDataRemaining(bucket_name);
 }
 
-int lua_get_item_stat(uint32 item_id, std::string stat_identifier) {
-	return quest_manager.getitemstat(item_id, stat_identifier);
+const int lua_get_item_stat(uint32 item_id, std::string identifier) {
+	return quest_manager.getitemstat(item_id, identifier);
 }
 
 int lua_get_spell_stat(uint32 spell_id, std::string stat_identifier) {
@@ -3656,6 +3650,52 @@ void lua_do_anim(int animation_id, int animation_speed, bool ackreq, int filter)
 	quest_manager.doanim(animation_id, animation_speed, ackreq, static_cast<eqFilterType>(filter));
 }
 
+std::string lua_item_link(uint32 item_id) {
+	return quest_manager.varlink(item_id);
+}
+
+std::string lua_item_link(uint32 item_id, int16 charges) {
+	return quest_manager.varlink(item_id, charges);
+}
+
+std::string lua_item_link(uint32 item_id, int16 charges, uint32 aug1) {
+	return quest_manager.varlink(item_id, charges, aug1);
+}
+
+std::string lua_item_link(uint32 item_id, int16 charges, uint32 aug1, uint32 aug2) {
+	return quest_manager.varlink(item_id, charges, aug1, aug2);
+}
+
+std::string lua_item_link(uint32 item_id, int16 charges, uint32 aug1, uint32 aug2, uint32 aug3) {
+	return quest_manager.varlink(item_id, charges, aug1, aug2, aug3);
+}
+
+std::string lua_item_link(uint32 item_id, int16 charges, uint32 aug1, uint32 aug2, uint32 aug3, uint32 aug4) {
+	return quest_manager.varlink(item_id, charges, aug1, aug2, aug3, aug4);
+}
+
+std::string lua_item_link(uint32 item_id, int16 charges, uint32 aug1, uint32 aug2, uint32 aug3, uint32 aug4, uint32 aug5) {
+	return quest_manager.varlink(item_id, charges, aug1, aug2, aug3, aug4, aug5);
+}
+
+std::string lua_item_link(uint32 item_id, int16 charges, uint32 aug1, uint32 aug2, uint32 aug3, uint32 aug4, uint32 aug5, uint32 aug6) {
+	return quest_manager.varlink(item_id, charges, aug1, aug2, aug3, aug4, aug5, aug6);
+}
+
+std::string lua_item_link(uint32 item_id, int16 charges, uint32 aug1, uint32 aug2, uint32 aug3, uint32 aug4, uint32 aug5, uint32 aug6, bool attuned) {
+	return quest_manager.varlink(item_id, charges, aug1, aug2, aug3, aug4, aug5, aug6, attuned);
+}
+
+bool lua_do_augment_slots_match(uint32 item_one, uint32 item_two)
+{
+	return quest_manager.DoAugmentSlotsMatch(item_one, item_two);
+}
+
+int8 lua_does_augment_fit(Lua_ItemInst inst, uint32 augment_id)
+{
+	return quest_manager.DoesAugmentFit(inst, augment_id);
+}
+
 #define LuaCreateNPCParse(name, c_type, default_value) do { \
 	cur = table[#name]; \
 	if(luabind::type(cur) != LUA_TNIL) { \
@@ -3836,7 +3876,7 @@ bool get_ruleb(int rule) {
 
 luabind::scope lua_register_general() {
 	return luabind::namespace_("eq")
-	[
+	[(
 		luabind::def("load_encounter", &load_encounter),
 		luabind::def("unload_encounter", &unload_encounter),
 		luabind::def("load_encounter_with_data", &load_encounter_with_data),
@@ -3992,7 +4032,15 @@ luabind::scope lua_register_general() {
 		luabind::def("merchant_set_item", (void(*)(uint32,uint32))&lua_merchant_set_item),
 		luabind::def("merchant_set_item", (void(*)(uint32,uint32,uint32))&lua_merchant_set_item),
 		luabind::def("merchant_count_item", &lua_merchant_count_item),
-		luabind::def("item_link", &lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32))&lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32,int16))&lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32,int16,uint32))&lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32))&lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32,uint32))&lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32,uint32,uint32))&lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32,uint32,uint32,uint32))&lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32,uint32,uint32,uint32,uint32))&lua_item_link),
+		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32,uint32,uint32,uint32,uint32,bool))&lua_item_link),
 		luabind::def("get_item_name", (std::string(*)(uint32))&lua_get_item_name),
 		luabind::def("say_link", (std::string(*)(const char*,bool,const char*))&lua_say_link),
 		luabind::def("say_link", (std::string(*)(const char*,bool))&lua_say_link),
@@ -4163,6 +4211,8 @@ luabind::scope lua_register_general() {
 		luabind::def("do_anim", (void(*)(int,int))&lua_do_anim),
 		luabind::def("do_anim", (void(*)(int,int,bool))&lua_do_anim),
 		luabind::def("do_anim", (void(*)(int,int,bool,int))&lua_do_anim),
+		luabind::def("do_augment_slots_match", &lua_do_augment_slots_match),
+		luabind::def("does_augment_fit", &lua_does_augment_fit),
 		/*
 			Cross Zone
 		*/
@@ -4449,25 +4499,25 @@ luabind::scope lua_register_general() {
 		luabind::def("remove_expedition_lockout_by_char_id", &lua_remove_expedition_lockout_by_char_id),
 		luabind::def("remove_all_expedition_lockouts_by_char_id", (void(*)(uint32))&lua_remove_all_expedition_lockouts_by_char_id),
 		luabind::def("remove_all_expedition_lockouts_by_char_id", (void(*)(uint32, std::string))&lua_remove_all_expedition_lockouts_by_char_id)
-	];
+	)];
 }
 
 luabind::scope lua_register_random() {
 	return luabind::namespace_("Random")
-		[
+		[(
 			luabind::def("Int", &random_int),
 			luabind::def("Real", &random_real),
 			luabind::def("Roll", &random_roll_int),
 			luabind::def("RollReal", &random_roll_real),
 			luabind::def("Roll0", &random_roll0)
-		];
+		)];
 }
 
 
 luabind::scope lua_register_events() {
 	return luabind::class_<Events>("Event")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("say", static_cast<int>(EVENT_SAY)),
 			luabind::value("trade", static_cast<int>(EVENT_TRADE)),
 			luabind::value("death", static_cast<int>(EVENT_DEATH)),
@@ -4566,13 +4616,13 @@ luabind::scope lua_register_events() {
 			luabind::value("payload", static_cast<int>(EVENT_PAYLOAD)),
 			luabind::value("level_down", static_cast<int>(EVENT_LEVEL_DOWN)),
 			luabind::value("gm_command", static_cast<int>(EVENT_GM_COMMAND))
-		];
+		)];
 }
 
 luabind::scope lua_register_faction() {
 	return luabind::class_<Factions>("Faction")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("Ally", static_cast<int>(FACTION_ALLY)),
 			luabind::value("Warmly", static_cast<int>(FACTION_WARMLY)),
 			luabind::value("Kindly", static_cast<int>(FACTION_KINDLY)),
@@ -4582,13 +4632,13 @@ luabind::scope lua_register_faction() {
 			luabind::value("Dubious", static_cast<int>(FACTION_DUBIOUSLY)),
 			luabind::value("Threatenly", static_cast<int>(FACTION_THREATENINGLY)),
 			luabind::value("Scowls", static_cast<int>(FACTION_SCOWLS))
-		];
+		)];
 }
 
 luabind::scope lua_register_slot() {
 	return luabind::class_<Slots>("Slot")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("Charm", static_cast<int>(EQ::invslot::slotCharm)),
 			luabind::value("Ear1", static_cast<int>(EQ::invslot::slotEar1)),
 			luabind::value("Head", static_cast<int>(EQ::invslot::slotHead)),
@@ -4679,13 +4729,13 @@ luabind::scope lua_register_slot() {
 			luabind::value("PersonalBegin", static_cast<int>(EQ::invslot::GENERAL_BEGIN)), // deprecated
 			luabind::value("PersonalEnd", static_cast<int>(EQ::invslot::GENERAL_END)), // deprecated
 			luabind::value("CursorEnd", 0xFFFE) // deprecated (not in use..and never valid vis-a-vis client behavior)
-		];
+		)];
 }
 
 luabind::scope lua_register_material() {
 	return luabind::class_<Materials>("Material")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("Head", static_cast<int>(EQ::textures::armorHead)),
 			luabind::value("Chest", static_cast<int>(EQ::textures::armorChest)),
 			luabind::value("Arms", static_cast<int>(EQ::textures::armorArms)),
@@ -4700,13 +4750,13 @@ luabind::scope lua_register_material() {
 
 			luabind::value("Bracer", static_cast<int>(EQ::textures::armorWrist)), // deprecated
 			luabind::value("Max", static_cast<int>(EQ::textures::materialCount)) // deprecated
-		];
+		)];
 }
 
 luabind::scope lua_register_client_version() {
 	return luabind::class_<ClientVersions>("ClientVersion")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("Unknown", static_cast<int>(EQ::versions::ClientVersion::Unknown)),
 			luabind::value("Titanium", static_cast<int>(EQ::versions::ClientVersion::Titanium)),
 			luabind::value("SoF", static_cast<int>(EQ::versions::ClientVersion::SoF)),
@@ -4715,25 +4765,25 @@ luabind::scope lua_register_client_version() {
 			luabind::value("UF", static_cast<int>(EQ::versions::ClientVersion::UF)),
 			luabind::value("RoF", static_cast<int>(EQ::versions::ClientVersion::RoF)),
 			luabind::value("RoF2", static_cast<int>(EQ::versions::ClientVersion::RoF2))
-		];
+		)];
 }
 
 luabind::scope lua_register_appearance() {
 	return luabind::class_<Appearances>("Appearance")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("Standing", static_cast<int>(eaStanding)),
 			luabind::value("Sitting", static_cast<int>(eaSitting)),
 			luabind::value("Crouching", static_cast<int>(eaCrouching)),
 			luabind::value("Dead", static_cast<int>(eaDead)),
 			luabind::value("Looting", static_cast<int>(eaLooting))
-		];
+		)];
 }
 
 luabind::scope lua_register_classes() {
 	return luabind::class_<Classes>("Class")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("WARRIOR", WARRIOR),
 			luabind::value("CLERIC", CLERIC),
 			luabind::value("PALADIN", PALADIN),
@@ -4779,13 +4829,13 @@ luabind::scope lua_register_classes() {
 			luabind::value("FELLOWSHIP_MASTER", FELLOWSHIP_MASTER),
 			luabind::value("ALT_CURRENCY_MERCHANT", ALT_CURRENCY_MERCHANT),
 			luabind::value("MERCENARY_MASTER", MERCENARY_MASTER)
-		];
+		)];
 }
 
 luabind::scope lua_register_skills() {
 	return luabind::class_<Skills>("Skill")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("1HBlunt", EQ::skills::Skill1HBlunt),
 			luabind::value("Blunt1H", EQ::skills::Skill1HBlunt),
 			luabind::value("1HSlashing", EQ::skills::Skill1HSlashing),
@@ -4872,13 +4922,13 @@ luabind::scope lua_register_skills() {
 			luabind::value("2HPiercing", EQ::skills::Skill2HPiercing),
 			luabind::value("Piercing2H", EQ::skills::Skill2HPiercing),
 			luabind::value("HIGHEST_SKILL", EQ::skills::HIGHEST_SKILL)
-		];
+		)];
 }
 
 luabind::scope lua_register_bodytypes() {
 	return luabind::class_<BodyTypes>("BT")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("Humanoid", 1),
 			luabind::value("Lycanthrope", 2),
 			luabind::value("Undead", 3),
@@ -4913,13 +4963,13 @@ luabind::scope lua_register_bodytypes() {
 			luabind::value("SwarmPet", 63),
 			luabind::value("InvisMan", 66),
 			luabind::value("Special", 67)
-		];
+	)];
 }
 
 luabind::scope lua_register_filters() {
 	return luabind::class_<Filters>("Filter")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("None", FilterNone),
 			luabind::value("GuildChat", FilterGuildChat),
 			luabind::value("Socials", FilterSocials),
@@ -4949,13 +4999,13 @@ luabind::scope lua_register_filters() {
 			luabind::value("Unknown26", FilterUnknown26),
 			luabind::value("Unknown27", FilterUnknown27),
 			luabind::value("Unknown28", FilterUnknown28)
-		];
+		)];
 }
 
 luabind::scope lua_register_message_types() {
 	return luabind::class_<MessageTypes>("MT")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("White", Chat::White),
 			luabind::value("DimGray", Chat::DimGray),
 			luabind::value("Default", Chat::Default),
@@ -5059,13 +5109,13 @@ luabind::scope lua_register_message_types() {
 			luabind::value("ItemSpeech", Chat::ItemSpeech),
 			luabind::value("StrikeThrough", Chat::StrikeThrough),
 			luabind::value("Stun", Chat::Stun)
-		];
+	)];
 }
 
 luabind::scope lua_register_rules_const() {
 	return luabind::class_<Rule>("Rule")
 		.enum_("constants")
-	[
+	[(
 #define RULE_INT(cat, rule, default_value, notes) \
 		luabind::value(#rule, RuleManager::Int__##rule),
 #include "../common/ruletypes.h"
@@ -5080,7 +5130,7 @@ luabind::scope lua_register_rules_const() {
 		luabind::value(#rule, RuleManager::Bool__##rule),
 #include "../common/ruletypes.h"
 		luabind::value("_BoolRuleCount", RuleManager::_BoolRuleCount)
-	];
+	)];
 }
 
 luabind::scope lua_register_rulei() {
@@ -5107,24 +5157,24 @@ luabind::scope lua_register_ruleb() {
 luabind::scope lua_register_journal_speakmode() {
 	return luabind::class_<Journal_SpeakMode>("SpeakMode")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("Raw", static_cast<int>(Journal::SpeakMode::Raw)),
 			luabind::value("Say", static_cast<int>(Journal::SpeakMode::Say)),
 			luabind::value("Shout", static_cast<int>(Journal::SpeakMode::Shout)),
 			luabind::value("EmoteAlt", static_cast<int>(Journal::SpeakMode::EmoteAlt)),
 			luabind::value("Emote", static_cast<int>(Journal::SpeakMode::Emote)),
 			luabind::value("Group", static_cast<int>(Journal::SpeakMode::Group))
-		];
+		)];
 }
 
 luabind::scope lua_register_journal_mode() {
 	return luabind::class_<Journal_Mode>("JournalMode")
 		.enum_("constants")
-		[
+		[(
 			luabind::value("None", static_cast<int>(Journal::Mode::None)),
 			luabind::value("Log1", static_cast<int>(Journal::Mode::Log1)),
 			luabind::value("Log2", static_cast<int>(Journal::Mode::Log2))
-		];
+		)];
 }
 
 #endif

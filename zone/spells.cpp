@@ -1361,7 +1361,7 @@ void Mob::CastedSpellFinished(uint16 spell_id, uint32 target_id, CastingSlot slo
 	{
 		if (IsBardSong(spell_id) && slot < CastingSlot::MaxGems) {
 			if (spells[spell_id].buff_duration == 0xFFFF) {
-				LogSpells("Bard song [{}] not applying bard logic because duration. dur=[{}], recast=[{}]", spells[spell_id].buff_duration);
+				LogSpells("Bard song [{}] not applying bard logic because duration. dur=[{}], recast=[{}]", spell_id, spells[spell_id].buff_duration, spells[spell_id].recast_time);
 			}
 			else {
 				if (IsPulsingBardSong(spell_id)) {
@@ -2957,7 +2957,7 @@ int Mob::CheckStackConflict(uint16 spellid1, int caster_level1, uint16 spellid2,
 				LogSpells("Spells the same but newer is higher or equal level, overwriting");
 				return 1;
 			}
-		} else if (spellid1 == 2751) {
+		} else if (spellid1 == SPELL_MANA_BURN) {
 			LogSpells("Blocking spell because manaburn does not stack with itself");
 			return -1;
 		}
@@ -4373,11 +4373,18 @@ uint16 Mob::FindBuffBySlot(int slot) {
 	return 0;
 }
 
-uint32 Mob::BuffCount() {
+uint32 Mob::BuffCount(bool is_beneficial, bool is_detrimental) {
 	uint32 active_buff_count = 0;
 	int buff_count = GetMaxTotalSlots();
 	for (int buff_slot = 0; buff_slot < buff_count; buff_slot++) {
-		if (IsValidSpell(buffs[buff_slot].spellid)) {
+		const auto is_spell_beneficial = IsBeneficialSpell(buffs[buff_slot].spellid);
+		if (
+			IsValidSpell(buffs[buff_slot].spellid) &&
+			(
+				(is_beneficial && is_spell_beneficial) ||
+				(is_detrimental && !is_spell_beneficial)
+			)
+		) {
 			active_buff_count++;
 		}
 	}

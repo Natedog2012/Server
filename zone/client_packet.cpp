@@ -1217,14 +1217,18 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	}
 
 	/* Load Character Data */
-	query = StringFormat("SELECT `lfp`, `lfg`, `xtargets`, `firstlogon`, `guild_id`, `rank` FROM `character_data` LEFT JOIN `guild_members` ON `id` = `char_id` WHERE `id` = %i", cid);
+	query = fmt::format(
+		"SELECT `lfp`, `lfg`, `xtargets`, `firstlogon`, `guild_id`, `rank`, `exp_enabled` FROM `character_data` LEFT JOIN `guild_members` ON `id` = `char_id` WHERE `id` = {}",
+		cid
+	);
 	auto results = database.QueryDatabase(query);
-	for (auto row = results.begin(); row != results.end(); ++row) {
+	for (auto row : results) {
 		if (row[4] && atoi(row[4]) > 0) {
 			guild_id = atoi(row[4]);
-			if (row[5] != nullptr) { guildrank = atoi(row[5]); }
-			else { guildrank = GUILD_RANK_NONE; }
+			guildrank = row[5] ? atoi(row[5]) : GUILD_RANK_NONE;
 		}
+
+		SetEXPEnabled(atobool(row[6]));
 
 		if (LFP) { LFP = atoi(row[0]); }
 		if (LFG) { LFG = atoi(row[1]); }
@@ -2867,8 +2871,8 @@ void Client::Handle_OP_AltCurrencySellSelection(const EQApplicationPacket *app)
 		AltCurrencySelectItemReply_Struct *reply = (AltCurrencySelectItemReply_Struct*)outapp->pBuffer;
 		reply->unknown004 = 0xFF;
 		reply->unknown005 = 0xFF;
-		reply->unknown006 = 0xFF;
-		reply->unknown007 = 0xFF;
+		reply->unknown006 = 0xFFFF;
+		reply->unknown008 = 0xFFFF;
 		strcpy(reply->item_name, inst->GetItem()->Name);
 		reply->cost = cost;
 		FastQueuePacket(&outapp);
@@ -3683,7 +3687,7 @@ void Client::Handle_OP_BazaarSearch(const EQApplicationPacket *app)
 		return;
 	}
 	else {
-		LogTrading("Malformed BazaarSearch_Struct packe, Action [{}]t received, ignoring");
+		LogTrading("Malformed BazaarSearch_Struct packet received, ignoring");
 		LogError("Malformed BazaarSearch_Struct packet received, ignoring\n");
 	}
 
@@ -3906,7 +3910,7 @@ void Client::Handle_OP_BoardBoat(const EQApplicationPacket *app)
 	}
 	controlling_boat_id = boat->GetID();	// set the client's BoatID to show that it's on this boat
 
-	Message(0, "Board boat: %s", boatname);
+	Message(Chat::White, "Board boat: %s", boatname);
 
 	return;
 }
@@ -3985,7 +3989,7 @@ void Client::Handle_OP_BuffRemoveRequest(const EQApplicationPacket *app)
 void Client::Handle_OP_Bug(const EQApplicationPacket *app)
 {
 	if (!RuleB(Bugs, ReportingSystemActive)) {
-		Message(Chat::White, "Bug reporting is disabled on this server.");
+		Message(Chat::Red, "Bug reporting is disabled on this server.");
 		return;
 	}
 
@@ -4079,7 +4083,7 @@ void Client::Handle_OP_CastSpell(const EQApplicationPacket *app)
 	}
 	if (IsAIControlled()) {
 		MessageString(Chat::Red, NOT_IN_CONTROL);
-		//Message(Chat::Red, "You cant cast right now, you arent in control of yourself!");
+		//Message(Chat::Red, "You cant cast right now, You aren't in control of yourself!");
 		return;
 	}
 
@@ -4151,7 +4155,7 @@ void Client::Handle_OP_CastSpell(const EQApplicationPacket *app)
 						else
 						{
 							database.SetMQDetectionFlag(account_name, name, "OP_CastSpell with item, did not meet req level.", zone->GetShortName());
-							Message(0, "Error: level not high enough.", castspell->inventoryslot);
+							Message(Chat::Red, "Error: level not high enough.", castspell->inventoryslot);
 							InterruptSpell(castspell->spell_id);
 						}
 					}
@@ -4171,18 +4175,18 @@ void Client::Handle_OP_CastSpell(const EQApplicationPacket *app)
 				}
 				else
 				{
-					Message(0, "Error: unknown item->Click.Type (0x%02x)", item->Click.Type);
+					Message(Chat::Red, "Error: unknown item->Click.Type (0x%02x)", item->Click.Type);
 				}
 			}
 			else
 			{
-				Message(0, "Error: item not found in inventory slot #%i", castspell->inventoryslot);
+				Message(Chat::Red, "Error: item not found in inventory slot #%i", castspell->inventoryslot);
 				InterruptSpell(castspell->spell_id);
 			}
 		}
 		else
 		{
-			Message(0, "Error: castspell->inventoryslot >= %i (0x%04x)", EQ::invslot::slotCursor, castspell->inventoryslot);
+			Message(Chat::Red, "Error: castspell->inventoryslot >= %i (0x%04x)", EQ::invslot::slotCursor, castspell->inventoryslot);
 			InterruptSpell(castspell->spell_id);
 		}
 	}
@@ -4309,7 +4313,7 @@ void Client::Handle_OP_ClickDoor(const EQApplicationPacket *app)
 	Doors* currentdoor = entity_list.FindDoor(cd->doorid);
 	if (!currentdoor)
 	{
-		Message(0, "Unable to find door, please notify a GM (DoorID: %i).", cd->doorid);
+		Message(Chat::Red, "Unable to find door, please notify a GM (DoorID: %i).", cd->doorid);
 		return;
 	}
 
@@ -6269,10 +6273,10 @@ void Client::Handle_OP_GMEmoteZone(const EQApplicationPacket *app)
 	GMEmoteZone_Struct* gmez = (GMEmoteZone_Struct*)app->pBuffer;
 	char* newmessage = nullptr;
 	if (strstr(gmez->text, "^") == 0)
-		entity_list.Message(0, 15, gmez->text);
+		entity_list.Message(Chat::White, 15, gmez->text);
 	else {
 		for (newmessage = strtok((char*)gmez->text, "^"); newmessage != nullptr; newmessage = strtok(nullptr, "^"))
-			entity_list.Message(0, 15, newmessage);
+			entity_list.Message(Chat::White, 15, newmessage);
 	}
 	return;
 }
@@ -6339,7 +6343,7 @@ void Client::Handle_OP_GMGoto(const EQApplicationPacket *app)
 		MovePC(zone->GetZoneID(), zone->GetInstanceID(), gt->GetX(), gt->GetY(), gt->GetZ(), gt->GetHeading());
 	}
 	else if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected.");
+		Message(Chat::Red, "Error: World server disconnected.");
 	else {
 		auto pack = new ServerPacket(ServerOP_GMGoto, sizeof(ServerGMGoto_Struct));
 		memset(pack->pBuffer, 0, pack->size);
@@ -6385,7 +6389,7 @@ void Client::Handle_OP_GMKick(const EQApplicationPacket *app)
 	Client* client = entity_list.GetClientByName(gmk->name);
 	if (client == 0) {
 		if (!worldserver.Connected())
-			Message(0, "Error: World server disconnected");
+			Message(Chat::Red, "Error: World server disconnected");
 		else {
 			auto pack = new ServerPacket(ServerOP_KickPlayer, sizeof(ServerKickPlayer_Struct));
 			ServerKickPlayer_Struct* skp = (ServerKickPlayer_Struct*)pack->pBuffer;
@@ -6427,7 +6431,7 @@ void Client::Handle_OP_GMKill(const EQApplicationPacket *app)
 	}
 	else {
 		if (!worldserver.Connected())
-			Message(0, "Error: World server disconnected");
+			Message(Chat::Red, "Error: World server disconnected");
 		else {
 			auto pack = new ServerPacket(ServerOP_KillPlayer, sizeof(ServerKillPlayer_Struct));
 			ServerKillPlayer_Struct* skp = (ServerKillPlayer_Struct*)pack->pBuffer;
@@ -6598,7 +6602,7 @@ void Client::Handle_OP_GMSearchCorpse(const EQApplicationPacket *app)
 void Client::Handle_OP_GMServers(const EQApplicationPacket *app)
 {
 	if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 		auto pack = new ServerPacket(ServerOP_ZoneStatus, strlen(GetName()) + 2);
 		memset(pack->pBuffer, (uint8)admin, 1);
@@ -7457,7 +7461,7 @@ void Client::Handle_OP_GuildBank(const EQApplicationPacket *app)
 		}
 		else
 		{
-			Message(0, "Unable to withdraw 0 quantity of %s", inst->GetItem()->Name);
+			Message(Chat::Red, "Unable to withdraw 0 quantity of %s", inst->GetItem()->Name);
 		}
 
 		safe_delete(inst);
@@ -7594,13 +7598,13 @@ void Client::Handle_OP_GuildDelete(const EQApplicationPacket *app)
 	LogGuilds("Received OP_GuildDelete");
 
 	if (!IsInAGuild() || !guild_mgr.IsGuildLeader(GuildID(), CharacterID()))
-		Message(0, "You are not a guild leader or not in a guild.");
+		Message(Chat::Red, "You are not a guild leader or not in a guild.");
 	else {
 		LogGuilds("Deleting guild [{}] ([{}])", guild_mgr.GetGuildName(GuildID()), GuildID());
 		if (!guild_mgr.DeleteGuild(GuildID()))
-			Message(0, "Guild delete failed.");
+			Message(Chat::Red, "Guild delete failed.");
 		else {
-			Message(0, "Guild successfully deleted.");
+			Message(Chat::White, "Guild successfully deleted.");
 		}
 	}
 }
@@ -7615,26 +7619,26 @@ void Client::Handle_OP_GuildDemote(const EQApplicationPacket *app)
 	}
 
 	if (!IsInAGuild())
-		Message(0, "Error: You arent in a guild!");
+		Message(Chat::Red, "Error: You aren't in a guild!");
 	else if (!guild_mgr.CheckPermission(GuildID(), GuildRank(), GUILD_DEMOTE))
-		Message(0, "You dont have permission to invite.");
+		Message(Chat::Red, "You don't have permission to demote.");
 	else if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 		GuildDemoteStruct* demote = (GuildDemoteStruct*)app->pBuffer;
 
 		CharGuildInfo gci;
 		if (!guild_mgr.GetCharInfo(demote->target, gci)) {
-			Message(0, "Unable to find '%s'", demote->target);
+			Message(Chat::Red, "Unable to find '%s'", demote->target);
 			return;
 		}
 		if (gci.guild_id != GuildID()) {
-			Message(0, "You aren't in the same guild, what do you think you are doing?");
+			Message(Chat::Red, "You aren't in the same guild, what do you think you are doing?");
 			return;
 		}
 
 		if (gci.rank < 1) {
-			Message(0, "%s cannot be demoted any further!", demote->target);
+			Message(Chat::Red, "%s cannot be demoted any further!", demote->target);
 			return;
 		}
 		uint8 rank = gci.rank - 1;
@@ -7650,7 +7654,7 @@ void Client::Handle_OP_GuildDemote(const EQApplicationPacket *app)
 			Message(Chat::Red, "Error while setting rank %d on '%s'.", rank, demote->target);
 			return;
 		}
-		Message(0, "Successfully demoted %s to rank %d", demote->target, rank);
+		Message(Chat::White, "Successfully demoted %s to rank %d", demote->target, rank);
 	}
 	//	SendGuildMembers(GuildID(), true);
 	return;
@@ -7668,11 +7672,11 @@ void Client::Handle_OP_GuildInvite(const EQApplicationPacket *app)
 	GuildCommand_Struct* gc = (GuildCommand_Struct*)app->pBuffer;
 
 	if (!IsInAGuild())
-		Message(0, "Error: You are not in a guild!");
+		Message(Chat::Red, "Error: You are not in a guild!");
 	else if (gc->officer > GUILD_MAX_RANK)
 		Message(Chat::Red, "Invalid rank.");
 	else if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 
 		//ok, the invite is also used for changing rank as well.
@@ -7692,7 +7696,7 @@ void Client::Handle_OP_GuildInvite(const EQApplicationPacket *app)
 				if (gc->officer < client->GuildRank()) {
 					//demotion
 					if (!guild_mgr.CheckPermission(GuildID(), GuildRank(), GUILD_DEMOTE)) {
-						Message(Chat::Red, "You dont have permission to demote.");
+						Message(Chat::Red, "You don't have permission to demote.");
 						return;
 					}
 
@@ -7714,7 +7718,7 @@ void Client::Handle_OP_GuildInvite(const EQApplicationPacket *app)
 				else if (gc->officer > client->GuildRank()) {
 					//promotion
 					if (!guild_mgr.CheckPermission(GuildID(), GuildRank(), GUILD_PROMOTE)) {
-						Message(Chat::Red, "You dont have permission to demote.");
+						Message(Chat::Red, "You don't have permission to demote.");
 						return;
 					}
 
@@ -7749,7 +7753,7 @@ void Client::Handle_OP_GuildInvite(const EQApplicationPacket *app)
 				}
 
 				if (!guild_mgr.CheckPermission(GuildID(), GuildRank(), GUILD_INVITE)) {
-					Message(Chat::Red, "You dont have permission to invite.");
+					Message(Chat::Red, "You don't have permission to invite.");
 					return;
 				}
 
@@ -7844,9 +7848,9 @@ void Client::Handle_OP_GuildInviteAccept(const EQApplicationPacket *app)
 
 	//uint32 tmpeq = gj->guildeqid;
 	if (IsInAGuild() && gj->response == GuildRank())
-		Message(0, "Error: You're already in a guild!");
+		Message(Chat::Red, "Error: You're already in a guild!");
 	else if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 		LogGuilds("Guild Invite Accept: guild [{}], response [{}], inviter [{}], person [{}]",
 			gj->guildeqid, gj->response, gj->inviter, gj->newmember);
@@ -7937,11 +7941,11 @@ void Client::Handle_OP_GuildLeader(const EQApplicationPacket *app)
 	app->pBuffer[app->size - 1] = 0;
 	GuildMakeLeader* gml = (GuildMakeLeader*)app->pBuffer;
 	if (!IsInAGuild())
-		Message(0, "Error: You arent in a guild!");
+		Message(Chat::Red, "Error: You aren't in a guild!");
 	else if (GuildRank() != GUILD_LEADER)
-		Message(0, "Error: You arent the guild leader!");
+		Message(Chat::Red, "Error: You aren't the guild leader!");
 	else if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 
 		//NOTE: we could do cross-zone lookups here...
@@ -7954,14 +7958,14 @@ void Client::Handle_OP_GuildLeader(const EQApplicationPacket *app)
 				newleader->GetName(), newleader->CharacterID());
 
 			if (guild_mgr.SetGuildLeader(GuildID(), newleader->CharacterID())) {
-				Message(0, "Successfully Transfered Leadership to %s.", gml->target);
+				Message(Chat::White, "Successfully Transfered Leadership to %s.", gml->target);
 				newleader->Message(Chat::Yellow, "%s has transfered the guild leadership into your hands.", GetName());
 			}
 			else
-				Message(0, "Could not change leadership at this time.");
+				Message(Chat::Red, "Could not change leadership at this time.");
 		}
 		else
-			Message(0, "Failed to change leader, could not find target.");
+			Message(Chat::Red, "Failed to change leader, could not find target.");
 	}
 	//	SendGuildMembers(GuildID(), true);
 	return;
@@ -7986,7 +7990,7 @@ void Client::Handle_OP_GuildManageBanker(const EQApplicationPacket *app)
 
 	if (!guild_mgr.GetCharInfo(gmb->member, gci))
 	{
-		Message(0, "Unable to find '%s'", gmb->member);
+		Message(Chat::Red, "Unable to find '%s'", gmb->member);
 		return;
 	}
 	bool IsCurrentlyABanker = guild_mgr.GetBankerFlag(gci.char_id);
@@ -8015,7 +8019,7 @@ void Client::Handle_OP_GuildManageBanker(const EQApplicationPacket *app)
 	}
 
 	if (gci.guild_id != GuildID()) {
-		Message(0, "You aren't in the same guild, what do you think you are doing?");
+		Message(Chat::Red, "You aren't in the same guild, what do you think you are doing?");
 		return;
 	}
 
@@ -8027,9 +8031,9 @@ void Client::Handle_OP_GuildManageBanker(const EQApplicationPacket *app)
 		}
 
 		if (NewBankerStatus)
-			Message(0, "%s has been made a guild banker.", gmb->member);
+			Message(Chat::White, "%s has been made a guild banker.", gmb->member);
 		else
-			Message(0, "%s is no longer a guild banker.", gmb->member);
+			Message(Chat::White, "%s is no longer a guild banker.", gmb->member);
 	}
 	if (IsCurrentlyAnAlt != NewAltStatus)
 	{
@@ -8039,9 +8043,9 @@ void Client::Handle_OP_GuildManageBanker(const EQApplicationPacket *app)
 		}
 
 		if (NewAltStatus)
-			Message(0, "%s has been marked as an alt.", gmb->member);
+			Message(Chat::White, "%s has been marked as an alt.", gmb->member);
 		else
-			Message(0, "%s is no longer marked as an alt.", gmb->member);
+			Message(Chat::White, "%s is no longer marked as an alt.", gmb->member);
 	}
 }
 
@@ -8061,21 +8065,21 @@ void Client::Handle_OP_GuildPromote(const EQApplicationPacket *app)
 	}
 
 	if (!IsInAGuild())
-		Message(0, "Error: You arent in a guild!");
+		Message(Chat::Red, "Error: You aren't in a guild!");
 	else if (!guild_mgr.CheckPermission(GuildID(), GuildRank(), GUILD_PROMOTE))
-		Message(0, "You dont have permission to invite.");
+		Message(Chat::Red, "You don't have permission to promote.");
 	else if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 		GuildPromoteStruct* promote = (GuildPromoteStruct*)app->pBuffer;
 
 		CharGuildInfo gci;
 		if (!guild_mgr.GetCharInfo(promote->target, gci)) {
-			Message(0, "Unable to find '%s'", promote->target);
+			Message(Chat::Red, "Unable to find '%s'", promote->target);
 			return;
 		}
 		if (gci.guild_id != GuildID()) {
-			Message(0, "You aren't in the same guild, what do you think you are doing?");
+			Message(Chat::Red, "You aren't in the same guild, what do you think you are doing?");
 			return;
 		}
 
@@ -8083,7 +8087,7 @@ void Client::Handle_OP_GuildPromote(const EQApplicationPacket *app)
 
 		if (rank > GUILD_OFFICER)
 		{
-			Message(0, "You cannot promote someone to be guild leader. You must use /guildleader.");
+			Message(Chat::Red, "You cannot promote someone to be guild leader. You must use /guildleader.");
 			return;
 		}
 
@@ -8098,7 +8102,7 @@ void Client::Handle_OP_GuildPromote(const EQApplicationPacket *app)
 			Message(Chat::Red, "Error while setting rank %d on '%s'.", rank, promote->target);
 			return;
 		}
-		Message(0, "Successfully promoted %s to rank %d", promote->target, rank);
+		Message(Chat::White, "Successfully promoted %s to rank %d", promote->target, rank);
 	}
 	return;
 }
@@ -8116,11 +8120,11 @@ void Client::Handle_OP_GuildPublicNote(const EQApplicationPacket *app)
 
 	CharGuildInfo gci;
 	if (!guild_mgr.GetCharInfo(gpn->target, gci)) {
-		Message(0, "Unable to find '%s'", gpn->target);
+		Message(Chat::Red, "Unable to find '%s'", gpn->target);
 		return;
 	}
 	if (gci.guild_id != GuildID()) {
-		Message(0, "You aren't in the same guild, what do you think you are doing?");
+		Message(Chat::Red, "You aren't in the same guild, what do you think you are doing?");
 		return;
 	}
 
@@ -8133,7 +8137,7 @@ void Client::Handle_OP_GuildPublicNote(const EQApplicationPacket *app)
 		Message(Chat::Red, "Failed to set public note on %s", gpn->target);
 	}
 	else {
-		Message(0, "Successfully changed public note on %s", gpn->target);
+		Message(Chat::White, "Successfully changed public note on %s", gpn->target);
 	}
 	//	SendGuildMembers(GuildID(), true);
 	return;
@@ -8149,13 +8153,13 @@ void Client::Handle_OP_GuildRemove(const EQApplicationPacket *app)
 	}
 	GuildCommand_Struct* gc = (GuildCommand_Struct*)app->pBuffer;
 	if (!IsInAGuild())
-		Message(0, "Error: You arent in a guild!");
+		Message(Chat::Red, "Error: You aren't in a guild!");
 	// we can always remove ourself, otherwise, our rank needs remove permissions
 	else if (strcasecmp(gc->othername, GetName()) != 0 &&
 		!guild_mgr.CheckPermission(GuildID(), GuildRank(), GUILD_REMOVE))
-		Message(0, "You dont have permission to remove guild members.");
+		Message(Chat::Red, "You don't have permission to remove guild members.");
 	else if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 #ifdef BOTS
 		if (Bot::ProcessGuildRemoval(this, gc->othername))
@@ -8166,7 +8170,7 @@ void Client::Handle_OP_GuildRemove(const EQApplicationPacket *app)
 
 		if (client) {
 			if (!client->IsInGuild(GuildID())) {
-				Message(0, "You aren't in the same guild, what do you think you are doing?");
+				Message(Chat::Red, "You aren't in the same guild, what do you think you are doing?");
 				return;
 			}
 			char_id = client->CharacterID();
@@ -8178,11 +8182,11 @@ void Client::Handle_OP_GuildRemove(const EQApplicationPacket *app)
 		else {
 			CharGuildInfo gci;
 			if (!guild_mgr.GetCharInfo(gc->othername, gci)) {
-				Message(0, "Unable to find '%s'", gc->othername);
+				Message(Chat::Red, "Unable to find '%s'", gc->othername);
 				return;
 			}
 			if (gci.guild_id != GuildID()) {
-				Message(0, "You aren't in the same guild, what do you think you are doing?");
+				Message(Chat::Red, "You aren't in the same guild, what do you think you are doing?");
 				return;
 			}
 			char_id = gci.char_id;
@@ -8197,12 +8201,12 @@ void Client::Handle_OP_GuildRemove(const EQApplicationPacket *app)
 			GuildManageRemove_Struct* gm = (GuildManageRemove_Struct*)outapp->pBuffer;
 			gm->guildeqid = GuildID();
 			strcpy(gm->member, gc->othername);
-			Message(0, "%s successfully removed from your guild.", gc->othername);
+			Message(Chat::White, "%s successfully removed from your guild.", gc->othername);
 			entity_list.QueueClientsGuild(this, outapp, false, GuildID());
 			safe_delete(outapp);
 		}
 		else
-			Message(0, "Unable to remove %s from your guild.", gc->othername);
+			Message(Chat::Red, "Unable to remove %s from your guild.", gc->othername);
 	}
 	//	SendGuildMembers(GuildID(), true);
 	return;
@@ -8869,14 +8873,14 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 
 	const EQ::ItemInstance* inst = m_inv[slot_id];
 	if (!inst) {
-		Message(0, "Error: item not found in inventory slot #%i", slot_id);
+		Message(Chat::Red, "Error: item not found in inventory slot #%i", slot_id);
 		DeleteItemInInventory(slot_id, 0, true);
 		return;
 	}
 
 	const EQ::ItemData* item = inst->GetItem();
 	if (!item) {
-		Message(0, "Error: item not found in inventory slot #%i", slot_id);
+		Message(Chat::Red, "Error: item not found in inventory slot #%i", slot_id);
 		DeleteItemInInventory(slot_id, 0, true);
 		return;
 	}
@@ -9004,7 +9008,7 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 			{
 				if (inst->GetCharges() == 0)
 				{
-					//Message(0, "This item is out of charges.");
+					//Message(Chat::White, "This item is out of charges.");
 					MessageString(Chat::Red, ITEM_OUT_OF_CHARGES);
 					return;
 				}
@@ -9049,7 +9053,7 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 			{
 				if (clickaug->GetCharges() == 0)
 				{
-					//Message(0, "This item is out of charges.");
+					//Message(Chat::White, "This item is out of charges.");
 					MessageString(Chat::Red, ITEM_OUT_OF_CHARGES);
 					return;
 				}
@@ -9107,12 +9111,12 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 		}
 		else
 		{
-			Message(0, "Error: item not found in inventory slot #%i", slot_id);
+			Message(Chat::Red, "Error: item not found in inventory slot #%i", slot_id);
 		}
 	}
 	else
 	{
-		Message(0, "Error: Invalid inventory slot for using effects (inventory slot #%i)", slot_id);
+		Message(Chat::Red, "Error: Invalid inventory slot for using effects (inventory slot #%i)", slot_id);
 	}
 
 	return;
@@ -9337,7 +9341,7 @@ void Client::Handle_OP_LFGCommand(const EQApplicationPacket *app)
 		strn0cpy(LFGComments, lfg->Comments, sizeof(LFGComments));
 		break;
 	default:
-		Message(0, "Error: unknown LFG value %i", lfg->value);
+		Message(Chat::Red, "Error: unknown LFG value %i", lfg->value);
 	}
 
 	UpdateWho();
@@ -9364,7 +9368,7 @@ void Client::Handle_OP_LFGGetMatchesRequest(const EQApplicationPacket *app)
 	LFGGetMatchesRequest_Struct* gmrs = (LFGGetMatchesRequest_Struct*)app->pBuffer;
 
 	if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 		auto pack = new ServerPacket(ServerOP_LFGMatches, sizeof(ServerLFGMatchesRequest_Struct));
 		ServerLFGMatchesRequest_Struct* smrs = (ServerLFGMatchesRequest_Struct*)pack->pBuffer;
@@ -9588,7 +9592,7 @@ void Client::Handle_OP_LFPGetMatchesRequest(const EQApplicationPacket *app)
 	LFPGetMatchesRequest_Struct* gmrs = (LFPGetMatchesRequest_Struct*)app->pBuffer;
 
 	if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 		auto pack = new ServerPacket(ServerOP_LFPMatches, sizeof(ServerLFPMatchesRequest_Struct));
 		ServerLFPMatchesRequest_Struct* smrs = (ServerLFPMatchesRequest_Struct*)pack->pBuffer;
@@ -10953,17 +10957,17 @@ void Client::Handle_OP_Petition(const EQApplicationPacket *app)
 	if (app->size <= 1)
 		return;
 	if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	/*else if(petition_list.FindPetitionByAccountName(AccountName()))
 	{
-	Message(0,"You already have a petition in queue, you cannot petition again until this one has been responded to or you have deleted the petition.");
+	Message(Chat::White,"You already have a petition in queue, you cannot petition again until this one has been responded to or you have deleted the petition.");
 	return;
 	}*/
 	else
 	{
 		if (petition_list.FindPetitionByAccountName(AccountName()))
 		{
-			Message(0, "You already have a petition in the queue, you must wait for it to be answered or use /deletepetition to delete it.");
+			Message(Chat::White, "You already have a petition in the queue, you must wait for it to be answered or use /deletepetition to delete it.");
 			return;
 		}
 		auto pet = new Petition(CharacterID());
@@ -10998,7 +11002,7 @@ void Client::Handle_OP_Petition(const EQApplicationPacket *app)
 
 void Client::Handle_OP_PetitionBug(const EQApplicationPacket *app)
 {
-	Message(0, "Petition Bugs are not supported, please use /bug.");
+	Message(Chat::White, "Petition Bugs are not supported, please use /bug.");
 
 	return;
 }
@@ -11031,7 +11035,7 @@ void Client::Handle_OP_PetitionCheckout(const EQApplicationPacket *app)
 		return;
 	}
 	if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 		uint32 getpetnum = *((uint32*)app->pBuffer);
 		Petition* getpet = petition_list.GetPetitionByID(getpetnum);
@@ -11102,7 +11106,7 @@ void Client::Handle_OP_PetitionUnCheckout(const EQApplicationPacket *app)
 		return;
 	}
 	if (!worldserver.Connected())
-		Message(0, "Error: World server disconnected");
+		Message(Chat::Red, "Error: World server disconnected");
 	else {
 		uint32 getpetnum = *((uint32*)app->pBuffer);
 		Petition* getpet = petition_list.GetPetitionByID(getpetnum);
@@ -12847,7 +12851,7 @@ void Client::Handle_OP_SetGuildMOTD(const EQApplicationPacket *app)
 		guild_mgr.GetGuildName(GuildID()), GuildID(), GetName(), gmotd->motd);
 
 	if (!guild_mgr.SetGuildMOTD(GuildID(), gmotd->motd, GetName())) {
-		Message(0, "Motd update failed.");
+		Message(Chat::Red, "Motd update failed.");
 	}
 
 	return;
@@ -13436,32 +13440,50 @@ void Client::Handle_OP_ShopPlayerSell(const EQApplicationPacket *app)
 
 	int charges = mp->quantity;
 
-	int freeslot = 0;
-	if ((freeslot = zone->SaveTempItem(vendor->CastToNPC()->MerchantType, vendor->GetNPCTypeID(), itemid, charges, true)) > 0) {
-		EQ::ItemInstance* inst2 = inst->Clone();
+	if (vendor->GetKeepsSoldItems()) {
+		int freeslot = 0;
+		if (
+			(freeslot = zone->SaveTempItem(
+				vendor->CastToNPC()->MerchantType,
+				vendor->GetNPCTypeID(),
+				itemid,
+				charges,
+				true
+			)
+		) > 0) {
+			EQ::ItemInstance *inst2 = inst->Clone();
 
-		while (true) {
-			if (inst2 == nullptr)
+			while (true) {
+				if (!inst2) {
+					break;
+				}
+
+				uint32 price = (
+					item->Price *
+					RuleR(Merchant, SellCostMod) *
+					item->SellRate
+				);
+
+				if (RuleB(Merchant, UsePriceMod)) {
+					price *= Client::CalcPriceMod(vendor, false);
+				}
+
+				inst2->SetPrice(price);
+				inst2->SetMerchantSlot(freeslot);
+
+				uint32 merchant_quantity = zone->GetTempMerchantQuantity(vendor->GetNPCTypeID(), freeslot);
+
+				if (inst2->IsStackable()) {
+					inst2->SetCharges(merchant_quantity);
+				}
+
+				inst2->SetMerchantCount(merchant_quantity);
+
+				SendItemPacket(freeslot - 1, inst2, ItemPacketMerchant);
+				safe_delete(inst2);
+
 				break;
-
-			if (RuleB(Merchant, UsePriceMod)) {
-				inst2->SetPrice(item->Price*(RuleR(Merchant, SellCostMod))*item->SellRate*Client::CalcPriceMod(vendor, false));
 			}
-			else
-				inst2->SetPrice(item->Price*(RuleR(Merchant, SellCostMod))*item->SellRate);
-			inst2->SetMerchantSlot(freeslot);
-
-			uint32 MerchantQuantity = zone->GetTempMerchantQuantity(vendor->GetNPCTypeID(), freeslot);
-
-			if (inst2->IsStackable()) {
-				inst2->SetCharges(MerchantQuantity);
-			}
-			inst2->SetMerchantCount(MerchantQuantity);
-
-			SendItemPacket(freeslot - 1, inst2, ItemPacketMerchant);
-			safe_delete(inst2);
-
-			break;
 		}
 	}
 
@@ -13584,7 +13606,7 @@ void Client::Handle_OP_ShopRequest(const EQApplicationPacket *app)
 	}
 	if (GetFeigned() || IsInvisible())
 	{
-		Message(0, "You cannot use a merchant right now.");
+		Message(Chat::White, "You cannot use a merchant right now.");
 		action = 0;
 	}
 	int primaryfaction = tmp->CastToNPC()->GetPrimaryFaction();
@@ -15423,7 +15445,7 @@ void Client::Handle_OP_YellForHelp(const EQApplicationPacket *app)
 void Client::Handle_OP_ResetAA(const EQApplicationPacket *app)
 {
 	if (Admin() >= AccountStatus::Guide) {
-		Message(0, "Resetting AA points.");
+		Message(Chat::White, "Resetting AA points.");
 		ResetAA();
 	}
 	return;
