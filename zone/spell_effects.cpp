@@ -6507,7 +6507,7 @@ uint16 Client::GetSympatheticFocusEffect(focusType type, uint16 spell_id) {
 	return 0;
 }
 
-int64 Mob::GetFocusEffect(focusType type, uint16 spell_id, Mob *caster, bool from_buff_tic)
+int64 Mob::GetFocusEffect(focusType type, uint16 spell_id, Mob* caster, bool from_buff_tic)
 {
 	if (IsBardSong(spell_id) && type != focusFcBaseEffects && type != focusSpellDuration && type != focusReduceRecastTime && type != focusImprovedDamage3) {
 		return 0;
@@ -6517,14 +6517,18 @@ int64 Mob::GetFocusEffect(focusType type, uint16 spell_id, Mob *caster, bool fro
 	int64 realTotal2 = 0;
 	int64 realTotal3 = 0;
 	int64 realTotal4 = 0;
-	
-	if (type == focusImprovedDamage && !IsPercentalHealSpell(spell_id)) {
-		realTotal4 = GetSPELL_MOD();
-	} else if (type == focusImprovedHeal && !IsPercentalHealSpell(spell_id)) {
-		realTotal4 = GetHEAL_MOD();
-	} else if (type == focusFcBaseEffects && IsBardSong(spell_id)) {
-		realTotal4 = GetBARD_MOD();
-	}
+
+	if (IsClient()) {
+		if (type == focusImprovedDamage && !IsPercentalHealSpell(spell_id)) {
+			realTotal4 = this->CastToClient()->GetSPELL_MOD();
+		}
+		else if (type == focusImprovedHeal && !IsPercentalHealSpell(spell_id)) {
+			realTotal4 = this->CastToClient()->GetHEAL_MOD();
+		}
+		else if (type == focusFcBaseEffects && IsBardSong(spell_id)) {
+			realTotal4 = this->CastToClient()->GetBARD_MOD();
+		}
+}
 	
 	bool rand_effectiveness = false;
 
