@@ -152,7 +152,10 @@ const char *LuaEvents[_LargestEventID] = {
 	"event_aa_gain",
 	"event_payload",
 	"event_level_down",
-	"event_gm_command"
+	"event_gm_command",
+	"event_despawn",
+	"event_despawn_zone",
+	"event_bot_create",
 };
 
 extern Zone *zone;
@@ -210,6 +213,7 @@ LuaParser::LuaParser() {
 	NPCArgumentDispatch[EVENT_LOOT_ZONE] = handle_npc_loot_zone;
 	NPCArgumentDispatch[EVENT_SPAWN_ZONE] = handle_npc_spawn_zone;
 	NPCArgumentDispatch[EVENT_PAYLOAD] = handle_npc_payload;
+	NPCArgumentDispatch[EVENT_DESPAWN_ZONE] = handle_npc_despawn_zone;
 
 	PlayerArgumentDispatch[EVENT_SAY] = handle_player_say;
 	PlayerArgumentDispatch[EVENT_ENVIRONMENTAL_DAMAGE] = handle_player_environmental_damage;
@@ -267,6 +271,7 @@ LuaParser::LuaParser() {
 	PlayerArgumentDispatch[EVENT_LEVEL_UP] = handle_player_level_up;
 	PlayerArgumentDispatch[EVENT_LEVEL_DOWN] = handle_player_level_down;
 	PlayerArgumentDispatch[EVENT_GM_COMMAND] = handle_player_gm_command;
+	PlayerArgumentDispatch[EVENT_BOT_CREATE] = handle_player_bot_create;
 
 	ItemArgumentDispatch[EVENT_ITEM_CLICK] = handle_item_click;
 	ItemArgumentDispatch[EVENT_ITEM_CLICK_CAST] = handle_item_click;
@@ -1397,16 +1402,12 @@ QuestEventID LuaParser::ConvertLuaEvent(QuestEventID evt) {
 	case EVENT_NPC_SLAY:
 		return EVENT_SLAY;
 		break;
-#ifdef BOTS
 	case EVENT_SPELL_EFFECT_BOT:
-#endif
 	case EVENT_SPELL_EFFECT_CLIENT:
 	case EVENT_SPELL_EFFECT_NPC:
 		return EVENT_SPELL_EFFECT_CLIENT;
 		break;
-#ifdef BOTS
 	case EVENT_SPELL_EFFECT_BUFF_TIC_BOT:
-#endif
 	case EVENT_SPELL_EFFECT_BUFF_TIC_CLIENT:
 	case EVENT_SPELL_EFFECT_BUFF_TIC_NPC:
 		return EVENT_SPELL_EFFECT_BUFF_TIC_CLIENT;
@@ -1493,7 +1494,7 @@ uint64 LuaParser::GetExperienceForKill(Client *self, Mob *against, bool &ignoreD
 	return retval;
 }
 
-int64 LuaParser::CalcSpellEffectValue_formula(Mob *self, int64 formula, int64 base_value, int64 max_value, int caster_level, uint16 spell_id, int ticsremaining, bool &ignoreDefault)
+int64 LuaParser::CalcSpellEffectValue_formula(Mob *self, uint32 formula, int64 base_value, int64 max_value, int caster_level, uint16 spell_id, int ticsremaining, bool &ignoreDefault)
 {
 	int64 retval = 0;
 	for (auto &mod : mods_) {

@@ -1209,7 +1209,7 @@ void Bot::GenerateAppearance() {
 	if (GetRace() == BARBARIAN) // Barbarian w/Tatoo
 	{
 		iFace = zone->random.Int(0, 79);
-	}	
+	}
 	else
 	{
 		iFace = zone->random.Int(0, 7);
@@ -5142,7 +5142,7 @@ void Bot::PerformTradeWithClient(int16 begin_slot_id, int16 end_slot_id, Client*
 				insts[i - EQ::invslot::TRADE_BEGIN] = user_inv.GetItem(i);
 				client->DeleteItemInInventory(i);
 			}
-			
+
 			// copy to be filtered by task updates, null trade slots preserved for quest event arg
 			std::vector<EQ::ItemInstance*> items(insts, insts + std::size(insts));
 
@@ -6659,7 +6659,7 @@ float Bot::GetActSpellRange(uint16 spell_id, float range) {
 int32 Bot::GetActSpellDuration(uint16 spell_id, int32 duration) {
 	int increase = 100;
 	increase += GetFocusEffect(focusSpellDuration, spell_id);
-	int64 tic_inc = 0;	
+	int64 tic_inc = 0;
 	tic_inc = GetFocusEffect(focusSpellDurByTic, spell_id);
 
 	if(IsBeneficialSpell(spell_id)) {
@@ -6758,7 +6758,7 @@ bool Bot::CastSpell(
 				(IsAmnesiad() && IsDiscipline(spell_id))
 			) {
 				LogSpellsModerate("[Bot::CastSpell] Spell casting canceled: not able to cast now. Valid? [{}] casting [{}] waiting? [{}] spellend? [{}] stunned? [{}] feared? [{}] mezed? [{}] silenced? [{}]",
-					IsValidSpell(spell_id), casting_spell_id, delaytimer, spellend_timer.Enabled(), IsStunned(), IsFeared(), IsMezzed(), IsSilenced() 
+					IsValidSpell(spell_id), casting_spell_id, delaytimer, spellend_timer.Enabled(), IsStunned(), IsFeared(), IsMezzed(), IsSilenced()
 				);
 				if (IsSilenced() && !IsDiscipline(spell_id)) {
 					MessageString(Chat::White, SILENCED_STRING);
@@ -7728,21 +7728,18 @@ void Bot::DoEnduranceUpkeep() {
 		SetEndurance(GetEndurance() - upkeep_sum);
 }
 
-void Bot::Camp(bool databaseSave) {
+void Bot::Camp(bool save_to_database) {
 	Sit();
 
-	//auto group = GetGroup();
-	if(GetGroup())
+	if (GetGroup()) {
 		RemoveBotFromGroup(this, GetGroup());
-
-	// RemoveBotFromGroup() code is too complicated for this to work as-is (still needs to be addressed to prevent memory leaks)
-	//if (group->GroupCount() < 2)
-	//	group->DisbandGroup();
+	}
 
 	LeaveHealRotationMemberPool();
 
-	if(databaseSave)
+	if (save_to_database) {
 		Save();
+	}
 
 	Depop();
 }
@@ -8602,16 +8599,16 @@ bool EntityList::Bot_AICheckCloseBeneficialSpells(Bot* caster, uint8 iChance, fl
 		}
 	}
 
-	if( iSpellTypes == SpellType_Buff) {
+	if (iSpellTypes == SpellType_Buff) {
 		uint8 chanceToCast = caster->IsEngaged() ? caster->GetChanceToCastBySpellType(SpellType_Buff) : 100;
-		if(botCasterClass == BARD) {
+		if (botCasterClass == BARD) {
 			if(caster->AICastSpell(caster, chanceToCast, SpellType_Buff))
 				return true;
 			else
 				return false;
 		}
 
-		if(caster->HasGroup()) {
+		if (caster->HasGroup()) {
 			Group *g = caster->GetGroup();
 			if(g) {
 				for(int i = 0; i < MAX_GROUP_MEMBERS; i++) {
@@ -8679,6 +8676,30 @@ bool EntityList::Bot_AICheckCloseBeneficialSpells(Bot* caster, uint8 iChance, fl
 		}
 	}
 
+	if (iSpellTypes == SpellType_InCombatBuff) {
+		if (botCasterClass == BARD) {
+			if (caster->AICastSpell(caster, iChance, SpellType_InCombatBuff)) {
+				return true;
+			}
+			else {
+				return false;
+			}
+		}
+
+		if (caster->HasGroup()) {
+			Group* g = caster->GetGroup();
+			if (g) {
+				for (int i = 0; i < MAX_GROUP_MEMBERS; i++) {
+					if (g->members[i]) {
+						if (caster->AICastSpell(g->members[i], iChance, SpellType_InCombatBuff) || caster->AICastSpell(g->members[i]->GetPet(), iChance, SpellType_InCombatBuff)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return false;
 }
 
@@ -8728,18 +8749,32 @@ Bot* EntityList::GetBotByBotName(std::string botName) {
 	return Result;
 }
 
-Client* EntityList::GetBotOwnerByBotEntityID(uint16 entityID) {
-	Client* Result = nullptr;
-	if (entityID > 0) {
-		for (std::list<Bot*>::iterator botListItr = bot_list.begin(); botListItr != bot_list.end(); ++botListItr) {
-			Bot* tempBot = *botListItr;
-			if (tempBot && tempBot->GetID() == entityID) {
-				Result = tempBot->GetBotOwner()->CastToClient();
+Client* EntityList::GetBotOwnerByBotEntityID(uint32 entity_id) {
+	Client* c = nullptr;
+
+	if (entity_id) {
+		for (const auto& b : bot_list) {
+			if (b && b->GetID() == entity_id) {
+				c = b->GetBotOwner()->CastToClient();
 				break;
 			}
 		}
 	}
-	return Result;
+
+	return c;
+}
+
+Client* EntityList::GetBotOwnerByBotID(const uint32 bot_id)  {
+	Client* c = nullptr;
+
+	if (bot_id) {
+		const auto owner_id = database.botdb.GetOwnerID(bot_id);
+		if (owner_id) {
+			c = GetClientByCharID(owner_id);
+		}
+	}
+
+	return c;
 }
 
 void EntityList::AddBot(Bot *new_bot, bool send_spawn_packet, bool dont_queue) {
@@ -8760,12 +8795,14 @@ void EntityList::AddBot(Bot *new_bot, bool send_spawn_packet, bool dont_queue) {
 				AddToSpawnQueue(new_bot->GetID(), &ns);
 				safe_delete(ns);
 			}
-
-			parse->EventBot(EVENT_SPAWN, new_bot, nullptr, "", 0);
 		}
 
 		bot_list.push_back(new_bot);
 		mob_list.insert(std::pair<uint16, Mob*>(new_bot->GetID(), new_bot));
+
+		parse->EventBot(EVENT_SPAWN, new_bot, nullptr, "", 0);
+
+		new_bot->DispatchZoneControllerEvent(EVENT_SPAWN_ZONE, new_bot, "", 0, nullptr);
 	}
 }
 
@@ -9969,8 +10006,8 @@ std::string Bot::GetHPString(int8 min_hp, int8 max_hp)
 	return hp_string;
 }
 
-void Bot::SetBotArcherySetting(bool bot_archer_setting, bool save) 
-{ 
+void Bot::SetBotArcherySetting(bool bot_archer_setting, bool save)
+{
 	m_bot_archery_setting = bot_archer_setting;
 	if (save) {
 		if (!database.botdb.SaveBotArcherSetting(GetBotID(), bot_archer_setting)) {

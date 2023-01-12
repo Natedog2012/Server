@@ -26,6 +26,7 @@
 #define SPELLBOOK_UNKNOWN 0xFFFFFFFF		//player profile spells are 32 bit
 
 //some spell IDs which will prolly change, but are needed
+#define SPELL_COMPLETE_HEAL 13
 #define SPELL_LIFEBURN 2755
 #define SPELL_LEECH_TOUCH 2766
 #define SPELL_LAY_ON_HANDS 87
@@ -1482,6 +1483,7 @@ bool IsGroupSpell(uint16 spell_id);
 bool IsTGBCompatibleSpell(uint16 spell_id);
 bool IsBardSong(uint16 spell_id);
 bool IsEffectInSpell(uint16 spellid, int effect);
+uint16 GetTriggerSpellID(uint16 spell_id, uint32 effect);
 bool IsBlankSpellEffect(uint16 spellid, int effect_index);
 bool IsValidSpell(uint32 spellid);
 bool IsSummonSpell(uint16 spellid);

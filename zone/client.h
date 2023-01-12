@@ -638,7 +638,7 @@ public:
 
 	uint64 GetExperienceForKill(Mob *against);
 	void AddEXP(uint64 in_add_exp, uint8 conlevel = 0xFF, bool resexp = false);
-	uint64 CalcEXP(uint8 conlevel = 0xFF);
+	uint64 CalcEXP(uint8 conlevel = 0xFF, bool ignore_mods = false);
 	void CalculateNormalizedAAExp(uint64 &add_aaxp, uint8 conlevel, bool resexp);
 	void CalculateStandardAAExp(uint64 &add_aaxp, uint8 conlevel, bool resexp);
 	void CalculateLeadershipExp(uint64 &add_exp, uint8 conlevel);
@@ -1375,6 +1375,8 @@ public:
 	void ClearPendingAdventureDoorClick() { safe_delete(adventure_door_timer); }
 	void ClearPendingAdventureData();
 
+	bool CanEnterZone(std::string zone_short_name = "", int16 instance_version = -1);
+
 	int GetAggroCount();
 	void IncrementAggroCount(bool raid_target = false);
 	void DecrementAggroCount();
@@ -1884,7 +1886,6 @@ private:
 	void NPCSpawn(const Seperator* sep);
 	uint32 GetEXPForLevel(uint16 level);
 
-	bool CanBeInZone();
 	void SendLogoutPackets();
 	void SendZoneInPackets();
 	bool AddPacket(const EQApplicationPacket *, bool);

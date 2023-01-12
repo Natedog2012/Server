@@ -438,6 +438,21 @@ void handle_npc_spawn_zone(
 	lua_setfield(L, -2, "other");
 }
 
+void handle_npc_despawn_zone(
+	QuestInterface *parse,
+	lua_State* L,
+	NPC* npc,
+	Mob *init,
+	std::string data,
+	uint32 extra_data,
+	std::vector<std::any> *extra_pointers
+) {
+	Lua_Mob l_mob(init);
+	luabind::adl::object l_mob_o = luabind::adl::object(L, l_mob);
+	l_mob_o.push(L);
+	lua_setfield(L, -2, "other");
+}
+
 // Player
 void handle_player_say(
 	QuestInterface *parse,
@@ -1126,6 +1141,31 @@ void handle_player_gm_command(
 ) {
 	lua_pushstring(L, data.c_str());
 	lua_setfield(L, -2, "message");
+}
+
+void handle_player_bot_create(
+	QuestInterface *parse,
+	lua_State* L,
+	Client* client,
+	std::string data,
+	uint32 extra_data,
+	std::vector<std::any> *extra_pointers
+) {
+	Seperator sep(data.c_str());
+	lua_pushstring(L, sep.arg[0]);
+	lua_setfield(L, -2, "bot_name");
+
+	lua_pushinteger(L, std::stoi(sep.arg[1]));
+	lua_setfield(L, -2, "bot_id");
+
+	lua_pushinteger(L, std::stoi(sep.arg[2]));
+	lua_setfield(L, -2, "bot_race");
+
+	lua_pushinteger(L, std::stoi(sep.arg[3]));
+	lua_setfield(L, -2, "bot_class");
+
+	lua_pushinteger(L, std::stoi(sep.arg[4]));
+	lua_setfield(L, -2, "bot_gender");
 }
 
 // Item

@@ -278,7 +278,7 @@ public:
 	bool	MakeTrackPacket(Client* client);
 	void	SendTraders(Client* client);
 	void	AddClient(Client*);
-	void	AddNPC(NPC*, bool SendSpawnPacket = true, bool dontqueue = false);
+	void	AddNPC(NPC*, bool send_spawn_packet = true, bool dont_queue = false);
 	void	AddMerc(Merc*, bool SendSpawnPacket = true, bool dontqueue = false);
 	void	AddCorpse(Corpse* pc, uint32 in_id = 0xFFFFFFFF);
 	void	AddObject(Object*, bool SendSpawnPacket = true);
@@ -628,7 +628,8 @@ private:
 		Mob* GetMobByBotID(uint32 botID);
 		Bot* GetBotByBotID(uint32 botID);
 		Bot* GetBotByBotName(std::string botName);
-		Client* GetBotOwnerByBotEntityID(uint16 entityID);
+		Client* GetBotOwnerByBotEntityID(uint32 entity_id);
+		Client* GetBotOwnerByBotID(const uint32 bot_id);
 		std::list<Bot*> GetBotsByBotOwnerCharacterID(uint32 botOwnerCharacterID);
 
 		bool Bot_AICheckCloseBeneficialSpells(Bot* caster, uint8 iChance, float iRange, uint32 iSpellTypes); // TODO: Evaluate this closesly in hopes to eliminate

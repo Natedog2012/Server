@@ -1602,9 +1602,14 @@ float Perl_Client_GetTargetRingZ(Client* self) // @categories Script Utility
 	return self->GetTargetRingZ();
 }
 
-uint32_t Perl_Client_CalcEXP(Client* self, uint8 conlevel)
+uint64_t Perl_Client_CalcEXP(Client* self, uint8 consider_level)
 {
-	return self->CalcEXP(conlevel);
+	return self->CalcEXP(consider_level);
+}
+
+uint64_t Perl_Client_CalcEXP(Client* self, uint8 consider_level, bool ignore_modifiers)
+{
+	return self->CalcEXP(consider_level, ignore_modifiers);
 }
 
 void Perl_Client_QuestReward(Client* self, Mob* mob) // @categories Currency and Points, Experience and Level, Inventory and Items, Faction
@@ -2829,6 +2834,16 @@ void Perl_Client_SetEXPEnabled(Client* self, bool is_exp_enabled)
 	self->SetEXPEnabled(is_exp_enabled);
 }
 
+bool Perl_Client_CanEnterZone(Client* self, std::string zone_short_name)
+{
+	return self->CanEnterZone(zone_short_name);
+}
+
+bool Perl_Client_CanEnterZone(Client* self, std::string zone_short_name, int16 instance_version)
+{
+	return self->CanEnterZone(zone_short_name, instance_version);
+}
+
 #ifdef BOTS
 
 int Perl_Client_GetBotRequiredLevel(Client* self)
@@ -2958,10 +2973,13 @@ void perl_register_client()
 	package.add("AssignToInstance", &Perl_Client_AssignToInstance);
 	package.add("AutoSplitEnabled", &Perl_Client_AutoSplitEnabled);
 	package.add("BreakInvis", &Perl_Client_BreakInvis);
-	package.add("CalcEXP", &Perl_Client_CalcEXP);
+	package.add("CalcEXP", (uint64(*)(Client*, uint8))&Perl_Client_CalcEXP);
+	package.add("CalcEXP", (uint64(*)(Client*, uint8, bool))&Perl_Client_CalcEXP);
 	package.add("CalcPriceMod", (float(*)(Client*))&Perl_Client_CalcPriceMod);
 	package.add("CalcPriceMod", (float(*)(Client*, Mob*))&Perl_Client_CalcPriceMod);
 	package.add("CalcPriceMod", (float(*)(Client*, Mob*, bool))&Perl_Client_CalcPriceMod);
+	package.add("CanEnterZone", (bool(*)(Client*, std::string))&Perl_Client_CanEnterZone);
+	package.add("CanEnterZone", (bool(*)(Client*, std::string, int16))&Perl_Client_CanEnterZone);
 	package.add("CanHaveSkill", &Perl_Client_CanHaveSkill);
 	package.add("CashReward", &Perl_Client_CashReward);
 	package.add("ChangeLastName", &Perl_Client_ChangeLastName);

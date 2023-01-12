@@ -104,99 +104,84 @@ static uint32 MaxBankedRaidLeadershipPoints(int Level)
 	return 10;
 }
 
-uint64 Client::CalcEXP(uint8 conlevel) {
-
+uint64 Client::CalcEXP(uint8 consider_level, bool ignore_modifiers) {
 	uint64 in_add_exp = EXP_FORMULA;
 
-
-	if((XPRate != 0))
+	if (XPRate != 0) {
 		in_add_exp = static_cast<uint64>(in_add_exp * (static_cast<float>(XPRate) / 100.0f));
-
-	float totalmod = 1.0;
-	float zemmod = 1.0;
-	//get modifiers
-	if(RuleR(Character, ExpMultiplier) >= 0){
-		totalmod *= RuleR(Character, ExpMultiplier);
 	}
 
-	if(zone->newzone_data.zone_exp_multiplier >= 0){
-		zemmod *= zone->newzone_data.zone_exp_multiplier;
-	}
+	if (!ignore_modifiers) {
+		auto total_modifier = 1.0f;
+		auto zone_modifier  = 1.0f;
 
-	if(RuleB(Character,UseRaceClassExpBonuses))
-	{
-		if(GetBaseRace() == HALFLING){
-			totalmod *= 1.05;
+		if (RuleR(Character, ExpMultiplier) >= 0) {
+			total_modifier *= RuleR(Character, ExpMultiplier);
 		}
 
-		if(GetClass() == ROGUE || GetClass() == WARRIOR){
-			totalmod *= 1.05;
+		if (zone->newzone_data.zone_exp_multiplier >= 0) {
+			zone_modifier *= zone->newzone_data.zone_exp_multiplier;
 		}
+
+		if (RuleB(Character, UseRaceClassExpBonuses)) {
+			if (
+				GetClass() == WARRIOR ||
+				GetClass() == ROGUE ||
+				GetBaseRace() == HALFLING
+			) {
+				total_modifier *= 1.05;
+			}
+		}
+
+		if (zone->IsHotzone()) {
+			total_modifier += RuleR(Zone, HotZoneBonus);
+		}
+
+		in_add_exp = uint64(float(in_add_exp) * total_modifier * zone_modifier);
 	}
 
-	if(zone->IsHotzone())
-	{
-		totalmod += RuleR(Zone, HotZoneBonus);
-	}
-
-	in_add_exp = uint64(float(in_add_exp) * totalmod * zemmod);
-
-	if(RuleB(Character,UseXPConScaling))
-	{
-		if (conlevel != 0xFF) {
-			switch (conlevel)
-			{
-			case CON_GRAY:
-				in_add_exp = 0;
-				return 0;
-			case CON_GREEN:
-				in_add_exp = in_add_exp * RuleI(Character, GreenModifier) / 100;
-				break;
-			case CON_LIGHTBLUE:
-				in_add_exp = in_add_exp * RuleI(Character, LightBlueModifier)/100;
-				break;
-			case CON_BLUE:
-				in_add_exp = in_add_exp * RuleI(Character, BlueModifier)/100;
-				break;
-			case CON_WHITE:
-				in_add_exp = in_add_exp * RuleI(Character, WhiteModifier)/100;
-				break;
-			case CON_YELLOW:
-				in_add_exp = in_add_exp * RuleI(Character, YellowModifier)/100;
-				break;
-			case CON_RED:
-				in_add_exp = in_add_exp * RuleI(Character, RedModifier)/100;
-				break;
+	if (RuleB(Character,UseXPConScaling)) {
+		if (consider_level != 0xFF) {
+			switch (consider_level) {
+				case CON_GRAY:
+					in_add_exp = 0;
+					return 0;
+				case CON_GREEN:
+					in_add_exp = in_add_exp * RuleI(Character, GreenModifier) / 100;
+					break;
+				case CON_LIGHTBLUE:
+					in_add_exp = in_add_exp * RuleI(Character, LightBlueModifier) / 100;
+					break;
+				case CON_BLUE:
+					in_add_exp = in_add_exp * RuleI(Character, BlueModifier) / 100;
+					break;
+				case CON_WHITE:
+					in_add_exp = in_add_exp * RuleI(Character, WhiteModifier) / 100;
+					break;
+				case CON_YELLOW:
+					in_add_exp = in_add_exp * RuleI(Character, YellowModifier) / 100;
+					break;
+				case CON_RED:
+					in_add_exp = in_add_exp * RuleI(Character, RedModifier) / 100;
+					break;
 			}
 		}
 	}
 
-	float aatotalmod = 1.0;
-	if(zone->newzone_data.zone_exp_multiplier >= 0){
-		aatotalmod *= zone->newzone_data.zone_exp_multiplier;
-	}
-
-
-
-	if(RuleB(Character,UseRaceClassExpBonuses))
-	{
-		if(GetBaseRace() == HALFLING){
-			aatotalmod *= 1.05;
+	if (!ignore_modifiers) {
+		if (RuleB(Zone, LevelBasedEXPMods)) {
+			if (zone->level_exp_mod[GetLevel()].ExpMod) {
+				in_add_exp *= zone->level_exp_mod[GetLevel()].ExpMod;
+			}
 		}
 
-		if(GetClass() == ROGUE || GetClass() == WARRIOR){
-			aatotalmod *= 1.05;
+		if (RuleR(Character, FinalExpMultiplier) >= 0) {
+			in_add_exp *= RuleR(Character, FinalExpMultiplier);
 		}
-	}
 
-	if(RuleB(Zone, LevelBasedEXPMods)){
-		if(zone->level_exp_mod[GetLevel()].ExpMod){
-			in_add_exp *= zone->level_exp_mod[GetLevel()].ExpMod;
+		if (RuleB(Character, EnableCharacterEXPMods)) {
+			in_add_exp *= GetEXPModifier(zone->GetZoneID(), zone->GetInstanceVersion());
 		}
-	}
-
-	if (RuleR(Character, FinalExpMultiplier) >= 0) {
-		in_add_exp *= RuleR(Character, FinalExpMultiplier);
 	}
 
 	return in_add_exp;
@@ -495,17 +480,18 @@ void Client::CalculateExp(uint64 in_add_exp, uint64 &add_exp, uint64 &add_aaxp, 
 		add_exp *= GetEXPModifier(zone->GetZoneID(), zone->GetInstanceVersion());
 	}
 
-	add_exp = GetEXP() + add_exp;
-
 	//Enforce Percent XP Cap per kill, if rule is enabled
 	int kill_percent_xp_cap = RuleI(Character, ExperiencePercentCapPerKill);
 	if (kill_percent_xp_cap >= 0) {
 		auto experience_for_level = (GetEXPForLevel(GetLevel() + 1) - GetEXPForLevel(GetLevel()));
-		auto exp_percent = static_cast<uint32>(std::ceil(static_cast<float>(add_exp / experience_for_level) * 100.0f));
+		float exp_percent = (float)((float)add_exp / (float)(GetEXPForLevel(GetLevel() + 1) - GetEXPForLevel(GetLevel()))) * (float)100; //EXP needed for level
 		if (exp_percent > kill_percent_xp_cap) {
-			add_exp = static_cast<uint64>(std::floor(experience_for_level * (kill_percent_xp_cap / 100.0f)));
+			add_exp = GetEXP() + static_cast<uint64>(std::floor(experience_for_level * (kill_percent_xp_cap / 100.0f)));
+			return;
 		}
 	}
+
+	add_exp = GetEXP() + add_exp;
 }
 
 void Client::AddEXP(uint64 in_add_exp, uint8 conlevel, bool resexp) {
@@ -525,7 +511,6 @@ void Client::AddEXP(uint64 in_add_exp, uint8 conlevel, bool resexp) {
 
 	// Calculate regular XP
 	CalculateExp(in_add_exp, exp, aaexp, conlevel, resexp);
-
 	// Calculate regular AA XP
 	if (!RuleB(AA, NormalizedAAEnabled))
 	{
@@ -603,32 +588,34 @@ void Client::SetEXP(uint64 set_exp, uint64 set_aaxp, bool isrezzexp) {
 		}
 	}
 
-	if ((set_exp + set_aaxp) > (m_pp.exp+m_pp.expAA)) {
-
-		uint64 exp_gained = set_exp - m_pp.exp;
-		uint64 aaxp_gained = set_aaxp - m_pp.expAA;
+	uint64 current_exp = GetEXP();
+	uint64 current_aa_exp = GetAAXP();
+	uint64 total_current_exp = current_exp + current_aa_exp;
+	uint64 total_add_exp = set_exp + set_aaxp;
+	if (total_add_exp > total_current_exp) {
+		uint64 exp_gained = set_exp - current_exp;
+		uint64 aa_exp_gained = set_aaxp - current_aa_exp;
 		float exp_percent = (float)((float)exp_gained / (float)(GetEXPForLevel(GetLevel() + 1) - GetEXPForLevel(GetLevel())))*(float)100; //EXP needed for level
-		float aaxp_percent = (float)((float)aaxp_gained / (float)(RuleI(AA, ExpPerPoint)))*(float)100; //AAEXP needed for level
+		float aa_exp_percent = (float)((float)aa_exp_gained / (float)(RuleI(AA, ExpPerPoint)))*(float)100; //AAEXP needed for level
 		std::string exp_amount_message = "";
 		if (RuleI(Character, ShowExpValues) >= 1) {
-			if (exp_gained > 0 && aaxp_gained > 0) {
-				exp_amount_message = fmt::format("({}) ({})", exp_gained, aaxp_gained);
+			if (exp_gained > 0 && aa_exp_gained > 0) {
+				exp_amount_message = fmt::format("({}) ({})", exp_gained, aa_exp_gained);
 			}
 			else if (exp_gained > 0) {
 				exp_amount_message = fmt::format("({})", exp_gained);
 			}
 			else {
-				exp_amount_message = fmt::format("({}) AA", aaxp_gained);
+				exp_amount_message = fmt::format("({}) AA", aa_exp_gained);
 			}
 		}
 
 		std::string exp_percent_message = "";
 		if (RuleI(Character, ShowExpValues) >= 2) {
-			if (exp_gained > 0 && aaxp_gained > 0) exp_percent_message = StringFormat("(%.3f%%, %.3f%%AA)", exp_percent, aaxp_percent);
+			if (exp_gained > 0 && aa_exp_gained > 0) exp_percent_message = StringFormat("(%.3f%%, %.3f%%AA)", exp_percent, aa_exp_percent);
 			else if (exp_gained > 0) exp_percent_message = StringFormat("(%.3f%%)", exp_percent);
-			else exp_percent_message = StringFormat("(%.3f%%AA)", aaxp_percent);
+			else exp_percent_message = StringFormat("(%.3f%%AA)", aa_exp_percent);
 		}
-
 		if (isrezzexp) {
 			if (RuleI(Character, ShowExpValues) > 0)
 				Message(Chat::Experience, "You regain %s experience from resurrection. %s", exp_amount_message.c_str(), exp_percent_message.c_str());
@@ -651,8 +638,8 @@ void Client::SetEXP(uint64 set_exp, uint64 set_aaxp, bool isrezzexp) {
 			}
 		}
 	}
-	else if((set_exp + set_aaxp) < (m_pp.exp+m_pp.expAA)){ //only loss message if you lose exp, no message if you gained/lost nothing.
-		uint64 exp_lost = m_pp.exp - set_exp;
+	else if(total_add_exp < total_current_exp){ //only loss message if you lose exp, no message if you gained/lost nothing.
+		uint64 exp_lost = current_exp - set_exp;
 		float exp_percent = (float)((float)exp_lost / (float)(GetEXPForLevel(GetLevel() + 1) - GetEXPForLevel(GetLevel())))*(float)100;
 
 		if (RuleI(Character, ShowExpValues) == 1 && exp_lost > 0) Message(Chat::Yellow, "You have lost %i experience.", exp_lost);

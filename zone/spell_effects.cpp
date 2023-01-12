@@ -180,13 +180,11 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 			CalcBonuses();
 			return true;
 		}
-#ifdef BOTS
 	} else if (IsBot()) {
 		if (parse->EventSpell(EVENT_SPELL_EFFECT_BOT, this, nullptr, spell_id, export_string, 0) != 0) {
 			CalcBonuses();
 			return true;
 		}
-#endif
 	}
 
 	if(IsVirusSpell(spell_id)) {
@@ -3515,7 +3513,7 @@ int64 Mob::CalcSpellEffectValue(uint16 spell_id, int effect_id, int caster_level
 }
 
 // generic formula calculations
-int64 Mob::CalcSpellEffectValue_formula(int64 formula, int64 base_value, int64 max_value, int caster_level, uint16 spell_id, int ticsremaining)
+int64 Mob::CalcSpellEffectValue_formula(uint32 formula, int64 base_value, int64 max_value, int caster_level, uint16 spell_id, int ticsremaining)
 {
 #ifdef LUA_EQEMU
 	int64 lua_ret = 0;
@@ -3908,12 +3906,10 @@ void Mob::DoBuffTic(const Buffs_Struct &buff, int slot, Mob *caster)
 		if (parse->EventSpell(EVENT_SPELL_EFFECT_BUFF_TIC_NPC, this, nullptr, buff.spellid, export_string, 0) != 0) {
 			return;
 		}
-#ifdef BOTS
 	} else if (IsBot()) {
 		if (parse->EventSpell(EVENT_SPELL_EFFECT_BUFF_TIC_BOT, this, nullptr, buff.spellid, export_string, 0) != 0) {
 			return;
 		}
-#endif
 	}
 
 	for (int i = 0; i < EFFECT_COUNT; i++) {
@@ -7497,8 +7493,9 @@ bool Mob::PassCastRestriction(int value)
 			break;
 
 		case IS_NOT_ON_HORSE:
-			if (IsClient() && !CastToClient()->GetHorseId())
+			if ((IsClient() && !CastToClient()->GetHorseId()) || IsBot() || IsMerc()) {
 				return true;
+			}
 			break;
 
 		case IS_ANIMAL_OR_HUMANOID:
@@ -7840,10 +7837,10 @@ bool Mob::PassCastRestriction(int value)
 		}
 
 		case IS_CLASS_CHAIN_OR_PLATE:
-			if (IsClient() &&
-				((GetClass() == WARRIOR) || (GetClass() == BARD)  || (GetClass() == SHADOWKNIGHT)  || (GetClass() == PALADIN)  || (GetClass() == CLERIC)
-					|| (GetClass() == RANGER) || (GetClass() == SHAMAN) || (GetClass() == ROGUE)  || (GetClass() == BERSERKER)))
+			if ((GetClass() == WARRIOR) || (GetClass() == BARD) || (GetClass() == SHADOWKNIGHT) || (GetClass() == PALADIN) || (GetClass() == CLERIC)
+				|| (GetClass() == RANGER) || (GetClass() == SHAMAN) || (GetClass() == ROGUE) || (GetClass() == BERSERKER)) {
 				return true;
+			}
 			break;
 
 		case IS_HP_BETWEEN_5_AND_9_PCT:

@@ -29,6 +29,9 @@
 #include "../common/light_source.h"
 #include "../common/emu_constants.h"
 #include "combat_record.h"
+#include "event_codes.h"
+
+#include <any>
 #include <set>
 #include <vector>
 #include <memory>
@@ -1250,7 +1253,7 @@ public:
 	//uint32 GetInstrumentMod(uint16 spell_id) const;
 	uint32 GetInstrumentMod(uint16 spell_id);
 	int64 CalcSpellEffectValue(uint16 spell_id, int effect_id, int caster_level = 1, uint32 instrument_mod = 10, Mob *caster = nullptr, int ticsremaining = 0,uint16 casterid=0);
-	int64 CalcSpellEffectValue_formula(int64 formula, int64 base_value, int64 max_value, int caster_level, uint16 spell_id, int ticsremaining = 0);
+	int64 CalcSpellEffectValue_formula(uint32 formula, int64 base_value, int64 max_value, int caster_level, uint16 spell_id, int ticsremaining = 0);
 	virtual int CheckStackConflict(uint16 spellid1, int caster_level1, uint16 spellid2, int caster_level2, Mob* caster1 = nullptr, Mob* caster2 = nullptr, int buffslot = -1);
 	uint32 GetCastedSpellInvSlot() const { return casting_spell_inventory_slot; }
 
@@ -1440,6 +1443,8 @@ public:
 	std::string GetBucketKey();
 	std::string GetBucketRemaining(std::string bucket_name);
 	void SetBucket(std::string bucket_name, std::string bucket_value, std::string expiration = "");
+
+	int DispatchZoneControllerEvent(QuestEventID evt, Mob* init, const std::string& data, uint32 extra, std::vector<std::any>* pointers);
 
 #ifdef BOTS
 	// Bots HealRotation methods

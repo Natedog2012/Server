@@ -1695,7 +1695,7 @@ void Mob::ShowStats(Client* client)
 
 		// Faction
 		if (target->GetNPCFactionID()) {
-			auto faction_id = target->GetNPCFactionID();
+			auto faction_id = target->GetPrimaryFaction();
 			auto faction_name = content_db.GetFactionName(faction_id);
 			client->Message(
 				Chat::White,
@@ -7132,4 +7132,29 @@ void Mob::CopyHateList(Mob* to) {
 			to->AddToHateList(h->entity_on_hatelist, h->stored_hate_amount, h->hatelist_damage);
 		}
 	}
+}
+
+int Mob::DispatchZoneControllerEvent(
+	QuestEventID evt,
+	Mob* init,
+	const std::string& data,
+	uint32 extra,
+	std::vector<std::any>* pointers
+) {
+	auto ret = 0;
+
+	if (
+		RuleB(Zone, UseZoneController) &&
+		(
+			!IsNPC() ||
+			(IsNPC() && GetNPCTypeID() != ZONE_CONTROLLER_NPC_ID)
+		)
+	) {
+		auto controller = entity_list.GetNPCByNPCTypeID(ZONE_CONTROLLER_NPC_ID);
+		if (controller) {
+			ret = parse->EventNPC(evt, controller, init, data, extra, pointers);
+		}
+	}
+
+	return ret;
 }

@@ -109,10 +109,11 @@ typedef enum {
 	EVENT_PAYLOAD,
 	EVENT_LEVEL_DOWN,
 	EVENT_GM_COMMAND,
-#ifdef BOTS
-	EVENT_SPELL_EFFECT_BOT,
+	EVENT_DESPAWN,
+	EVENT_DESPAWN_ZONE,
+	EVENT_BOT_CREATE,
+	EVENT_SPELL_EFFECT_BOT, // Add new events before these or Lua crashes
 	EVENT_SPELL_EFFECT_BUFF_TIC_BOT,
-#endif
 	_LargestEventID
 } QuestEventID;
 
