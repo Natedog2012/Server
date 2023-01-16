@@ -264,7 +264,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				Group *g = entity_list.GetGroupByClient(caster->CastToClient());
 	
 				if (!g) {
-					caster->HealDamage(heal_amt);
+					caster->HealDamage(heal_amt, caster, spell_id);
 					break;
 				}
 	
@@ -300,7 +300,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				Group *g = entity_list.GetGroupByClient(caster->CastToClient());
 	
 				if (!g) {
-					caster->HealDamage(caster->GetMaxHP() * heal_amt / 100);
+					caster->HealDamage(caster->GetMaxHP() * heal_amt / 100, caster, spell_id);
 					break;
 				}
 	
