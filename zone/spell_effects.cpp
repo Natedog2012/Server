@@ -292,7 +292,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					gid = r->GetGroup(caster->GetName());
 					if (gid < 11)
 					{
-						r->SmartHealGroup(heal_amt, caster, spells[spell_id].range);
+						r->SmartHealPercentGroup(heal_amt, caster, spells[spell_id].range);
 						break;
 					}
 				}
@@ -304,7 +304,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					break;
 				}
 	
-				g->SmartHealGroup(heal_amt, caster, spells[spell_id].range);
+				g->SmartHealPercentGroup(heal_amt, caster, spells[spell_id].range);
 				break;	
 			}
 			case SE_CurrentHP:	// nukes, heals; also regen/dot if a buff
