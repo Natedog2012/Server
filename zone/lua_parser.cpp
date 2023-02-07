@@ -242,6 +242,7 @@ LuaParser::LuaParser() {
 	PlayerArgumentDispatch[EVENT_DUEL_LOSE]                  = handle_player_duel_loss;
 	PlayerArgumentDispatch[EVENT_LOOT]                       = handle_player_loot;
 	PlayerArgumentDispatch[EVENT_TASK_STAGE_COMPLETE]        = handle_player_task_stage_complete;
+	PlayerArgumentDispatch[EVENT_TASK_ACCEPTED]              = handle_player_task_accepted;
 	PlayerArgumentDispatch[EVENT_TASK_COMPLETE]              = handle_player_task_update;
 	PlayerArgumentDispatch[EVENT_TASK_UPDATE]                = handle_player_task_update;
 	PlayerArgumentDispatch[EVENT_TASK_BEFORE_UPDATE]         = handle_player_task_update;
@@ -339,7 +340,7 @@ LuaParser::~LuaParser() {
 	}
 }
 
-int LuaParser::EventNPC(QuestEventID evt, NPC* npc, Mob *init, const std::string& data, uint32 extra_data,
+int LuaParser::EventNPC(QuestEventID evt, NPC* npc, Mob *init, std::string data, uint32 extra_data,
 						std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -358,7 +359,7 @@ int LuaParser::EventNPC(QuestEventID evt, NPC* npc, Mob *init, const std::string
 	return _EventNPC(package_name, evt, npc, init, data, extra_data, extra_pointers);
 }
 
-int LuaParser::EventGlobalNPC(QuestEventID evt, NPC* npc, Mob *init, const std::string& data, uint32 extra_data,
+int LuaParser::EventGlobalNPC(QuestEventID evt, NPC* npc, Mob *init, std::string data, uint32 extra_data,
 							  std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -376,7 +377,7 @@ int LuaParser::EventGlobalNPC(QuestEventID evt, NPC* npc, Mob *init, const std::
 	return _EventNPC("global_npc", evt, npc, init, data, extra_data, extra_pointers);
 }
 
-int LuaParser::_EventNPC(std::string package_name, QuestEventID evt, NPC* npc, Mob *init, const std::string& data, uint32 extra_data,
+int LuaParser::_EventNPC(std::string package_name, QuestEventID evt, NPC* npc, Mob *init, std::string data, uint32 extra_data,
 						 std::vector<std::any> *extra_pointers, luabind::adl::object *l_func) {
 	const char *sub_name = LuaEvents[evt];
 
@@ -436,7 +437,7 @@ int LuaParser::_EventNPC(std::string package_name, QuestEventID evt, NPC* npc, M
 	return 0;
 }
 
-int LuaParser::EventPlayer(QuestEventID evt, Client *client, const std::string& data, uint32 extra_data,
+int LuaParser::EventPlayer(QuestEventID evt, Client *client, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -454,7 +455,7 @@ int LuaParser::EventPlayer(QuestEventID evt, Client *client, const std::string& 
 	return _EventPlayer("player", evt, client, data, extra_data, extra_pointers);
 }
 
-int LuaParser::EventGlobalPlayer(QuestEventID evt, Client *client, const std::string& data, uint32 extra_data,
+int LuaParser::EventGlobalPlayer(QuestEventID evt, Client *client, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -472,7 +473,7 @@ int LuaParser::EventGlobalPlayer(QuestEventID evt, Client *client, const std::st
 	return _EventPlayer("global_player", evt, client, data, extra_data, extra_pointers);
 }
 
-int LuaParser::_EventPlayer(std::string package_name, QuestEventID evt, Client *client, const std::string& data, uint32 extra_data,
+int LuaParser::_EventPlayer(std::string package_name, QuestEventID evt, Client *client, std::string data, uint32 extra_data,
 							std::vector<std::any> *extra_pointers, luabind::adl::object *l_func) {
 	const char *sub_name = LuaEvents[evt];
 	int start = lua_gettop(L);
@@ -530,7 +531,7 @@ int LuaParser::_EventPlayer(std::string package_name, QuestEventID evt, Client *
 	return 0;
 }
 
-int LuaParser::EventItem(QuestEventID evt, Client *client, EQ::ItemInstance *item, Mob *mob, const std::string& data, uint32 extra_data,
+int LuaParser::EventItem(QuestEventID evt, Client *client, EQ::ItemInstance *item, Mob *mob, std::string data, uint32 extra_data,
 		std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -551,7 +552,7 @@ int LuaParser::EventItem(QuestEventID evt, Client *client, EQ::ItemInstance *ite
 }
 
 int LuaParser::_EventItem(std::string package_name, QuestEventID evt, Client *client, EQ::ItemInstance *item, Mob *mob,
-						  const std::string& data, uint32 extra_data, std::vector<std::any> *extra_pointers, luabind::adl::object *l_func) {
+						  std::string data, uint32 extra_data, std::vector<std::any> *extra_pointers, luabind::adl::object *l_func) {
 	const char *sub_name = LuaEvents[evt];
 
 	int start = lua_gettop(L);
@@ -615,7 +616,7 @@ int LuaParser::_EventItem(std::string package_name, QuestEventID evt, Client *cl
 	return 0;
 }
 
-int LuaParser::EventSpell(QuestEventID evt, Mob* mob, Client *client, uint32 spell_id, const std::string& data, uint32 extra_data,
+int LuaParser::EventSpell(QuestEventID evt, Mob* mob, Client *client, uint32 spell_id, std::string data, uint32 extra_data,
 						  std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -631,7 +632,7 @@ int LuaParser::EventSpell(QuestEventID evt, Mob* mob, Client *client, uint32 spe
 	return _EventSpell(package_name, evt, mob, client, spell_id, data, extra_data, extra_pointers);
 }
 
-int LuaParser::_EventSpell(std::string package_name, QuestEventID evt, Mob* mob, Client *client, uint32 spell_id, const std::string& data, uint32 extra_data,
+int LuaParser::_EventSpell(std::string package_name, QuestEventID evt, Mob* mob, Client *client, uint32 spell_id, std::string data, uint32 extra_data,
 						   std::vector<std::any> *extra_pointers, luabind::adl::object *l_func) {
 	const char *sub_name = LuaEvents[evt];
 
@@ -697,7 +698,7 @@ int LuaParser::_EventSpell(std::string package_name, QuestEventID evt, Mob* mob,
 	return 0;
 }
 
-int LuaParser::EventEncounter(QuestEventID evt, std::string encounter_name, const std::string& data, uint32 extra_data, std::vector<std::any> *extra_pointers) {
+int LuaParser::EventEncounter(QuestEventID evt, std::string encounter_name, std::string data, uint32 extra_data, std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
 		return 0;
@@ -712,7 +713,7 @@ int LuaParser::EventEncounter(QuestEventID evt, std::string encounter_name, cons
 	return _EventEncounter(package_name, evt, encounter_name, data, extra_data, extra_pointers);
 }
 
-int LuaParser::_EventEncounter(std::string package_name, QuestEventID evt, std::string encounter_name, const std::string& data, uint32 extra_data,
+int LuaParser::_EventEncounter(std::string package_name, QuestEventID evt, std::string encounter_name, std::string data, uint32 extra_data,
 							   std::vector<std::any> *extra_pointers) {
 	const char *sub_name = LuaEvents[evt];
 
@@ -1242,7 +1243,7 @@ void LuaParser::MapFunctions(lua_State *L) {
 	}
 }
 
-int LuaParser::DispatchEventNPC(QuestEventID evt, NPC* npc, Mob *init, const std::string& data, uint32 extra_data,
+int LuaParser::DispatchEventNPC(QuestEventID evt, NPC* npc, Mob *init, std::string data, uint32 extra_data,
 								 std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -1288,7 +1289,7 @@ int LuaParser::DispatchEventNPC(QuestEventID evt, NPC* npc, Mob *init, const std
     return ret;
 }
 
-int LuaParser::DispatchEventPlayer(QuestEventID evt, Client *client, const std::string& data, uint32 extra_data,
+int LuaParser::DispatchEventPlayer(QuestEventID evt, Client *client, std::string data, uint32 extra_data,
 									std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -1317,7 +1318,7 @@ int LuaParser::DispatchEventPlayer(QuestEventID evt, Client *client, const std::
     return ret;
 }
 
-int LuaParser::DispatchEventItem(QuestEventID evt, Client *client, EQ::ItemInstance *item, Mob *mob, const std::string& data, uint32 extra_data,
+int LuaParser::DispatchEventItem(QuestEventID evt, Client *client, EQ::ItemInstance *item, Mob *mob, std::string data, uint32 extra_data,
 								  std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -1363,7 +1364,7 @@ int LuaParser::DispatchEventItem(QuestEventID evt, Client *client, EQ::ItemInsta
     return ret;
 }
 
-int LuaParser::DispatchEventSpell(QuestEventID evt, Mob* mob, Client *client, uint32 spell_id, const std::string& data, uint32 extra_data,
+int LuaParser::DispatchEventSpell(QuestEventID evt, Mob* mob, Client *client, uint32 spell_id, std::string data, uint32 extra_data,
 								   std::vector<std::any> *extra_pointers) {
 	evt = ConvertLuaEvent(evt);
 	if(evt >= _LargestEventID) {
@@ -1517,7 +1518,7 @@ int LuaParser::EventBot(
 	QuestEventID evt,
 	Bot *bot,
 	Mob *init,
-	const std::string& data,
+	std::string data,
 	uint32 extra_data,
 	std::vector<std::any> *extra_pointers
 ) {
@@ -1541,7 +1542,7 @@ int LuaParser::EventGlobalBot(
 	QuestEventID evt,
 	Bot *bot,
 	Mob *init,
-	const std::string& data,
+	std::string data,
 	uint32 extra_data,
 	std::vector<std::any> *extra_pointers
 ) {
@@ -1566,7 +1567,7 @@ int LuaParser::_EventBot(
 	QuestEventID evt,
 	Bot *bot,
 	Mob *init,
-	const std::string& data,
+	std::string data,
 	uint32 extra_data,
 	std::vector<std::any> *extra_pointers,
 	luabind::adl::object *l_func
@@ -1632,7 +1633,7 @@ int LuaParser::DispatchEventBot(
 	QuestEventID evt,
 	Bot *bot,
 	Mob *init,
-	const std::string& data,
+	std::string data,
 	uint32 extra_data,
 	std::vector<std::any> *extra_pointers
 ) {

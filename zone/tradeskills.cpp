@@ -59,7 +59,7 @@ void Object::HandleAugmentation(Client* user, const AugmentItem_Struct* in_augme
 		inst = user_inv.GetItem(in_augment->container_slot);
 		if (inst) {
 			const EQ::ItemData* item = inst->GetItem();
-			if (item && inst->IsType(EQ::item::ItemClassBag) && (item->BagType == EQ::item::BagTypeAugmentationSealer || item->BagType == EQ::item::BagTypeUnattuner)) { // We have found an appropriate inventory augmentation sealer
+			if (item && inst->IsType(EQ::item::ItemClassBag) && (item->BagType == EQ::item::BagTypeAugmentationSealer || item->BagType == RuleI(Inventory, AlternateAugmentationSealer))) { // We have found an appropriate inventory augmentation sealer
 				container = inst;
 
 				// Verify that no more than two items are in container to guarantee no inadvertant wipes.
@@ -135,13 +135,13 @@ void Object::HandleAugmentation(Client* user, const AugmentItem_Struct* in_augme
 			EQ::ItemInstance *aug = tobe_auged->GetAugment(slot);
 			if(aug) {
 				std::vector<std::any> args;
-				args.emplace_back(aug);
+				args.push_back(aug);
 				parse->EventItem(EVENT_AUGMENT_ITEM, user, tobe_auged, nullptr, "", slot, &args);
 
 				args.assign(1, tobe_auged);
 				parse->EventItem(EVENT_AUGMENT_INSERT, user, aug, nullptr, "", slot, &args);
 
-				args.emplace_back(aug);
+				args.push_back(aug);
 
 				const auto export_string = fmt::format(
 					"{} {} {} {}",
@@ -177,11 +177,11 @@ void Object::HandleAugmentation(Client* user, const AugmentItem_Struct* in_augme
 				return;
 			}
 			std::vector<std::any> args;
-			args.emplace_back(aug);
+			args.push_back(aug);
 			parse->EventItem(EVENT_UNAUGMENT_ITEM, user, tobe_auged, nullptr, "", slot, &args);
 
 			args.assign(1, tobe_auged);
-			args.emplace_back(&is_solvent);
+			args.push_back(&is_solvent);
 
 			parse->EventItem(EVENT_AUGMENT_REMOVE, user, aug, nullptr, "", slot, &args);
 		}

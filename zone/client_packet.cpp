@@ -468,9 +468,8 @@ int Client::HandlePacket(const EQApplicationPacket *app)
 		if (ConnectingOpcodes.count(opcode) != 1) {
 			//Hate const cast but everything in lua needs to be non-const even if i make it non-mutable
 			std::vector<std::any> args;
-			args.emplace_back(const_cast<EQApplicationPacket*>(app));
+			args.push_back(const_cast<EQApplicationPacket*>(app));
 			parse->EventPlayer(EVENT_UNHANDLED_OPCODE, this, "", 1, &args);
-
 			break;
 		}
 
@@ -492,7 +491,7 @@ int Client::HandlePacket(const EQApplicationPacket *app)
 		p = ConnectedOpcodes[opcode];
 		if (p == nullptr) {
 			std::vector<std::any> args;
-			args.emplace_back(const_cast<EQApplicationPacket*>(app));
+			args.push_back(const_cast<EQApplicationPacket*>(app));
 			parse->EventPlayer(EVENT_UNHANDLED_OPCODE, this, "", 0, &args);
 
 			break;
@@ -778,6 +777,13 @@ void Client::CompleteConnect()
 
 	parse->EventPlayer(EVENT_ENTER_ZONE, this, "", 0);
 	SendEdgeStatBulkUpdate();
+
+	// the way that the client deals with positions during the initial spawn struct
+	// is subtly different from how it deals with getting a position update
+	// if a mob is slightly in the wall or slightly clipping a floor they will be
+	// sent to a succor point
+	SendMobPositions();
+
 	SetLastPositionBeforeBulkUpdate(GetPosition());
 
 	/* This sub event is for if a player logs in for the first time since entering world. */
@@ -3114,11 +3120,11 @@ void Client::Handle_OP_AugmentItem(const EQApplicationPacket *app)
 							CalcBonuses();
 
 							std::vector<std::any> args;
-							args.emplace_back(old_aug);
+							args.push_back(old_aug);
 							parse->EventItem(EVENT_UNAUGMENT_ITEM, this, tobe_auged, nullptr, "", in_augment->augment_index, &args);
 
 							args.assign(1, tobe_auged);
-							args.emplace_back(false);
+							args.push_back(false);
 							parse->EventItem(EVENT_AUGMENT_REMOVE, this, old_aug, nullptr, "", in_augment->augment_index, &args);
 
 							const auto export_string = fmt::format(
@@ -3130,7 +3136,7 @@ void Client::Handle_OP_AugmentItem(const EQApplicationPacket *app)
 								false
 							);
 
-							args.emplace_back(old_aug);
+							args.push_back(old_aug);
 
 							parse->EventPlayer(EVENT_AUGMENT_REMOVE_CLIENT, this, export_string, 0, &args);
 						}
@@ -3141,13 +3147,13 @@ void Client::Handle_OP_AugmentItem(const EQApplicationPacket *app)
 						aug = tobe_auged->GetAugment(in_augment->augment_index);
 						if (aug) {
 							std::vector<std::any> args;
-							args.emplace_back(aug);
+							args.push_back(aug);
 							parse->EventItem(EVENT_AUGMENT_ITEM, this, tobe_auged, nullptr, "", in_augment->augment_index, &args);
 
 							args.assign(1, tobe_auged);
 							parse->EventItem(EVENT_AUGMENT_INSERT, this, aug, nullptr, "", in_augment->augment_index, &args);
 
-							args.emplace_back(aug);
+							args.push_back(aug);
 
 							const auto export_string = fmt::format(
 								"{} {} {} {}",
@@ -3209,14 +3215,14 @@ void Client::Handle_OP_AugmentItem(const EQApplicationPacket *app)
 				aug = tobe_auged->GetAugment(in_augment->augment_index);
 				if (aug) {
 					std::vector<std::any> args;
-					args.emplace_back(aug);
+					args.push_back(aug);
 					parse->EventItem(EVENT_UNAUGMENT_ITEM, this, tobe_auged, nullptr, "", in_augment->augment_index, &args);
 
 					args.assign(1, tobe_auged);
-					args.emplace_back(false);
+					args.push_back(false);
 					parse->EventItem(EVENT_AUGMENT_REMOVE, this, aug, nullptr, "", in_augment->augment_index, &args);
 
-					args.emplace_back(aug);
+					args.push_back(aug);
 
 					const auto export_string = fmt::format(
 						"{} {} {} {} {}",
@@ -3273,14 +3279,14 @@ void Client::Handle_OP_AugmentItem(const EQApplicationPacket *app)
 				aug = tobe_auged->GetAugment(in_augment->augment_index);
 				if (aug) {
 					std::vector<std::any> args;
-					args.emplace_back(aug);
+					args.push_back(aug);
 					parse->EventItem(EVENT_UNAUGMENT_ITEM, this, tobe_auged, nullptr, "", in_augment->augment_index, &args);
 
 					args.assign(1, tobe_auged);
-					args.emplace_back(true);
+					args.push_back(true);
 					parse->EventItem(EVENT_AUGMENT_REMOVE, this, aug, nullptr, "", in_augment->augment_index, &args);
 
-					args.emplace_back(aug);
+					args.push_back(aug);
 
 					const auto export_string = fmt::format(
 						"{} {} {} {} {}",
@@ -4401,27 +4407,46 @@ void Client::Handle_OP_ClickDoor(const EQApplicationPacket *app)
 		return;
 	}
 
-	// set door selected
-	if (IsDevToolsEnabled()) {
+	float distance = DistanceNoZ(GetPosition(), currentdoor->GetPosition());
+
+	LogDoors(
+		"Door [{}] client handle, client distance from door [{:.2f}]",
+		currentdoor->GetDoorID(),
+		distance
+	);
+
+	bool within_distance = distance < RuleI(Range, MaxDistanceToClickDoors);
+
+	// distance gate this because some doors are client controlled and the client
+	// will spam door click even across the zone to force a door back into desired state
+	if (IsDevToolsEnabled() && within_distance) {
 		SetDoorToolEntityId(currentdoor->GetEntityID());
 		DoorManipulation::CommandHeader(this);
 		Message(
 			Chat::White,
 			fmt::format(
 				"Door ({}) [{}]",
-				currentdoor->GetEntityID(),
+				currentdoor->GetDoorID(),
 				Saylink::Silent("#door edit")
 			).c_str()
 		);
 	}
 
-	std::string export_string = fmt::format("{}", cd->doorid);
-	std::vector<std::any> args;
-	args.emplace_back(currentdoor);
-	if (parse->EventPlayer(EVENT_CLICK_DOOR, this, export_string, 0, &args) == 0)
-	{
+	// don't spam scripts with client controlled doors if not within distance
+	if (within_distance) {
+		std::string           export_string = fmt::format("{}", cd->doorid);
+		std::vector<std::any> args;
+		args.push_back(currentdoor);
+		if (parse->EventPlayer(EVENT_CLICK_DOOR, this, export_string, 0, &args) == 0) {
+			currentdoor->HandleClick(this, 0);
+		}
+	}
+	else {
+		// we let this pass because client controlled doors require this to force the linked doors
+		// back into state
 		currentdoor->HandleClick(this, 0);
 	}
+
 }
 
 void Client::Handle_OP_ClickObject(const EQApplicationPacket *app)
@@ -4440,7 +4465,7 @@ void Client::Handle_OP_ClickObject(const EQApplicationPacket *app)
 		object->HandleClick(this, click_object);
 
 		std::vector<std::any> args;
-		args.emplace_back(object);
+		args.push_back(object);
 
 		std::string export_string = fmt::format("{}", click_object->drop_id);
 		parse->EventPlayer(EVENT_CLICK_OBJECT, this, export_string, GetID(), &args);
@@ -15792,4 +15817,15 @@ bool Client::CanTradeFVNoDropItem()
 	}
 
 	return false;
+}
+
+void Client::SendMobPositions()
+{
+	auto      p  = new EQApplicationPacket(OP_ClientUpdate, sizeof(PlayerPositionUpdateServer_Struct));
+	auto      *s = (PlayerPositionUpdateServer_Struct *) p->pBuffer;
+	for (auto &m: entity_list.GetMobList()) {
+		m.second->MakeSpawnUpdate(s);
+		QueuePacket(p, false);
+	}
+	safe_delete(p);
 }

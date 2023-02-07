@@ -365,7 +365,7 @@ void Client::CalcBonuses()
 	SendEdgeStatBulkUpdate();
 }
 
-int Client::CalcRecommendedLevelBonus(uint8 level, uint8 reclevel, int basestat)
+int Mob::CalcRecommendedLevelBonus(uint8 level, uint8 reclevel, int basestat)
 {
 	if( (reclevel > 0) && (level < reclevel) )
 	{

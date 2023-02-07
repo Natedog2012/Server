@@ -594,11 +594,6 @@ void Perl_NPC_RecalculateSkills(NPC* self) // @categories Skills and Recipes
 	self->RecalculateSkills();
 }
 
-void Perl_NPC_ScaleNPC(NPC* self, uint8 npc_level)
-{
-	return self->ScaleNPC(npc_level);
-}
-
 bool Perl_NPC_IsRaidTarget(NPC* self)
 {
 	return self->IsRaidTarget();
@@ -755,6 +750,16 @@ void Perl_NPC_SetLDoNTrapDetected(NPC* self, bool is_detected)
 	self->SetLDoNTrapDetected(is_detected);
 }
 
+void Perl_NPC_ScaleNPC(NPC* self, uint8 npc_level)
+{
+	return self->ScaleNPC(npc_level);
+}
+
+void Perl_NPC_ScaleNPC(NPC* self, uint8 npc_level, bool override_special_abilities)
+{
+	return self->ScaleNPC(npc_level, override_special_abilities);
+}
+
 void perl_register_npc()
 {
 	perl::interpreter perl(PERL_GET_THX);
@@ -880,7 +885,8 @@ void perl_register_npc()
 	package.add("SaveGuardSpot", (void(*)(NPC*))&Perl_NPC_SaveGuardSpot);
 	package.add("SaveGuardSpot", (void(*)(NPC*, bool))&Perl_NPC_SaveGuardSpot);
 	package.add("SaveGuardSpot", (void(*)(NPC*, float, float, float, float))&Perl_NPC_SaveGuardSpot);
-	package.add("ScaleNPC", &Perl_NPC_ScaleNPC);
+	package.add("ScaleNPC", (void(*)(NPC*, uint8))&Perl_NPC_ScaleNPC);
+	package.add("ScaleNPC", (void(*)(NPC*, uint8, bool))&Perl_NPC_ScaleNPC);
 	package.add("SendPayload", (void(*)(NPC*, int))&Perl_NPC_SendPayload);
 	package.add("SendPayload", (void(*)(NPC*, int, std::string))&Perl_NPC_SendPayload);
 	package.add("SetCopper", &Perl_NPC_SetCopper);
