@@ -277,7 +277,8 @@ public:
 	void KeyRingAdd(uint32 item_id);
 	bool KeyRingCheck(uint32 item_id);
 	void KeyRingList();
-	virtual bool IsClient() const { return true; }
+	bool IsClient() const override { return true; }
+	bool IsOfClientBot() const override { return true; }
 	bool IsOfClientBotMerc() const override { return true; }
 	void CompleteConnect();
 	bool TryStacking(EQ::ItemInstance* item, uint8 type = ItemPacketTrade, bool try_worn = true, bool try_cursor = true);
@@ -855,9 +856,9 @@ public:
 
 	void Fling(float value, float target_x, float target_y, float target_z, bool ignore_los = false, bool clip_through_walls = false, bool calculate_speed = false);
 
-	inline bool IsStanding() const {return (playeraction == 0);}
-	inline bool IsSitting() const {return (playeraction == 1);}
-	inline bool IsCrouching() const {return (playeraction == 2);}
+	inline bool IsStanding() const { return (playeraction == 0); }
+	inline bool IsSitting() const override { return (playeraction == 1); }
+	inline bool IsCrouching() const { return (playeraction == 2); }
 	inline bool IsBecomeNPC() const { return npcflag; }
 	inline uint8 GetBecomeNPCLevel() const { return npclevel; }
 	inline void SetBecomeNPC(bool flag) { npcflag = flag; }
