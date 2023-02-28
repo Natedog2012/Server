@@ -30,6 +30,9 @@ void PlayerEventLogs::Init()
 	std::vector<int> db{};
 	db.reserve(s.size());
 	for (auto &e: s) {
+		if (e.id >= PlayerEvent::MAX) {
+			continue;
+		}
 		m_settings[e.id] = e;
 		db.emplace_back(e.id);
 	}
@@ -110,7 +113,9 @@ bool PlayerEventLogs::IsEventEnabled(PlayerEvent::EventType event)
 // this processes any current player events on the queue
 void PlayerEventLogs::ProcessBatchQueue()
 {
+	m_batch_queue_lock.lock();
 	if (m_record_batch_queue.empty()) {
+		m_batch_queue_lock.unlock();
 		return;
 	}
 
@@ -118,14 +123,13 @@ void PlayerEventLogs::ProcessBatchQueue()
 
 	// flush many
 	PlayerEventLogsRepository::InsertMany(*m_database, m_record_batch_queue);
-	LogInfo(
+	LogPlayerEventsDetail(
 		"Processing batch player event log queue of [{}] took [{}]",
 		m_record_batch_queue.size(),
 		benchmark.elapsed()
 	);
 
 	// empty
-	m_batch_queue_lock.lock();
 	m_record_batch_queue = {};
 	m_batch_queue_lock.unlock();
 }
@@ -599,10 +603,10 @@ std::string PlayerEventLogs::GetDiscordPayloadFromEvent(const PlayerEvent::Playe
 	return payload;
 }
 
-// general process function, used in world or UCS depending on rule Logging:PlayerEventsQSProcess
+// general process function, used in world or QS depending on rule Logging:PlayerEventsQSProcess
 void PlayerEventLogs::Process()
 {
-	if (m_process_batch_events_timer.Check()) {
+	if (m_process_batch_events_timer.Check() || m_record_batch_queue.size() >= RuleI(Logging, BatchPlayerEventProcessChunkSize)) {
 		ProcessBatchQueue();
 	}
 
@@ -693,9 +697,10 @@ void PlayerEventLogs::SetSettingsDefaults()
 	m_settings[PlayerEvent::BANDOLIER_SWAP].event_enabled     = 0;
 	m_settings[PlayerEvent::DISCOVER_ITEM].event_enabled      = 1;
 	m_settings[PlayerEvent::POSSIBLE_HACK].event_enabled      = 1;
-	m_settings[PlayerEvent::KILLED_NPC].event_enabled         = 1;
+	m_settings[PlayerEvent::KILLED_NPC].event_enabled         = 0;
 	m_settings[PlayerEvent::KILLED_NAMED_NPC].event_enabled   = 1;
 	m_settings[PlayerEvent::KILLED_RAID_NPC].event_enabled    = 1;
+	m_settings[PlayerEvent::ITEM_CREATION].event_enabled      = 1;
 
 	for (int i = PlayerEvent::GM_COMMAND; i != PlayerEvent::MAX; i++) {
 		m_settings[i].retention_days = RETENTION_DAYS_DEFAULT;

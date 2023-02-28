@@ -88,19 +88,28 @@ void QuestManager::Process() {
 	end = QTimerList.end();
 	while (cur != end) {
 		if (cur->Timer_.Enabled() && cur->Timer_.Check()) {
-			if(entity_list.IsMobInZone(cur->mob)) {
-				if(cur->mob->IsNPC()) {
+			if (cur->mob && entity_list.IsMobInZone(cur->mob)) {
+				if (cur->mob->IsNPC()) {
 					if (parse->HasQuestSub(cur->mob->GetNPCTypeID(), EVENT_TIMER)) {
 						parse->EventNPC(EVENT_TIMER, cur->mob->CastToNPC(), nullptr, cur->name, 0);
 					}
-				} else if (cur->mob->IsEncounter()) {
-					parse->EventEncounter(EVENT_TIMER, cur->mob->CastToEncounter()->GetEncounterName(), cur->name, 0, nullptr);
-				} else if (cur->mob->IsClient()) {
+				}
+				else if (cur->mob->IsEncounter()) {
+					parse->EventEncounter(
+						EVENT_TIMER,
+						cur->mob->CastToEncounter()->GetEncounterName(),
+						cur->name,
+						0,
+						nullptr
+					);
+				}
+				else if (cur->mob->IsClient()) {
 					if (parse->PlayerHasQuestSub(EVENT_TIMER)) {
 						//this is inheriently unsafe if we ever make it so more than npc/client start timers
 						parse->EventPlayer(EVENT_TIMER, cur->mob->CastToClient(), cur->name, 0);
 					}
-				} else if (cur->mob->IsBot()) {
+				}
+				else if (cur->mob->IsBot()) {
 					if (parse->BotHasQuestSub(EVENT_TIMER)) {
 						parse->EventBot(EVENT_TIMER, cur->mob->CastToBot(), nullptr, cur->name, 0);
 					}
@@ -109,12 +118,15 @@ void QuestManager::Process() {
 				//we MUST reset our iterator since the quest could have removed/added any
 				//number of timers... worst case we have to check a bunch of timers twice
 				cur = QTimerList.begin();
-				end = QTimerList.end();	//dunno if this is needed, cant hurt...
-			} else {
+				end = QTimerList.end();    //dunno if this is needed, cant hurt...
+			}
+			else {
 				cur = QTimerList.erase(cur);
 			}
-		} else
+		}
+		else {
 			++cur;
+		}
 	}
 
 	auto cur_iter = STimerList.begin();
@@ -4046,10 +4058,8 @@ void QuestManager::SendPlayerHandinEvent() {
 	if (!handin_items.empty()) {
 		if (Strings::Contains(handin_items, ",")) {
 			const auto handin_data = Strings::Split(handin_items, ",");
-
 			for (const auto &h: handin_data) {
-				const auto item_data = Strings::Split(h, "-");
-
+				const auto item_data = Strings::Split(h, "|");
 				if (
 					item_data.size() == 3 &&
 					Strings::IsNumber(item_data[0]) &&
@@ -4059,22 +4069,22 @@ void QuestManager::SendPlayerHandinEvent() {
 					const auto item_id = static_cast<uint32>(std::stoul(item_data[0]));
 					if (item_id != 0) {
 						const auto *item = database.GetItem(item_id);
-
-						hi.emplace_back(
-							PlayerEvent::HandinEntry{
-								.item_id = item_id,
-								.item_name = item->Name,
-								.charges = static_cast<uint16>(std::stoul(item_data[1])),
-								.attuned = std::stoi(item_data[2]) ? true : false
-							}
-						);
+						if (item) {
+							hi.emplace_back(
+								PlayerEvent::HandinEntry{
+									.item_id = item_id,
+									.item_name = item->Name,
+									.charges = static_cast<uint16>(std::stoul(item_data[1])),
+									.attuned = std::stoi(item_data[2]) ? true : false
+								}
+							);
+						}
 					}
 				}
 			}
 		}
 		else if (Strings::Contains(handin_items, "|")) {
 			const auto item_data = Strings::Split(handin_items, "|");
-
 			if (
 				item_data.size() == 3 &&
 				Strings::IsNumber(item_data[0]) &&
@@ -4083,15 +4093,16 @@ void QuestManager::SendPlayerHandinEvent() {
 				) {
 				const auto item_id = static_cast<uint32>(std::stoul(item_data[0]));
 				const auto *item = database.GetItem(item_id);
-
-				hi.emplace_back(
-					PlayerEvent::HandinEntry{
-						.item_id = item_id,
-						.item_name = item->Name,
-						.charges = static_cast<uint16>(std::stoul(item_data[1])),
-						.attuned = std::stoi(item_data[2]) ? true : false
-					}
-				);
+				if (item) {
+					hi.emplace_back(
+						PlayerEvent::HandinEntry{
+							.item_id = item_id,
+							.item_name = item->Name,
+							.charges = static_cast<uint16>(std::stoul(item_data[1])),
+							.attuned = std::stoi(item_data[2]) ? true : false
+						}
+					);
+				}
 			}
 		}
 	}
@@ -4109,10 +4120,8 @@ void QuestManager::SendPlayerHandinEvent() {
 	if (!return_items.empty()) {
 		if (Strings::Contains(return_items, ",")) {
 			const auto return_data = Strings::Split(return_items, ",");
-
 			for (const auto &r: return_data) {
 				const auto item_data = Strings::Split(r, "|");
-
 				if (
 					item_data.size() == 3 &&
 					Strings::IsNumber(item_data[0]) &&
@@ -4122,20 +4131,21 @@ void QuestManager::SendPlayerHandinEvent() {
 					const auto item_id = static_cast<uint32>(std::stoul(item_data[0]));
 					const auto *item   = database.GetItem(item_id);
 
-					ri.emplace_back(
-						PlayerEvent::HandinEntry{
-							.item_id = item_id,
-							.item_name = item->Name,
-							.charges = static_cast<uint16>(std::stoul(item_data[1])),
-							.attuned = std::stoi(item_data[2]) ? true : false
-						}
-					);
+					if (item) {
+						ri.emplace_back(
+							PlayerEvent::HandinEntry{
+								.item_id = item_id,
+								.item_name = item->Name,
+								.charges = static_cast<uint16>(std::stoul(item_data[1])),
+								.attuned = std::stoi(item_data[2]) ? true : false
+							}
+						);
+					}
 				}
 			}
 		}
 		else if (Strings::Contains(return_items, "|")) {
 			const auto item_data = Strings::Split(return_items, "|");
-
 			if (
 				item_data.size() == 3 &&
 				Strings::IsNumber(item_data[0]) &&
@@ -4145,14 +4155,16 @@ void QuestManager::SendPlayerHandinEvent() {
 				const auto item_id = static_cast<uint32>(std::stoul(item_data[0]));
 				const auto *item   = database.GetItem(item_id);
 
-				ri.emplace_back(
-					PlayerEvent::HandinEntry{
-						.item_id = item_id,
-						.item_name = item->Name,
-						.charges = static_cast<uint16>(std::stoul(item_data[1])),
-						.attuned = std::stoi(item_data[2]) ? true : false
-					}
-				);
+				if (item) {
+					ri.emplace_back(
+						PlayerEvent::HandinEntry{
+							.item_id = item_id,
+							.item_name = item->Name,
+							.charges = static_cast<uint16>(std::stoul(item_data[1])),
+							.attuned = std::stoi(item_data[2]) ? true : false
+						}
+					);
+				}
 			}
 		}
 	}
@@ -4171,7 +4183,13 @@ void QuestManager::SendPlayerHandinEvent() {
 	initiator->DeleteEntityVariable("RETURN_ITEMS");
 	initiator->DeleteEntityVariable("RETURN_MONEY");
 
-	if (player_event_logs.IsEventEnabled(PlayerEvent::NPC_HANDIN)) {
+	bool handed_in_money = hm.platinum > 0 || hm.gold > 0 || hm.silver > 0 || hm.copper > 0;
+
+	bool event_has_data_to_record = (
+		!hi.empty() || handed_in_money
+	);
+
+	if (player_event_logs.IsEventEnabled(PlayerEvent::NPC_HANDIN) && event_has_data_to_record) {
 		auto e = PlayerEvent::HandinEvent{
 			.npc_id = owner->CastToNPC()->GetNPCTypeID(),
 			.npc_name = owner->GetCleanName(),

@@ -584,6 +584,16 @@ bool Perl_NPC_GetCombatState(NPC* self) // @categories Script Utility
 	return self->GetCombatEvent();
 }
 
+void Perl_NPC_SetSimpleRoamBox(NPC* self, float box_size) // @categories Script Utility
+{
+	self->SetSimpleRoamBox(box_size);
+}
+
+void Perl_NPC_SetSimpleRoamBox(NPC* self, float box_size, float move_distance) // @categories Script Utility
+{
+	self->SetSimpleRoamBox(box_size, move_distance);
+}
+
 void Perl_NPC_SetSimpleRoamBox(NPC* self, float box_size, float move_distance, int move_delay) // @categories Script Utility
 {
 	self->SetSimpleRoamBox(box_size, move_distance, move_delay);
@@ -760,6 +770,11 @@ void Perl_NPC_ScaleNPC(NPC* self, uint8 npc_level, bool override_special_abiliti
 	return self->ScaleNPC(npc_level, override_special_abilities);
 }
 
+bool Perl_NPC_HasSpecialAbilities(NPC* self) // @categories Script Utility
+{
+	return self->HasSpecialAbilities();
+}
+
 void perl_register_npc()
 {
 	perl::interpreter perl(PERL_GET_THX);
@@ -850,6 +865,7 @@ void perl_register_npc()
 	package.add("GetSwarmTarget", &Perl_NPC_GetSwarmTarget);
 	package.add("GetWaypointMax", &Perl_NPC_GetWaypointMax);
 	package.add("HasAISpellEffect", &Perl_NPC_HasAISpellEffect);
+	package.add("HasSpecialAbilities", &Perl_NPC_HasSpecialAbilities);
 	package.add("HasItem", &Perl_NPC_HasItem);
 	package.add("IsAnimal", &Perl_NPC_IsAnimal);
 	package.add("IsGuarding", &Perl_NPC_IsGuarding);
@@ -906,7 +922,9 @@ void perl_register_npc()
 	package.add("SetSaveWaypoint", &Perl_NPC_SetSaveWaypoint);
 	package.add("SetSecSkill", &Perl_NPC_SetSecSkill);
 	package.add("SetSilver", &Perl_NPC_SetSilver);
-	package.add("SetSimpleRoamBox", &Perl_NPC_SetSimpleRoamBox);
+	package.add("SetSimpleRoamBox", (void(*)(NPC*, float))&Perl_NPC_SetSimpleRoamBox);
+	package.add("SetSimpleRoamBox", (void(*)(NPC*, float, float))&Perl_NPC_SetSimpleRoamBox);
+	package.add("SetSimpleRoamBox", (void(*)(NPC*, float, float, int))&Perl_NPC_SetSimpleRoamBox);
 	package.add("SetSp2", &Perl_NPC_SetSp2);
 	package.add("SetSpellFocusDMG", &Perl_NPC_SetSpellFocusDMG);
 	package.add("SetSpellFocusHeal", &Perl_NPC_SetSpellFocusHeal);

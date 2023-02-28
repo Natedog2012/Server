@@ -1457,7 +1457,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 		database.LoadBuffs(this);
 		uint32 max_slots = GetMaxBuffSlots();
 		for (int i = 0; i < BUFF_COUNT; i++) {
-			if (buffs[i].spellid != SPELL_UNKNOWN) {
+			if (IsValidSpell(buffs[i].spellid)) {
 				m_pp.buffs[i].spellid = buffs[i].spellid;
 				m_pp.buffs[i].bard_modifier = buffs[i].instrument_mod;
 				m_pp.buffs[i].effect_type = 2;
@@ -2167,7 +2167,7 @@ void Client::Handle_OP_AdventureMerchantRequest(const EQApplicationPacket *app)
 				theme = LDoNThemes::RUJ;
 			} else if (item->LDoNTheme & LDoNThemeBits::MMCBit) {
 				theme = LDoNThemes::MMC;
-			} else if (item->LDoNTheme & LDoNThemeBits::RUJBit) {
+			} else if (item->LDoNTheme & LDoNThemeBits::MIRBit) {
 				theme = LDoNThemes::MIR;
 			} else if (item->LDoNTheme & LDoNThemeBits::GUKBit) {
 				theme = LDoNThemes::GUK;
@@ -9985,7 +9985,7 @@ void Client::Handle_OP_Mend(const EQApplicationPacket *app)
 		Message(Chat::Red, "Ability recovery time not yet met.");
 		return;
 	}
-	p_timers.Start(pTimerMend, MendReuseTime - 1);
+	p_timers.Start(pTimerMend, (MendReuseTime - GetSkillReuseTime(EQ::skills::SkillMend)));
 
 	int mendhp = GetMaxHP() / 4;
 	int currenthp = GetHP();
@@ -9997,9 +9997,11 @@ void Client::Handle_OP_Mend(const EQApplicationPacket *app)
 			mendhp *= 2;
 			MessageString(Chat::LightBlue, MEND_CRITICAL);
 		}
+		else {
+			MessageString(Chat::LightBlue, MEND_SUCCESS);
+		}
 		SetHP(GetHP() + mendhp);
 		SendHPUpdate();
-		MessageString(Chat::LightBlue, MEND_SUCCESS);
 	}
 	else {
 		/* the purpose of the following is to make the chance to worsen wounds much less common,

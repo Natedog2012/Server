@@ -71,13 +71,14 @@ Bot::Bot(NPCType *npcTypeData, Client* botOwner) : NPC(npcTypeData, nullptr, glm
 	m_enforce_spell_settings = 0;
 	m_bot_archery_setting = 0;
 	m_expansion_bitmask = -1;
+	m_bot_caster_range = 0;
 	SetBotID(0);
 	SetBotSpellID(0);
 	SetSpawnStatus(false);
 	SetBotCharmer(false);
 	SetPetChooser(false);
 	SetRangerAutoWeaponSelect(false);
-	SetTaunting(GetClass() == WARRIOR);
+	SetTaunting(GetClass() == WARRIOR || GetClass() == PALADIN || GetClass() == SHADOWKNIGHT);
 	SetDefaultBotStance();
 
 	SetAltOutOfCombatBehavior(GetClass() == BARD); // will need to be updated if more classes make use of this flag
@@ -2240,16 +2241,16 @@ void Bot::AI_Bot_Init()
 	AIautocastspell_timer.reset(nullptr);
 	casting_spell_AIindex = static_cast<uint8>(AIBot_spells.size());
 
-	roambox_max_x = 0;
-	roambox_max_y = 0;
-	roambox_min_x = 0;
-	roambox_min_y = 0;
-	roambox_distance = 0;
-	roambox_destination_x = 0;
-	roambox_destination_y = 0;
-	roambox_destination_z = 0;
-	roambox_min_delay = 2500;
-	roambox_delay = 2500;
+	m_roambox.max_x     = 0;
+	m_roambox.max_y     = 0;
+	m_roambox.min_x     = 0;
+	m_roambox.min_y     = 0;
+	m_roambox.distance  = 0;
+	m_roambox.dest_x    = 0;
+	m_roambox.dest_y    = 0;
+	m_roambox.dest_z    = 0;
+	m_roambox.delay     = 2500;
+	m_roambox.min_delay = 2500;
 }
 
 void Bot::SpellProcess() {
@@ -2469,6 +2470,7 @@ void Bot::AI_Process()
 	}
 
 	// We also need a leash owner and follow mob (subset of primary AI criteria)
+	bot_group->VerifyGroup();
 	Client* leash_owner = (bot_group->GetLeader() && bot_group->GetLeader()->IsClient() ? bot_group->GetLeader()->CastToClient() : bot_owner);
 	if (!leash_owner) {
 		return;
@@ -3115,26 +3117,7 @@ void Bot::AI_Process()
 			}
 		}
 		float melee_distance_min = melee_distance / 2.0f;
-
-		// Calculate caster distances
-		float caster_distance_max = 0.0f;
-		float caster_distance_min = 0.0f;
-		float caster_distance = 0.0f;
-		{
-			if (GetLevel() >= GetStopMeleeLevel() && GetClass() >= WARRIOR && GetClass() <= BERSERKER) {
-				caster_distance_max = MAX_CASTER_DISTANCE[(GetClass() - 1)];
-			}
-
-			if (caster_distance_max) {
-
-				caster_distance_min = melee_distance_max;
-				if (caster_distance_max <= caster_distance_min) {
-					caster_distance_max = caster_distance_min * 1.25f;
-				}
-
-				caster_distance = ((caster_distance_max + caster_distance_min) / 2);
-			}
-		}
+		float caster_distance_max = GetBotCasterMaxRange(melee_distance_max);
 
 		bool atArcheryRange = IsArcheryRange(tar);
 
@@ -3157,11 +3140,11 @@ void Bot::AI_Process()
 				ChangeBotArcherWeapons(IsBotArcher());
 			}
 		}
-
+		bool stop_melee_level = GetLevel() >= GetStopMeleeLevel();
 		if (IsBotArcher() && atArcheryRange) {
 			atCombatRange = true;
 		}
-		else if (caster_distance_max && tar_distance <= caster_distance_max) {
+		else if (caster_distance_max && tar_distance <= caster_distance_max && stop_melee_level) {
 			atCombatRange = true;
 		}
 		else if (tar_distance <= melee_distance) {
@@ -4478,23 +4461,19 @@ uint32 Bot::CountBotItem(uint32 item_id) {
 	return item_count;
 }
 
-bool Bot::HasBotItem(uint32 item_id) {
-	bool has_item = false;
-	EQ::ItemInstance *inst = nullptr;
+int16 Bot::HasBotItem(uint32 item_id) {
+	EQ::ItemInstance const *inst = nullptr;
 
 	for (uint16 slot_id = EQ::invslot::EQUIPMENT_BEGIN; slot_id <= EQ::invslot::EQUIPMENT_END; ++slot_id) {
 		inst = GetBotItem(slot_id);
 		if (!inst || !inst->GetItem()) {
 			continue;
 		}
-
 		if (inst->GetID() == item_id) {
-			has_item = true;
-			break;
+			return slot_id;
 		}
 	}
-
-	return has_item;
+	return INVALID_INDEX;
 }
 
 void Bot::RemoveBotItem(uint32 item_id) {
@@ -4569,6 +4548,7 @@ bool Bot::AddBotToGroup(Bot* bot, Group* group) {
 						group->SendUpdate(groupActUpdate, TempLeader);
 					}
 				}
+				group->VerifyGroup();
 				Result = true;
 			}
 		}
@@ -4616,17 +4596,17 @@ void Bot::PerformTradeWithClient(int16 begin_slot_id, int16 end_slot_id, Client*
 	struct ClientTrade {
 		ItemInstance* trade_item_instance;
 		int16 from_client_slot;
-		int16 to_bot_slot;
+		int16 to_bot_slot = invslot::SLOT_INVALID;
 
-		ClientTrade(ItemInstance* item, int16 from) : trade_item_instance(item), from_client_slot(from), to_bot_slot(invslot::SLOT_INVALID) { }
+		ClientTrade(ItemInstance* item, int16 from) : trade_item_instance(item), from_client_slot(from) { }
 	};
 
 	struct ClientReturn {
-		const ItemInstance* return_item_instance;
+		ItemInstance* return_item_instance;
 		int16 from_bot_slot;
-		int16 to_client_slot;
+		int16 to_client_slot = invslot::SLOT_INVALID;
 
-		ClientReturn(const ItemInstance* item, int16 from) : return_item_instance(item), from_bot_slot(from), to_client_slot(invslot::SLOT_INVALID) { }
+		ClientReturn(ItemInstance* item, int16 from) : return_item_instance(item), from_bot_slot(from) { }
 	};
 
 	static const int16 bot_equip_order[invslot::EQUIPMENT_COUNT] = {
@@ -4906,7 +4886,7 @@ void Bot::PerformTradeWithClient(int16 begin_slot_id, int16 end_slot_id, Client*
 					if (trade_instance->GetItem()->IsType2HWeapon()) {
 						if (!melee_secondary) {
 							melee_2h_weapon = true;
-							auto equipped_secondary_weapon = m_inv[invslot::slotSecondary];
+							auto equipped_secondary_weapon = GetBotItem(invslot::slotSecondary);
 							if (equipped_secondary_weapon) {
 								client_return.push_back(ClientReturn(equipped_secondary_weapon, invslot::slotSecondary));
 							}
@@ -4922,7 +4902,7 @@ void Bot::PerformTradeWithClient(int16 begin_slot_id, int16 end_slot_id, Client*
 							!trade_instance->IsWeapon()
 						) {
 							melee_secondary = true;
-							auto equipped_primary_weapon = m_inv[invslot::slotPrimary];
+							auto equipped_primary_weapon = GetBotItem(invslot::slotPrimary);
 							if (equipped_primary_weapon && equipped_primary_weapon->GetItem()->IsType2HWeapon()) {
 								client_return.push_back(ClientReturn(equipped_primary_weapon, invslot::slotPrimary));
 							}
@@ -4937,7 +4917,7 @@ void Bot::PerformTradeWithClient(int16 begin_slot_id, int16 end_slot_id, Client*
 				trade_iterator.to_bot_slot = index;
 
 				if (m_inv[index]) {
-					client_return.push_back(ClientReturn(m_inv[index], index));
+					client_return.push_back(ClientReturn(GetBotItem(index), index));
 				}
 
 				break;
@@ -5071,9 +5051,8 @@ void Bot::PerformTradeWithClient(int16 begin_slot_id, int16 end_slot_id, Client*
 			client->DeleteItemInInventory(return_iterator.from_bot_slot);
 		} else { // successful trade returns
 			auto return_instance = m_inv.PopItem(return_iterator.from_bot_slot);
-			//if (*return_instance != *return_iterator.return_item_instance) {
+
 			//	// TODO: add logging
-			//}
 
 			if (!database.botdb.DeleteItemBySlot(GetBotID(), return_iterator.from_bot_slot)) {
 				OwnerMessage(
@@ -5352,7 +5331,7 @@ void Bot::Damage(Mob *from, int64 damage, uint16 spell_id, EQ::skills::SkillType
 
 	attacked_timer.Start(CombatEventTimer_expire);
 	// if spell is lifetap add hp to the caster
-	if (spell_id != SPELL_UNKNOWN && IsLifetapSpell(spell_id)) {
+	if (IsValidSpell(spell_id) && IsLifetapSpell(spell_id)) {
 		int64 healed = GetActSpellHealing(spell_id, damage);
 		LogCombatDetail("Applying lifetap heal of [{}] to [{}]", healed, GetCleanName());
 		HealDamage(healed);
@@ -7043,7 +7022,7 @@ void Bot::CalcRestState() {
 
 	uint32 buff_count = GetMaxTotalSlots();
 	for (unsigned int j = 0; j < buff_count; j++) {
-		if(buffs[j].spellid != SPELL_UNKNOWN) {
+		if(IsValidSpell(buffs[j].spellid)) {
 			if(IsDetrimentalSpell(buffs[j].spellid) && (buffs[j].ticsremaining > 0))
 				if(!DetrimentalSpellAllowsRest(buffs[j].spellid))
 					return;
@@ -7294,7 +7273,7 @@ void Bot::DoEnduranceUpkeep() {
 	uint32 buffs_i;
 	uint32 buff_count = GetMaxTotalSlots();
 	for (buffs_i = 0; buffs_i < buff_count; buffs_i++) {
-		if (buffs[buffs_i].spellid != SPELL_UNKNOWN) {
+		if (IsValidSpell(buffs[buffs_i].spellid)) {
 			int upkeep = spells[buffs[buffs_i].spellid].endurance_upkeep;
 			if(upkeep > 0) {
 				if(cost_redux > 0) {
@@ -8716,7 +8695,7 @@ bool Bot::GetNeedsCured(Mob *tar) {
 			int buffsWithCounters = 0;
 			needCured = true;
 			for (unsigned int j = 0; j < buff_count; j++) {
-				if(tar->GetBuffs()[j].spellid != SPELL_UNKNOWN) {
+				if(IsValidSpell(tar->GetBuffs()[j].spellid)) {
 					if(CalculateCounters(tar->GetBuffs()[j].spellid) > 0) {
 						buffsWithCounters++;
 						if(buffsWithCounters == 1 && (tar->GetBuffs()[j].ticsremaining < 2 || (int32)((tar->GetBuffs()[j].ticsremaining * 6) / tar->GetBuffs()[j].counters) < 2)) {
@@ -9490,7 +9469,7 @@ void Bot::ListBotSpells(uint8 min_level)
 	auto spell_count = 0;
 	auto spell_number = 1;
 
-	for (const auto& s : (AIBot_spells.size() > AIBot_spells_enforced.size()) ? AIBot_spells : AIBot_spells_enforced) {
+	for (const auto& s : (GetBotEnforceSpellSetting()) ? AIBot_spells_enforced : AIBot_spells) {
 		auto b = bot_spell_settings.find(s.spellid);
 		if (b == bot_spell_settings.end() && s.minlevel >= min_level) {
 			bot_owner->Message(
@@ -9828,6 +9807,24 @@ void Bot::SendSpellAnim(uint16 target_id, uint16 spell_id)
 
 	app.priority = 1;
 	entity_list.QueueCloseClients(this, &app, false, RuleI(Range, SpellParticles));
+}
+
+float Bot::GetBotCasterMaxRange(float melee_distance_max) {// Calculate caster distances
+	float caster_distance_max = 0.0f;
+	float caster_distance_min = 0.0f;
+	float caster_distance = 0.0f;
+
+	caster_distance_max = GetBotCasterRange() * GetBotCasterRange();
+	if (!GetBotCasterRange() && GetLevel() >= GetStopMeleeLevel() && GetClass() >= WARRIOR && GetClass() <= BERSERKER) {
+		caster_distance_max = MAX_CASTER_DISTANCE[GetClass() - 1];
+	}
+	if (caster_distance_max) {
+		caster_distance_min = melee_distance_max;
+		if (caster_distance_max <= caster_distance_min) {
+			caster_distance_max = caster_distance_min * 1.25f;
+		}
+	}
+	return caster_distance_max;
 }
 
 uint8 Bot::spell_casting_chances[SPELL_TYPE_COUNT][PLAYER_CLASS_COUNT][EQ::constants::STANCE_TYPE_COUNT][cntHSND] = { 0 };

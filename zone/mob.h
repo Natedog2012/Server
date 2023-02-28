@@ -42,7 +42,6 @@ char* strn0cpy(char* dest, const char* source, uint32 size);
 
 #define MAX_SPECIAL_ATTACK_PARAMS 8
 
-class EGNode;
 class Client;
 class EQApplicationPacket;
 class Group;
@@ -695,7 +694,7 @@ public:
 	float GetMovespeed() const { return IsRunning() ? GetRunspeed() : GetWalkspeed(); }
 	bool IsRunning() const { return m_is_running; }
 	void SetRunning(bool val) { m_is_running = val; }
-	virtual void GMMove(float x, float y, float z, float heading = 0.01);
+	virtual void GMMove(float x, float y, float z, float heading = 0.01, bool save_guard_spot = true);
 	virtual void GMMove(const glm::vec4 &position);
 	void SetDelta(const glm::vec4& delta);
 	void MakeSpawnUpdateNoDelta(PlayerPositionUpdateServer_Struct* spu);
@@ -1248,6 +1247,7 @@ public:
 	bool Charmed() const { return typeofpet == petCharmed; }
 	static uint32 GetLevelHP(uint8 tlevel);
 	uint32 GetZoneID() const; //for perl
+	uint16 GetInstanceVersion() const; //for perl
 	virtual int32 CheckAggroAmount(uint16 spell_id, Mob *target, bool isproc = false);
 	virtual int32 CheckHealAggroAmount(uint16 spell_id, Mob *target, uint32 heal_possible = 0);
 
@@ -1435,6 +1435,8 @@ protected:
 	int _GetWalkSpeed() const;
 	int _GetRunSpeed() const;
 	int _GetFearSpeed() const;
+
+	Timer m_z_clip_check_timer;
 
 	virtual bool AI_EngagedCastCheck() { return(false); }
 	virtual bool AI_PursueCastCheck() { return(false); }

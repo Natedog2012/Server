@@ -253,6 +253,9 @@ void Object::HandleCombine(Client* user, const NewCombine_Struct* in_combine, Ob
 {
 	if (!user || !in_combine) {
 		LogError("Client or NewCombine_Struct not set in Object::HandleCombine");
+		auto outapp = new EQApplicationPacket(OP_TradeSkillCombine, 0);
+		user->QueuePacket(outapp);
+		safe_delete(outapp);
 		return;
 	}
 
@@ -278,6 +281,9 @@ void Object::HandleCombine(Client* user, const NewCombine_Struct* in_combine, Ob
 				Chat::Red,
 				"Error: Server is not aware of the tradeskill container you are attempting to use"
 			);
+			auto outapp = new EQApplicationPacket(OP_TradeSkillCombine, 0);
+			user->QueuePacket(outapp);
+			safe_delete(outapp);
 			return;
 		}
 		c_type         = worldo->m_type;
@@ -304,6 +310,9 @@ void Object::HandleCombine(Client* user, const NewCombine_Struct* in_combine, Ob
 
 	if (!inst || !inst->IsType(EQ::item::ItemClassBag)) {
 		user->Message(Chat::Red, "Error: Server does not recognize specified tradeskill container");
+		auto outapp = new EQApplicationPacket(OP_TradeSkillCombine, 0);
+		user->QueuePacket(outapp);
+		safe_delete(outapp);
 		return;
 	}
 
@@ -427,24 +436,44 @@ void Object::HandleCombine(Client* user, const NewCombine_Struct* in_combine, Ob
 	if (spec.tradeskill == EQ::skills::SkillAlchemy) {
 		if (user_pp.class_ != SHAMAN) {
 			user->Message(Chat::Red, "This tradeskill can only be performed by a shaman.");
+			auto outapp = new EQApplicationPacket(OP_TradeSkillCombine, 0);
+			user->QueuePacket(outapp);
+			safe_delete(outapp);
 			return;
 		}
 		else if (user_pp.level < MIN_LEVEL_ALCHEMY) {
 			user->Message(Chat::Red, "You cannot perform alchemy until you reach level %i.", MIN_LEVEL_ALCHEMY);
+			auto outapp = new EQApplicationPacket(OP_TradeSkillCombine, 0);
+			user->QueuePacket(outapp);
+			safe_delete(outapp);
 			return;
 		}
 	}
 	else if (spec.tradeskill == EQ::skills::SkillTinkering) {
 		if (user_pp.race != GNOME) {
 			user->Message(Chat::Red, "Only gnomes can tinker.");
+			auto outapp = new EQApplicationPacket(OP_TradeSkillCombine, 0);
+			user->QueuePacket(outapp);
+			safe_delete(outapp);
 			return;
 		}
 	}
 	else if (spec.tradeskill == EQ::skills::SkillMakePoison) {
 		if (user_pp.class_ != ROGUE) {
 			user->Message(Chat::Red, "Only rogues can mix poisons.");
+			auto outapp = new EQApplicationPacket(OP_TradeSkillCombine, 0);
+			user->QueuePacket(outapp);
+			safe_delete(outapp);
 			return;
 		}
+	}
+
+	// Check if Combine would result in Lore conflict
+	if (user->CheckTradeskillLoreConflict(spec.recipe_id)) {
+		auto outapp = new EQApplicationPacket(OP_TradeSkillCombine, 0);
+		user->QueuePacket(outapp);
+		safe_delete(outapp);
+		return;
 	}
 
 	// final check for any additional quest requirements .. "check_zone" in this case - exported as variable [validate_type]
@@ -582,9 +611,9 @@ void Object::HandleAutoCombine(Client* user, const RecipeAutoCombine_Struct* rac
 	}
 
     //pull the list of components
-	std::string query = StringFormat("SELECT tre.item_id, tre.componentcount "
-                                    "FROM tradeskill_recipe_entries AS tre "
-                                    "WHERE tre.componentcount > 0 AND tre.recipe_id = %u",
+	const auto query = fmt::format("SELECT item_id, componentcount "
+                                    "FROM tradeskill_recipe_entries "
+                                    "WHERE componentcount > 0 AND recipe_id = {}",
                                     rac->recipe_id);
     auto results = content_db.QueryDatabase(query);
 	if (!results.Success()) {
@@ -655,6 +684,13 @@ void Object::HandleAutoCombine(Client* user, const RecipeAutoCombine_Struct* rac
 				user->MessageString(Chat::Skills, TRADESKILL_MISSING_ITEM, item->Name);
 		}
 
+		return;
+	}
+
+	// Check if Combine would result in Lore conflict
+	if (user->CheckTradeskillLoreConflict(rac->recipe_id)) {
+		user->QueuePacket(outapp);
+		safe_delete(outapp);
 		return;
 	}
 
@@ -1826,3 +1862,63 @@ bool ZoneDatabase::DisableRecipe(uint32 recipe_id)
 
 	return false;
 }
+
+bool Client::CheckTradeskillLoreConflict(int32 recipe_id)
+{
+	auto recipe_entries = TradeskillRecipeEntriesRepository::GetWhere(
+		content_db,
+		fmt::format(
+			"recipe_id = {} ORDER BY componentcount DESC",
+			recipe_id
+		)
+	);
+	if (recipe_entries.empty()) {
+		return false;
+	}
+
+	// validate which items from the recipe we will call CheckLoreConflict on
+	for (const auto &tre : recipe_entries) {
+		if (tre.item_id) {
+			auto tre_inst = database.GetItem(tre.item_id);
+
+			// To compare items we iterate against each item in the recipe that have a loregroup.
+			for (auto &tre_update_item : recipe_entries) {
+				bool fi_is_valid = tre_update_item.item_id && tre_inst && tre_inst->LoreGroup != 0;
+
+				if (fi_is_valid) {
+					auto tre_update_item_inst = database.GetItem(tre_update_item.item_id);
+					bool ei_is_valid = tre_update_item_inst && tre_update_item_inst->LoreGroup != 0;
+					bool unique_lore_group_match = tre_inst->LoreGroup > 0 && tre_inst->LoreGroup == tre_update_item_inst->LoreGroup;
+					bool component_count_is_valid = tre_update_item.componentcount == 0 && tre.componentcount > 0;
+
+					// If the recipe item is a component, and matches a unique lore group (> 0) or the item_id matches another entry in the recipe
+					// zero out the item_id, this will prevent us from doing a lore check inadvertently where
+					// the item is a component, and returned on success, fail, salvage.
+					// or uses an item that is part of a unique loregroup that returns an item of the same unique loregroup
+					if (ei_is_valid && (tre_update_item.item_id == tre.item_id || unique_lore_group_match) && component_count_is_valid) {
+						tre_update_item.item_id = 0;
+					}
+				}
+			}
+
+			if (tre_inst) {
+				if (tre_inst->LoreGroup == 0 || tre.componentcount > 0 || tre.iscontainer) {
+					continue;
+				}
+
+				if (CheckLoreConflict(tre_inst)) {
+					EQ::SayLinkEngine linker;
+					linker.SetLinkType(EQ::saylink::SayLinkItemData);
+					linker.SetItemData(tre_inst);
+					auto item_link = linker.GenerateLink();
+					MessageString(Chat::Red, TRADESKILL_COMBINE_LORE, item_link.c_str());
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+
