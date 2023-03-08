@@ -1158,10 +1158,16 @@ void Mob::InterruptSpell(uint16 message, uint16 color, uint16 spellid)
 	uint16 message_other;
 	bool bard_song_mode = false; //has the bard song gone to auto repeat mode
 	if (!IsValidSpell(spellid)) {
-		if(bardsong) {
+		if (bardsong) {
 			spellid = bardsong;
 			bard_song_mode = true;
-		} else {
+		}
+		else {
+			if (IsBot() && !message && !color && !spellid) { // this is to prevent bots from spamming interrupts messages when trying to cast while OOM
+				ZeroCastingVars();	// resets all the state keeping stuff
+				LogSpells("Spell [{}] has been interrupted - Bot [{}] doesn't have enough mana", spellid, GetCleanName());
+				return;
+			}
 			spellid = casting_spell_id;
 		}
 	}
@@ -3165,6 +3171,11 @@ int Mob::CheckStackConflict(uint16 spellid1, int caster_level1, uint16 spellid2,
 		}
 		if (sp2_value != sp1_value)
 			values_equal = false;
+
+		if (RuleB(Spells, ResurrectionEffectsBlock) && IsResurrectionEffects(spellid1)) {
+			LogSpells("ResurrectionEffectsBlock triggered -- [{}] is blocked by [{}]", sp2.name, sp1.name);
+			return -1;	// can't stack
+		}
 		//we dont return here... a better value on this one effect dosent mean they are
 		//all better...
 
@@ -5735,7 +5746,7 @@ std::unordered_map<uint32, std::vector<uint16>> Client::LoadSpellGroupCache(uint
 	}
 
 	for (auto row : results) {
-		spell_group_cache[std::stoul(row[0])].push_back(static_cast<uint16>(std::stoul(row[1])));
+		spell_group_cache[Strings::ToUnsignedInt(row[0])].push_back(static_cast<uint16>(Strings::ToUnsignedInt(row[1])));
 	}
 
 	return spell_group_cache;
@@ -5796,7 +5807,7 @@ bool Client::SpellGlobalCheck(uint16 spell_id, uint32 character_id) {
 	row = results.begin();
 	std::string global_value = row[0];
 	if (Strings::IsNumber(global_value) && Strings::IsNumber(spell_global_value)) {
-		if (std::stoi(global_value) >= std::stoi(spell_global_value)) {
+		if (Strings::ToInt(global_value) >= Strings::ToInt(spell_global_value)) {
 			return true; // If value is greater than or equal to spell global value, allow scribing.
 		}
 	} else {
@@ -5850,7 +5861,7 @@ bool Client::SpellBucketCheck(uint16 spell_id, uint32 character_id) {
 	auto bucket_value = DataBucket::GetData(new_bucket_name);
 	if (!bucket_value.empty()) {
 		if (Strings::IsNumber(bucket_value) && Strings::IsNumber(spell_bucket_value)) {
-			if (std::stoi(bucket_value) >= std::stoi(spell_bucket_value)) {
+			if (Strings::ToInt(bucket_value) >= Strings::ToInt(spell_bucket_value)) {
 				return true; // If value is greater than or equal to spell bucket value, allow scribing.
 			}
 		} else {
@@ -5869,7 +5880,7 @@ bool Client::SpellBucketCheck(uint16 spell_id, uint32 character_id) {
 	bucket_value = DataBucket::GetData(old_bucket_name);
 	if (!bucket_value.empty()) {
 		if (Strings::IsNumber(bucket_value) && Strings::IsNumber(spell_bucket_value)) {
-			if (std::stoi(bucket_value) >= std::stoi(spell_bucket_value)) {
+			if (Strings::ToInt(bucket_value) >= Strings::ToInt(spell_bucket_value)) {
 				return true; // If value is greater than or equal to spell bucket value, allow scribing.
 			}
 		} else {
