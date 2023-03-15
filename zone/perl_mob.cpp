@@ -1716,6 +1716,28 @@ void Perl_Mob_SendAppearanceEffectActor(Mob* self, int32 parm1, uint32 slot1, in
 	self->SendAppearanceEffect(parm1, parm2, parm3, parm4, parm5, client, slot1, 0, slot2, 0, slot3, 0, slot4, 0, slot5, 0);
 }
 
+void Perl_Mob_SendAppearanceEffectActor2(Mob* self, perl::reference table_ref) // @categories Script Utility
+{
+	perl::hash table = table_ref;
+	
+	int32 effect1 = table.exists("effect1") ? table["effect1"] : 0;
+	int32 effect2 = table.exists("effect2") ? table["effect2"] : 0;
+	int32 effect3 = table.exists("effect3") ? table["effect3"] : 0;
+	int32 effect4 = table.exists("effect4") ? table["effect4"] : 0;
+	int32 effect5 = table.exists("effect5") ? table["effect5"] : 0;
+	
+	uint32 slot1 = table.exists("slot1") ? table["slot1"] : 0;
+	uint32 slot2 = table.exists("slot2") ? table["slot2"] : 0;
+	uint32 slot3 = table.exists("slot3") ? table["slot3"] : 0;
+	uint32 slot4 = table.exists("slot4") ? table["slot4"] : 0;
+	uint32 slot5 = table.exists("slot5") ? table["slot5"] : 0;
+	
+	Client* client = table.exists("client") ? static_cast<Client*>(table["client"]) : nullptr;
+	bool save_effects = table.exists("save") ? table["save"] : true;
+	
+	self->SendAppearanceEffect(effect1, effect2, effect3, effect4, effect5, client, slot1, 0, slot2, 0, slot3, 0, slot4, 0, slot5, 0, save_effects);
+}
+
 void Perl_Mob_SendAppearanceEffectGround(Mob* self, int32 parm1) // @categories Script Utility
 {
 	self->SendAppearanceEffect(parm1, 0, 0, 0, 0);
@@ -3275,6 +3297,7 @@ void perl_register_mob()
 	package.add("SendAppearanceEffectActor", (void(*)(Mob*, int32, uint32, int32, uint32, int32, uint32, int32, uint32, int32))&Perl_Mob_SendAppearanceEffectActor);
 	package.add("SendAppearanceEffectActor", (void(*)(Mob*, int32, uint32, int32, uint32, int32, uint32, int32, uint32, int32, uint32))&Perl_Mob_SendAppearanceEffectActor);
 	package.add("SendAppearanceEffectActor", (void(*)(Mob*, int32, uint32, int32, uint32, int32, uint32, int32, uint32, int32, uint32, Client*))&Perl_Mob_SendAppearanceEffectActor);
+	package.add("SendAppearanceEffectActor2", (void(*)(Mob*, perl::reference))&Perl_Mob_SendAppearanceEffectActor2);
 	package.add("SendAppearanceEffectGround", (void(*)(Mob*, int32))&Perl_Mob_SendAppearanceEffectGround);
 	package.add("SendAppearanceEffectGround", (void(*)(Mob*, int32, int32))&Perl_Mob_SendAppearanceEffectGround);
 	package.add("SendAppearanceEffectGround", (void(*)(Mob*, int32, int32, int32))&Perl_Mob_SendAppearanceEffectGround);

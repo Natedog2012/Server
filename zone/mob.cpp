@@ -2977,7 +2977,7 @@ void Mob::SendStunAppearance()
 
 void Mob::SendAppearanceEffect(uint32 parm1, uint32 parm2, uint32 parm3, uint32 parm4, uint32 parm5, Client *specific_target,
 	uint32 value1slot, uint32 value1ground, uint32 value2slot, uint32 value2ground, uint32 value3slot, uint32 value3ground,
-	uint32 value4slot, uint32 value4ground, uint32 value5slot, uint32 value5ground){
+	uint32 value4slot, uint32 value4ground, uint32 value5slot, uint32 value5ground, bool save_effects){
 	auto outapp = new EQApplicationPacket(OP_LevelAppearance, sizeof(LevelAppearance_Struct));
 
 	/* Location of the effect from value#slot, this is removed upon mob death/despawn.
@@ -3012,21 +3012,23 @@ void Mob::SendAppearanceEffect(uint32 parm1, uint32 parm2, uint32 parm3, uint32 
 	if (value5slot > 9) {
 		value5slot = 1;
 	}
-
-	if (!value1ground && parm1) {
-		SetAppearenceEffects(value1slot, parm1);
-	}
-	if (!value2ground && parm2) {
-		SetAppearenceEffects(value2slot, parm2);
-	}
-	if (!value3ground && parm3) {
-		SetAppearenceEffects(value3slot, parm3);
-	}
-	if (!value4ground && parm4) {
-		SetAppearenceEffects(value4slot, parm4);
-	}
-	if (!value5ground && parm5) {
-		SetAppearenceEffects(value5slot, parm5);
+	
+	if (save_effects) {
+		if (!value1ground && parm1) {
+			SetAppearenceEffects(value1slot, parm1);
+		}
+		if (!value2ground && parm2) {
+			SetAppearenceEffects(value2slot, parm2);
+		}
+		if (!value3ground && parm3) {
+			SetAppearenceEffects(value3slot, parm3);
+		}
+		if (!value4ground && parm4) {
+			SetAppearenceEffects(value4slot, parm4);
+		}
+		if (!value5ground && parm5) {
+			SetAppearenceEffects(value5slot, parm5);
+		}
 	}
 
 	LevelAppearance_Struct* la = (LevelAppearance_Struct*)outapp->pBuffer;
