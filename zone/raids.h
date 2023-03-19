@@ -88,6 +88,8 @@ struct RaidMember{
 	bool IsGroupLeader;
 	bool IsRaidLeader;
 	bool IsLooter;
+	bool IsBot = false;
+	bool IsRaidMainAssistOne = false;
 };
 
 struct GroupMentor {
@@ -117,6 +119,11 @@ public:
 	void	SmartHealPercentGroup(int64 heal_amt, Mob* caster, float range);
 	
 	void	AddMember(Client *c, uint32 group = 0xFFFFFFFF, bool rleader=false, bool groupleader=false, bool looter=false);
+	void	AddBot(Bot* b, uint32 group = 0xFFFFFFFF, bool rleader=false, bool groupleader=false, bool looter=false); 
+	void	RaidGroupSay(const char* msg, const char* from, uint8 language, uint8 lang_skill);
+	void	RaidSay(const char* msg, const char* from, uint8 language, uint8 lang_skill);
+	bool	IsEngaged();
+	Mob*	GetRaidMainAssistOneByName(const char* name);
 	void	RemoveMember(const char *c);
 	void	DisbandRaid();
 	void	MoveMember(const char *name, uint32 newGroup);
@@ -128,6 +135,7 @@ public:
 	bool	IsRaidMember(const char* name);
 	bool	IsRaidMember(Client *c);
 	void	UpdateLevel(const char *name, int newLevel);
+	void	SetNewRaidLeader(uint32 i);
 
 	uint32	GetFreeGroup();
 	uint8	GroupCount(uint32 gid);
@@ -248,6 +256,10 @@ public:
 	bool DoesAnyMemberHaveExpeditionLockout(const std::string& expedition_name, const std::string& event_name, int max_check_count = 0);
 
 	std::vector<RaidMember> GetMembers() const;
+	std::vector<RaidMember> GetRaidGroupMembers(uint32 gid);
+	std::vector<Bot*> GetRaidGroupBotMembers(uint32 gid);
+	std::vector<Bot*> GetRaidBotMembers(uint32 owner = 0);
+	void HandleBotGroupDisband(uint32 owner, uint32 gid = RAID_GROUPLESS);
 
 	RaidMember members[MAX_RAID_MEMBERS];
 	char leadername[64];
