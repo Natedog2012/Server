@@ -3904,6 +3904,16 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 			attacker->CastToClient()->sneaking = false;
 			attacker->SendAppearancePacket(AT_Sneak, 0);
 		}
+		
+		//Natedog - Custom scaled incoming damage...
+		
+		if (attacker && attacker->IsNPC() && IsClient() && RuleI(Combat, ScaleNPCDamage)) {
+			int level_gap = attacker->GetLevel() - GetLevel();
+			
+			if (level_gap > 0) {
+				damage += damage * (RuleI(Combat, ScaleNPCDamage)*level_gap) / 100;
+			}
+		}
 
 		//final damage has been determined.
 		SetHP(int64(GetHP() - damage));

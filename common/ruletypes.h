@@ -581,6 +581,7 @@ RULE_BOOL(Spells, ResurrectionEffectsBlock, true, "If enabled, resurrection effe
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Combat)
+RULE_INT(Combat, ScaleNPCDamage, 0, "Percentage of extra damage per level higher than the player")
 RULE_REAL(Combat, AERampageSafeZone, 0.018, "max hit ae ramp reduction range")
 RULE_INT(Combat, PetBaseCritChance, 0, "Pet base crit chance")
 RULE_INT(Combat, NPCBashKickLevel, 6, "The level that NPCcan KICK/BASH")
