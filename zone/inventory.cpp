@@ -185,6 +185,24 @@ bool Client::SummonItem(uint32 item_id, int16 charges, uint32 aug1, uint32 aug2,
 	EVENT_ITEM_ScriptStopReturn();
 
 	// TODO: update calling methods and script apis to handle a failure return
+	
+	
+	//Used to change the item-id of items before they are summoned via quest or other ways
+	if (parse->HasQuestSub(ZONE_CONTROLLER_NPC_ID, EVENT_SUMMONITEMID_ZC)) {
+		int item_change = 0;
+		const auto& export_string = fmt::format(
+			"{}",
+			item_id
+		);
+		
+		item_change = DispatchZoneControllerEvent(EVENT_SUMMONITEMID_ZC, this, export_string, 0, nullptr);
+		
+		if (item_change != 0) {
+			item_id = item_change;
+		}
+		
+	}
+	
 
 	const EQ::ItemData* item = database.GetItem(item_id);
 

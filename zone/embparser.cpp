@@ -179,6 +179,7 @@ const char *QuestEventSubroutines[_LargestEventID] = {
 	"EVENT_ITEM_CLICK_CAST_CLIENT",
 	"EVENT_DESTROY_ITEM_CLIENT",
 	"EVENT_DROP_ITEM_CLIENT",
+	"EVENT_SUMMONITEMID_ZC",
 	// Add new events before these or Lua crashes
 	"EVENT_SPELL_EFFECT_BOT",
 	"EVENT_SPELL_EFFECT_BUFF_TIC_BOT"
@@ -1876,6 +1877,14 @@ void PerlembParser::ExportEventVariables(
 			}
 			break;
 		}
+		
+		case EVENT_SUMMONITEMID_ZC: {
+			Seperator sep(data);
+			ExportVar(package_name.c_str(), "itemid", sep.arg[0]);
+			
+			break;
+		}
+		
 
 		case EVENT_DROP_ITEM: {
 			ExportVar(package_name.c_str(), "quantity", item_inst->IsStackable() ? item_inst->GetCharges() : 1);
