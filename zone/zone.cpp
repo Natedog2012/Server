@@ -1059,7 +1059,7 @@ Zone::Zone(uint32 in_zoneid, uint32 in_instanceid, const char* in_short_name)
 	did_adventure_actions = false;
 	database.QGlobalPurge();
 
-	if(zoneid == RuleI(World, GuildBankZoneID))
+	if(zoneid == Zones::GUILDHALL)
 		GuildBanks = new GuildBankManager;
 	else
 		GuildBanks = nullptr;
@@ -2986,7 +2986,7 @@ std::string Zone::GetAAName(int aa_id)
 	return std::string();
 }
 
-bool Zone::CheckDataBucket(uint8 bucket_comparison, std::string bucket_value, std::string player_value)
+bool Zone::CompareDataBucket(uint8 bucket_comparison, const std::string& bucket_value, const std::string& player_value)
 {
 	std::vector<std::string> bucket_checks;
 	bool found = false;

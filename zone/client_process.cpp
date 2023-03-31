@@ -602,11 +602,13 @@ bool Client::Process() {
 		for (auto & close_mob : close_mobs) {
 			Mob *mob = close_mob.second;
 
-			if (!mob)
+			if (!mob) {
 				continue;
+			}
 
-			if (mob->IsClient())
+			if (mob->IsClient()) {
 				continue;
+			}
 
 			if (mob->CheckWillAggro(this) && !mob->CheckAggro(this)) {
 				mob->AddToHateList(this, 25);
@@ -689,61 +691,62 @@ bool Client::Process() {
 
 /* Just a set of actions preformed all over in Client::Process */
 void Client::OnDisconnect(bool hard_disconnect) {
-	if(hard_disconnect)
-	{
+	if (hard_disconnect) {
 		LeaveGroup();
-		if (GetMerc())
-		{
+
+		if (GetMerc()) {
 			GetMerc()->Save();
 			GetMerc()->Depop();
 		}
-		Raid *MyRaid = entity_list.GetRaidByClient(this);
 
-		if (MyRaid)
-			MyRaid->MemberZoned(this);
+		auto* r = entity_list.GetRaidByClient(this);
 
 		BuffFadeSongs();
-		RecordPlayerEventLog(PlayerEvent::WENT_OFFLINE, PlayerEvent::EmptyEvent{});
 
-		if (parse->PlayerHasQuestSub(EVENT_DISCONNECT)) {
-			parse->EventPlayer(EVENT_DISCONNECT, this, "", 0);
+		if (r) {
+			r->MemberZoned(this);
 		}
 
 		/* QS: PlayerLogConnectDisconnect */
-		if (RuleB(QueryServ, PlayerLogConnectDisconnect)){
+		if (RuleB(QueryServ, PlayerLogConnectDisconnect)) {
 			std::string event_desc = StringFormat("Disconnect :: in zoneid:%i instid:%i", GetZoneID(), GetInstanceID());
 			QServ->PlayerLogEvent(Player_Log_Connect_State, CharacterID(), event_desc);
 		}
 	}
 
-	if (!bZoning)
-	{
+	if (!bZoning) {
 		SetDynamicZoneMemberStatus(DynamicZoneMemberStatus::Offline);
 	}
 
 	RemoveAllAuras();
 
-	Mob *Other = trade->With();
-	if(Other)
-	{
+	auto* o = trade->With();
+	if (o) {
 		LogTrading("Client disconnected during a trade. Returning their items");
 		FinishTrade(this);
 
-		if(Other->IsClient())
-			Other->CastToClient()->FinishTrade(Other);
+		if (o->IsClient()) {
+			o->CastToClient()->FinishTrade(o);
+		}
 
 		/* Reset both sides of the trade */
 		trade->Reset();
-		Other->trade->Reset();
+		o->trade->Reset();
 	}
 
 	database.SetFirstLogon(CharacterID(), 0); //We change firstlogon status regardless of if a player logs out to zone or not, because we only want to trigger it on their first login from world.
 
-	/* Remove ourself from all proximities */
+	/* Remove from all proximities */
 	ClearAllProximities();
 
 	auto outapp = new EQApplicationPacket(OP_LogoutReply);
 	FastQueuePacket(&outapp);
+
+	RecordPlayerEventLog(PlayerEvent::WENT_OFFLINE, PlayerEvent::EmptyEvent{});
+
+	if (parse->PlayerHasQuestSub(EVENT_DISCONNECT)) {
+		parse->EventPlayer(EVENT_DISCONNECT, this, "", 0);
+	}
 
 	Disconnect();
 }
@@ -846,18 +849,16 @@ void Client::BulkSendMerchantInventory(int merchant_id, int npcid) {
 		}
 	}
 
-	auto client_data_buckets = GetMerchantDataBuckets();
-
 	auto temporary_merchant_list = zone->tmpmerchanttable[npcid];
 	uint32 slot_id = 1;
 	uint8 handy_chance = 0;
-	for (auto ml : merchant_list) {
+	for (const auto& ml : merchant_list) {
 		if (slot_id > merchant_slots) {
 			break;
 		}
 
 		auto bucket_name = ml.bucket_name;
-		auto bucket_value = ml.bucket_value;
+		auto const& bucket_value = ml.bucket_value;
 		if (!bucket_name.empty() && !bucket_value.empty()) {
 			auto full_name = fmt::format(
 				"{}-{}",
@@ -865,12 +866,12 @@ void Client::BulkSendMerchantInventory(int merchant_id, int npcid) {
 				bucket_name
 			);
 
-			auto player_value = client_data_buckets[full_name];
+			auto const& player_value = DataBucket::CheckBucketKey(this, full_name);
 			if (player_value.empty()) {
 				continue;
 			}
 
-			if (!zone->CheckDataBucket(ml.bucket_comparison, bucket_value, player_value)) {
+			if (!zone->CompareDataBucket(ml.bucket_comparison, bucket_value, player_value)) {
 				continue;
 			}
 		}

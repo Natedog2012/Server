@@ -920,7 +920,7 @@ int64 Mob::TuneClientAttack(Mob* other, bool no_avoid, bool no_hit_chance, int h
 		if (Hand == EQ::invslot::slotPrimary || Hand == EQ::invslot::slotSecondary)
 			my_hit.base_damage = CastToClient()->DoDamageCaps(my_hit.base_damage);
 		auto shield_inc = spellbonuses.ShieldEquipDmgMod + itembonuses.ShieldEquipDmgMod + aabonuses.ShieldEquipDmgMod;
-		if (shield_inc > 0 && HasShieldEquiped() && Hand == EQ::invslot::slotPrimary) {
+		if (shield_inc > 0 && HasShieldEquipped() && Hand == EQ::invslot::slotPrimary) {
 			my_hit.base_damage = my_hit.base_damage * (100 + shield_inc) / 100;
 			hate = hate * (100 + shield_inc) / 100;
 		}
@@ -1040,7 +1040,7 @@ int64 Mob::TuneACSum(bool skip_caps, int ac_override, int add_ac)
 	}
 
 	int shield_ac = 0;
-	if (HasShieldEquiped() && IsOfClientBot()) {
+	if (HasShieldEquipped() && IsOfClientBot()) {
 		auto inst = (IsClient()) ? GetInv().GetItem(EQ::invslot::slotSecondary) : CastToBot()->GetBotItem(EQ::invslot::slotSecondary);
 		if (inst) {
 			if (inst->GetItemRecommendedLevel(true) <= GetLevel()) {
@@ -1049,7 +1049,7 @@ int64 Mob::TuneACSum(bool skip_caps, int ac_override, int add_ac)
 				shield_ac = CalcRecommendedLevelBonus(GetLevel(), inst->GetItemRecommendedLevel(true),inst->GetItemArmorClass(true));
 			}
 		}
-		shield_ac += GetHeroicSTR() * RuleR(Character, HeroicStrengthMultiplier) / 10;
+		shield_ac += itembonuses.heroic_str_shield_ac;
 	}
 	// EQ math
 	ac = (ac * 4) / 3;
@@ -1353,7 +1353,7 @@ int64 Mob::Tunecompute_defense(int avoidance_override, int add_avoidance)
 			defense = avoidance_override;
 		}
 		else {
-			defense += GetHeroicAGI() * RuleR(Character, HeroicAgilityMultiplier) / 10;
+			defense += itembonuses.heroic_agi_avoidance;
 		}
 		defense += add_avoidance; //1 pt = 10 heroic agi
 	}
@@ -1495,10 +1495,10 @@ void Mob::TuneCommonOutgoingHitSuccess(Mob* defender, DamageHitInfo &hit, ExtraA
 		switch (hit.skill) {
 			case EQ::skills::SkillThrowing:
 			case EQ::skills::SkillArchery:
-				extra = GetHeroicDEX() * RuleR(Character, HeroicDexterityMultiplier) / 10;
+				extra = itembonuses.heroic_dex_ranged_damage;
 				break;
 			default:
-				extra = GetHeroicSTR() * RuleR(Character, HeroicStrengthMultiplier) / 10;
+				extra = itembonuses.heroic_str_melee_damage;
 				break;
 		}
 		hit.damage_done += extra;

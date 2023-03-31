@@ -437,9 +437,10 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 			//this is a special case for NPCs with no mana...
 			if (IsNPC() && my_curmana == my_maxmana) {
 				mana_cost = 0;
+			} else {
+				DoSpellInterrupt(spell_id, mana_cost, my_curmana);
+				return false;
 			}
-			DoSpellInterrupt(spell_id, mana_cost, my_curmana);
-			return false;
 		}
 	}
 
@@ -496,7 +497,7 @@ bool Mob::DoCastSpell(uint16 spell_id, uint16 target_id, CastingSlot slot,
 
 void Mob::DoSpellInterrupt(uint16 spell_id, int32 mana_cost, int my_curmana) {
 	//The client will prevent spell casting if insufficient mana, this is only for serverside enforcement.
-	LogSpells("Spell Error not enough mana spell=[{}] mymana=[{}] cost=[{}]\n", spell_id, my_curmana, mana_cost);
+	LogSpells("Not enough mana spell [{}] curmana [{}] cost [{}]\n", spell_id, my_curmana, mana_cost);
 	if (IsClient()) {
 		//clients produce messages... npcs should not for this case
 		MessageString(Chat::Red, INSUFFICIENT_MANA);

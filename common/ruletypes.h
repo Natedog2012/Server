@@ -228,6 +228,9 @@ RULE_INT(Character, ItemEnduranceRegenCap, 15, "Limit on endurance regeneration 
 RULE_INT(Character, ItemExtraDmgCap, 150, "Cap for bonuses to melee skills like Bash, Frenzy, etc.")
 RULE_INT(Character, HasteCap, 100, "Haste cap for non-v3(over haste) haste")
 RULE_INT(Character, Hastev3Cap, 25, "Haste cap for v3(over haste) haste")
+RULE_BOOL(Character, HeroicStatsUseDataBucketsToScale, false, "Allows scaling the benefits a character receives from Heroic Stats using Data Buckets. Stacks with other Heroic Stats Mulitplier Rules.")
+RULE_REAL(Character, HeroicIntelligenceIncreaseSpellDmgMultiplier, 0.00, "Allows Heroic Intelligence to increase a Players Worn Spell Damage Stat from Equipment, for example, setting this rule to 1.00 will always grant 1 Spell Damage per 1 Heroic Intelligence")
+RULE_REAL(Character, HeroicWisdomIncreaseHealAmtMultiplier, 0.00, "Allows Heroic Wisdom to increase a Players Worn Heal Amount Stat from Equipment, for example, setting this rule to 1.00 will always grant 1 Heal Amount per 1 Heroic Wisdom")
 RULE_REAL(Character, HeroicStrengthMultiplier, 1.00, "Multplier scales benefits from Heroic Strength. Grants 25 Base Endurance, 0.05 Endurance Regen, 1 Melee Damage each Hit, and 1 Shield AC per 10 Heroic Strength.")
 RULE_REAL(Character, HeroicStaminaMultiplier, 1.00, "Multplier scales benefits from Heroic Stamina. Grants 25 Base Endurance, 0.05 Endurance Regen, 100 Base HP, and 0.5 HP Regen per 10 Heroic Stamina.")
 RULE_REAL(Character, HeroicAgilityMultiplier, 1.00, "Multplier scales benefits from Heroic Agility. Grants 25 Base Endurance, 0.05 Endurance Regen, and 1 Avoidance AC per 10 Heroic Agility. (Rule does not change Dodge Chance)")
@@ -346,6 +349,7 @@ RULE_BOOL(Character, IgnoreLevelBasedHasteCaps, false, "Ignores hard coded level
 RULE_BOOL(Character, EnableRaidEXPModifier, true, "Enable or disable the raid experience modifier, default is true")
 RULE_BOOL(Character, EnableRaidMemberEXPModifier, true, "Enable or disable the raid experience modifier based on members in raid, default is true")
 RULE_BOOL(Character, LeaveCursorMoneyOnCorpse, false, "Enable or disable leaving cursor money on player corpses")
+RULE_BOOL(Character, ItemExtraSkillDamageCalcAsPercent, false, "If enabled, apply Item Extra Skill Damage as Percentage-based modifiers")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Mercs)
@@ -405,7 +409,6 @@ RULE_BOOL(World, EnableTutorialButton, true, "Setting whether the Tutorial butto
 RULE_BOOL(World, EnableReturnHomeButton, true, "Setting whether the Return Home button should be active")
 RULE_INT(World, MaxLevelForTutorial, 10, "The highest level with which you can enter the tutorial")
 RULE_INT(World, TutorialZoneID, 189, "Zone ID of the tutorial")
-RULE_INT(World, GuildBankZoneID, 345, "Zone ID of the guild bank")
 RULE_INT(World, MinOfflineTimeToReturnHome, 21600, "Minimum offline time to activate the Return Home button. 21600 seconds is 6 Hours")
 RULE_INT(World, MaxClientsPerIP, -1, "Maximum number of clients allowed to connect per IP address if account status is < AddMaxClientsStatus. Default value: -1 (feature disabled)")
 RULE_INT(World, ExemptMaxClientsStatus, -1, "Exempt accounts from the MaxClientsPerIP and AddMaxClientsStatus rules, if their status is >= this value. Default value: -1 (feature disabled)")
@@ -485,6 +488,7 @@ RULE_REAL(Watermap, FishingLineStepSize, 1, "Basic step size for fishing calc, t
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Spells)
+RULE_BOOL(Spells, AllowExtraDmgSkill, false, "Allow ExtraDmgSkill from Items, Spells, and AAs to apply ExtraDmgAmt when the ExtraDmgSkill matches the casted Spells Skill Type.")
 RULE_INT(Spells, BaseCritChance, 0, "Base percentage chance that everyone has to crit a spell")
 RULE_INT(Spells, BaseCritRatio, 100, "Base percentage bonus to damage on a successful spell crit. 100=2xdamage")
 RULE_INT(Spells, WizCritLevel, 12, "Level wizards first get spell crits")

@@ -16,6 +16,7 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 
+#include "../common/data_verification.h"
 #include "../common/spdat.h"
 #include "../common/strings.h"
 #include "../common/misc_functions.h"
@@ -130,36 +131,40 @@ Mob::Mob(
 	mMovementManager = &MobMovementManager::Get();
 	mMovementManager->AddMob(this);
 
-	targeted = 0;
+	targeted          = 0;
 	currently_fleeing = false;
 
 	AI_Init();
 	SetMoving(false);
-	moved            = false;
-	turning = false;
-	m_RewindLocation = glm::vec3();
+
+	moved              = false;
+	turning            = false;
+	m_RewindLocation   = glm::vec3();
 	m_RelativePosition = glm::vec4();
 
-	name[0] = 0;
+	name[0]      = 0;
 	orig_name[0] = 0;
 
 	clean_name[0] = 0;
 	lastname[0]   = 0;
+
 	if (in_name) {
 		strn0cpy(name, in_name, 64);
 		strn0cpy(orig_name, in_name, 64);
 	}
+
 	if (in_lastname) {
 		strn0cpy(lastname, in_lastname, 64);
 	}
-	current_hp        = in_cur_hp;
+
+	current_hp    = in_cur_hp;
 	max_hp        = in_max_hp;
 	base_hp       = in_max_hp;
 	gender        = in_gender;
 	race          = in_race;
 	base_gender   = in_gender;
 	base_race     = in_race;
-	use_model	  = in_usemodel;
+	use_model     = in_usemodel;
 	class_        = in_class;
 	bodytype      = in_bodytype;
 	orig_bodytype = in_bodytype;
@@ -184,8 +189,7 @@ Mob::Mob(
 		fearspeed      = 0.625f;
 		base_fearspeed = 25;
 		// npcs
-	}
-	else {
+	} else {
 		base_walkspeed = base_runspeed * 100 / 265;
 		walkspeed      = ((float) base_walkspeed) * 0.025f;
 		base_fearspeed = base_runspeed * 100 / 127;
@@ -198,7 +202,6 @@ Mob::Mob(
 	current_speed = base_runspeed;
 
 	m_PlayerState = 0;
-
 
 	// sanity check
 	if (runspeed < 0 || runspeed > 20) {
@@ -219,38 +222,33 @@ Mob::Mob(
 	feettexture   = in_feettexture;
 	multitexture  = (armtexture || bracertexture || handtexture || legtexture || feettexture);
 
-	haircolor               = in_haircolor;
-	beardcolor              = in_beardcolor;
-	eyecolor1               = in_eyecolor1;
-	eyecolor2               = in_eyecolor2;
-	hairstyle               = in_hairstyle;
-	luclinface              = in_luclinface;
-	beard                   = in_beard;
-	drakkin_heritage        = in_drakkin_heritage;
-	drakkin_tattoo          = in_drakkin_tattoo;
-	drakkin_details         = in_drakkin_details;
-	attack_speed            = 0;
-	attack_delay            = 0;
-	slow_mitigation         = 0;
-	findable                = false;
-	trackable               = true;
-	has_shieldequiped       = false;
-	has_twohandbluntequiped = false;
-	has_twohanderequipped   = false;
-	has_duelweaponsequiped  = false;
-	can_facestab            = false;
-	has_numhits             = false;
-	has_MGB                 = false;
-	has_ProjectIllusion     = false;
-	SpellPowerDistanceMod   = 0;
-	last_los_check          = false;
+	haircolor                   = in_haircolor;
+	beardcolor                  = in_beardcolor;
+	eyecolor1                   = in_eyecolor1;
+	eyecolor2                   = in_eyecolor2;
+	hairstyle                   = in_hairstyle;
+	luclinface                  = in_luclinface;
+	beard                       = in_beard;
+	drakkin_heritage            = in_drakkin_heritage;
+	drakkin_tattoo              = in_drakkin_tattoo;
+	drakkin_details             = in_drakkin_details;
+	attack_speed                = 0;
+	attack_delay                = 0;
+	slow_mitigation             = 0;
+	findable                    = false;
+	trackable                   = true;
+	has_shield_equipped         = false;
+	has_two_hand_blunt_equipped = false;
+	has_two_hander_equipped     = false;
+	has_dual_weapons_equipped   = false;
+	can_facestab                = false;
+	has_numhits                 = false;
+	has_MGB                     = false;
+	has_ProjectIllusion         = false;
+	SpellPowerDistanceMod       = 0;
+	last_los_check              = false;
 
-	if (in_aa_title > 0) {
-		aa_title = in_aa_title;
-	}
-	else {
-		aa_title = 0xFF;
-	}
+	aa_title = in_aa_title > 0 ? in_aa_title : 0xFF;
 
 	AC                   = in_ac;
 	ATK                  = in_atk;
@@ -427,24 +425,24 @@ Mob::Mob(
 	permarooted = (runspeed > 0) ? false : true;
 
 	pause_timer_complete = false;
-	ForcedMovement = 0;
-	roamer = false;
-	rooted = false;
-	charmed = false;
+	ForcedMovement       = 0;
+	roamer               = false;
+	rooted               = false;
+	charmed              = false;
 
-	weaponstance.enabled = false;
-	weaponstance.spellbonus_enabled = false;	//Set when bonus is applied
-	weaponstance.itembonus_enabled = false;		//Set when bonus is applied
-	weaponstance.aabonus_enabled = false;		//Controlled by function TogglePassiveAA
+	weaponstance.enabled                  = false;
+	weaponstance.spellbonus_enabled       = false; //Set when bonus is applied
+	weaponstance.itembonus_enabled        = false; //Set when bonus is applied
+	weaponstance.aabonus_enabled          = false; //Controlled by function TogglePassiveAA
 	weaponstance.spellbonus_buff_spell_id = 0;
-	weaponstance.itembonus_buff_spell_id = 0;
-	weaponstance.aabonus_buff_spell_id = 0;
+	weaponstance.itembonus_buff_spell_id  = 0;
+	weaponstance.aabonus_buff_spell_id    = 0;
 
 	pStandingPetOrder = SPO_Follow;
 	pseudo_rooted     = false;
 
 	nobuff_invisible = 0;
-	see_invis = 0;
+	see_invis        = 0;
 
 	innate_see_invis  = GetSeeInvisibleLevelFromNPCStat(in_see_invis);
 	see_invis_undead  = GetSeeInvisibleLevelFromNPCStat(in_see_invis_undead);
@@ -491,20 +489,20 @@ Mob::Mob(
 	}
 
 	for (int i = 0; i < MAX_APPEARANCE_EFFECTS; i++) {
-		appearance_effects_id[i] = 0;
+		appearance_effects_id[i]   = 0;
 		appearance_effects_slot[i] = 0;
 	}
 
 	emoteid              = 0;
 	endur_upkeep         = false;
 	degenerating_effects = false;
-	PrimaryAggro = false;
-	AssistAggro = false;
-	npc_assist_cap = 0;
-	questhidden = false;
+	PrimaryAggro         = false;
+	AssistAggro          = false;
+	npc_assist_cap       = 0;
+	questhidden          = false;
 
 	use_double_melee_round_dmg_bonus = false;
-	dw_same_delay = 0;
+	dw_same_delay                    = 0;
 
 	queue_wearchange_slot = -1;
 
@@ -1138,7 +1136,6 @@ void Mob::SetSpawnLastNameByClass(NewSpawn_Struct* ns)
 			strcpy(ns->spawn.lastName, "Mercenary Liaison");
 			break;
 		default:
-			strcpy(ns->spawn.lastName, ns->spawn.lastName);
 			break;
 	}
 }
@@ -4034,7 +4031,7 @@ void Mob::QuestJournalledSay(Client *QuestInitiator, const char *str, Journal::O
 
 const char *Mob::GetCleanName()
 {
-	if (!strlen(clean_name)) { 
+	if (!strlen(clean_name)) {
 		CleanMobName(GetName(), clean_name);
 	}
 
@@ -5584,16 +5581,41 @@ int16 Mob::GetSkillReuseTime(uint16 skill)
 	return skill_reduction;
 }
 
-int Mob::GetSkillDmgAmt(uint16 skill)
+int Mob::GetSkillDmgAmt(int skill_id)
 {
 	int skill_dmg = 0;
 
-	// All skill dmg(only spells do this) + Skill specific
-	skill_dmg += spellbonuses.SkillDamageAmount[EQ::skills::HIGHEST_SKILL + 1] + itembonuses.SkillDamageAmount[EQ::skills::HIGHEST_SKILL + 1] + aabonuses.SkillDamageAmount[EQ::skills::HIGHEST_SKILL + 1]
-				+ itembonuses.SkillDamageAmount[skill] + spellbonuses.SkillDamageAmount[skill] + aabonuses.SkillDamageAmount[skill];
+	if (!EQ::ValueWithin(skill_id, ALL_SKILLS, EQ::skills::HIGHEST_SKILL)) {
+		return skill_dmg;
+	}
 
-	skill_dmg += spellbonuses.SkillDamageAmount2[EQ::skills::HIGHEST_SKILL + 1] + itembonuses.SkillDamageAmount2[EQ::skills::HIGHEST_SKILL + 1]
-				+ itembonuses.SkillDamageAmount2[skill] + spellbonuses.SkillDamageAmount2[skill];
+	skill_dmg += (
+		spellbonuses.SkillDamageAmount[EQ::skills::HIGHEST_SKILL + 1] +
+		itembonuses.SkillDamageAmount[EQ::skills::HIGHEST_SKILL + 1] +
+		aabonuses.SkillDamageAmount[EQ::skills::HIGHEST_SKILL + 1]
+	);
+
+	if (skill_id != ALL_SKILLS) {
+		skill_dmg += (
+			itembonuses.SkillDamageAmount[skill_id] +
+			spellbonuses.SkillDamageAmount[skill_id] +
+			aabonuses.SkillDamageAmount[skill_id]
+		);
+	}
+
+	skill_dmg += (
+		spellbonuses.SkillDamageAmount2[EQ::skills::HIGHEST_SKILL + 1] +
+		itembonuses.SkillDamageAmount2[EQ::skills::HIGHEST_SKILL + 1] +
+		aabonuses.SkillDamageAmount2[EQ::skills::HIGHEST_SKILL + 1]
+	);
+
+	if (skill_id != ALL_SKILLS) {
+		skill_dmg += (
+			itembonuses.SkillDamageAmount2[skill_id] +
+			spellbonuses.SkillDamageAmount2[skill_id] +
+			aabonuses.SkillDamageAmount2[skill_id]
+		);
+	}
 
 	return skill_dmg;
 }
