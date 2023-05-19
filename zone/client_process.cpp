@@ -22,12 +22,8 @@
 #include "../common/eqemu_logsys.h"
 #include "../common/global_define.h"
 #include <iostream>
-#include <stdio.h>
-#include <zlib.h>
 
 #ifdef _WINDOWS
-	#include <winsock2.h>
-	#include <windows.h>
 	#define snprintf	_snprintf
 	#define strncasecmp	_strnicmp
 	#define strcasecmp	_stricmp
@@ -54,7 +50,6 @@
 #include "worldserver.h"
 #include "zone.h"
 #include "zonedb.h"
-#include "../common/zone_store.h"
 #include "../common/events/player_event_logs.h"
 
 extern QueryServ* QServ;
@@ -194,9 +189,10 @@ bool Client::Process() {
 		}
 
 		if (camp_timer.Check()) {
-			Raid* raid = entity_list.GetRaidByClient(this);
-			if (raid)
-				raid->RemoveMember(this->GetName());
+			Raid *myraid = entity_list.GetRaidByClient(this);
+			if (myraid) {
+				myraid->MemberZoned(this);
+			}
 			LeaveGroup();
 			Save();
 			if (GetMerc())
@@ -524,9 +520,9 @@ bool Client::Process() {
 				Save(0);
 			}
 
-			if (m_pp.intoxication > 0)
+			if (GetIntoxication() > 0)
 			{
-				--m_pp.intoxication;
+				SetIntoxication(GetIntoxication()-1);
 				CalcBonuses();
 			}
 
@@ -1149,6 +1145,7 @@ void Client::OPMemorizeSpell(const EQApplicationPacket* app)
 				const auto* item = inst->GetItem();
 
 				if (
+					item &&
 					RuleB(Character, RestrictSpellScribing) &&
 					!item->IsEquipable(GetRace(), GetClass())
 				) {

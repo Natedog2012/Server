@@ -27,7 +27,6 @@
 #include "../common/emu_versions.h"
 #include "../common/features.h"
 #include "../common/item_instance.h"
-#include "../common/item_data.h"
 #include "../common/linked_list.h"
 #include "../common/servertalk.h"
 #include "../common/say_link.h"
@@ -45,7 +44,6 @@
 
 #include "bot.h"
 
-#include <cctype>
 #include <stdio.h>
 #include <string>
 #include <utility>
@@ -164,7 +162,7 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 		size = 15;
 	}
 
-	taunting             = false;
+	SetTaunting(false);
 	proximity            = nullptr;
 	copper               = 0;
 	silver               = 0;
@@ -1951,7 +1949,7 @@ void NPC::PickPocket(Client* thief)
 			if (item_test->Magic || !item_test->NoDrop || item_test->IsClassBag() || thief->CheckLoreConflict(item_test) || item_iter->equip_slot != EQ::invslot::SLOT_INVALID)
 				continue;
 
-			loot_selection.push_back(std::make_pair(item_test, ((item_test->Stackable) ? (1) : (item_iter->charges))));
+			loot_selection.emplace_back(std::make_pair(item_test, ((item_test->Stackable) ? (1) : (item_iter->charges))));
 		}
 		if (loot_selection.empty()) {
 			steal_item = false;

@@ -277,7 +277,6 @@ Mob::Mob(
 	hidden               = false;
 	improved_hidden      = false;
 	invulnerable         = false;
-	IsFullHP             = (current_hp == max_hp);
 	qglobal              = 0;
 	spawned              = false;
 	rare_spawn           = false;
@@ -381,8 +380,8 @@ Mob::Mob(
 	spellbonuses.AssistRange = -1;
 	SetPetID(0);
 	SetOwnerID(0);
-	typeofpet         = petNone; // default to not a pet
-	petpower          = 0;
+	SetPetType(petNone); // default to not a pet
+	SetPetPower(0);
 	held              = false;
 	gheld             = false;
 	nocast            = false;
@@ -1365,7 +1364,6 @@ void Mob::CreateDespawnPacket(EQApplicationPacket* app, bool Decay)
 
 void Mob::CreateHPPacket(EQApplicationPacket* app)
 {
-	IsFullHP=(current_hp>=max_hp);
 	app->SetOpcode(OP_MobHealth);
 	app->size = sizeof(SpawnHPUpdate_Struct2);
 	safe_delete_array(app->pBuffer);
@@ -5144,6 +5142,10 @@ void Mob::TarGlobal(const char *varname, const char *value, const char *duration
 
 void Mob::DelGlobal(const char *varname) {
 
+	if (!zone) {
+		return;
+	}
+
 	int qgZoneid=zone->GetZoneID();
 	int qgCharid=0;
 	int qgNpcid=0;
@@ -5164,22 +5166,19 @@ void Mob::DelGlobal(const char *varname) {
 
 	database.QueryDatabase(query);
 
-	if(zone)
-	{
-		auto pack = new ServerPacket(ServerOP_QGlobalDelete, sizeof(ServerQGlobalDelete_Struct));
-		ServerQGlobalDelete_Struct *qgu = (ServerQGlobalDelete_Struct*)pack->pBuffer;
+	auto pack = new ServerPacket(ServerOP_QGlobalDelete, sizeof(ServerQGlobalDelete_Struct));
+	ServerQGlobalDelete_Struct *qgu = (ServerQGlobalDelete_Struct*)pack->pBuffer;
 
-		qgu->npc_id = qgNpcid;
-		qgu->char_id = qgCharid;
-		qgu->zone_id = qgZoneid;
-		strcpy(qgu->name, varname);
+	qgu->npc_id = qgNpcid;
+	qgu->char_id = qgCharid;
+	qgu->zone_id = qgZoneid;
+	strcpy(qgu->name, varname);
 
-		entity_list.DeleteQGlobal(std::string((char*)qgu->name), qgu->npc_id, qgu->char_id, qgu->zone_id);
-		zone->DeleteQGlobal(std::string((char*)qgu->name), qgu->npc_id, qgu->char_id, qgu->zone_id);
+	entity_list.DeleteQGlobal(std::string((char*)qgu->name), qgu->npc_id, qgu->char_id, qgu->zone_id);
+	zone->DeleteQGlobal(std::string((char*)qgu->name), qgu->npc_id, qgu->char_id, qgu->zone_id);
 
-		worldserver.SendPacket(pack);
-		safe_delete(pack);
-	}
+	worldserver.SendPacket(pack);
+	safe_delete(pack);
 }
 
 // Inserts global variable into quest_globals table
@@ -6086,14 +6085,14 @@ void Mob::AddFactionBonus(uint32 pFactionID,int32 bonus) {
 	faction_bonus = faction_bonuses.find(pFactionID);
 	if(faction_bonus == faction_bonuses.end())
 	{
-		faction_bonuses.insert(NewFactionBonus(pFactionID,bonus));
+		faction_bonuses.emplace(NewFactionBonus(pFactionID,bonus));
 	}
 	else
 	{
 		if(faction_bonus->second<bonus)
 		{
 			faction_bonuses.erase(pFactionID);
-			faction_bonuses.insert(NewFactionBonus(pFactionID,bonus));
+			faction_bonuses.emplace(NewFactionBonus(pFactionID,bonus));
 		}
 	}
 }
@@ -6106,14 +6105,14 @@ void Mob::AddItemFactionBonus(uint32 pFactionID,int32 bonus) {
 	faction_bonus = item_faction_bonuses.find(pFactionID);
 	if(faction_bonus == item_faction_bonuses.end())
 	{
-		item_faction_bonuses.insert(NewFactionBonus(pFactionID,bonus));
+		item_faction_bonuses.emplace(NewFactionBonus(pFactionID,bonus));
 	}
 	else
 	{
 		if((bonus > 0 && faction_bonus->second < bonus) || (bonus < 0 && faction_bonus->second > bonus))
 		{
 			item_faction_bonuses.erase(pFactionID);
-			item_faction_bonuses.insert(NewFactionBonus(pFactionID,bonus));
+			item_faction_bonuses.emplace(NewFactionBonus(pFactionID,bonus));
 		}
 	}
 }
@@ -6263,20 +6262,20 @@ FACTION_VALUE Mob::GetSpecialFactionCon(Mob* iOther) {
 
 bool Mob::HasSpellEffect(int effect_id)
 {
-	int i;
+	const auto buff_count = GetMaxTotalSlots();
+	for (int i = 0; i < buff_count; i++) {
+		const auto spell_id = buffs[i].spellid;
 
-	int buff_count = GetMaxTotalSlots();
-	for(i = 0; i < buff_count; i++)
-	{
-		if (!IsValidSpell(buffs[i].spellid)) {
+		if (!IsValidSpell(spell_id)) {
 			continue;
 		}
 
-		if (IsEffectInSpell(buffs[i].spellid, effect_id)) {
-			return(1);
+		if (IsEffectInSpell(spell_id, effect_id)) {
+			return true;
 		}
 	}
-	return(0);
+
+	return false;
 }
 
 int Mob::GetSpecialAbility(int ability)
@@ -6760,8 +6759,11 @@ void Mob::CommonBreakInvisible()
 	CancelSneakHide();
 }
 
-float Mob::GetDefaultRaceSize() const {
-	return GetRaceGenderDefaultHeight(race, gender);
+float Mob::GetDefaultRaceSize(int race_id, int gender_id) const {
+	return GetRaceGenderDefaultHeight(
+		race_id > 0 ? race_id : race,
+		gender_id >= 0 ? gender_id : gender
+	);
 }
 
 bool Mob::ShieldAbility(uint32 target_id, int shielder_max_distance, int shield_duration, int shield_target_mitigation, int shielder_mitigation, bool use_aa, bool can_shield_npc)
@@ -7010,9 +7012,9 @@ std::string Mob::GetBucketKey() {
 std::string Mob::GetBucketRemaining(std::string bucket_name) {
 	std::string full_bucket_name = fmt::format("{}-{}", GetBucketKey(), bucket_name);
 	std::string bucket_remaining = DataBucket::GetDataRemaining(full_bucket_name);
-	if (!bucket_remaining.empty() && Strings::ToInt(bucket_remaining.c_str()) > 0) {
+	if (!bucket_remaining.empty() && Strings::ToInt(bucket_remaining) > 0) {
 		return bucket_remaining;
-	} else if (Strings::ToInt(bucket_remaining.c_str()) == 0) {
+	} else if (Strings::ToInt(bucket_remaining) == 0) {
 		return "0";
 	}
 	return std::string();

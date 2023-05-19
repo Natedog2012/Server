@@ -17,14 +17,12 @@
 */
 #include "../common/data_verification.h"
 #include "../common/global_define.h"
-#include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #include <iostream>
 
 #ifdef _WINDOWS
-#include <process.h>
 #else
 #include <pthread.h>
 #include "../common/unix.h"
@@ -43,7 +41,6 @@
 #include "worldserver.h"
 #include "water_map.h"
 #include "npc_scale_manager.h"
-#include "../common/say_link.h"
 #include "dialogue_window.h"
 
 #ifdef _WINDOWS
@@ -332,8 +329,8 @@ bool EntityList::CanAddHateForMob(Mob *p)
 void EntityList::AddClient(Client *client)
 {
 	client->SetID(GetFreeID());
-	client_list.insert(std::pair<uint16, Client *>(client->GetID(), client));
-	mob_list.insert(std::pair<uint16, Mob *>(client->GetID(), client));
+	client_list.emplace(std::pair<uint16, Client *>(client->GetID(), client));
+	mob_list.emplace(std::pair<uint16, Mob *>(client->GetID(), client));
 }
 
 
@@ -655,7 +652,7 @@ void EntityList::AddCorpse(Corpse *corpse, uint32 in_id)
 		corpse->SetID(in_id);
 
 	corpse->CalcCorpseName();
-	corpse_list.insert(std::pair<uint16, Corpse *>(corpse->GetID(), corpse));
+	corpse_list.emplace(std::pair<uint16, Corpse *>(corpse->GetID(), corpse));
 
 	if (!corpse_timer.Enabled())
 		corpse_timer.Start();
@@ -674,8 +671,8 @@ void EntityList::AddNPC(NPC *npc, bool send_spawn_packet, bool dont_queue)
 		}
 	}
 
-	npc_list.insert(std::pair<uint16, NPC *>(npc->GetID(), npc));
-	mob_list.insert(std::pair<uint16, Mob *>(npc->GetID(), npc));
+	npc_list.emplace(std::pair<uint16, NPC *>(npc->GetID(), npc));
+	mob_list.emplace(std::pair<uint16, Mob *>(npc->GetID(), npc));
 
 	if (parse->HasQuestSub(npc->GetNPCTypeID(), EVENT_SPAWN)) {
 		parse->EventNPC(EVENT_SPAWN, npc, nullptr, "", 0);
@@ -755,8 +752,8 @@ void EntityList::AddMerc(Merc *merc, bool SendSpawnPacket, bool dontqueue)
 			}
 		}
 
-		merc_list.insert(std::pair<uint16, Merc *>(merc->GetID(), merc));
-		mob_list.insert(std::pair<uint16, Mob *>(merc->GetID(), merc));
+		merc_list.emplace(std::pair<uint16, Merc *>(merc->GetID(), merc));
+		mob_list.emplace(std::pair<uint16, Mob *>(merc->GetID(), merc));
 	}
 }
 
@@ -773,7 +770,7 @@ void EntityList::AddObject(Object *obj, bool SendSpawnPacket)
 		QueueClients(0, &app,false);
 	}
 
-	object_list.insert(std::pair<uint16, Object *>(obj->GetID(), obj));
+	object_list.emplace(std::pair<uint16, Object *>(obj->GetID(), obj));
 
 	if (!object_timer.Enabled())
 		object_timer.Start();
@@ -782,7 +779,7 @@ void EntityList::AddObject(Object *obj, bool SendSpawnPacket)
 void EntityList::AddDoor(Doors *door)
 {
 	door->SetEntityID(GetFreeID());
-	door_list.insert(std::pair<uint16, Doors *>(door->GetEntityID(), door));
+	door_list.emplace(std::pair<uint16, Doors *>(door->GetEntityID(), door));
 
 	if (!door_timer.Enabled())
 		door_timer.Start();
@@ -791,7 +788,7 @@ void EntityList::AddDoor(Doors *door)
 void EntityList::AddTrap(Trap *trap)
 {
 	trap->SetID(GetFreeID());
-	trap_list.insert(std::pair<uint16, Trap *>(trap->GetID(), trap));
+	trap_list.emplace(std::pair<uint16, Trap *>(trap->GetID(), trap));
 	if (!trap_timer.Enabled())
 		trap_timer.Start();
 }
@@ -799,13 +796,13 @@ void EntityList::AddTrap(Trap *trap)
 void EntityList::AddBeacon(Beacon *beacon)
 {
 	beacon->SetID(GetFreeID());
-	beacon_list.insert(std::pair<uint16, Beacon *>(beacon->GetID(), beacon));
+	beacon_list.emplace(std::pair<uint16, Beacon *>(beacon->GetID(), beacon));
 }
 
 void EntityList::AddEncounter(Encounter *encounter)
 {
 	encounter->SetID(GetFreeID());
-	encounter_list.insert(std::pair<uint16, Encounter *>(encounter->GetID(), encounter));
+	encounter_list.emplace(std::pair<uint16, Encounter *>(encounter->GetID(), encounter));
 }
 
 void EntityList::AddToSpawnQueue(uint16 entityid, NewSpawn_Struct **ns)
@@ -1758,21 +1755,6 @@ void EntityList::QueueClients(
 		++it;
 	}
 }
-
-void EntityList::QueueManaged(Mob *sender, const EQApplicationPacket *app,
-		bool ignore_sender, bool ackreq)
-{
-	auto it = client_list.begin();
-	while (it != client_list.end()) {
-		Client *ent = it->second;
-
-		if ((!ignore_sender || ent != sender))
-			ent->QueuePacket(app, ackreq, Client::CLIENT_CONNECTED);
-
-		++it;
-	}
-}
-
 
 void EntityList::QueueClientsStatus(Mob *sender, const EQApplicationPacket *app,
 		bool ignore_sender, uint8 minstatus, uint8 maxstatus)
@@ -2987,7 +2969,7 @@ void EntityList::ScanCloseMobs(
 
 		float distance = DistanceSquared(scanning_mob->GetPosition(), mob->GetPosition());
 		if (distance <= scan_range || mob->GetAggroRange() >= scan_range) {
-			close_mobs.insert(std::pair<uint16, Mob *>(mob->GetID(), mob));
+			close_mobs.emplace(std::pair<uint16, Mob *>(mob->GetID(), mob));
 
 			if (add_self_to_other_lists && scanning_mob->GetID() > 0) {
 				bool has_mob = false;
@@ -3206,21 +3188,6 @@ void EntityList::RemoveEntity(uint16 id)
 void EntityList::Process()
 {
 	CheckSpawnQueue();
-}
-
-void EntityList::CountNPC(uint32 *NPCCount, uint32 *NPCLootCount, uint32 *gmspawntype_count)
-{
-	*NPCCount = 0;
-	*NPCLootCount = 0;
-
-	auto it = npc_list.begin();
-	while (it != npc_list.end()) {
-		(*NPCCount)++;
-		(*NPCLootCount) += it->second->CountLoot();
-		if (it->second->GetNPCTypeID() == 0)
-			(*gmspawntype_count)++;
-		++it;
-	}
 }
 
 void EntityList::Depop(bool StartSpawnTimer)

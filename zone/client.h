@@ -67,6 +67,7 @@ namespace EQ
 #include "task_client_state.h"
 #include "cheat_manager.h"
 #include "../common/events/player_events.h"
+#include "../common/data_verification.h"
 
 #ifdef _WINDOWS
 	// since windows defines these within windef.h (which windows.h include)
@@ -203,8 +204,8 @@ enum eInnateSkill {
 	InnateDisabled = 255
 };
 
-const std::string DIAWIND_RESPONSE_ONE_KEY       = "diawind_npc_response_one";
-const std::string DIAWIND_RESPONSE_TWO_KEY       = "diawind_npc_response_two";
+inline const std::string DIAWIND_RESPONSE_ONE_KEY       = "diawind_npc_response_one";
+inline const std::string DIAWIND_RESPONSE_TWO_KEY       = "diawind_npc_response_two";
 const uint32      POPUPID_DIAWIND_ONE            = 99999;
 const uint32      POPUPID_DIAWIND_TWO            = 100000;
 const uint32      POPUPID_UPDATE_SHOWSTATSWINDOW = 1000000;
@@ -306,7 +307,6 @@ public:
 	void ReturnTraderReq(const EQApplicationPacket* app,int16 traderitemcharges, uint32 itemid = 0);
 	void TradeRequestFailed(const EQApplicationPacket* app);
 	void BuyTraderItem(TraderBuy_Struct* tbs,Client* trader,const EQApplicationPacket* app);
-	void TraderUpdate(uint16 slot_id,uint32 trader_id);
 	void FinishTrade(Mob* with, bool finalizer = false, void* event_entry = nullptr, std::list<void*>* event_details = nullptr);
 	void SendZonePoints();
 
@@ -322,7 +322,6 @@ public:
 	void FillSpawnStruct(NewSpawn_Struct* ns, Mob* ForWho);
 	bool ShouldISpawnFor(Client *c) { return !GMHideMe(c) && !IsHoveringForRespawn(); }
 	virtual bool Process();
-	void ProcessPackets();
 	void QueuePacket(const EQApplicationPacket* app, bool ack_req = true, CLIENT_CONN_STATUS = CLIENT_CONNECTINGALL, eqFilterType filter=FilterNone);
 	void FastQueuePacket(EQApplicationPacket** app, bool ack_req = true, CLIENT_CONN_STATUS = CLIENT_CONNECTINGALL);
 	void ChannelMessageReceived(uint8 chan_num, uint8 language, uint8 lang_skill, const char* orig_message, const char* targetname = nullptr, bool is_silent = false);
@@ -379,12 +378,8 @@ public:
 
 	void SetPetCommandState(int button, int state);
 
-	bool CheckAccess(int16 iDBLevel, int16 iDefaultLevel);
-
-	void CheckQuests(const char* zonename, const char* message, uint32 npc_id, uint32 item_id, Mob* other);
 	bool AutoAttackEnabled() const { return auto_attack; }
 	bool AutoFireEnabled() const { return auto_fire; }
-	void MakeCorpse(uint32 exploss);
 
 	bool ChangeFirstName(const char* in_firstname,const char* gmname);
 
@@ -394,7 +389,6 @@ public:
 
 	virtual void SetMaxHP();
 	int32 LevelRegen();
-	void HPTick();
 	void SetGM(bool toggle);
 	void SetPVP(bool toggle, bool message = true);
 
@@ -986,6 +980,8 @@ public:
 	void DropItem(int16 slot_id, bool recurse = true);
 	void DropItemQS(EQ::ItemInstance* inst, bool pickup);
 
+	bool IsAugmentRestricted(uint8 item_type, uint32 augment_restriction);
+
 	int GetItemLinkHash(const EQ::ItemInstance* inst); // move to ItemData..or make use of the pre-calculated database field
 
 	void SendItemLink(const EQ::ItemInstance* inst, bool sendtoall=false);
@@ -1022,6 +1018,7 @@ public:
 	void SetThirst(int32 in_thirst);
 	void SetConsumption(int32 in_hunger, int32 in_thirst);
 	bool IsStarved() const { if (GetGM() || !RuleB(Character, EnableFoodRequirement) || !RuleB(Character, EnableHungerPenalties)) return false; return m_pp.hunger_level == 0 || m_pp.thirst_level == 0; }
+	int32 GetIntoxication() const { return m_pp.intoxication; }
 
 	bool CheckTradeLoreConflict(Client* other);
 	bool CheckTradeNonDroppable();
@@ -1611,6 +1608,7 @@ public:
 	void SetEnvironmentDamageModifier(int32 val) { environment_damage_modifier = val; }
 	inline bool GetInvulnerableEnvironmentDamage() const { return invulnerable_environment_damage; }
 	void SetInvulnerableEnvironmentDamage(bool val) { invulnerable_environment_damage = val; }
+	void SetIntoxication(int32 in_intoxication);
 
 	void ShowNumHits(); // work around function for numhits not showing on buffs
 
@@ -1742,7 +1740,6 @@ private:
 	int64 CalcHPRegen(bool bCombat = false);
 	int64 CalcManaRegen(bool bCombat = false);
 	int64 CalcBaseManaRegen();
-	uint64 GetClassHPFactor();
 	void DoHPRegen();
 	void DoManaRegen();
 	void DoStaminaHungerUpdate();
@@ -1864,9 +1861,6 @@ private:
 	ZoneMode zone_mode;
 
 	WaterRegionType last_region_type;
-
-	// this is used to try to cut back on position update reflections
-	int position_update_same_count;
 
 	PTimerList p_timers; //persistent timers
 	Timer hpupdate_timer;
@@ -2071,6 +2065,13 @@ private:
 	bool CanTradeFVNoDropItem();
 	void SendMobPositions();
 	void PlayerTradeEventLog(Trade *t, Trade *t2);
+
+	// full and partial mail key cache
+	std::string m_mail_key_full;
+	std::string m_mail_key;
+public:
+	const std::string &GetMailKeyFull() const;
+	const std::string &GetMailKey() const;
 };
 
 #endif

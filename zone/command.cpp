@@ -1,9 +1,6 @@
 
 #include <string.h>
-#include <stdlib.h>
-#include <sstream>
 #include <algorithm>
-#include <ctime>
 #include <thread>
 #include <fmt/format.h>
 
@@ -26,8 +23,6 @@
 #include "command.h"
 #include "dynamic_zone.h"
 #include "expedition.h"
-#include "guild_mgr.h"
-#include "qglobals.h"
 #include "queryserv.h"
 #include "quest_parser_collection.h"
 #include "titles.h"
@@ -401,7 +396,7 @@ int command_init(void)
 	for (const auto& w : working_cl) {
 		auto cs = command_settings.find(w.first);
 		if (cs == command_settings.end()) {
-			injected_command_settings.push_back(std::pair<std::string, uint8>(w.first, w.second->admin));
+			injected_command_settings.emplace_back(std::pair<std::string, uint8>(w.first, w.second->admin));
 			LogInfo(
 				"New Command [{}] found... Adding to `command_settings` table with admin [{}]...",
 				w.first,
@@ -971,7 +966,6 @@ void command_bot(Client *c, const Seperator *sep)
 #include "gm_commands/doanim.cpp"
 #include "gm_commands/door.cpp"
 #include "gm_commands/door_manipulation.cpp"
-#include "gm_commands/door_manipulation.h"
 #include "gm_commands/dye.cpp"
 #include "gm_commands/dz.cpp"
 #include "gm_commands/dzkickplayers.cpp"

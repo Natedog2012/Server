@@ -449,6 +449,7 @@ public:
 	void DoGravityEffect();
 	void DamageShield(Mob* other, bool spell_ds = false);
 	int32 RuneAbsorb(int64 damage, uint16 type);
+	std::vector<uint16> GetBuffSpellIDs();
 	bool FindBuff(uint16 spell_id);
 	uint16 FindBuffBySlot(int slot);
 	uint32 BuffCount(bool is_beneficial = true, bool is_detrimental = true);
@@ -740,7 +741,10 @@ public:
 	NPC* GetHateRandomNPC() { return hate_list.GetRandomNPCOnHateList(); }
 	Bot* GetHateRandomBot() { return hate_list.GetRandomBotOnHateList(); }
 	Mob* GetHateMost() { return hate_list.GetEntWithMostHateOnList();}
-	Mob* GetHateClosest() { return hate_list.GetClosestEntOnHateList(this); }
+	Mob* GetHateClosest(bool skip_mezzed = false) { return hate_list.GetClosestEntOnHateList(this, skip_mezzed); }
+	Bot* GetHateClosestBot(bool skip_mezzed = false) { return hate_list.GetClosestEntOnHateList(this, skip_mezzed, EntityFilterType::Bots)->CastToBot(); }
+	Client* GetHateClosestClient(bool skip_mezzed = false) { return hate_list.GetClosestEntOnHateList(this, skip_mezzed, EntityFilterType::Clients)->CastToClient(); }
+	NPC* GetHateClosestNPC(bool skip_mezzed = false) { return hate_list.GetClosestEntOnHateList(this, skip_mezzed, EntityFilterType::NPCs)->CastToNPC(); }
 	bool IsEngaged() { return(!hate_list.IsHateListEmpty()); }
 	bool HasPrimaryAggro() { return PrimaryAggro; }
 	bool HasAssistAggro() { return AssistAggro; }
@@ -1213,7 +1217,7 @@ public:
 	void				SendTo(float new_x, float new_y, float new_z);
 	void				SendToFixZ(float new_x, float new_y, float new_z);
 	float				GetZOffset() const;
-	float               GetDefaultRaceSize() const;
+	float               GetDefaultRaceSize(int race_id = -1, int gender_id = -1) const;
 	void 				FixZ(int32 z_find_offset = 5, bool fix_client_z = false);
 	float				GetFixedZ(const glm::vec3 &destination, int32 z_find_offset = 5);
 	virtual int			GetStuckBehavior() const { return 0; }
@@ -1448,7 +1452,6 @@ public:
 protected:
 	void CommonDamage(Mob* other, int64 &damage, const uint16 spell_id, const EQ::skills::SkillType attack_skill, bool &avoidable, const int8 buffslot, const bool iBuffTic, eSpecialAttacks specal = eSpecialAttacks::None);
 	static uint16 GetProcID(uint16 spell_id, uint8 effect_index);
-	float _GetMovementSpeed(int mod) const;
 	int _GetWalkSpeed() const;
 	int _GetRunSpeed() const;
 	int _GetFearSpeed() const;
@@ -1459,7 +1462,6 @@ protected:
 	virtual bool AI_PursueCastCheck() { return(false); }
 	virtual bool AI_IdleCastCheck() { return(false); }
 
-	bool IsFullHP;
 	bool moved;
 
 	std::vector<uint16> RampageArray;
@@ -1472,7 +1474,6 @@ protected:
 
 	bool isgrouped;
 	bool israidgrouped;
-	bool pendinggroup;
 	uint16 entity_id_being_looted; //the id of the entity being looted, 0 if not looting.
 	uint8 texture;
 	uint8 helmtexture;

@@ -72,7 +72,6 @@ Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
 #include "../common/eqemu_logsys.h"
 #include "../common/item_instance.h"
 #include "../common/rulesys.h"
-#include "../common/skills.h"
 #include "../common/spdat.h"
 #include "../common/strings.h"
 #include "../common/data_verification.h"
@@ -86,7 +85,6 @@ Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
 #include "fastmath.h"
 
 #include <assert.h>
-#include <math.h>
 #include <algorithm>
 
 #ifndef WIN32
@@ -3043,6 +3041,12 @@ int Mob::CheckStackConflict(uint16 spellid1, int caster_level1, uint16 spellid2,
 
 					if(sp1_value < overwrite_below_value)
 					{
+						if (IsResurrectionEffects(spellid1)) {
+							int8 res_effect_check = GetResurrectionSicknessCheck(spellid1, spellid2);
+							if (res_effect_check != 0) {
+								return res_effect_check;
+							}
+						}
 						LogSpells("Overwrite spell because sp1_value < overwrite_below_value");
 						return 1;			// overwrite spell if its value is less
 					}
@@ -3168,6 +3172,13 @@ int Mob::CheckStackConflict(uint16 spellid1, int caster_level1, uint16 spellid2,
 		if(sp2_value < 0)
 			sp2_value = 0 - sp2_value;
 
+		if (IsResurrectionEffects(spellid1)) {
+			int8 res_effect_check = GetResurrectionSicknessCheck(spellid1, spellid2);
+			if (res_effect_check != 0) {
+				return res_effect_check;
+			}
+		}
+
 		if(sp2_value < sp1_value) {
 			LogSpells("Spell [{}] (value [{}]) is not as good as [{}] (value [{}]). Rejecting [{}]",
 				sp2.name, sp2_value, sp1.name, sp1_value, sp2.name);
@@ -3176,10 +3187,6 @@ int Mob::CheckStackConflict(uint16 spellid1, int caster_level1, uint16 spellid2,
 		if (sp2_value != sp1_value)
 			values_equal = false;
 
-		if (RuleB(Spells, ResurrectionEffectsBlock) && IsResurrectionEffects(spellid1)) {
-			LogSpells("ResurrectionEffectsBlock triggered -- [{}] is blocked by [{}]", sp2.name, sp1.name);
-			return -1;	// can't stack
-		}
 		//we dont return here... a better value on this one effect dosent mean they are
 		//all better...
 
@@ -3370,6 +3377,10 @@ int Mob::AddBuff(Mob *caster, uint16 spell_id, int duration, int32 level_overrid
 				will_overwrite = true;
 				overwrite_slots.push_back(buffslot);
 			}
+			if (ret == 2) { //ResurrectionEffectBlock handling to move potential overwrites to a new buff slock while keeping Res Sickness
+				LogSpells("Adding buff [{}] will overwrite spell [{}] in slot [{}] with caster level [{}], but ResurrectionEffectBlock is set to 2. Attempting to move [{}] to an empty buff slot.",
+					spell_id, curbuf.spellid, buffslot, curbuf.casterlevel, spell_id);
+			}
 		} else {
 			if (emptyslot == -1) {
 				if (buffslot >= start_slot && buffslot < end_slot) {
@@ -3526,6 +3537,19 @@ int Mob::CanBuffStack(uint16 spellid, uint8 caster_level, bool iFailIfOverwrite)
 
 			LogAIDetail("Buff [{}] would conflict with [{}] in slot [{}], reporting stack failure", spellid, curbuf.spellid, i);
 			return -1;	// stop the spell, can't stack it
+		}
+		if (ret == 2) { //ResurrectionEffectBlock handling to move potential overwrites to a new buff slock while keeping Res Sickness
+			LogAIDetail("Adding buff [{}] will overwrite spell [{}] in slot [{}] with caster level [{}], but ResurrectionEffectBlock is set to 2. Attempting to move [{}] to an empty buff slot.",
+				spellid, curbuf.spellid, i, curbuf.casterlevel, spellid);
+			for (int x = 0; x < buff_count; x++) {
+				const Buffs_Struct& curbuf = buffs[x];
+				if (IsValidSpell(curbuf.spellid)) {
+					continue;
+				}
+				else {
+					firstfree = x;
+				}
+			}
 		}
 	}
 
@@ -4379,6 +4403,20 @@ void Corpse::CastRezz(uint16 spellid, Mob* Caster)
 	// We send this to world, because it needs to go to the player who may not be in this zone.
 	worldserver.RezzPlayer(outapp, rez_experience, corpse_db_id, OP_RezzRequest);
 	safe_delete(outapp);
+}
+
+std::vector<uint16> Mob::GetBuffSpellIDs()
+{
+	std::vector<uint16> l;
+
+	for (int i = 0; i < GetMaxTotalSlots(); i++) {
+		const auto& e = buffs[i].spellid;
+		if (IsValidSpell(e)) {
+			l.emplace_back(e);
+		}
+	}
+
+	return l;
 }
 
 bool Mob::FindBuff(uint16 spell_id)

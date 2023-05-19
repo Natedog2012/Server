@@ -22,7 +22,6 @@
 #include "../common/global_define.h"
 #include "../common/item_instance.h"
 #include "../common/rulesys.h"
-#include "../common/skills.h"
 #include "../common/spdat.h"
 #include "../common/data_verification.h"
 #include "../common/misc_functions.h"
@@ -147,9 +146,10 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 		if (spells[spell_id].hit_number > 0) {
 
 			int numhit = spells[spell_id].hit_number;
-
-			numhit += numhit * caster->GetFocusEffect(focusFcLimitUse, spell_id) / 100;
-			numhit += caster->GetFocusEffect(focusIncreaseNumHits, spell_id);
+			if (caster) {
+				numhit += numhit * caster->GetFocusEffect(focusFcLimitUse, spell_id) / 100;
+				numhit += caster->GetFocusEffect(focusIncreaseNumHits, spell_id);
+			}
 			buffs[buffslot].hit_number = numhit;
 		}
 
@@ -335,7 +335,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				// SE_CurrentHP is calculated at first tick if its a dot/buff
 				if (buffslot >= 0) {
 					//This is here so dots with hit counters tic down on initial cast.
-					if (effect_value < 0) {
+					if (caster && effect_value < 0) {
 						caster->GetActDoTDamage(spell_id, effect_value, this, false);
 					}
 					break;
@@ -1578,6 +1578,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 						for (int x = EQ::textures::textureBegin; x <= EQ::textures::LastTintableTexture; x++)
 							caster->SendWearChange(x);
 				}
+				break;
 			}
 
 			case SE_WipeHateList:
@@ -1865,7 +1866,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 							gid = r->GetGroup(caster->GetName());
 							if(gid < 11)
 							{
-								if(r->GetGroup(TargetClient->GetName()) != gid) {
+								if (TargetClient && r->GetGroup(TargetClient->GetName()) != gid) {
 									Message(Chat::Red, "Your target must be a group member for this spell.");
 									break;
 								}
@@ -1916,7 +1917,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 			{
 				if (IsClient()) {
 					Client* client_target = CastToClient();
-					if (client_target->IsGrouped()) {
+					if (client_target && client_target->IsGrouped()) {
 						Group* group = client_target->GetGroup();
 						if (!group->IsGroupMember(caster)) {
 							if (caster != this) {
@@ -1929,7 +1930,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 							Raid *raid = caster->GetRaid();
 							uint32 group_id = raid->GetGroup(caster->GetName());
 							if (group_id > 0 && group_id < MAX_RAID_GROUPS) {
-								if (raid->GetGroup(client_target->GetName()) != group_id) {
+								if (client_target && raid->GetGroup(client_target->GetName()) != group_id) {
 									caster->MessageString(Chat::Red, SUMMON_ONLY_GROUP_CORPSE);
 									break;
 								}
@@ -2288,6 +2289,8 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 						if (RuleR(Spells, CallOfTheHeroAggroClearDist) == 0 || caster->CalculateDistance(GetX(), GetY(), GetZ()) >= RuleR(Spells, CallOfTheHeroAggroClearDist)) {
 							entity_list.ClearAggro(this);
 						}
+					} else if (!RuleB(Combat, SummonMeleeRange) && caster->GetZoneID() == GetZoneID() && caster->CombatRange(this)) {
+						break;
 					}
 
 					CastToClient()->MovePC(zone->GetZoneID(), zone->GetInstanceID(), caster->GetX(),
@@ -3067,10 +3070,10 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				if (caster && !caster->IsClient())
 					break;
 
-				if (zone->random.Roll(spells[spell_id].base_value[i])) {
+				if (caster && zone->random.Roll(spells[spell_id].base_value[i])) {
 					uint32 best_spell_id = caster->CastToClient()->GetHighestScribedSpellinSpellGroup(spells[spell_id].limit_value[i]);
 
-					if (caster && IsValidSpell(best_spell_id))
+					if (IsValidSpell(best_spell_id))
 						caster->SpellFinished(best_spell_id, this, EQ::spells::CastingSlot::Item, 0, -1, spells[best_spell_id].resist_difficulty);
 				}
 				break;
@@ -3140,9 +3143,9 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 						int shield_target_mitigation = spells[spell_id].limit_value[i] ? spells[spell_id].limit_value[i] : 50;
 						int shielder_mitigation      = spells[spell_id].max_value[i] ? spells[spell_id].limit_value[i] : 50;
 						ShieldAbility(petowner->GetID(), 25, shield_duration, shield_target_mitigation, shielder_mitigation);
-						break;
 					}
 				}
+				break;
 			}
 
 			case SE_Weapon_Stance: {
@@ -4612,9 +4615,9 @@ void Mob::BuffFadeBySlot(int slot, bool iRecalcBonuses)
 					if (flee_mode) {
 						currently_fleeing = true;
 						CheckFlee();
-						break;
 					}
 				}
+				break;
 			}
 
 			case SE_BindSight:
@@ -4653,6 +4656,7 @@ void Mob::BuffFadeBySlot(int slot, bool iRecalcBonuses)
 					}
 					CastToClient()->SetControlledMobId(0);
 				}
+				break;
 			}
 
 			case SE_Weapon_Stance:
@@ -5328,8 +5332,8 @@ int64 Mob::CalcAAFocus(focusType type, const AA::Rank &rank, uint16 spell_id)
 						value        = 0;
 						LimitFailure = true;
 					}
-					break;
 				}
+				break;
 
 			case SE_FcSpellVulnerability:
 				if (type == focusSpellVulnerability) {

@@ -26,7 +26,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include <string.h>
 #include <zlib.h>
 #include "bot.h"
-#include "bot_command.h"
 
 #ifdef _WINDOWS
 #define snprintf	_snprintf
@@ -39,23 +38,14 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include <unistd.h>
 #endif
 
-#include "../common/crc32.h"
 #include "../common/data_verification.h"
-#include "../common/faction.h"
-#include "../common/guilds.h"
 #include "../common/rdtsc.h"
-#include "../common/rulesys.h"
-#include "../common/skills.h"
-#include "../common/spdat.h"
-#include "../common/strings.h"
 #include "data_bucket.h"
 #include "event_codes.h"
 #include "expedition.h"
-#include "expedition_database.h"
 #include "guild_mgr.h"
 #include "merc.h"
 #include "petitions.h"
-#include "pets.h"
 #include "queryserv.h"
 #include "quest_parser_collection.h"
 #include "string_ids.h"
@@ -71,7 +61,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "client.h"
 #include "../common/repositories/account_repository.h"
 
-#include "bot.h"
 #include "../common/events/player_event_logs.h"
 
 extern QueryServ* QServ;
@@ -1279,6 +1268,12 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	database.LoadCharacterLeadershipAA(cid, &m_pp); /* Load Character Leadership AA's */
 	database.LoadCharacterTribute(cid, &m_pp); /* Load CharacterTribute */
 
+	// this pattern is strange
+	// this is remnants of the old way of doing things
+	auto mail_keys = database.GetMailKey(CharacterID());
+	m_mail_key_full = mail_keys.mail_key_full;
+	m_mail_key      = mail_keys.mail_key;
+
 	/* Load AdventureStats */
 	AdventureStats_Struct as;
 	if (database.GetAdventureStats(cid, &as))
@@ -1321,7 +1316,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 
 	/* If we can maintain intoxication across zones, check for it */
 	if (!RuleB(Character, MaintainIntoxicationAcrossZones))
-		m_pp.intoxication = 0;
+		SetIntoxication(0);
 
 	strcpy(name, m_pp.name);
 	strcpy(lastname, m_pp.last_name);
@@ -1732,7 +1727,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	auto dz = zone->GetDynamicZone();
 	if (dz && dz->GetSafeReturnLocation().zone_id != 0)
 	{
-		auto safereturn = dz->GetSafeReturnLocation();
+		auto& safereturn = dz->GetSafeReturnLocation();
 
 		auto safereturn_entry = CharacterInstanceSafereturnsRepository::NewEntity();
 		safereturn_entry.character_id     = CharacterID();
@@ -5400,7 +5395,7 @@ void Client::Handle_OP_CorpseDrag(const EQApplicationPacket *app)
 	if (!corpse->CastToCorpse()->Summon(this, false, true))
 		return;
 
-	DraggedCorpses.push_back(std::pair<std::string, uint16>(cds->CorpseName, corpse->GetID()));
+	DraggedCorpses.emplace_back(std::pair<std::string, uint16>(cds->CorpseName, corpse->GetID()));
 
 	MessageString(Chat::DefaultText, CORPSEDRAG_BEGIN, cds->CorpseName);
 }
@@ -5602,10 +5597,8 @@ void Client::Handle_OP_DeleteItem(const EQApplicationPacket *app)
 		if (IntoxicationIncrease < 0)
 			IntoxicationIncrease = 1;
 
-		m_pp.intoxication += IntoxicationIncrease;
+		SetIntoxication(GetIntoxication()+IntoxicationIncrease);
 
-		if (m_pp.intoxication > 200)
-			m_pp.intoxication = 200;
 	}
 	DeleteItemInInventory(alc->from_slot, 1);
 
@@ -7033,7 +7026,7 @@ void Client::Handle_OP_GroupDisband(const EQApplicationPacket *app)
 		//we have a raid.. see if we're in a raid group
 		uint32 grp = raid->GetGroup(memberToDisband->GetName());
 		bool wasGrpLdr = raid->members[raid->GetPlayerIndex(memberToDisband->GetName())].is_group_leader;
-		if (grp < 12) {
+		if (grp < MAX_RAID_GROUPS) {
 			if (wasGrpLdr) {
 				raid->SetGroupLeader(memberToDisband->GetName(), false);
 				for (int x = 0; x < MAX_RAID_MEMBERS; x++) {
@@ -8658,47 +8651,51 @@ void Client::Handle_OP_Illusion(const EQApplicationPacket *app)
 
 void Client::Handle_OP_InspectAnswer(const EQApplicationPacket *app)
 {
-
 	if (app->size != sizeof(InspectResponse_Struct)) {
 		LogError("Wrong size: OP_InspectAnswer, size=[{}], expected [{}]", app->size, sizeof(InspectResponse_Struct));
 		return;
 	}
 
 	//Fills the app sent from client.
-	EQApplicationPacket* outapp = app->Copy();
-	InspectResponse_Struct* insr = (InspectResponse_Struct*)outapp->pBuffer;
-	Mob* tmp = entity_list.GetMob(insr->TargetID);
-	const EQ::ItemData* item = nullptr;
+	auto               outapp = app->Copy();
+	auto               insr   = (InspectResponse_Struct *) outapp->pBuffer;
+	auto               tmp    = entity_list.GetMob(insr->TargetID);
+	const EQ::ItemData *item  = nullptr;
 
-	int ornamentationAugtype = RuleI(Character, OrnamentationAugmentType);
-	for (int16 L = EQ::invslot::EQUIPMENT_BEGIN; L <= EQ::invslot::EQUIPMENT_END; L++) {
-		const EQ::ItemInstance* inst = GetInv().GetItem(L);
+	for (int16 L                    = EQ::invslot::EQUIPMENT_BEGIN; L <= EQ::invslot::EQUIPMENT_END; L++) {
+		const auto inst = GetInv().GetItem(L);
 		item = inst ? inst->GetItem() : nullptr;
 
 		if (item) {
 			strcpy(insr->itemnames[L], item->Name);
-			if (inst && inst->GetOrnamentationAug(ornamentationAugtype)) {
-				const EQ::ItemData *aug_item = inst->GetOrnamentationAug(ornamentationAugtype)->GetItem();
-				insr->itemicons[L] = aug_item->Icon;
-			}
-			else if (inst->GetOrnamentationIcon()) {
-				insr->itemicons[L] = inst->GetOrnamentationIcon();
-			}
-			else {
+			if (inst) {
+				const auto augment = inst->GetOrnamentationAugment();
+
+				if (augment) {
+					insr->itemicons[L] = augment->GetItem()->Icon;
+				} else if (inst->GetOrnamentationIcon()) {
+					insr->itemicons[L] = inst->GetOrnamentationIcon();
+				}
+			} else {
 				insr->itemicons[L] = item->Icon;
 			}
+		} else {
+			insr->itemicons[L] = 0xFFFFFFFF;
 		}
-		else { insr->itemicons[L] = 0xFFFFFFFF; }
 	}
 
-	InspectMessage_Struct* newmessage = (InspectMessage_Struct*)insr->text;
-	InspectMessage_Struct& playermessage = GetInspectMessage();
-	memcpy(&playermessage, newmessage, sizeof(InspectMessage_Struct));
-	database.SaveCharacterInspectMessage(CharacterID(), &playermessage);
+	auto message         = (InspectMessage_Struct *) insr->text;
+	auto inspect_message = GetInspectMessage();
 
-	if (tmp != 0 && tmp->IsClient()) { tmp->CastToClient()->QueuePacket(outapp); } // Send answer to requester
+	memcpy(&inspect_message, message, sizeof(InspectMessage_Struct));
+	database.SaveCharacterInspectMessage(CharacterID(), &inspect_message);
 
-	return;
+	if (
+		tmp &&
+		tmp->IsClient()
+	) {
+		tmp->CastToClient()->QueuePacket(outapp);
+	} // Send answer to requester
 }
 
 void Client::Handle_OP_InspectMessageUpdate(const EQApplicationPacket *app)
@@ -11720,7 +11717,7 @@ void Client::Handle_OP_QueryUCSServerStatus(const EQApplicationPacket *app)
 		EQApplicationPacket* outapp = nullptr;
 		std::string buffer;
 
-		std::string MailKey = database.GetMailKey(CharacterID(), true);
+		std::string MailKey = GetMailKey();
 		EQ::versions::UCSVersion ConnectionType = EQ::versions::ucsUnknown;
 
 		// chat server packet
@@ -11805,17 +11802,14 @@ void Client::Handle_OP_RaidCommand(const EQApplicationPacket* app)
 	{
 	case RaidCommandInviteIntoExisting:
 	case RaidCommandInvite: {
-
-		Bot* player_to_invite = nullptr;
-
 		if (RuleB(Bots, Enabled) && entity_list.GetBotByBotName(raid_command_packet->player_name)) {
-			Bot* player_to_invite = entity_list.GetBotByBotName(raid_command_packet->player_name);
-			Group* player_to_invite_group = player_to_invite->GetGroup();
+			auto player_to_invite = entity_list.GetBotByBotName(raid_command_packet->player_name);
 
 			if (!player_to_invite) {
 				break;
 			}
 
+			auto player_to_invite_group = player_to_invite->GetGroup();
 			if (player_to_invite_group && player_to_invite_group->IsGroupMember(this)) {
 				MessageString(Chat::Red, ALREADY_IN_PARTY);
 				break;

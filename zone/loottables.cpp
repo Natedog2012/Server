@@ -18,7 +18,6 @@
 
 #include "../common/global_define.h"
 #include "../common/loottable.h"
-#include "../common/misc_functions.h"
 #include "../common/data_verification.h"
 
 #include "client.h"
@@ -26,13 +25,8 @@
 #include "mob.h"
 #include "npc.h"
 #include "zonedb.h"
-#include "../common/zone_store.h"
 #include "global_loot_manager.h"
 #include "../common/repositories/criteria/content_filter_criteria.h"
-#include "../common/say_link.h"
-
-#include <iostream>
-#include <stdlib.h>
 
 #ifdef _WINDOWS
 #define snprintf	_snprintf
@@ -367,11 +361,12 @@ void NPC::AddLootDrop(
 		SetArrowEquipped(true);
 	}
 
+	bool found = false; // track if we found an empty slot we fit into
+
 	if (loot_drop.equip_item > 0) {
 		uint8 eslot = 0xFF;
 		char newid[20];
 		const EQ::ItemData* compitem = nullptr;
-		bool found = false; // track if we found an empty slot we fit into
 		int32 foundslot = -1; // for multi-slot items
 
 		// Equip rules are as follows:
@@ -506,7 +501,6 @@ void NPC::AddLootDrop(
 
 		}
 		if (found) {
-			CalcBonuses(); // This is less than ideal for bulk adding of items
 			item->equip_slot = foundslot;
 		}
 	}
@@ -515,6 +509,10 @@ void NPC::AddLootDrop(
 		itemlist->push_back(item);
 	}
 	else safe_delete(item);
+
+	if (found) {
+		CalcBonuses();
+	}
 
 	if (IsRecordLootStats()) {
 		m_rolled_items.emplace_back(item->item_id);

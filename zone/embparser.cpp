@@ -521,8 +521,6 @@ bool PerlembParser::SpellHasQuestSub(uint32 spell_id, QuestEventID evt)
 
 bool PerlembParser::ItemHasQuestSub(EQ::ItemInstance *itm, QuestEventID evt)
 {
-	std::stringstream package_name;
-	package_name << "qst_item_" << itm->GetID();
 
 	if (!perl) {
 		return false;
@@ -535,6 +533,9 @@ bool PerlembParser::ItemHasQuestSub(EQ::ItemInstance *itm, QuestEventID evt)
 	if (evt >= _LargestEventID) {
 		return false;
 	}
+
+	std::stringstream package_name;
+	package_name << "qst_item_" << itm->GetID();
 
 	const char *subname = QuestEventSubroutines[evt];
 
@@ -826,25 +827,6 @@ void PerlembParser::ExportVar(const char *pkgprefix, const char *varname, float 
 	try {
 		perl->setd(std::string(pkgprefix).append("::").append(varname).c_str(), value);
 	} catch (std::string e) {
-		AddError(
-			fmt::format(
-				"Error exporting Perl variable [{}]",
-				e
-			)
-		);
-	}
-}
-
-void PerlembParser::ExportVarComplex(const char *pkgprefix, const char *varname, const char *value)
-{
-
-	if (!perl) {
-		return;
-	}
-	try {
-		perl->eval(std::string("$").append(pkgprefix).append("::").append(varname).append("=").append(value).append(";").c_str());
-	}
-	catch (std::string e) {
 		AddError(
 			fmt::format(
 				"Error exporting Perl variable [{}]",

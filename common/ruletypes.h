@@ -271,7 +271,6 @@ RULE_BOOL(Character, EnableFoodRequirement, true, "If disabled, food is no longe
 RULE_INT(Character, BaseInstrumentSoftCap, 36, "Softcap for instrument mods, 36 commonly referred to as 3.6 as well")
 RULE_BOOL(Character, UseSpellFileSongCap, true, "When they removed the AA that increased the cap they removed the above and just use the spell field")
 RULE_INT(Character, BaseRunSpeedCap, 158, "Base Run Speed Cap, on live it's 158% which will give you a runspeed of 1.580 hard capped to 225")
-RULE_INT(Character, OrnamentationAugmentType, 20, "Ornamentation Augment Type")
 RULE_REAL(Character, EnvironmentDamageMulipliter, 1, "Multiplier for environmental damage like fall damage.")
 RULE_BOOL(Character, UnmemSpellsOnDeath, true, "Setting whether at death all memorized Spells are forgotten")
 RULE_REAL(Character, TradeskillUpAlchemy, 2.0, "Alchemy skillup rate adjustment. Lower is faster")
@@ -581,7 +580,7 @@ RULE_BOOL(Spells, IllusionsAlwaysPersist, false, "Allows Illusions to persist be
 RULE_BOOL(Spells, UseItemCastMessage, false, "Enable to use the \"item begins to glow\" messages when casting from an item.")
 RULE_BOOL(Spells, TargetsTargetRequiresCombatRange, true, "Disable to remove combat range requirement from Target's Target Spell Target Type")
 RULE_BOOL(Spells, NPCBuffLevelRestrictions, false, "Impose BuffLevelRestrictions on NPCs if true")
-RULE_BOOL(Spells, ResurrectionEffectsBlock, true, "If enabled, resurrection effects cannot be overwritten.")
+RULE_INT(Spells, ResurrectionEffectBlock, 2, "0 = allow overwrites/rule disabled. If set to 1 = Block all buffs that would overwrite Resurrection Effects. If set to 2 = Will not overwrite Resurrection Effects, instead moves new buff to an empty slot if available. Default is 2.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Combat)
@@ -655,6 +654,7 @@ RULE_BOOL(Combat, HeadshotOnlyHumanoids, true, "Enable or disable Headshot only 
 RULE_BOOL(Combat, EnableWarriorShielding, true, "Enable or disable Warrior Shielding Ability (/shield), true by default.")
 RULE_BOOL(Combat, BackstabIgnoresElemental, false, "Enable or disable Elemental weapon damage affecting backstab damage, false by default.")
 RULE_BOOL(Combat, BackstabIgnoresBane, false, "Enable or disable Bane weapon damage affecting backstab damage, false by default.")
+RULE_BOOL(Combat, SummonMeleeRange, true, "Enable or disable summoning of a player when already in melee range of the summoner.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(NPC)
