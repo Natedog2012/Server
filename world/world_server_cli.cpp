@@ -20,6 +20,10 @@ void WorldserverCLI::CommandHandler(int argc, char **argv)
 	/**
 	 * Register commands
 	 */
+	function_map["bots:enable"]                 = &WorldserverCLI::BotsEnable;
+	function_map["bots:disable"]                = &WorldserverCLI::BotsDisable;
+	function_map["mercs:enable"]                = &WorldserverCLI::MercsEnable;
+	function_map["mercs:disable"]               = &WorldserverCLI::MercsDisable;
 	function_map["world:version"]               = &WorldserverCLI::Version;
 	function_map["character:copy-character"]    = &WorldserverCLI::CopyCharacter;
 	function_map["database:version"]            = &WorldserverCLI::DatabaseVersion;
@@ -37,6 +41,10 @@ void WorldserverCLI::CommandHandler(int argc, char **argv)
 	EQEmuCommand::HandleMenu(function_map, cmd, argc, argv);
 }
 
+#include "cli/bots_enable.cpp"
+#include "cli/bots_disable.cpp"
+#include "cli/mercs_enable.cpp"
+#include "cli/mercs_disable.cpp"
 #include "cli/database_concurrency.cpp"
 #include "cli/copy_character.cpp"
 #include "cli/database_dump.cpp"

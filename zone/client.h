@@ -946,7 +946,7 @@ public:
 	inline uint32 GetAAPercent() const { return m_epp.perAA; }
 	void SetAATitle(std::string title);
 	void SetTitleSuffix(std::string suffix);
-	void MemorizeSpell(uint32 slot, uint32 spellid, uint32 scribing, uint32 reduction = 0);
+	void MemorizeSpell(uint32 slot, uint32 spell_id, uint32 scribing, uint32 reduction = 0);
 
 	// Item methods
 	void UseAugmentContainer(int container_slot);
@@ -1526,6 +1526,8 @@ public:
 	bool GroupFollow(Client* inviter);
 	inline bool  GetRunMode() const { return runmode; }
 
+	virtual bool CheckWaterAutoFireLoS(Mob* m);
+
 	void SendReloadCommandMessages();
 
 	void SendItemRecastTimer(int32 recast_type, uint32 recast_delay = 0, bool in_ignore_casting_requirement = false);
@@ -1664,6 +1666,7 @@ public:
 	PlayerEvent::PlayerEvent GetPlayerEvent();
 	void RecordKilledNPCEvent(NPC *n);
 
+	uint32 GetEXPForLevel(uint16 check_level);
 protected:
 	friend class Mob;
 	void CalcEdibleBonuses(StatBonuses* newbon);
@@ -1839,7 +1842,6 @@ private:
 	bool temp_pvp;
 
 	void NPCSpawn(const Seperator* sep);
-	uint32 GetEXPForLevel(uint16 level);
 
 	void SendLogoutPackets();
 	void SendZoneInPackets();

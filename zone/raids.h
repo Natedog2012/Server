@@ -112,7 +112,6 @@ public:
 	void SetRaidLeader(const char *wasLead, const char *name);
 
 	bool	Process();
-	bool	IsRaid() { return true; }
 	
 	//Custom
 	void	SmartHealGroup(int64 heal_amt, Mob* caster, float range);
@@ -267,7 +266,6 @@ public:
 protected:
 	Client *leader;
 	bool locked;
-	uint16 numMembers;
 	uint32 LootType;
 	bool disbandCheck;
 	bool forceDisband;
