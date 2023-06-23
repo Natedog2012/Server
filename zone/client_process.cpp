@@ -2417,7 +2417,7 @@ bool Client::CheckWaterAutoFireLoS(Mob* m)
 	}
 
 	return (
-		zone->watermap->InLiquid(GetPosition()) &&
+		zone->watermap->InLiquid(GetPosition()) ==
 		zone->watermap->InLiquid(m->GetPosition())
 	);
 }
