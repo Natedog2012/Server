@@ -745,6 +745,8 @@ void Client::OnDisconnect(bool hard_disconnect) {
 		parse->EventPlayer(EVENT_DISCONNECT, this, "", 0);
 	}
 
+	RecordStats();
+
 	Disconnect();
 }
 
@@ -857,18 +859,16 @@ void Client::BulkSendMerchantInventory(int merchant_id, int npcid) {
 		auto bucket_name = ml.bucket_name;
 		auto const& bucket_value = ml.bucket_value;
 		if (!bucket_name.empty() && !bucket_value.empty()) {
-			auto full_name = fmt::format(
-				"{}-{}",
-				GetBucketKey(),
-				bucket_name
-			);
 
-			auto const& player_value = DataBucket::CheckBucketKey(this, full_name);
-			if (player_value.empty()) {
+			DataBucketKey k = GetScopedBucketKeys();
+			k.key = bucket_name;
+
+			auto b = DataBucket::GetData(k);
+			if (b.value.empty()) {
 				continue;
 			}
 
-			if (!zone->CompareDataBucket(ml.bucket_comparison, bucket_value, player_value)) {
+			if (!zone->CompareDataBucket(ml.bucket_comparison, bucket_value, b.value)) {
 				continue;
 			}
 		}

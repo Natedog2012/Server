@@ -199,6 +199,7 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 	CHA                  = npc_type_data->CHA;
 	npc_mana             = npc_type_data->Mana;
 	m_is_underwater_only = npc_type_data->underwater;
+	m_is_quest_npc       = npc_type_data->is_quest_npc;
 
 	//quick fix of ordering if they screwed it up in the DB
 	if (max_dmg < min_dmg) {
@@ -243,7 +244,14 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 	SetMana(GetMaxMana());
 
 	MerchantType          = npc_type_data->merchanttype;
-	merchant_open         = GetClass() == MERCHANT;
+	merchant_open         = (
+		GetClass() == MERCHANT ||
+		GetClass() == DISCORD_MERCHANT ||
+		GetClass() == ADVENTURE_MERCHANT ||
+		GetClass() == NORRATHS_KEEPERS_MERCHANT ||
+		GetClass() == DARK_REIGN_MERCHANT ||
+		GetClass() == ALT_CURRENCY_MERCHANT
+	);
 	adventure_template_id = npc_type_data->adventure_template;
 	flymode               = iflymode;
 
@@ -441,6 +449,8 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 		m_can_open_doors = false;
 	}
 
+	GetInv().SetInventoryVersion(EQ::versions::MobVersion::RoF2);
+	GetInv().SetGMInventory(false);
 }
 
 float NPC::GetRoamboxMaxX() const
@@ -1172,59 +1182,6 @@ void NPC::Depop(bool start_spawn_timer) {
 	}
 }
 
-bool NPC::DatabaseCastAccepted(int spell_id) {
-	for (int i=0; i < EFFECT_COUNT; i++) {
-		switch(spells[spell_id].effect_id[i]) {
-		case SE_Stamina: {
-			if(IsEngaged() && GetHPRatio() < 100)
-				return true;
-			else
-				return false;
-			break;
-		}
-		case SE_CurrentHPOnce:
-		case SE_CurrentHP: {
-			if(GetHPRatio() < 100 && spells[spell_id].buff_duration == 0)
-				return true;
-			else
-				return false;
-			break;
-		}
-
-		case SE_HealOverTime: {
-			if(GetHPRatio() < 100)
-				return true;
-			else
-				return false;
-			break;
-		}
-		case SE_DamageShield: {
-			return true;
-		}
-		case SE_NecPet:
-		case SE_SummonPet: {
-			if(GetPet()){
-#ifdef SPELLQUEUE
-				printf("%s: Attempted to make a second pet, denied.\n",GetName());
-#endif
-				return false;
-			}
-			break;
-		}
-		case SE_LocateCorpse:
-		case SE_SummonCorpse: {
-			return false; //Pfft, npcs don't need to summon corpses/locate corpses!
-			break;
-		}
-		default:
-			if(spells[spell_id].good_effect == BENEFICIAL_EFFECT && !(spells[spell_id].buff_duration == 0 && GetHPRatio() == 100) && !IsEngaged())
-				return true;
-			return false;
-		}
-	}
-	return false;
-}
-
 bool NPC::SpawnZoneController()
 {
 
@@ -1294,7 +1251,7 @@ void NPC::SpawnGridNodeNPC(const glm::vec4 &position, int32 grid_id, int32 grid_
 	npc_type->current_hp = 4000000;
 	npc_type->max_hp = 4000000;
 	npc_type->race = 2254;
-	npc_type->gender = 2;
+	npc_type->gender = NEUTER;
 	npc_type->class_ = 9;
 	npc_type->deity = 1;
 	npc_type->level = 200;
@@ -1483,8 +1440,8 @@ NPC* NPC::SpawnNPC(const char* spawncommand, const glm::vec4& position, Client* 
 		npc_type->texture          = Strings::ToInt(sep.arg[3]);
 		npc_type->light            = 0;
 		npc_type->runspeed         = 1.25f;
-		npc_type->d_melee_texture1 = Strings::ToInt(sep.arg[7]);
-		npc_type->d_melee_texture2 = Strings::ToInt(sep.arg[8]);
+		npc_type->d_melee_texture1 = Strings::ToUnsignedInt(sep.arg[7]);
+		npc_type->d_melee_texture2 = Strings::ToUnsignedInt(sep.arg[8]);
 		npc_type->merchanttype     = Strings::ToInt(sep.arg[9]);
 		npc_type->bodytype         = Strings::ToInt(sep.arg[10]);
 
@@ -1864,16 +1821,16 @@ uint32 ZoneDatabase::NPCSpawnDB(uint8 command, const char* zone, uint32 zone_ver
 	return false;
 }
 
-int32 NPC::GetEquipmentMaterial(uint8 material_slot) const
+uint32 NPC::GetEquipmentMaterial(uint8 material_slot) const
 {
-	int32 texture_profile_material = GetTextureProfileMaterial(material_slot);
+	const uint32 texture_profile_material = GetTextureProfileMaterial(material_slot);
 
 	Log(Logs::Detail, Logs::MobAppearance, "[%s] material_slot: %u",
 		clean_name,
 		material_slot
 	);
 
-	if (texture_profile_material > 0) {
+	if (texture_profile_material) {
 		return texture_profile_material;
 	}
 
@@ -1908,12 +1865,12 @@ int32 NPC::GetEquipmentMaterial(uint8 material_slot) const
 				return d_melee_texture2;
 			default:
 				//they have nothing in the slot, and its not a special slot... they get nothing.
-				return (0);
+				return 0;
 		}
 	}
 
 	//they have some loot item in this slot, pass it up to the default handler
-	return (Mob::GetEquipmentMaterial(material_slot));
+	return Mob::GetEquipmentMaterial(material_slot);
 }
 
 uint32 NPC::GetMaxDamage(uint8 tlevel)
@@ -2443,74 +2400,67 @@ void NPC::FillSpawnStruct(NewSpawn_Struct* ns, Mob* ForWho)
 void NPC::PetOnSpawn(NewSpawn_Struct* ns)
 {
 	//Basic settings to make sure swarm pets work properly.
-	Mob *swarmOwner = nullptr;
-	if  (GetSwarmOwner())
-	{
-		swarmOwner = entity_list.GetMobID(GetSwarmOwner());
+	Mob *swarm_owner = nullptr;
+	if (GetSwarmOwner()) {
+		swarm_owner = entity_list.GetMobID(GetSwarmOwner());
 	}
 
-	if  (swarmOwner != nullptr)
-	{
-		if(swarmOwner->IsClient())
-		{
+	if (swarm_owner) {
+		if (swarm_owner->IsClient()) {
 			SetPetOwnerClient(true); //Simple flag to determine if pet belongs to a client
 			SetAllowBeneficial(true);//Allow temp pets to receive buffs and heals if owner is client.
 			//This will allow CLIENT swarm pets NOT to be targeted with F8.
-			ns->spawn.targetable_with_hotkey = 0;
-			no_target_hotkey = 1;
-		}
-		else
-		{
+			ns->spawn.targetable_with_hotkey = false;
+			no_target_hotkey = true;
+		} else {
 			//NPC cast swarm pets should still be targetable with F8.
-			ns->spawn.targetable_with_hotkey = 1;
-			no_target_hotkey = 0;
+			ns->spawn.targetable_with_hotkey = true;
+			no_target_hotkey = false;
 		}
 
 		SetTempPet(true); //Simple mob flag for checking if temp pet
-		swarmOwner->SetTempPetsActive(true); //Necessary fail safe flag set if mob ever had a swarm pet to ensure they are removed.
-		swarmOwner->SetTempPetCount(swarmOwner->GetTempPetCount() + 1);
+		swarm_owner->SetTempPetsActive(true); //Necessary fail safe flag set if mob ever had a swarm pet to ensure they are removed.
+		swarm_owner->SetTempPetCount(swarm_owner->GetTempPetCount() + 1);
 
 		//Not recommended if using above (However, this will work better on older clients).
-		if (RuleB(Pets, UnTargetableSwarmPet))
-		{
-			ns->spawn.bodytype = 11;
-			if(!IsCharmed() && swarmOwner->IsClient()) {
-				std::string tmp_lastname = swarmOwner->GetName();
-				tmp_lastname += "'s Pet";
-				if (tmp_lastname.size() < sizeof(ns->spawn.lastName))
-					strn0cpy(ns->spawn.lastName, tmp_lastname.c_str(), sizeof(ns->spawn.lastName));
+		if (RuleB(Pets, UnTargetableSwarmPet)) {
+			ns->spawn.bodytype = BT_NoTarget;
+		}
+
+		if (
+			!IsCharmed() &&
+			swarm_owner->IsClient() &&
+			RuleB(Pets, ClientPetsUseOwnerNameInLastName)
+		) {
+			const auto& tmp_lastname = fmt::format("{}'s Pet", swarm_owner->GetName());
+			if (tmp_lastname.size() < sizeof(ns->spawn.lastName)) {
+				strn0cpy(ns->spawn.lastName, tmp_lastname.c_str(), sizeof(ns->spawn.lastName));
 			}
 		}
 
-		if (swarmOwner->IsNPC()) {
+		if (swarm_owner->IsNPC()) {
 			SetPetOwnerNPC(true);
 		}
-	}
-	else if(GetOwnerID())
-	{
+	} else if (GetOwnerID()) {
 		ns->spawn.is_pet = 1;
-		if (!IsCharmed())
-		{
-			Client *client = entity_list.GetClientByID(GetOwnerID());
-			if(client)
-			{
+
+		if (!IsCharmed()) {
+			const auto c = entity_list.GetClientByID(GetOwnerID());
+			if (c) {
 				SetPetOwnerClient(true);
-				std::string tmp_lastname = client->GetName();
-				tmp_lastname += "'s Pet";
-				if (tmp_lastname.size() < sizeof(ns->spawn.lastName))
-					strn0cpy(ns->spawn.lastName, tmp_lastname.c_str(), sizeof(ns->spawn.lastName));
-			}
-			else
-			{
-				if (entity_list.GetNPCByID(GetOwnerID()))
-				{
+				if (RuleB(Pets, ClientPetsUseOwnerNameInLastName)) {
+					const auto& tmp_lastname = fmt::format("{}'s Pet", c->GetName());
+					if (tmp_lastname.size() < sizeof(ns->spawn.lastName)) {
+						strn0cpy(ns->spawn.lastName, tmp_lastname.c_str(), sizeof(ns->spawn.lastName));
+					}
+				}
+			} else {
+				if (entity_list.GetNPCByID(GetOwnerID())) {
 					SetPetOwnerNPC(true);
 				}
 			}
 		}
-	}
-	else
-	{
+	} else {
 		ns->spawn.is_pet = 0;
 	}
 }
@@ -2665,30 +2615,16 @@ void NPC::ModifyNPCStat(const std::string& stat, const std::string& value)
 	}
 	else if (stat_lower == "min_hit") {
 		min_dmg = Strings::ToInt(value);
-
-		// TODO: fix DB
-
-		if (min_dmg > max_dmg) {
-			const auto temporary_damage = max_dmg;
-			max_dmg = min_dmg;
-			min_dmg = temporary_damage;
-		}
-
+		// Clamp max_dmg to be >= min_dmg
+		max_dmg = std::max(min_dmg, max_dmg);
 		base_damage = round((max_dmg - min_dmg) / 1.9);
 		min_damage  = min_dmg - round(base_damage / 10.0);
 		return;
 	}
 	else if (stat_lower == "max_hit") {
 		max_dmg = Strings::ToInt(value);
-
-		// TODO: fix DB
-
-		if (max_dmg < min_dmg) {
-			const auto temporary_damage = min_dmg;
-			min_dmg = max_dmg;
-			max_dmg = temporary_damage;
-		}
-
+		// Clamp min_dmg to be <= max_dmg
+		min_dmg = std::min(min_dmg, max_dmg);
 		base_damage = round((max_dmg - min_dmg) / 1.9);
 		min_damage  = min_dmg - round(base_damage / 10.0);
 		return;
@@ -3049,15 +2985,13 @@ uint32 NPC::GetSpawnPointID() const
 	return 0;
 }
 
-void NPC::NPCSlotTexture(uint8 slot, uint16 texture)
+void NPC::NPCSlotTexture(uint8 slot, uint32 texture)
 {
-	if (slot == EQ::invslot::slotNeck) {
+	if (slot == EQ::textures::TextureSlot::weaponPrimary) {
 		d_melee_texture1 = texture;
-	}
-	else if (slot == EQ::invslot::slotBack) {
+	} else if (slot == EQ::textures::TextureSlot::weaponSecondary) {
 		d_melee_texture2 = texture;
-	}
-	else if (slot < EQ::invslot::slotShoulders) {
+	} else {
 		// Reserved for texturing individual armor slots
 	}
 }
@@ -3909,9 +3843,14 @@ void NPC::HandleRoambox()
 			auto requested_y = EQ::Clamp((GetY() + move_y), m_roambox.min_y, m_roambox.max_y);
 			auto requested_z = GetGroundZ(requested_x, requested_y);
 
+			if (std::abs(requested_z - GetZ()) > 100) {
+				LogNPCRoamBox("[{}] | Failed to find reasonable ground [{}]", GetCleanName(), i);
+				continue;
+			}
+
 			std::vector<float> heights = {0, 250, -250};
 			for (auto &h: heights) {
-				if (CheckLosFN(requested_x, requested_y, requested_z + h, GetSize())) {
+				if (CanPathTo(requested_x, requested_y, requested_z + h)) {
 					LogNPCRoamBox("[{}] Found line of sight to path attempt [{}] at height [{}]", GetCleanName(), i, h);
 					can_path = true;
 					break;
@@ -4025,4 +3964,25 @@ void NPC::SetTaunting(bool is_taunting) {
 	if (IsPet() && IsPetOwnerClient()) {
 		GetOwner()->CastToClient()->SetPetCommandState(PET_BUTTON_TAUNT, is_taunting);
 	}
+}
+
+bool NPC::CanPathTo(float x, float y, float z)
+{
+	PathfinderOptions opts;
+	opts.smooth_path = true;
+	opts.step_size   = RuleR(Pathing, NavmeshStepSize);
+	opts.offset      = GetZOffset();
+	opts.flags       = PathingNotDisabled ^ PathingZoneLine;
+
+	bool partial = false;
+	bool stuck   = false;
+	auto route   = zone->pathing->FindPath(
+		glm::vec3(GetX(), GetY(), GetZ()),
+		glm::vec3(x, y, z),
+		partial,
+		stuck,
+		opts
+	);
+
+	return !route.empty();
 }

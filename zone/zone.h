@@ -177,8 +177,8 @@ public:
 	inline Timer *GetInstanceTimer() { return Instance_Timer; }
 	inline void AddGlobalLootEntry(GlobalLootEntry &in) { return m_global_loot.AddEntry(in); }
 	inline void SetZoneHasCurrentTime(bool time) { zone_has_current_time = time; }
-	inline void ShowNPCGlobalLoot(Client *to, NPC *who) { m_global_loot.ShowNPCGlobalLoot(to, who); }
-	inline void ShowZoneGlobalLoot(Client *to) { m_global_loot.ShowZoneGlobalLoot(to); }
+	inline void ShowNPCGlobalLoot(Client *c, NPC *t) { m_global_loot.ShowNPCGlobalLoot(c, t); }
+	inline void ShowZoneGlobalLoot(Client *c) { m_global_loot.ShowZoneGlobalLoot(c); }
 	int GetZoneTotalBlockedSpells() { return zone_total_blocked_spells; }
 	int SaveTempItem(uint32 merchantid, uint32 npcid, uint32 item, int32 charges, bool sold = false);
 	int32 MobsAggroCount() { return aggroedmobs; }
@@ -302,6 +302,7 @@ public:
 	void SpawnConditionChanged(const SpawnCondition &c, int16 old_value);
 	void StartShutdownTimer(uint32 set_time = (RuleI(Zone, AutoShutdownDelay)));
 	void ResetShutdownTimer();
+	void StopShutdownTimer();
 	void UpdateQGlobal(uint32 qid, QGlobal newGlobal);
 	void weatherSend(Client *client = nullptr);
 	void ClearSpawnTimers();
@@ -394,6 +395,8 @@ public:
 	double GetMaxMovementUpdateRange() const { return max_movement_update_range; }
 
 	void SetIsHotzone(bool is_hotzone);
+
+	void ReloadContentFlags();
 
 private:
 	bool      allow_mercs;

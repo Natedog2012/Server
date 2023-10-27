@@ -383,7 +383,8 @@ void Mob::CalcItemBonuses(StatBonuses* b) {
 	int16 i;
 
 	for (i = EQ::invslot::BONUS_BEGIN; i <= EQ::invslot::BONUS_SKILL_END; i++) {
-		const EQ::ItemInstance* inst = GetInv().GetItem(i);
+		const auto* inst = GetInv().GetItem(i);
+
 		if (!inst) {
 			continue;
 		}
@@ -6271,14 +6272,10 @@ float Mob::CheckHeroicBonusesDataBuckets(std::string bucket_name)
 {
 	std::string bucket_value;
 	if (!bucket_name.empty()) {
-		const auto full_name = fmt::format(
-			"{}-{}",
-			GetBucketKey(),
-			bucket_name
-		);
-
+		DataBucketKey k = GetScopedBucketKeys();
+		k.key = bucket_name;
 		if (IsOfClientBot()) {
-			bucket_value = DataBucket::CheckBucketKey(this, full_name);
+			bucket_value = DataBucket::GetData(k).value;
 		}
 
 		if (bucket_value.empty() || !Strings::IsNumber(bucket_value)) {
