@@ -349,7 +349,6 @@ void lua_stop_all_timers(Lua_Encounter enc) {
 
 void lua_pause_timer(const char *timer) {
 	quest_manager.pausetimer(timer);
-
 }
 
 void lua_resume_timer(const char *timer) {
@@ -879,6 +878,14 @@ int lua_merchant_count_item(uint32 npc_id, uint32 item_id) {
 	return quest_manager.MerchantCountItem(npc_id, item_id);
 }
 
+std::string lua_get_item_comment(uint32 item_id) {
+	return quest_manager.getitemcomment(item_id);
+}
+
+std::string lua_get_item_lore(uint32 item_id) {
+	return quest_manager.getitemlore(item_id);
+}
+
 std::string lua_get_item_name(uint32 item_id) {
 	return quest_manager.getitemname(item_id);
 }
@@ -1266,7 +1273,7 @@ int lua_get_zone_weather() {
 }
 
 luabind::adl::object lua_get_zone_time(lua_State *L) {
-	TimeOfDay_Struct eqTime;
+	TimeOfDay_Struct eqTime{};
 	zone->zone_time.GetCurrentEQTimeOfDay(time(0), &eqTime);
 
 	luabind::adl::object ret = luabind::newtable(L);
@@ -5720,6 +5727,8 @@ luabind::scope lua_register_general() {
 		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32,uint32,uint32,uint32))&lua_item_link),
 		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32,uint32,uint32,uint32,uint32))&lua_item_link),
 		luabind::def("item_link", (std::string(*)(uint32,int16,uint32,uint32,uint32,uint32,uint32,uint32,bool))&lua_item_link),
+		luabind::def("get_item_comment", (std::string(*)(uint32))&lua_get_item_comment),
+		luabind::def("get_item_lore", (std::string(*)(uint32))&lua_get_item_lore),
 		luabind::def("get_item_name", (std::string(*)(uint32))&lua_get_item_name),
 		luabind::def("say_link", (std::string(*)(const char*,bool,const char*))&lua_say_link),
 		luabind::def("say_link", (std::string(*)(const char*,bool))&lua_say_link),

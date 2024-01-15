@@ -438,6 +438,8 @@ RULE_BOOL(World, EnforceCharacterLimitAtLogin, false, "Enforce the limit for cha
 RULE_BOOL(World, EnableDevTools, true, "Enable or Disable the Developer Tools globally (Most of the time you want this enabled)")
 RULE_BOOL(World, EnableChecksumVerification, false, "Enable or Disable the Checksum Verification for eqgame.exe and spells_us.txt")
 RULE_INT(World, MaximumQuestErrors, 30, "Changes the maximum number of quest errors that can be displayed in #questerrors, default is 30")
+RULE_INT(World, BootHour, 0, "Sets the in-game hour world will set when it first boots. 0-24 are valid options, where 0 disables this rule")
+RULE_BOOL(World, UseItemLinksForKeyRing, false, "Uses item links for Key Ring Listing instead of item name")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Zone)
@@ -785,6 +787,8 @@ RULE_BOOL(Bots, ResurrectionSickness, true, "Use Resurrection Sickness based on 
 RULE_INT(Bots, OldResurrectionSicknessSpell, 757, "757 is Default Old Resurrection Sickness Spell")
 RULE_INT(Bots, ResurrectionSicknessSpell, 756, "756 is Default Resurrection Sickness Spell")
 RULE_BOOL(Bots, AllowPickpocketCommand, true, "Allows the use of the bot command 'pickpocket'")
+RULE_BOOL(Bots, BotHealOnLevel, false, "Setting whether a bot should heal completely when leveling. Default FALSE.")
+RULE_BOOL(Bots, CazicTouchBotsOwner, true, "Default True. Cazic Touch/DT will hit bot owner rather than bot.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Chat)

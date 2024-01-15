@@ -812,7 +812,7 @@ void Client::ZonePC(uint32 zoneID, uint32 instance_id, float x, float y, float z
 			Entity* entity = entity_list.GetID(entity_id_being_looted);
 			if (entity == 0)
 			{
-				Message(Chat::Red, "Error: OP_EndLootRequest: Corpse not found (ent = 0)");
+				LogError("OP_EndLootRequest: Corpse with id of {} not found for {}.", entity_id_being_looted, GetCleanName());
 				if (ClientVersion() >= EQ::versions::ClientVersion::SoD)
 					Corpse::SendEndLootErrorPacket(this);
 				else
@@ -820,7 +820,7 @@ void Client::ZonePC(uint32 zoneID, uint32 instance_id, float x, float y, float z
 			}
 			else if (!entity->IsCorpse())
 			{
-				Message(Chat::Red, "Error: OP_EndLootRequest: Corpse not found (!entity->IsCorpse())");
+				LogError("OP_EndLootRequest: Entity with id of {} was not corpse for {}.", entity_id_being_looted, GetCleanName());
 				Corpse::SendLootReqErrorPacket(this);
 			}
 			else
@@ -1344,7 +1344,7 @@ bool Client::CanEnterZone(const std::string& zone_short_name, int16 instance_ver
 	}
 
 	if (!z->flag_needed.empty() && Strings::IsNumber(z->flag_needed) && Strings::ToBool(z->flag_needed)) {
-		if (Admin() < minStatusToIgnoreZoneFlags && !HasZoneFlag(z->zoneidnumber)) {
+		if (!GetGM() && !HasZoneFlag(z->zoneidnumber)) {
 			LogInfo(
 				"Character [{}] does not have the flag to be in this zone [{}]!",
 				GetCleanName(),

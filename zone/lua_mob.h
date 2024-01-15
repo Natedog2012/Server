@@ -80,6 +80,7 @@ public:
 	bool RandomizeFeatures(bool send_illusion, bool save_variables);
 	void GMMove(double x, double y, double z);
 	void GMMove(double x, double y, double z, double heading);
+	void GMMove(double x, double y, double z, double heading, bool save_guard_spot);
 	void TryMoveAlong(float distance, float heading);
 	void TryMoveAlong(float distance, float heading, bool send);
 	bool HasProcs();
@@ -106,6 +107,7 @@ public:
 	int GetRace();
 	const char *GetClassName();
 	const char *GetRaceName();
+	const char* GetBaseRaceName();
 	int GetGender();
 	int GetTexture();
 	int GetHelmTexture();

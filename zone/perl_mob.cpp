@@ -326,6 +326,11 @@ void Perl_Mob_GMMove(Mob* self, float x, float y, float z, float heading) // @ca
 	self->GMMove(x, y, z, heading);
 }
 
+void Perl_Mob_GMMove(Mob* self, float x, float y, float z, float heading, bool save_guard_spot) // @categories Script Utility
+{
+	self->GMMove(x, y, z, heading, save_guard_spot);
+}
+
 bool Perl_Mob_HasProcs(Mob* self) // @categories Stats and Attributes
 {
 	return self->HasProcs();
@@ -460,6 +465,11 @@ void Perl_Mob_TypesTempPet(Mob* self, uint32 type_id, const char* name, uint32 d
 int Perl_Mob_GetBaseRace(Mob* self) // @categories Stats and Attributes
 {
 	return self->GetBaseRace();
+}
+
+std::string Perl_Mob_GetBaseRaceName(Mob* self) // @categories Stats and Attributes
+{
+	return GetRaceIDName(self->GetBaseRace());
 }
 
 int Perl_Mob_GetBaseGender(Mob* self) // @categories Stats and Attributes
@@ -3512,6 +3522,7 @@ void perl_register_mob()
 	package.add("FindType", (bool(*)(Mob*, uint16_t, bool, uint16_t))&Perl_Mob_FindType);
 	package.add("GMMove", (void(*)(Mob*, float, float, float))&Perl_Mob_GMMove);
 	package.add("GMMove", (void(*)(Mob*, float, float, float, float))&Perl_Mob_GMMove);
+	package.add("GMMove", (void(*)(Mob*, float, float, float, float, bool))&Perl_Mob_GMMove);
 	package.add("Gate", &Perl_Mob_Gate);
 	package.add("GetAA", &Perl_Mob_GetAA);
 	package.add("GetAABonuses", &Perl_Mob_GetAABonuses);
@@ -3538,6 +3549,7 @@ void perl_register_mob()
 	package.add("GetAssistRange", &Perl_Mob_GetAssistRange);
 	package.add("GetBaseGender", &Perl_Mob_GetBaseGender);
 	package.add("GetBaseRace", &Perl_Mob_GetBaseRace);
+	package.add("GetBaseRaceName", &Perl_Mob_GetBaseRaceName);
 	package.add("GetBaseSize", &Perl_Mob_GetBaseSize);
 	package.add("GetBeard", &Perl_Mob_GetBeard);
 	package.add("GetBeardColor", &Perl_Mob_GetBeardColor);

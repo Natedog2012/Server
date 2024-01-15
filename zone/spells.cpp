@@ -711,6 +711,18 @@ bool Mob::DoCastingChecksZoneRestrictions(bool check_on_casting, int32 spell_id)
 		Message(Chat::Red, "You cannot cast detrimental spells here.");
 		return false;
 	}
+	/*
+		Zones where you can not cast a spell that is for daytime or nighttime only
+	*/
+	if (spells[spell_id].time_of_day == SpellTimeRestrictions::Day && !zone->zone_time.IsDayTime()) {
+		MessageString(Chat::Red, CAST_DAYTIME);
+		return false;
+	}
+
+	if (spells[spell_id].time_of_day == SpellTimeRestrictions::Night && !zone->zone_time.IsNightTime()) {
+		MessageString(Chat::Red, CAST_NIGHTTIME);
+		return false;
+	}
 
 	if (check_on_casting) {
 		/*
@@ -2289,11 +2301,18 @@ bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, in
 		return false;
 
 	//Death Touch targets the pet owner instead of the pet when said pet is tanking.
-	if ((RuleB(Spells, CazicTouchTargetsPetOwner) && spell_target && spell_target->HasOwner()) && (spell_id == SPELL_CAZIC_TOUCH || spell_id == SPELL_TOUCH_OF_VINITRAS)) {
-		Mob* owner =  spell_target->GetOwner();
+	if ((RuleB(Spells, CazicTouchTargetsPetOwner) && spell_target && spell_target->HasOwner()) && !spell_target->IsBot() && (spell_id == SPELL_CAZIC_TOUCH || spell_id == SPELL_TOUCH_OF_VINITRAS)) {
+		Mob* owner = spell_target->GetOwner();
 
 		if (owner) {
 			spell_target = owner;
+		}
+	}
+
+	if ((RuleB(Bots, CazicTouchBotsOwner) && spell_target && spell_target->IsBot()) && spell_id == (SPELL_CAZIC_TOUCH || spell_id == SPELL_TOUCH_OF_VINITRAS)) {
+		auto bot_owner = spell_target->GetOwner();
+		if (bot_owner) {
+			spell_target = bot_owner;
 		}
 	}
 
@@ -4236,41 +4255,39 @@ bool Mob::SpellOnTarget(
 		spelltar->DamageShield(this, true);
 	}
 
-	if (
-		spelltar->IsAIControlled() &&
-		IsDetrimentalSpell(spell_id) &&
-		!IsHarmonySpell(spell_id)
-	) {
-		auto aggro_amount = CheckAggroAmount(spell_id, spelltar, isproc);
-		LogSpells("Spell [{}] cast on [{}] generated [{}] hate", spell_id,
-			spelltar->GetName(), aggro_amount);
-		if (aggro_amount > 0) {
-			spelltar->AddToHateList(this, aggro_amount);
-		} else {
-			int64 newhate = spelltar->GetHateAmount(this) + aggro_amount;
-			spelltar->SetHateAmountOnEnt(this, std::max(newhate, static_cast<int64>(1)));
-		}
-	} else if (IsBeneficialSpell(spell_id) && !IsSummonPCSpell(spell_id)) {
-		if (this != spelltar && IsClient()){
-			if (spelltar->IsClient()) {
-				CastToClient()->UpdateRestTimer(spelltar->CastToClient()->GetRestTimer());
-			} else if (spelltar->IsPet()) {
-				auto* owner = spelltar->GetOwner();
-				if (owner && owner != this && owner->IsClient()) {
-					CastToClient()->UpdateRestTimer(owner->CastToClient()->GetRestTimer());
+	if (!(spelltar->IsNPC() && IsNPC() && !(IsPet() && GetOwner()->IsClient()))) {
+		if (spelltar->IsAIControlled() && IsDetrimentalSpell(spell_id) && !IsHarmonySpell(spell_id)) {
+			auto aggro_amount = CheckAggroAmount(spell_id, spelltar, isproc);
+			LogSpellsDetail("Spell {} cast on {} generated {} hate", spell_id,
+				spelltar->GetName(), aggro_amount);
+			if (aggro_amount > 0) {
+				spelltar->AddToHateList(this, aggro_amount);
+			} else {
+				int64 newhate = spelltar->GetHateAmount(this) + aggro_amount;
+				spelltar->SetHateAmountOnEnt(this, std::max(newhate, static_cast<int64>(1)));
+			}
+		} else if (IsBeneficialSpell(spell_id) && !IsSummonPCSpell(spell_id)) {
+			if (this != spelltar && IsClient()){
+				if (spelltar->IsClient()) {
+					CastToClient()->UpdateRestTimer(spelltar->CastToClient()->GetRestTimer());
+				} else if (spelltar->IsPet()) {
+					auto* owner = spelltar->GetOwner();
+					if (owner && owner != this && owner->IsClient()) {
+						CastToClient()->UpdateRestTimer(owner->CastToClient()->GetRestTimer());
+					}
 				}
 			}
-		}
 
-		entity_list.AddHealAggro(
-			spelltar,
-			this,
-			CheckHealAggroAmount(
-				spell_id,
+			entity_list.AddHealAggro(
 				spelltar,
-				(spelltar->GetMaxHP() - spelltar->GetHP())
-			)
-		);
+				this,
+				CheckHealAggroAmount(
+					spell_id,
+					spelltar,
+					(spelltar->GetMaxHP() - spelltar->GetHP())
+				)
+			);
+		}
 	}
 
 	// make sure spelltar is high enough level for the buff
@@ -5821,7 +5838,7 @@ std::unordered_map<uint32, std::vector<uint16>> Client::LoadSpellGroupCache(uint
 		m_pp.class_, min_level, max_level
 	);
 
-	auto results = database.QueryDatabase(query);
+	auto results = content_db.QueryDatabase(query);
 	if (!results.Success() || !results.RowCount()) {
 		return spell_group_cache;
 	}
