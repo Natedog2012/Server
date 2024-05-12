@@ -52,6 +52,10 @@
 #include "../common/repositories/player_event_logs_repository.h"
 #include "../common/repositories/inventory_repository.h"
 #include "../common/events/player_event_logs.h"
+#include "../common/content/world_content_service.h"
+#include "../common/repositories/group_id_repository.h"
+#include "../common/repositories/character_data_repository.h"
+#include "../common/skill_caps.h"
 
 #include <iostream>
 #include <iomanip>
@@ -189,18 +193,25 @@ bool Client::CanTradeFVNoDropItem()
 
 void Client::SendEnterWorld(std::string name)
 {
-	char char_name[64] = { 0 };
-	if (is_player_zoning && database.GetLiveChar(GetAccountID(), char_name)) {
-		if(database.GetAccountIDByChar(char_name) != GetAccountID()) {
+	std::string live_name {};
+
+	if (is_player_zoning) {
+		live_name = database.GetLiveChar(GetAccountID());
+		if (database.GetAccountIDByChar(live_name) != GetAccountID()) {
 			eqs->Close();
 			return;
-		} else {
-			LogInfo("Telling client to continue session");
 		}
+
+		LogInfo("Zoning with live_name [{}] account_id [{}]", live_name, GetAccountID());
 	}
 
-	auto outapp = new EQApplicationPacket(OP_EnterWorld, strlen(char_name) + 1);
-	memcpy(outapp->pBuffer,char_name,strlen(char_name)+1);
+	if (!is_player_zoning && RuleB(World, EnableAutoLogin)) {
+		live_name = AccountRepository::GetAutoLoginCharacterNameByAccountID(database, GetAccountID());
+		LogInfo("Attempting to auto login with live_name [{}] account_id [{}]", live_name, GetAccountID());
+	}
+
+	auto outapp = new EQApplicationPacket(OP_EnterWorld, live_name.length() + 1);
+	memcpy(outapp->pBuffer, live_name.c_str(), live_name.length() + 1);
 	QueuePacket(outapp);
 	safe_delete(outapp);
 }
@@ -647,7 +658,7 @@ bool Client::HandleGenerateRandomNamePacket(const EQApplicationPacket *app) {
 		if (database.CheckNameFilter(newName)) {
 			std::string query = StringFormat("SELECT `name` FROM `character_data` WHERE `name` = '%s'", newName);
 			auto res = database.QueryDatabase(query);
-			if (res.Success() && res.RowCount() == 0) {				
+			if (res.Success() && res.RowCount() == 0) {
 				unique = true;
 			}
 		}
@@ -763,20 +774,49 @@ bool Client::HandleEnterWorldPacket(const EQApplicationPacket *app) {
 	auto ew = (EnterWorld_Struct *) app->pBuffer;
 	strn0cpy(char_name, ew->name, sizeof(char_name));
 
-	uint32 temporary_account_id = 0;
-	charid = database.GetCharacterInfo(char_name, &temporary_account_id, &zone_id, &instance_id);
-	if (!charid) {
+	const auto& l = CharacterDataRepository::GetWhere(
+		database,
+		fmt::format(
+			"`name` = '{}' LIMIT 1",
+			Strings::Escape(char_name)
+		)
+	);
+
+	if (l.empty()) {
 		LogInfo("Could not get CharInfo for [{}]", char_name);
 		eqs->Close();
 		return true;
 	}
 
+	auto r = content_service.FindZone(zone_id, instance_id);
+	if (r.zone_id && r.instance.id != instance_id) {
+		LogInfo(
+			"Zone [{}] has been remapped to instance_id [{}] from instance_id [{}] for client [{}]",
+			r.zone.short_name,
+			r.instance.id,
+			instance_id,
+			char_name
+		);
+		instance_id = r.instance.id;
+	}
+
+	const auto& e = l.front();
+
 	// Make sure this account owns this character
-	if (temporary_account_id != account_id) {
-		LogInfo("Account [{}] does not own the character named [{}] from account [{}]", account_id, char_name, temporary_account_id);
+	if (e.account_id != account_id) {
+		LogInfo(
+			"Account [{}] does not own the character named [{}] from account [{}]",
+			account_id,
+			char_name,
+			e.account_id
+		);
 		eqs->Close();
 		return true;
 	}
+
+	charid      = e.id;
+	zone_id     = e.zone_id;
+	instance_id = e.zone_instance;
 
 	// This can probably be moved outside and have another method return requested info (don't forget to remove the #include "../common/shareddb.h" above)
 	// (This is a literal translation of the original process..I don't see why it can't be changed to a single-target query over account iteration)
@@ -868,7 +908,14 @@ bool Client::HandleEnterWorldPacket(const EQApplicationPacket *app) {
 	}
 
 	if(!is_player_zoning) {
-		database.SetGroupID(char_name, 0, charid);
+		GroupIdRepository::DeleteWhere(
+			database,
+			fmt::format(
+				"`character_id` = {} AND `name` = '{}'",
+				charid,
+				Strings::Escape(char_name)
+			)
+		);
 		database.SetLoginFlags(charid, false, false, 1);
 	} else {
 		auto group_id = database.GetGroupID(char_name);
@@ -887,14 +934,19 @@ bool Client::HandleEnterWorldPacket(const EQApplicationPacket *app) {
 	}
 
 	auto outapp = new EQApplicationPacket(OP_MOTD);
-	std::string motd_message;
-	if (database.GetVariable("MOTD", motd_message)) {
-		outapp->size = motd_message.length() + 1;
+	std::string motd = RuleS(World, MOTD);
+	if (!motd.empty()) {
+		outapp->size    = motd.length() + 1;
 		outapp->pBuffer = new uchar[outapp->size];
 		memset(outapp->pBuffer, 0, outapp->size);
-		strcpy((char*)outapp->pBuffer, motd_message.c_str());
+		strcpy((char*) outapp->pBuffer, motd.c_str());
+	} else if (database.GetVariable("MOTD", motd)) {
+		outapp->size    = motd.length() + 1;
+		outapp->pBuffer = new uchar[outapp->size];
+		memset(outapp->pBuffer, 0, outapp->size);
+		strcpy((char*) outapp->pBuffer, motd.c_str());
 	} else { // Null Message of the Day. :)
-		outapp->size = 1;
+		outapp->size    = 1;
 		outapp->pBuffer = new uchar[outapp->size];
 		outapp->pBuffer[0] = 0;
 	}
@@ -1525,19 +1577,20 @@ void Client::QueuePacket(const EQApplicationPacket* app, bool ack_req) {
 	eqs->QueuePacket(app, ack_req);
 }
 
-void Client::SendGuildList() {
-	EQApplicationPacket *outapp;
-	outapp = new EQApplicationPacket(OP_GuildsList);
+void Client::SendGuildList()
+{
+	auto guilds_list = guild_mgr.MakeGuildList();
 
-	//ask the guild manager to build us a nice guild list packet
-	outapp->pBuffer = guild_mgr.MakeGuildList("", outapp->size);
-	if(outapp->pBuffer == nullptr) {
-		safe_delete(outapp);
-		return;
-	}
+	std::stringstream           ss;
+	cereal::BinaryOutputArchive ar(ss);
+	ar(guilds_list);
 
+	uint32 packet_size = ss.str().length();
 
-	eqs->FastQueuePacket((EQApplicationPacket **)&outapp);
+	std::unique_ptr<EQApplicationPacket> out(new EQApplicationPacket(OP_GuildsList, packet_size));
+	memcpy(out->pBuffer, ss.str().data(), out->size);
+
+	QueuePacket(out.get());
 }
 
 // @merth: I have no idea what this struct is for, so it's hardcoded for now
@@ -2089,7 +2142,7 @@ void Client::SetClassStartingSkills(PlayerProfile_Struct *pp)
 				i == EQ::skills::SkillAlcoholTolerance || i == EQ::skills::SkillBindWound)
 				continue;
 
-			pp->skills[i] = content_db.GetSkillCap(pp->class_, (EQ::skills::SkillType)i, 1);
+			pp->skills[i] = skill_caps.GetSkillCap(pp->class_, (EQ::skills::SkillType)i, 1).cap;
 		}
 	}
 

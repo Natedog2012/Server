@@ -748,6 +748,28 @@ namespace Titanium
 		FINISH_ENCODE();
 	}
 
+	ENCODE(OP_GuildsList)
+	{
+		EQApplicationPacket* in = *p;
+		*p = nullptr;
+
+		GuildsListMessaging_Struct   glms{};
+		EQ::Util::MemoryStreamReader ss(reinterpret_cast<char *>(in->pBuffer), in->size);
+		cereal::BinaryInputArchive   ar(ss);
+		ar(glms);
+
+		auto outapp = new EQApplicationPacket(OP_GuildsList, sizeof(structs::GuildsList_Struct));
+		auto out    = (structs::GuildsList_Struct *) outapp->pBuffer;
+
+		for (auto const& g : glms.guild_detail) {
+			if (g.guild_id < Titanium::constants::MAX_GUILD_ID) {
+				strn0cpy(out->Guilds[g.guild_id].name, g.guild_name.c_str(), sizeof(out->Guilds[g.guild_id].name));
+			}
+		}
+
+		dest->FastQueuePacket(&outapp);
+	}
+
 	ENCODE(OP_GuildMemberAdd)
 	{
 		ENCODE_LENGTH_EXACT(GuildMemberAdd_Struct)
@@ -1858,6 +1880,19 @@ namespace Titanium
 		FINISH_ENCODE();
 	}
 
+	ENCODE(OP_ShopRequest)
+	{
+		ENCODE_LENGTH_EXACT(MerchantClick_Struct);
+		SETUP_DIRECT_ENCODE(MerchantClick_Struct, structs::MerchantClick_Struct);
+
+		OUT(npc_id);
+		OUT(player_id);
+		OUT(command);
+		OUT(rate);
+
+		FINISH_ENCODE();
+	}
+
 	ENCODE(OP_SpecialMesg)
 	{
 		EQApplicationPacket *in = *p;
@@ -2871,6 +2906,21 @@ namespace Titanium
 		emu->itemslot = TitaniumToServerSlot(eq->itemslot);
 		IN(quantity);
 		IN(price);
+
+		FINISH_DIRECT_DECODE();
+	}
+
+	DECODE(OP_ShopRequest)
+	{
+		DECODE_LENGTH_EXACT(structs::MerchantClick_Struct);
+		SETUP_DIRECT_DECODE(MerchantClick_Struct, structs::MerchantClick_Struct);
+
+		IN(npc_id);
+		IN(player_id);
+		IN(command);
+		IN(rate);
+		emu->tab_display = 0;
+		emu->unknown020 = 0;
 
 		FINISH_DIRECT_DECODE();
 	}

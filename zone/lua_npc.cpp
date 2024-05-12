@@ -758,7 +758,7 @@ void Lua_NPC::SetLDoNTrapDetected(bool is_detected) {
 void Lua_NPC::ScaleNPC(uint8 npc_level)
 {
 	Lua_Safe_Call_Void();
-	self->ScaleNPC(npc_level);
+	self->ScaleNPC(npc_level, true);
 }
 
 void Lua_NPC::ScaleNPC(uint8 npc_level, bool override_special_abilities)
@@ -831,6 +831,12 @@ uint32 Lua_NPC::GetNPCSpellsEffectsID()
 	return self->GetNPCSpellsEffectsID();
 }
 
+void Lua_NPC::DescribeSpecialAbilities(Lua_Client c)
+{
+	Lua_Safe_Call_Void();
+	self->DescribeSpecialAbilities(c);
+}
+
 luabind::scope lua_register_npc() {
 	return luabind::class_<Lua_NPC, Lua_Mob>("NPC")
 	.def(luabind::constructor<>())
@@ -859,6 +865,7 @@ luabind::scope lua_register_npc() {
 	.def("CountItem", (uint16(Lua_NPC::*)(uint32))&Lua_NPC::CountItem)
 	.def("CountLoot", (int(Lua_NPC::*)(void))&Lua_NPC::CountLoot)
 	.def("DeleteBucket", (void(Lua_NPC::*)(std::string))&Lua_NPC::DeleteBucket)
+	.def("DescribeSpecialAbilities", (void(Lua_NPC::*)(Lua_Client))&Lua_NPC::DescribeSpecialAbilities)
 	.def("DisplayWaypointInfo", (void(Lua_NPC::*)(Lua_Client))&Lua_NPC::DisplayWaypointInfo)
 	.def("DoClassAttacks", (void(Lua_NPC::*)(Lua_Mob))&Lua_NPC::DoClassAttacks)
 	.def("GetAccuracyRating", (int(Lua_NPC::*)(void))&Lua_NPC::GetAccuracyRating)

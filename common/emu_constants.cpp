@@ -698,6 +698,8 @@ const std::map<uint32, std::string>& EQ::constants::GetSpecialAbilityMap()
 		{ IMMUNE_OPEN,               "Immune to Open" },
 		{ IMMUNE_ASSASSINATE,        "Immune to Assassinate" },
 		{ IMMUNE_HEADSHOT,           "Immune to Headshot" },
+		{ IMMUNE_AGGRO_BOT,          "Immune to Bot Aggro" },
+		{ IMMUNE_DAMAGE_BOT,         "Immune to Bot Damage" },
 	};
 
 	return special_ability_map;
@@ -711,4 +713,26 @@ std::string EQ::constants::GetSpecialAbilityName(uint32 ability_id)
 	}
 
 	return std::string();
+}
+
+const std::map<uint32, std::string>& EQ::constants::GetConsiderColorMap()
+{
+	static const std::map<uint32, std::string> consider_color_map = {
+		{ ConsiderColor::Green,         "Green" },
+		{ ConsiderColor::DarkBlue,      "Dark Blue" },
+		{ ConsiderColor::Gray,          "Gray" },
+		{ ConsiderColor::White,         "White" },
+		{ ConsiderColor::Red,           "Red" },
+		{ ConsiderColor::Yellow,        "Yellow" },
+		{ ConsiderColor::LightBlue,     "Light Blue" },
+		{ ConsiderColor::WhiteTitanium, "White" },
+	};
+
+	return consider_color_map;
+}
+
+std::string EQ::constants::GetConsiderColorName(uint32 consider_color)
+{
+	const auto& c = EQ::constants::GetConsiderColorMap().find(consider_color);
+	return c != EQ::constants::GetConsiderColorMap().end() ? c->second : std::string();
 }

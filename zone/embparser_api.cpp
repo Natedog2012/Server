@@ -380,12 +380,12 @@ void Perl__settimer(std::string timer_name, uint32 seconds)
 
 void Perl__settimer(std::string timer_name, uint32 seconds, Mob* m)
 {
-	quest_manager.settimer(timer_name, seconds);
+	quest_manager.settimer(timer_name, seconds, m);
 }
 
 void Perl__settimer(std::string timer_name, uint32 seconds, EQ::ItemInstance* inst)
 {
-	quest_manager.settimer(timer_name, seconds);
+	quest_manager.settimerMS(timer_name, seconds * 1000, inst);
 }
 
 void Perl__settimerMS(std::string timer_name, uint32 milliseconds)
@@ -1579,9 +1579,7 @@ std::string Perl__GetCharactersInInstance(uint16 instance_id)
 		char_id_string = fmt::format("{} player(s) in instance: ", character_ids.size());
 		auto iter = character_ids.begin();
 		while (iter != character_ids.end()) {
-			char char_name[64];
-			database.GetCharName(*iter, char_name);
-			char_id_string += char_name;
+			char_id_string += database.GetCharName(*iter);
 			char_id_string += "(";
 			char_id_string += itoa(*iter);
 			char_id_string += ")";
@@ -1654,20 +1652,19 @@ void Perl__FlagInstanceByRaidLeader(uint32 zone, uint16 version)
 	quest_manager.FlagInstanceByRaidLeader(zone, version);
 }
 
-std::string Perl__saylink(const char* text)
+std::string Perl__saylink(std::string text)
 {
-	// const cast is safe since, target api doesn't modify it
-	return quest_manager.saylink(const_cast<char*>(text), false, text);
+	return Saylink::Create(text);
 }
 
-std::string Perl__saylink(const char* text, bool silent)
+std::string Perl__saylink(std::string text, bool silent)
 {
-	return quest_manager.saylink(const_cast<char*>(text), silent, text);
+	return Saylink::Create(text, silent);
 }
 
-std::string Perl__saylink(const char* text, bool silent, const char* link_name)
+std::string Perl__saylink(std::string text, bool silent, std::string link_name)
 {
-	return quest_manager.saylink(const_cast<char*>(text), silent, link_name);
+	return Saylink::Create(text, silent, link_name);
 }
 
 std::string Perl__getcharnamebyid(uint32 char_id)
@@ -5833,6 +5830,120 @@ uint16 Perl__GetBotRaceByID(uint32 bot_id)
 	return database.botdb.GetBotRaceByID(bot_id);
 }
 
+std::string Perl__silent_saylink(std::string text)
+{
+	return Saylink::Silent(text);
+}
+
+std::string Perl__silent_saylink(std::string text, std::string link_name)
+{
+	return Saylink::Silent(text, link_name);
+}
+
+uint16 Perl__get_class_bitmask(uint8 class_id)
+{
+	return GetPlayerClassBit(class_id);
+}
+
+uint32 Perl__get_deity_bitmask(uint16 deity_id)
+{
+	return static_cast<uint32>(EQ::deity::GetDeityBitmask(static_cast<EQ::deity::DeityType>(deity_id)));
+}
+
+uint16 Perl__get_race_bitmask(uint16 race_id)
+{
+	return GetPlayerRaceBit(race_id);
+}
+
+std::string Perl__GetAutoLoginCharacterNameByAccountID(uint32 account_id)
+{
+	return quest_manager.GetAutoLoginCharacterNameByAccountID(account_id);
+}
+
+bool Perl__SetAutoLoginCharacterNameByAccountID(uint32 account_id, std::string character_name)
+{
+	return quest_manager.SetAutoLoginCharacterNameByAccountID(account_id, character_name);
+}
+
+uint32 Perl__GetZoneIDByLongName(std::string zone_long_name)
+{
+	return zone_store.GetZoneIDByLongName(zone_long_name);
+}
+
+std::string Perl__GetZoneShortNameByLongName(std::string zone_long_name)
+{
+	return zone_store.GetZoneShortNameByLongName(zone_long_name);
+}
+
+bool Perl__send_parcel(perl::reference table_ref)
+{
+	perl::hash table = table_ref;
+	if (
+		(!table.exists("name") && !table.exists("character_id")) ||
+		!table.exists("item_id") ||
+		!table.exists("quantity")
+	) {
+		return false;
+	}
+
+	std::string name         = table.exists("name") ? table["name"] : std::string();
+	uint32      character_id = table.exists("character_id") ? table["character_id"] : 0;
+
+	if (character_id) {
+		const std::string& character_name = database.GetCharName(character_id);
+		if (character_name.empty()) {
+			return false;
+		}
+
+		name = character_name;
+	} else {
+		auto v = CharacterParcelsRepository::GetParcelCountAndCharacterName(database, name);
+		if (v.at(0).character_name.empty()) {
+			return false;
+		}
+
+		character_id = v.at(0).char_id;
+	}
+
+	if (!character_id) {
+		return false;
+	}
+
+	const int next_parcel_slot = CharacterParcelsRepository::GetNextFreeParcelSlot(database, character_id, RuleI(Parcel, ParcelMaxItems));
+	if (next_parcel_slot == INVALID_INDEX) {
+		return false;
+	}
+
+	const uint32 item_id         = table["item_id"];
+	const int16  quantity        = table["quantity"];
+	const uint32 augment_one     = table.exists("augment_one") ? table["augment_one"] : 0;
+	const uint32 augment_two     = table.exists("augment_two") ? table["augment_two"] : 0;
+	const uint32 augment_three   = table.exists("augment_three") ? table["augment_three"] : 0;
+	const uint32 augment_four    = table.exists("augment_four") ? table["augment_four"] : 0;
+	const uint32 augment_five    = table.exists("augment_five") ? table["augment_five"] : 0;
+	const uint32 augment_six     = table.exists("augment_six") ? table["augment_six"] : 0;
+	const std::string& from_name = table.exists("from_name") ? table["from_name"] : std::string();
+	const std::string& note      = table.exists("note") ? table["note"] : std::string();
+
+	auto e = CharacterParcelsRepository::NewEntity();
+
+	e.char_id    = character_id;
+	e.item_id    = item_id;
+	e.aug_slot_1 = augment_one;
+	e.aug_slot_2 = augment_two;
+	e.aug_slot_3 = augment_three;
+	e.aug_slot_4 = augment_four;
+	e.aug_slot_5 = augment_five;
+	e.aug_slot_6 = augment_six;
+	e.slot_id    = next_parcel_slot;
+	e.quantity   = quantity;
+	e.from_name  = from_name;
+	e.note       = note;
+	e.sent_date  = std::time(nullptr);
+
+	return CharacterParcelsRepository::InsertOne(database, e).id;
+}
+
 void perl_register_quest()
 {
 	perl::interpreter perl(PERL_GET_THX);
@@ -5863,6 +5974,7 @@ void perl_register_quest()
 	package.add("FlagInstanceByGroupLeader", &Perl__FlagInstanceByGroupLeader);
 	package.add("FlagInstanceByRaidLeader", &Perl__FlagInstanceByRaidLeader);
 	package.add("FlyMode", &Perl__FlyMode);
+	package.add("GetAutoLoginCharacterNameByAccountID", &Perl__GetAutoLoginCharacterNameByAccountID);
 	package.add("GetBotClassByID", &Perl__GetBotClassByID);
 	package.add("GetBotGenderByID", &Perl__GetBotGenderByID);
 	package.add("GetBotIDsByCharacterID", (perl::array(*)(uint32))&Perl__GetBotIDsByCharacterID);
@@ -5918,6 +6030,7 @@ void perl_register_quest()
 	package.add("GetZoneInstanceType", (uint8(*)(uint32))&Perl__GetZoneInstanceType);
 	package.add("GetZoneInstanceType", (uint8(*)(uint32, int))&Perl__GetZoneInstanceType);
 	package.add("GetZoneID", &Perl__GetZoneID);
+	package.add("GetZoneIDByLongName", (uint32(*)(std::string))&Perl__GetZoneIDByLongName);
 	package.add("GetZoneExpansion", (int8(*)(uint32))&Perl__GetZoneExpansion);
 	package.add("GetZoneExpansion", (int8(*)(uint32, int))&Perl__GetZoneExpansion);
 	package.add("GetZoneExperienceMultiplier", (float(*)(uint32))&Perl__GetZoneExperienceMultiplier);
@@ -5997,6 +6110,8 @@ void perl_register_quest()
 	package.add("GetZoneSafeZ", (float(*)(uint32, int))&Perl__GetZoneSafeZ);
 	package.add("GetZoneSecondsBeforeIdle", (uint32(*)(uint32))&Perl__GetZoneSecondsBeforeIdle);
 	package.add("GetZoneSecondsBeforeIdle", (uint32(*)(uint32, int))&Perl__GetZoneSecondsBeforeIdle);
+	package.add("GetZoneShortName", (std::string(*)(uint32))&Perl__GetZoneShortName);
+	package.add("GetZoneShortNameByLongName", (std::string(*)(std::string))&Perl__GetZoneShortNameByLongName);
 	package.add("GetZoneShutdownDelay", (uint64(*)(uint32))&Perl__GetZoneShutdownDelay);
 	package.add("GetZoneShutdownDelay", (uint64(*)(uint32, int))&Perl__GetZoneShutdownDelay);
 	package.add("GetZoneSky", (uint8(*)(uint32))&Perl__GetZoneSky);
@@ -6013,7 +6128,6 @@ void perl_register_quest()
 	package.add("GetZoneSuspendBuffs", (uint8(*)(uint32, int))&Perl__GetZoneSuspendBuffs);
 	package.add("GetZoneZType", (uint8(*)(uint32))&Perl__GetZoneZType);
 	package.add("GetZoneZType", (uint8(*)(uint32, int))&Perl__GetZoneZType);
-	package.add("GetZoneShortName", &Perl__GetZoneShortName);
 	package.add("GetZoneTimeType", (uint8(*)(uint32))&Perl__GetZoneTimeType);
 	package.add("GetZoneTimeType", (uint8(*)(uint32, int))&Perl__GetZoneTimeType);
 	package.add("GetZoneTimeZone", (int(*)(uint32))&Perl__GetZoneTimeZone);
@@ -6137,6 +6251,7 @@ void perl_register_quest()
 	package.add("RemoveFromInstanceByCharID", &Perl__RemoveFromInstanceByCharID);
 	package.add("CheckInstanceByCharID", &Perl__CheckInstanceByCharID);
 	package.add("SendMail", &Perl__SendMail);
+	package.add("SetAutoLoginCharacterNameByAccountID", &Perl__SetAutoLoginCharacterNameByAccountID);
 	package.add("SetRunning", &Perl__SetRunning);
 	package.add("activespeakactivity", &Perl__activespeakactivity);
 	package.add("activespeaktask", &Perl__activespeaktask);
@@ -6479,9 +6594,11 @@ void perl_register_quest()
 	package.add("getconsiderlevelname", &Perl__getconsiderlevelname);
 	package.add("gethexcolorcode", &Perl__gethexcolorcode);
 	package.add("getcurrencyid", &Perl__getcurrencyid);
+	package.add("get_class_bitmask", &Perl__get_class_bitmask);
 	package.add("get_data", &Perl__get_data);
 	package.add("get_data_expires", &Perl__get_data_expires);
 	package.add("get_data_remaining", &Perl__get_data_remaining);
+	package.add("get_deity_bitmask", &Perl__get_deity_bitmask);
 	package.add("get_dz_task_id", &Perl__get_dz_task_id);
 	package.add("getexpmodifierbycharid", (double(*)(uint32, uint32))&Perl__getexpmodifierbycharid);
 	package.add("getexpmodifierbycharid", (double(*)(uint32, uint32, int16))&Perl__getexpmodifierbycharid);
@@ -6514,6 +6631,7 @@ void perl_register_quest()
 	package.add("getgroupidbycharid", &Perl__getgroupidbycharid);
 	package.add("getinventoryslotname", &Perl__getinventoryslotname);
 	package.add("getraididbycharid", &Perl__getraididbycharid);
+	package.add("get_race_bitmask", &Perl__get_race_bitmask);
 	package.add("get_recipe_component_item_ids", &Perl__GetRecipeComponentItemIDs);
 	package.add("get_recipe_container_item_ids", &Perl__GetRecipeContainerItemIDs);
 	package.add("get_recipe_fail_item_ids", &Perl__GetRecipeFailItemIDs);
@@ -6644,9 +6762,9 @@ void perl_register_quest()
 	package.add("say", (void(*)(const char*, uint8, int))&Perl__say);
 	package.add("say", (void(*)(const char*, uint8, int, int))&Perl__say);
 	package.add("say", (void(*)(const char*, uint8, int, int, int))&Perl__say);
-	package.add("saylink", (std::string(*)(const char*))&Perl__saylink);
-	package.add("saylink", (std::string(*)(const char*, bool))&Perl__saylink);
-	package.add("saylink", (std::string(*)(const char*, bool, const char*))&Perl__saylink);
+	package.add("saylink", (std::string(*)(std::string))&Perl__saylink);
+	package.add("saylink", (std::string(*)(std::string, bool))&Perl__saylink);
+	package.add("saylink", (std::string(*)(std::string, bool, std::string))&Perl__saylink);
 	package.add("scribespells", (int(*)(int))&Perl__scribespells);
 	package.add("scribespells", (int(*)(int, int))&Perl__scribespells);
 	package.add("secondstotime", &Perl__secondstotime);
@@ -6655,6 +6773,7 @@ void perl_register_quest()
 	package.add("send_channel_message", (void(*)(uint8, uint32, uint8, uint8, const char*))&Perl__send_channel_message);
 	package.add("send_channel_message", (void(*)(Client*, uint8, uint32, uint8, uint8, const char*))&Perl__send_channel_message);
 	package.add("send_channel_message", (void(*)(Client*, const char*, uint8, uint32, uint8, uint8, const char*))&Perl__send_channel_message);
+	package.add("send_parcel", &Perl__send_parcel);
 	package.add("setaaexpmodifierbycharid", (void(*)(uint32, uint32, double))&Perl__setaaexpmodifierbycharid);
 	package.add("setaaexpmodifierbycharid", (void(*)(uint32, uint32, double, int16))&Perl__setaaexpmodifierbycharid);
 	package.add("set_data", (void(*)(std::string, std::string))&Perl__set_data);
@@ -6684,9 +6803,9 @@ void perl_register_quest()
 	package.add("settarget", &Perl__settarget);
 	package.add("settime", (void(*)(int, int))&Perl__settime);
 	package.add("settime", (void(*)(int, int, bool))&Perl__settime);
-	package.add("settimer", (void(*)(std::string, uint32))&Perl__settimer),
-	package.add("settimer", (void(*)(std::string, uint32, EQ::ItemInstance*))&Perl__settimer),
-	package.add("settimer", (void(*)(std::string, uint32, Mob*))&Perl__settimer),
+	package.add("settimer", (void(*)(std::string, uint32))&Perl__settimer);
+	package.add("settimer", (void(*)(std::string, uint32, EQ::ItemInstance*))&Perl__settimer);
+	package.add("settimer", (void(*)(std::string, uint32, Mob*))&Perl__settimer);
 	package.add("settimerMS", (void(*)(std::string, uint32))&Perl__settimerMS);
 	package.add("settimerMS", (void(*)(std::string, uint32, EQ::ItemInstance*))&Perl__settimerMS);
 	package.add("settimerMS", (void(*)(std::string, uint32, Mob*))&Perl__settimerMS);
@@ -6698,6 +6817,8 @@ void perl_register_quest()
 	package.add("signal", (void(*)(int, int))&Perl__signal);
 	package.add("signalwith", (void(*)(int, int))&Perl__signalwith);
 	package.add("signalwith", (void(*)(int, int, int))&Perl__signalwith);
+	package.add("silent_saylink", (std::string(*)(std::string))&Perl__silent_saylink);
+	package.add("silent_saylink", (std::string(*)(std::string, std::string))&Perl__silent_saylink);
 	package.add("snow", &Perl__snow);
 	package.add("spawn", &Perl__spawn);
 	package.add("spawn2", &Perl__spawn2);

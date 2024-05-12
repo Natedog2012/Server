@@ -43,7 +43,7 @@
 #define ServerOP_OnlineGuildMembersResponse	0x0016
 #define ServerOP_LFGuildUpdate		0x0017
 
-#define ServerOP_FlagUpdate			0x0018	// GM Flag updated for character, refresh the memory cache
+#define ServerOP_FlagUpdate			0x0018	// GM flag updated for character, refresh the memory cache
 #define ServerOP_GMGoto				0x0019
 #define ServerOP_MultiLineMsg		0x001A
 #define ServerOP_Lock				0x001B	// For #lock/#unlock inside server
@@ -112,6 +112,9 @@
 #define ServerOP_GuildURL                         0x007D
 #define ServerOP_GuildSendGuildList				  0x007E
 #define ServerOP_GuildMembersList                 0x007F
+
+#define ServerOP_ParcelDelivery                   0x0090
+#define ServerOP_ParcelPrune                      0x0091
 
 #define ServerOP_RaidAdd			0x0100 //in use
 #define ServerOP_RaidRemove			0x0101 //in use
@@ -273,6 +276,7 @@
 #define ServerOP_ReloadFactions 0x4126
 #define ServerOP_ReloadLoot 0x4127
 #define ServerOP_ReloadBaseData 0x4128
+#define ServerOP_ReloadSkillCaps 0x4129
 
 #define ServerOP_CZDialogueWindow 0x4500
 #define ServerOP_CZLDoNUpdate 0x4501

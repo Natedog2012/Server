@@ -221,27 +221,27 @@ void Perl_Client_SetDeity(Client* self, uint32 deity_id) // @categories Account 
 
 void Perl_Client_AddEXP(Client* self, uint32 add_exp) // @categories Experience and Level
 {
-	self->AddEXP(add_exp);
+	self->AddEXP(ExpSource::Quest, add_exp);
 }
 
 void Perl_Client_AddEXP(Client* self, uint32 add_exp, uint8 conlevel) // @categories Experience and Level
 {
-	self->AddEXP(add_exp, conlevel);
+	self->AddEXP(ExpSource::Quest, add_exp, conlevel);
 }
 
 void Perl_Client_AddEXP(Client* self, uint32 add_exp, uint8 conlevel, bool resexp) // @categories Experience and Level
 {
-	self->AddEXP(add_exp, conlevel, resexp);
+	self->AddEXP(ExpSource::Quest, add_exp, conlevel, resexp);
 }
 
 void Perl_Client_SetEXP(Client* self, uint64 set_exp, uint64 set_aaxp) // @categories Experience and Level
 {
-	self->SetEXP(set_exp, set_aaxp);
+	self->SetEXP(ExpSource::Quest, set_exp, set_aaxp);
 }
 
 void Perl_Client_SetEXP(Client* self, uint64 set_exp, uint64 set_aaxp, bool resexp) // @categories Experience and Level
 {
-	self->SetEXP(set_exp, set_aaxp, resexp);
+	self->SetEXP(ExpSource::Quest, set_exp, set_aaxp, resexp);
 }
 
 void Perl_Client_SetBindPoint(Client* self) // @categories Account and Character, Stats and Attributes
@@ -1285,17 +1285,17 @@ uint32_t Perl_Client_GetIP(Client* self) // @categories Script Utility
 
 void Perl_Client_AddLevelBasedExp(Client* self, uint8 exp_percentage) // @categories Experience and Level
 {
-	self->AddLevelBasedExp(exp_percentage);
+	self->AddLevelBasedExp(ExpSource::Quest, exp_percentage);
 }
 
 void Perl_Client_AddLevelBasedExp(Client* self, uint8 exp_percentage, uint8 max_level) // @categories Experience and Level
 {
-	self->AddLevelBasedExp(exp_percentage, max_level);
+	self->AddLevelBasedExp(ExpSource::Quest, exp_percentage, max_level);
 }
 
 void Perl_Client_AddLevelBasedExp(Client* self, uint8 exp_percentage, uint8 max_level, bool ignore_mods) // @categories Experience and Level
 {
-	self->AddLevelBasedExp(exp_percentage, max_level, ignore_mods);
+	self->AddLevelBasedExp(ExpSource::Quest, exp_percentage, max_level, ignore_mods);
 }
 
 void Perl_Client_IncrementAA(Client* self, uint32 aa_skill_id) // @categories Alternative Advancement
@@ -2012,12 +2012,17 @@ bool Perl_Client_HasDisciplineLearned(Client* self, uint16 spell_id)
 	return self->HasDisciplineLearned(spell_id);
 }
 
-uint32_t Perl_Client_GetClassBitmask(Client* self)
+uint16_t Perl_Client_GetClassBitmask(Client* self)
 {
 	return GetPlayerClassBit(self->GetClass());
 }
 
-uint32_t Perl_Client_GetRaceBitmask(Client* self) // @categories Stats and Attributes
+uint32_t Perl_Client_GetDeityBitmask(Client* self)
+{
+	return static_cast<uint32_t>(EQ::deity::GetDeityBitmask(static_cast<EQ::deity::DeityType>(self->GetDeity())));
+}
+
+uint16_t Perl_Client_GetRaceBitmask(Client* self) // @categories Stats and Attributes
 {
 	return GetPlayerRaceBit(self->GetBaseRace());
 }
@@ -3138,6 +3143,66 @@ bool Perl_Client_IsInAGuild(Client* self)
 	return self->IsInAGuild();
 }
 
+bool Perl_Client_RemoveAAPoints(Client* self, uint32 points)
+{
+	return self->RemoveAAPoints(points);
+}
+
+bool Perl_Client_RemoveAlternateCurrencyValue(Client* self, uint32 currency_id, uint32 amount)
+{
+	return self->RemoveAlternateCurrencyValue(currency_id, amount);
+}
+
+perl::array Perl_Client_GetRaidOrGroupOrSelf(Client* self)
+{
+	perl::array result;
+
+	const auto& l = self->GetRaidOrGroupOrSelf();
+
+	result.reserve(l.size());
+
+	for (const auto& e : l) {
+		result.push_back(e);
+	}
+
+	return result;
+}
+
+perl::array Perl_Client_GetRaidOrGroupOrSelf(Client* self, bool clients_only)
+{
+	perl::array result;
+
+	const auto& l = self->GetRaidOrGroupOrSelf(clients_only);
+
+	result.reserve(l.size());
+
+	for (const auto& e : l) {
+		result.push_back(e);
+	}
+
+	return result;
+}
+
+std::string Perl_Client_GetAutoLoginCharacterName(Client* self)
+{
+	return quest_manager.GetAutoLoginCharacterNameByAccountID(self->AccountID());
+}
+
+bool Perl_Client_SetAutoLoginCharacterName(Client* self)
+{
+	return quest_manager.SetAutoLoginCharacterNameByAccountID(self->AccountID(), self->GetCleanName());
+}
+
+bool Perl_Client_SetAutoLoginCharacterName(Client* self, std::string character_name)
+{
+	return quest_manager.SetAutoLoginCharacterNameByAccountID(self->AccountID(), character_name);
+}
+
+void Perl_Client_DescribeSpecialAbilities(Client* self, NPC* n)
+{
+	n->DescribeSpecialAbilities(self);
+}
+
 void perl_register_client()
 {
 	perl::interpreter perl(PERL_GET_THX);
@@ -3233,6 +3298,7 @@ void perl_register_client()
 	package.add("CreateExpeditionFromTemplate", &Perl_Client_CreateExpeditionFromTemplate);
 	package.add("CreateTaskDynamicZone", &Perl_Client_CreateTaskDynamicZone);
 	package.add("DecreaseByID", &Perl_Client_DecreaseByID);
+	package.add("DescribeSpecialAbilities", &Perl_Client_DescribeSpecialAbilities);
 	package.add("DeleteItemInInventory", (void(*)(Client*, int16))&Perl_Client_DeleteItemInInventory);
 	package.add("DeleteItemInInventory", (void(*)(Client*, int16, int16))&Perl_Client_DeleteItemInInventory);
 	package.add("DeleteItemInInventory", (void(*)(Client*, int16, int16, bool))&Perl_Client_DeleteItemInInventory);
@@ -3279,6 +3345,7 @@ void perl_register_client()
 	package.add("GetAugmentAt", &Perl_Client_GetAugmentAt);
 	package.add("GetAugmentIDAt", &Perl_Client_GetAugmentIDAt);
 	package.add("GetAugmentIDsBySlotID", &Perl_Client_GetAugmentIDsBySlotID);
+	package.add("GetAutoLoginCharacterName", &Perl_Client_GetAutoLoginCharacterName);
 	package.add("GetBaseAGI", &Perl_Client_GetBaseAGI);
 	package.add("GetBaseCHA", &Perl_Client_GetBaseCHA);
 	package.add("GetBaseDEX", &Perl_Client_GetBaseDEX);
@@ -3316,6 +3383,7 @@ void perl_register_client()
 	package.add("GetCorpseID", &Perl_Client_GetCorpseID);
 	package.add("GetCorpseItemAt", &Perl_Client_GetCorpseItemAt);
 	package.add("GetCustomItemData", &Perl_Client_GetCustomItemData);
+	package.add("GetDeityBitmask", &Perl_Client_GetDeityBitmask);
 	package.add("GetDiscSlotBySpellID", &Perl_Client_GetDiscSlotBySpellID);
 	package.add("GetDisciplineTimer", &Perl_Client_GetDisciplineTimer);
 	package.add("GetDuelTarget", &Perl_Client_GetDuelTarget);
@@ -3380,6 +3448,8 @@ void perl_register_client()
 	package.add("GetRaceBitmask", &Perl_Client_GetRaceBitmask);
 	package.add("GetRadiantCrystals", &Perl_Client_GetRadiantCrystals);
 	package.add("GetRaid", &Perl_Client_GetRaid);
+	package.add("GetRaidOrGroupOrSelf", (perl::array(*)(Client*))&Perl_Client_GetRaidOrGroupOrSelf);
+	package.add("GetRaidOrGroupOrSelf", (perl::array(*)(Client*, bool))&Perl_Client_GetRaidOrGroupOrSelf);
 	package.add("GetRaidPoints", &Perl_Client_GetRaidPoints);
 	package.add("GetRawItemAC", &Perl_Client_GetRawItemAC);
 	package.add("GetRawSkill", &Perl_Client_GetRawSkill);
@@ -3514,8 +3584,10 @@ void perl_register_client()
 	package.add("ReadBookByName", &Perl_Client_ReadBookByName);
 	package.add("RefundAA", &Perl_Client_RefundAA);
 	package.add("ReloadDataBuckets", &Perl_Client_ReloadDataBuckets);
+	package.add("RemoveAAPoints", &Perl_Client_RemoveAAPoints);
 	package.add("RemoveAllExpeditionLockouts", (void(*)(Client*))&Perl_Client_RemoveAllExpeditionLockouts);
 	package.add("RemoveAllExpeditionLockouts", (void(*)(Client*, std::string))&Perl_Client_RemoveAllExpeditionLockouts);
+	package.add("RemoveAlternateCurrencyValue", (bool(*)(Client*, uint32, uint32))&Perl_Client_RemoveAlternateCurrencyValue);
 	package.add("RemoveEbonCrystals", &Perl_Client_RemoveEbonCrystals);
 	package.add("RemoveExpeditionLockout", &Perl_Client_RemoveExpeditionLockout);
 	package.add("RemoveFromInstance", &Perl_Client_RemoveFromInstance);
@@ -3566,6 +3638,8 @@ void perl_register_client()
 	package.add("SetAccountFlag", &Perl_Client_SetAccountFlag);
 	package.add("SetAlternateCurrencyValue", &Perl_Client_SetAlternateCurrencyValue);
 	package.add("SetAnon", &Perl_Client_SetAnon);
+	package.add("SetAutoLoginCharacterName", (bool(*)(Client*))&Perl_Client_SetAutoLoginCharacterName);
+	package.add("SetAutoLoginCharacterName", (bool(*)(Client*, std::string))&Perl_Client_SetAutoLoginCharacterName);
 	package.add("SetBaseClass", &Perl_Client_SetBaseClass);
 	package.add("SetBaseGender", &Perl_Client_SetBaseGender);
 	package.add("SetBaseRace", &Perl_Client_SetBaseRace);

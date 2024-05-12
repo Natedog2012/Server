@@ -51,6 +51,7 @@ SET(zone_sources
     loot.cpp
     lua_bot.cpp
     lua_bit.cpp
+    lua_buff.cpp
     lua_corpse.cpp
     lua_client.cpp
     lua_door.cpp
@@ -100,11 +101,13 @@ SET(zone_sources
     npc_scale_manager.cpp
     object.cpp
     oriented_bounding_box.cpp
+    parcels.cpp
     pathfinder_interface.cpp
     pathfinder_nav_mesh.cpp
     pathfinder_null.cpp
     pathing.cpp
     perl_bot.cpp
+    perl_buff.cpp
     perl_client.cpp
     perl_doors.cpp
     perl_entity.cpp
@@ -207,6 +210,7 @@ SET(zone_headers
     horse.h
     lua_bot.h
     lua_bit.h
+    lua_buff.h
     lua_client.h
     lua_corpse.h
     lua_door.h

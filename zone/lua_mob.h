@@ -63,7 +63,6 @@ public:
 	void Damage(Lua_Mob from, int64 damage, int spell_id, int attack_skill, bool avoidable, int buffslot, bool buff_tic);
 	void RangedAttack(Lua_Mob other);
 	void ThrowingAttack(Lua_Mob other);
-	void Heal();
 	void HealDamage(uint64 amount);
 	void HealDamage(uint64 amount, Lua_Mob other);
 	uint32 GetLevelCon(int other);
@@ -270,7 +269,6 @@ public:
 	bool CanThisClassBlock();
 	void SetInvul(bool value);
 	bool GetInvul();
-	void SetExtraHaste(int haste);
 	int GetHaste();
 	int GetHandToHandDamage();
 	int GetHandToHandDelay();
@@ -577,6 +575,25 @@ public:
 	bool IsPetOwnerBot();
 	bool IsPetOwnerClient();
 	bool IsPetOwnerNPC();
+	bool IsDestructibleObject();
+	bool IsBoat();
+	bool IsControllableBoat();
+	int GetHeroicStrikethrough();
+	bool IsAlwaysAggro();
+	std::string GetDeityName();
+	luabind::object GetBuffs(lua_State* L);
+	void RestoreEndurance();
+	void RestoreHealth();
+	void RestoreMana();
+	std::string GetArchetypeName();
+	bool IsIntelligenceCasterClass();
+	bool IsPureMeleeClass();
+	bool IsWisdomCasterClass();
+	std::string GetConsiderColor(Lua_Mob other);
+	std::string GetConsiderColor(uint8 other_level);
+	int GetExtraHaste();
+	void SetExtraHaste(int haste);
+	void SetExtraHaste(int haste, bool need_to_save);
 };
 
 #endif

@@ -56,6 +56,7 @@ void perl_register_doors();
 void perl_register_expedition();
 void perl_register_expedition_lock_messages();
 void perl_register_bot();
+void perl_register_buff();
 #endif // EMBPERL_XS_CLASSES
 #endif // EMBPERL_XS
 
@@ -201,6 +202,8 @@ const char* QuestEventSubroutines[_LargestEventID] = {
 	"EVENT_ENTITY_VARIABLE_DELETE",
 	"EVENT_ENTITY_VARIABLE_SET",
 	"EVENT_ENTITY_VARIABLE_UPDATE",
+	"EVENT_AA_LOSS",
+	"EVENT_SPELL_BLOCKED",
 
 	// Add new events before these or Lua crashes
 	"EVENT_SPELL_EFFECT_BOT",
@@ -219,6 +222,11 @@ PerlembParser::PerlembParser() : perl(nullptr)
 PerlembParser::~PerlembParser()
 {
 	safe_delete(perl);
+}
+
+void PerlembParser::Init()
+{
+	ReloadQuests();
 }
 
 void PerlembParser::ReloadQuests()
@@ -1175,6 +1183,7 @@ void PerlembParser::MapFunctions()
 	perl_register_expedition();
 	perl_register_expedition_lock_messages();
 	perl_register_bot();
+	perl_register_buff();
 #endif // EMBPERL_XS_CLASSES
 }
 
@@ -1935,6 +1944,25 @@ void PerlembParser::ExportEventVariables(
 			break;
 		}
 
+		case EVENT_SPELL_BLOCKED: {
+			Seperator sep(data);
+			const uint32 blocking_spell_id = Strings::ToUnsignedInt(sep.arg[0]);
+			const uint32 cast_spell_id = Strings::ToUnsignedInt(sep.arg[1]);
+
+			ExportVar(package_name.c_str(), "blocking_spell_id", blocking_spell_id);
+			ExportVar(package_name.c_str(), "cast_spell_id", cast_spell_id);
+
+			if (IsValidSpell(blocking_spell_id)) {
+				ExportVar(package_name.c_str(), "blocking_spell", "Spell", (void*) &spells[blocking_spell_id]);
+			}
+
+			if (IsValidSpell(cast_spell_id)) {
+				ExportVar(package_name.c_str(), "cast_spell", "Spell", (void*) &spells[cast_spell_id]);
+			}
+
+			break;
+		}
+
 			//tradeskill events
 		case EVENT_COMBINE_SUCCESS:
 		case EVENT_COMBINE_FAILURE: {
@@ -2279,6 +2307,11 @@ void PerlembParser::ExportEventVariables(
 
 		case EVENT_AA_GAIN: {
 			ExportVar(package_name.c_str(), "aa_gained", data);
+			break;
+		}
+
+		case EVENT_AA_LOSS: {
+			ExportVar(package_name.c_str(), "aa_lost", data);
 			break;
 		}
 

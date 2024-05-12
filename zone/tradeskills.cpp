@@ -34,6 +34,7 @@
 #include "zonedb.h"
 #include "worldserver.h"
 #include "../common/repositories/char_recipe_list_repository.h"
+#include "../common/repositories/criteria/content_filter_criteria.h"
 #include "../common/repositories/tradeskill_recipe_repository.h"
 #include "../common/repositories/tradeskill_recipe_entries_repository.h"
 
@@ -1086,7 +1087,17 @@ bool Client::TradeskillExecute(DBTradeskillRecipe_Struct *spec) {
 
 	const EQ::ItemData* item = nullptr;
 
-	if (((spec->tradeskill==75) || GetGM() || (chance > res)) || zone->random.Roll(aa_chance)) {
+	if (
+		(
+			spec->tradeskill == EQ::skills::SkillRemoveTraps ||
+			GetGM() ||
+			(chance > res)
+		) ||
+		zone->random.Roll(aa_chance)
+	) {
+		if (GetGM()) {
+			Message(Chat::White, "Your GM flag gives you a 100% chance to succeed in combining this tradeskill.");
+		}
 
 		success_modifier = 1;
 
@@ -1892,4 +1903,31 @@ bool Client::CheckTradeskillLoreConflict(int32 recipe_id)
 	return false;
 }
 
+void Client::ScribeRecipes(uint32_t item_id) const
+{
+	if (item_id == 0)
+	{
+		return;
+	}
 
+	auto recipes = TradeskillRecipeRepository::GetWhere(content_db, fmt::format(
+		"learned_by_item_id = {} {}", item_id, ContentFilterCriteria::apply()));
+
+	std::vector<CharRecipeListRepository::CharRecipeList> learned;
+	learned.reserve(recipes.size());
+
+	for (const auto& recipe : recipes)
+	{
+		auto entry = CharRecipeListRepository::NewEntity();
+		entry.char_id = static_cast<int32_t>(CharacterID());
+		entry.recipe_id = recipe.id;
+		learned.push_back(entry);
+	}
+
+	if (!learned.empty())
+	{
+		// avoid replacing madecount for recipes the client already has
+		int rows = CharRecipeListRepository::InsertUpdateMany(database, learned);
+		LogTradeskills("Client [{}] scribed [{}] recipes from [{}]", CharacterID(), rows, item_id);
+	}
+}

@@ -16,31 +16,31 @@
 #include "zone.h"
 #include "zone_config.h"
 
-#include "lua_parser.h"
 #include "lua_bit.h"
+#include "lua_bot.h"
+#include "lua_buff.h"
+#include "lua_client.h"
+#include "lua_corpse.h"
+#include "lua_door.h"
+#include "lua_encounter.h"
 #include "lua_entity.h"
+#include "lua_entity_list.h"
 #include "lua_expedition.h"
+#include "lua_general.h"
+#include "lua_group.h"
+#include "lua_hate_list.h"
+#include "lua_inventory.h"
 #include "lua_item.h"
 #include "lua_iteminst.h"
 #include "lua_mob.h"
-#include "lua_hate_list.h"
-#include "lua_client.h"
-#include "lua_inventory.h"
 #include "lua_npc.h"
-#include "lua_spell.h"
-#include "lua_entity_list.h"
-#include "lua_group.h"
-#include "lua_raid.h"
-#include "lua_corpse.h"
 #include "lua_object.h"
-#include "lua_door.h"
-#include "lua_spawn.h"
 #include "lua_packet.h"
-#include "lua_general.h"
-#include "lua_encounter.h"
+#include "lua_parser.h"
+#include "lua_raid.h"
+#include "lua_spawn.h"
+#include "lua_spell.h"
 #include "lua_stat_bonuses.h"
-
-#include "lua_bot.h"
 
 const char *LuaEvents[_LargestEventID] = {
 	"event_say",
@@ -183,7 +183,9 @@ const char *LuaEvents[_LargestEventID] = {
 	"event_timer_stop",
 	"event_entity_variable_delete",
 	"event_entity_variable_set",
-	"event_entity_variable_update"
+	"event_entity_variable_update",
+	"event_aa_loss",
+	"event_spell_blocked"
 };
 
 extern Zone *zone;
@@ -257,6 +259,7 @@ LuaParser::LuaParser() {
 	NPCArgumentDispatch[EVENT_ENTITY_VARIABLE_DELETE] = handle_npc_entity_variable;
 	NPCArgumentDispatch[EVENT_ENTITY_VARIABLE_SET]    = handle_npc_entity_variable;
 	NPCArgumentDispatch[EVENT_ENTITY_VARIABLE_UPDATE] = handle_npc_entity_variable;
+	NPCArgumentDispatch[EVENT_SPELL_BLOCKED]          = handle_npc_spell_blocked;
 
 	PlayerArgumentDispatch[EVENT_SAY]                        = handle_player_say;
 	PlayerArgumentDispatch[EVENT_ENVIRONMENTAL_DAMAGE]       = handle_player_environmental_damage;
@@ -344,6 +347,8 @@ LuaParser::LuaParser() {
 	PlayerArgumentDispatch[EVENT_ENTITY_VARIABLE_DELETE]     = handle_player_entity_variable;
 	PlayerArgumentDispatch[EVENT_ENTITY_VARIABLE_SET]        = handle_player_entity_variable;
 	PlayerArgumentDispatch[EVENT_ENTITY_VARIABLE_UPDATE]     = handle_player_entity_variable;
+	PlayerArgumentDispatch[EVENT_AA_LOSS]                    = handle_player_aa_loss;
+	PlayerArgumentDispatch[EVENT_SPELL_BLOCKED]              = handle_player_spell_blocked;
 
 	ItemArgumentDispatch[EVENT_ITEM_CLICK]      = handle_item_click;
 	ItemArgumentDispatch[EVENT_ITEM_CLICK_CAST] = handle_item_click;
@@ -398,6 +403,7 @@ LuaParser::LuaParser() {
 	BotArgumentDispatch[EVENT_ENTITY_VARIABLE_DELETE] = handle_bot_entity_variable;
 	BotArgumentDispatch[EVENT_ENTITY_VARIABLE_SET]    = handle_bot_entity_variable;
 	BotArgumentDispatch[EVENT_ENTITY_VARIABLE_UPDATE] = handle_bot_entity_variable;
+	BotArgumentDispatch[EVENT_SPELL_BLOCKED]          = handle_bot_spell_blocked;
 #endif
 
 	L = nullptr;
@@ -1263,6 +1269,8 @@ void LuaParser::MapFunctions(lua_State *L) {
 			lua_register_bodytypes(),
 			lua_register_filters(),
 			lua_register_message_types(),
+			lua_register_zone_types(),
+			lua_register_languages(),
 			lua_register_entity(),
 			lua_register_encounter(),
 			lua_register_mob(),
@@ -1304,7 +1312,8 @@ void LuaParser::MapFunctions(lua_State *L) {
 			lua_register_journal_speakmode(),
 			lua_register_journal_mode(),
 			lua_register_expedition(),
-			lua_register_expedition_lock_messages()
+			lua_register_expedition_lock_messages(),
+			lua_register_buff()
 		)];
 
 	} catch(std::exception &ex) {
@@ -1575,11 +1584,74 @@ uint64 LuaParser::GetExperienceForKill(Client *self, Mob *against, bool &ignoreD
 	return retval;
 }
 
+
+int64 LuaParser::CommonDamage(Mob *self, Mob* attacker, int64 value, uint16 spell_id, int skill_used, bool avoidable, int8 buff_slot, bool buff_tic, int special, bool &ignore_default)
+{
+	int64 retval = 0;
+	for (auto &mod : mods_) {
+		mod.CommonDamage(self, attacker, value, spell_id, skill_used, avoidable, buff_slot, buff_tic, special, retval, ignore_default);
+	}
+	return retval;
+}
+
+uint64 LuaParser::HealDamage(Mob *self, Mob* caster, uint64 value, uint16 spell_id, bool &ignore_default)
+{
+	uint64 retval = 0;
+	for (auto &mod : mods_) {
+		mod.HealDamage(self, caster, value, spell_id, retval, ignore_default);
+	}
+	return retval;
+}
+
+bool LuaParser::IsImmuneToSpell(Mob *self, Mob *caster, uint16 spell_id, bool &ignore_default)
+{
+	bool retval = false;
+	for (auto &mod : mods_) {
+		mod.IsImmuneToSpell(self, caster, spell_id, retval, ignore_default);
+	}
+	return retval;
+}
+
 int64 LuaParser::CalcSpellEffectValue_formula(Mob *self, uint32 formula, int64 base_value, int64 max_value, int caster_level, uint16 spell_id, int ticsremaining, bool &ignoreDefault)
 {
 	int64 retval = 0;
 	for (auto &mod : mods_) {
 		mod.CalcSpellEffectValue_formula(self, formula, base_value, max_value, caster_level, spell_id, ticsremaining, retval, ignoreDefault);
+	}
+	return retval;
+}
+
+int32 LuaParser::UpdatePersonalFaction(Mob *self, int32 npc_value, int32 faction_id, int32 current_value, int32 temp, int32 this_faction_min, int32 this_faction_max, bool &ignore_default)
+{
+	int32 retval = 0;
+	for (auto &mod : mods_) {
+		mod.UpdatePersonalFaction(self, npc_value, faction_id, current_value, temp, this_faction_min, this_faction_max, retval, ignore_default);
+	}
+	return retval;
+}
+
+void LuaParser::RegisterBug(Client *self, BaseBugReportsRepository::BugReports bug, bool &ignore_default)
+{
+	for (auto &mod : mods_) {
+		mod.RegisterBug(self, bug, ignore_default);
+	}
+}
+
+
+uint64 LuaParser::SetEXP(Mob *self, ExpSource exp_source, uint64 current_exp, uint64 set_exp, bool is_rezz_exp, bool &ignore_default)
+{
+	uint64 retval = 0;
+	for (auto &mod : mods_) {
+		mod.SetEXP(self, exp_source, current_exp, set_exp, is_rezz_exp, retval, ignore_default);
+	}
+	return retval;
+}
+
+uint64 LuaParser::SetAAEXP(Mob *self, ExpSource exp_source, uint64 current_aa_exp, uint64 set_aa_exp, bool is_rezz_exp, bool &ignore_default)
+{
+	uint64 retval = 0;
+	for (auto &mod : mods_) {
+		mod.SetAAEXP(self, exp_source, current_aa_exp, set_aa_exp, is_rezz_exp, retval, ignore_default);
 	}
 	return retval;
 }

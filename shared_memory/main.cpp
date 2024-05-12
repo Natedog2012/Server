@@ -28,16 +28,17 @@
 #include "../common/eqemu_exception.h"
 #include "../common/strings.h"
 #include "items.h"
-#include "skill_caps.h"
 #include "spells.h"
 #include "../common/content/world_content_service.h"
 #include "../common/zone_store.h"
 #include "../common/path_manager.h"
+#include "../common/events/player_event_logs.h"
 
-EQEmuLogSys LogSys;
+EQEmuLogSys         LogSys;
 WorldContentService content_service;
-ZoneStore zone_store;
-PathManager path;
+ZoneStore           zone_store;
+PathManager         path;
+PlayerEventLogs     player_event_logs;
 
 #ifdef _WINDOWS
 #include <direct.h>
@@ -183,7 +184,6 @@ int main(int argc, char **argv)
 	bool load_all        = true;
 	bool load_items      = false;
 	bool load_loot       = false;
-	bool load_skill_caps = false;
 	bool load_spells     = false;
 
 	if (argc > 1) {
@@ -197,11 +197,7 @@ int main(int argc, char **argv)
 					break;
 
 				case 's':
-					if (strcasecmp("skill_caps", argv[i]) == 0) {
-						load_skill_caps = true;
-						load_all        = false;
-					}
-					else if (strcasecmp("spells", argv[i]) == 0) {
+					if (strcasecmp("spells", argv[i]) == 0) {
 						load_spells = true;
 						load_all    = false;
 					}
@@ -230,16 +226,6 @@ int main(int argc, char **argv)
 		LogInfo("Loading items");
 		try {
 			LoadItems(&content_db, hotfix_name);
-		} catch (std::exception &ex) {
-			LogError("{}", ex.what());
-			return 1;
-		}
-	}
-
-	if (load_all || load_skill_caps) {
-		LogInfo("Loading skill caps");
-		try {
-			LoadSkillCaps(&content_db, hotfix_name);
 		} catch (std::exception &ex) {
 			LogError("{}", ex.what());
 			return 1;

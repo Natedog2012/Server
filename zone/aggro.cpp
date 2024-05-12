@@ -221,7 +221,7 @@ void NPC::DescribeAggro(Client *to_who, Mob *mob, bool verbose) {
 	if (RuleB(Aggro, UseLevelAggro)) {
 		if (
 			GetLevel() < RuleI(Aggro, MinAggroLevel) &&
-			mob->GetLevelCon(GetLevel()) == CON_GRAY &&
+			mob->GetLevelCon(GetLevel()) == ConsiderColor::Gray &&
 			GetBodyType() != BT_Undead &&
 			!AlwaysAggro()
 		) {
@@ -237,7 +237,7 @@ void NPC::DescribeAggro(Client *to_who, Mob *mob, bool verbose) {
 	} else {
 		if (
 			GetINT() > RuleI(Aggro, IntAggroThreshold) &&
-			mob->GetLevelCon(GetLevel()) == CON_GRAY &&
+			mob->GetLevelCon(GetLevel()) == ConsiderColor::Gray &&
 			!AlwaysAggro()
 		) {
 			to_who->Message(
@@ -502,7 +502,7 @@ bool Mob::CheckWillAggro(Mob *mob) {
 				mob->IsClient() &&
 				mob->CastToClient()->IsSitting()
 			) ||
-			mob->GetLevelCon(GetLevel()) != CON_GRAY
+			mob->GetLevelCon(GetLevel()) != ConsiderColor::Gray
 		) &&
 		(
 			faction_value == FACTION_SCOWLS ||
@@ -531,7 +531,7 @@ bool Mob::CheckWillAggro(Mob *mob) {
 					mob->IsClient() &&
 					mob->CastToClient()->IsSitting()
 				) ||
-				mob->GetLevelCon(GetLevel()) != CON_GRAY
+				mob->GetLevelCon(GetLevel()) != ConsiderColor::Gray
 			) &&
 			(
 				faction_value == FACTION_SCOWLS	||
@@ -586,7 +586,7 @@ int EntityList::GetHatedCount(Mob *attacker, Mob *exclude, bool inc_gray_con)
 			continue;
 		}
 
-		if (!inc_gray_con && attacker->GetLevelCon(mob->GetLevel()) == CON_GRAY) {
+		if (!inc_gray_con && attacker->GetLevelCon(mob->GetLevel()) == ConsiderColor::Gray) {
 			continue;
 		}
 
@@ -621,28 +621,38 @@ bool Mob::IsAttackAllowed(Mob *target, bool isSpellAttack)
 //	NPC *npc1, *npc2;
 	int reverse;
 
-	if(!zone->CanDoCombat())
-		return false;
-
-	// some special cases
-	if(!target)
-		return false;
-
-	if(this == target)	// you can attack yourself
-		return true;
-
-	if(target->GetSpecialAbility(NO_HARM_FROM_CLIENT) && (IsClient() || (GetOwner() && GetOwner()->IsClient()))){
+	if (!zone->CanDoCombat()) {
 		return false;
 	}
 
-	if (target->GetSpecialAbility(IMMUNE_DAMAGE_CLIENT) && IsClient())
+	// some special cases
+	if (!target) {
 		return false;
+	}
 
-	if (target->GetSpecialAbility(IMMUNE_DAMAGE_NPC) && IsNPC())
-		return false;
+	if (this == target) {    // you can attack yourself
+		return true;
+	}
 
-	if (target->IsHorse())
+	if (target->GetSpecialAbility(NO_HARM_FROM_CLIENT)) {
 		return false;
+	}
+
+	if (IsBot() && target->GetSpecialAbility(IMMUNE_DAMAGE_BOT)) {
+		return false;
+	}
+
+	if (IsClient() && target->GetSpecialAbility(IMMUNE_DAMAGE_CLIENT)) {
+		return false;
+	}
+
+	if (IsNPC() && target->GetSpecialAbility(IMMUNE_DAMAGE_NPC)) {
+		return false;
+	}
+
+	if (target->IsHorse()) {
+		return false;
+	}
 
 	// can't damage own pet (applies to everthing)
 	Mob *target_owner = target->GetOwner();

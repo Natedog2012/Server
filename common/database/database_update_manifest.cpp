@@ -5410,6 +5410,164 @@ ADD COLUMN `augment_five` int(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `augment_fou
 ADD COLUMN `augment_six` int(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `augment_five`;
 		)",
 		.content_schema_update = true
+	},
+	ManifestEntry{
+		.version = 9265,
+		.description = "2024_03_03_add_id_to_guild_bank.sql",
+		.check = "SHOW COLUMNS FROM `guild_bank` LIKE 'id'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `guild_bank`
+ADD COLUMN `id` INT UNSIGNED NOT NULL AUTO_INCREMENT FIRST,
+ADD PRIMARY KEY (`id`);
+		)",
+	},
+	ManifestEntry{
+		.version = 9266,
+		.description = "2024_03_02_rule_values_rule_value_length.sql",
+		.check = "SHOW COLUMNS FROM `rule_values` LIKE 'rule_value'",
+		.condition = "contains",
+		.match = "varchar(30)",
+		.sql = R"(
+ALTER TABLE `rule_values`
+MODIFY COLUMN `rule_value` text CHARACTER SET latin1 COLLATE latin1_swedish_ci NULL DEFAULT NULL AFTER `rule_name`;
+		)"
+	},
+	ManifestEntry{
+		.version = 9267,
+		.description = "2024_02_18_group_id_bot_id.sql",
+		.check = "SHOW COLUMNS FROM `group_id` LIKE 'bot_id'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `group_id`
+CHANGE COLUMN `groupid` `group_id` int(11) UNSIGNED NOT NULL DEFAULT 0 FIRST,
+CHANGE COLUMN `charid` `character_id` int(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `group_id`,
+CHANGE COLUMN `ismerc` `merc_id` int(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `name`,
+ADD COLUMN `bot_id` int(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `character_id`,
+MODIFY COLUMN `name` varchar(64) NOT NULL DEFAULT '' AFTER `character_id`,
+DROP PRIMARY KEY,
+ADD PRIMARY KEY (`group_id`, `character_id`, `bot_id`, `merc_id`) USING BTREE;
+ALTER TABLE `group_id`
+MODIFY COLUMN `character_id` int(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `name`;
+)"
+	},
+	ManifestEntry{
+		.version = 9268,
+		.description = "2024_03_23_skill_caps.sql",
+		.check = "SHOW COLUMNS FROM `skill_caps` LIKE 'skill_id'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `skill_caps`
+CHANGE COLUMN `skillID` `skill_id` tinyint(3) UNSIGNED NOT NULL DEFAULT 0 FIRST,
+CHANGE COLUMN `class` `class_id` tinyint(3) UNSIGNED NOT NULL DEFAULT 0 AFTER `skill_id`,
+ADD COLUMN `id` int(3) UNSIGNED NOT NULL AUTO_INCREMENT FIRST,
+DROP PRIMARY KEY,
+ADD PRIMARY KEY (`id`) USING BTREE,
+ADD INDEX `level_skill_cap`(`skill_id`, `class_id`, `level`, `cap`);
+)",
+		.content_schema_update = true,
+	},
+	ManifestEntry{
+		.version = 9269,
+		.description = "2024_03_27_account_auto_login_charname.sql",
+		.check = "SHOW COLUMNS FROM `account` LIKE 'auto_login_charname'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `account`
+ADD COLUMN `auto_login_charname` varchar(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT '' AFTER `charname`;
+)"
+	},
+	ManifestEntry{
+		.version = 9270,
+		.description = "2024_04_31_content_flagging_lootdrop_entries.sql",
+		.check = "SHOW COLUMNS FROM `lootdrop_entries` LIKE 'content_flags'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `lootdrop_entries` ADD `min_expansion` tinyint(4) NOT NULL DEFAULT -1;
+ALTER TABLE `lootdrop_entries` ADD `max_expansion` tinyint(4) NOT NULL DEFAULT -1;
+ALTER TABLE `lootdrop_entries` ADD `content_flags` varchar(100) NULL;
+ALTER TABLE `lootdrop_entries` ADD `content_flags_disabled` varchar(100) NULL;
+)",
+		.content_schema_update = true
+	},
+	ManifestEntry{
+		.version = 9271,
+		.description = "2024_03_10_parcel_implementation.sql",
+		.check = "SHOW TABLES LIKE 'character_parcels'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(CREATE TABLE `character_parcels` (
+				`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+				`char_id` INT(10) UNSIGNED NOT NULL DEFAULT '0',
+				`item_id` INT(10) UNSIGNED NOT NULL DEFAULT '0',
+				`slot_id` INT(10) UNSIGNED NOT NULL DEFAULT '0',
+				`quantity` INT(10) UNSIGNED NOT NULL DEFAULT '0',
+				`from_name` VARCHAR(64) NULL DEFAULT NULL COLLATE 'latin1_swedish_ci',
+				`note` VARCHAR(1024) NULL DEFAULT NULL COLLATE 'latin1_swedish_ci',
+				`sent_date` DATETIME NULL DEFAULT NULL,
+				PRIMARY KEY (`id`) USING BTREE,
+				UNIQUE INDEX `data_constraint` (`slot_id`, `char_id`) USING BTREE
+				)
+				COLLATE='latin1_swedish_ci'
+				ENGINE=InnoDB
+				AUTO_INCREMENT=1;
+		)"
+	},
+	ManifestEntry{
+		.version     = 9272,
+		.description = "2024_04_23_add_parcel_support_for_augmented_items.sql",
+		.check       = "SHOW COLUMNS FROM `character_parcels` LIKE 'aug_slot_1'",
+		.condition   = "empty",
+		.match       = "",
+		.sql         = R"(
+ALTER TABLE `character_parcels`
+	ADD COLUMN `aug_slot_1` INT UNSIGNED NOT NULL DEFAULT '0' AFTER `item_id`,
+	ADD COLUMN `aug_slot_2` INT UNSIGNED NOT NULL DEFAULT '0' AFTER `aug_slot_1`,
+	ADD COLUMN `aug_slot_3` INT UNSIGNED NOT NULL DEFAULT '0' AFTER `aug_slot_2`,
+	ADD COLUMN `aug_slot_4` INT UNSIGNED NOT NULL DEFAULT '0' AFTER `aug_slot_3`,
+	ADD COLUMN `aug_slot_5` INT UNSIGNED NOT NULL DEFAULT '0' AFTER `aug_slot_4`,
+	ADD COLUMN `aug_slot_6` INT UNSIGNED NOT NULL DEFAULT '0' AFTER `aug_slot_5`;
+)"
+	},
+	ManifestEntry{
+		.version = 9273,
+		.description = "2024_04_24_door_close_timer.sql",
+		.check = "SHOW COLUMNS FROM `doors` LIKE 'close_timer_ms'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `doors`
+ADD COLUMN `close_timer_ms` smallint(8) UNSIGNED NOT NULL DEFAULT 5000 AFTER `is_ldon_door`;
+)",
+		.content_schema_update = true
+	},
+	ManifestEntry{
+		.version = 9274,
+		.description = "2024_05_02_parcel_npc_content.sql",
+		.check = "SHOW COLUMNS FROM `npc_types` LIKE 'is_parcel_merchant'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `npc_types`
+ADD COLUMN `is_parcel_merchant` TINYINT(1) UNSIGNED NOT NULL DEFAULT '0' AFTER `keeps_sold_items`;
+)",
+		.content_schema_update = true
+	},
+	ManifestEntry{
+		.version = 9275,
+		.description = "2024_04_28_character_extra_haste.sql",
+		.check = "SHOW COLUMNS FROM `character_data` LIKE 'extra_haste'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `character_data`
+ADD COLUMN `extra_haste` int(11) NOT NULL DEFAULT 0 AFTER `wis`;
+)"
 	}
 // -- template; copy/paste this when you need to create a new entry
 //	ManifestEntry{

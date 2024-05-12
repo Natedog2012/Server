@@ -28,6 +28,9 @@
 #ifndef RULE_BOOL
 #define RULE_BOOL(cat, rule, default_value, notes)
 #endif
+#ifndef RULE_STRING
+#define RULE_STRING(cat, rule, default_value, notes)
+#endif
 #ifndef RULE_CATEGORY_END
 #define RULE_CATEGORY_END()
 #endif
@@ -37,6 +40,7 @@
 
 RULE_CATEGORY(Character)
 RULE_INT(Character, AA_XP_MINLVL, 51, "Default level for AA XP")
+RULE_INT(Character, MaxItemHasteBonus, 0, "Each item increases haste to this max value or 0 for no additive haste")
 RULE_INT(Character, Default_Spell_For_DMG_Display, 57, "Firestrike by default.. change to another spell to display properly for your server")
 RULE_INT(Character, Default_Spell_For_HEAL_Display, 12, "Healing by default.. change to another spell to display properly for your server")
 RULE_INT(Character, Mod_Start_Value, 255, "Start value for stats to start scaling once they hit start level")
@@ -459,6 +463,10 @@ RULE_INT(World, MaximumQuestErrors, 30, "Changes the maximum number of quest err
 RULE_INT(World, BootHour, 0, "Sets the in-game hour world will set when it first boots. 0-24 are valid options, where 0 disables this rule")
 RULE_BOOL(World, UseItemLinksForKeyRing, false, "Uses item links for Key Ring Listing instead of item name")
 RULE_BOOL(World, UseOldShadowKnightClassExport, true, "Disable to have Shadowknight show as Shadow Knight (live-like)")
+RULE_STRING(World, IPExemptionZones, "", "Comma-delimited list of zones to exclude from IP-limit checks. Empty string to disable.")
+RULE_STRING(World, MOTD, "", "Server MOTD sent on login, change from empty to have this be used instead of variables table 'motd' value")
+RULE_STRING(World, Rules, "", "Server Rules, change from empty to have this be used instead of variables table 'rules' value, lines are pipe (|) separated, example: A|B|C")
+RULE_BOOL(World, EnableAutoLogin, false, "Enables or disables auto login of characters, allowing people to log characters in directly from loginserver to ingame")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Zone)
@@ -484,6 +492,7 @@ RULE_INT(Zone, GlobalLootMultiplier, 1, "Sets Global Loot drop multiplier for da
 RULE_BOOL(Zone, KillProcessOnDynamicShutdown, true, "When process has booted a zone and has hit its zone shut down timer, it will hard kill the process to free memory back to the OS")
 RULE_INT(Zone, SpawnEventMin, 3, "When strict is set in spawn_events, specifies the max EQ minutes into the trigger hour a spawn_event will fire. Going below 3 may cause the spawn_event to not fire.")
 RULE_INT(Zone, ForageChance, 25, "Chance of foraging from zone table vs global table")
+RULE_INT(Zone, FishingChance, 399, "Chance of fishing from zone table vs global table")
 RULE_BOOL(Zone, AllowCrossZoneSpellsOnBots, false, "Set to true to allow cross zone spells (cast/remove) to affect bots")
 RULE_BOOL(Zone, AllowCrossZoneSpellsOnMercs, false, "Set to true to allow cross zone spells (cast/remove) to affect mercenaries")
 RULE_BOOL(Zone, AllowCrossZoneSpellsOnPets, false, "Set to true to allow cross zone spells (cast/remove) to affect pets")
@@ -579,7 +588,8 @@ RULE_BOOL(Spells, Jun182014HundredHandsRevamp, false, "This should be true for i
 RULE_BOOL(Spells, SwarmPetTargetLock, false, "Use old method of swarm pets target locking till target dies then despawning")
 RULE_BOOL(Spells, NPC_UseFocusFromSpells, true, "Allow NPC to use most spell derived focus effects")
 RULE_BOOL(Spells, NPC_UseFocusFromItems, false, "Allow NPC to use most item derived focus effects")
-RULE_BOOL(Spells, UseAdditiveFocusFromWornSlot, false, "Allows an additive focus effect to be calculated from worn slot")
+RULE_BOOL(Spells, UseAdditiveFocusFromWornSlot, false, "Allows an additive focus effect to be calculated from worn slot. Does not apply limits checks. Can only have one additive focus rule be true.")
+RULE_BOOL(Spells, UseAdditiveFocusFromWornSlotWithLimits, false, "Allows an additive focus effect to be calculated from worn slot. Applies normal limit checks. Can only have one additive focus rule be true.")
 RULE_BOOL(Spells, AlwaysSendTargetsBuffs, false, "Ignore Leadership Alternate Abilities level if true")
 RULE_BOOL(Spells, FlatItemExtraSpellAmt, false, "Allow SpellDmg stat to affect all spells, regardless of cast time/cooldown/etc")
 RULE_BOOL(Spells, IgnoreSpellDmgLvlRestriction, false, "Ignore the 5 level spread on applying SpellDmg")
@@ -631,6 +641,7 @@ RULE_BOOL(Spells, EvacClearCharmPet, false, "Enable to have evac in zone clear c
 RULE_BOOL(Spells, ManaTapsRequireNPCMana, false, "Enabling will require target to have mana to tap. Default off as many npc's are caster class with 0 mana and need fixed.")
 RULE_INT(Spells, HarmTouchCritRatio, 200, "Harmtouch crit bonus, on top of BaseCritRatio")
 RULE_BOOL(Spells, UseClassicSpellFocus, false, "Enabling will tell the server to handle random focus damage as classic spell imports lack the limit values.")
+RULE_BOOL(Spells, ManaTapsOnAnyClass, false, "Enabling this will allow you to cast mana taps on any class, this will bypass ManaTapsRequireNPCMana rule.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Combat)
@@ -638,6 +649,8 @@ RULE_INT(Combat, ScaleNPCDamage, 0, "Percentage of extra damage per level higher
 RULE_REAL(Combat, AERampageMaxDistance, 70, "Max AERampage range (% of max combat distance)")
 RULE_INT(Combat, PetBaseCritChance, 0, "Pet base crit chance")
 RULE_INT(Combat, NPCBashKickLevel, 6, "The level that NPCcan KICK/BASH")
+RULE_INT(Combat, NPCKickStunLevel, 1, "The level that NPC has a chance to stun with kick.")
+RULE_INT(Combat, PCKickStunLevel, 56, "The level that PC has a chance to stun with kick.")
 RULE_INT(Combat, MeleeCritDifficulty, 8900, "Value against which is rolled to check if a melee crit is triggered. Lower is easier")
 RULE_INT(Combat, ArcheryCritDifficulty, 3400, "Value against which is rolled to check if an archery crit is triggered. Lower is easier")
 RULE_INT(Combat, ThrowingCritDifficulty, 1100, "Value against which is rolled to check if a throwing crit is triggered. Lower is easier")
@@ -658,6 +671,7 @@ RULE_REAL(Combat, BaseProcChance, 0.035, "Base chance for procs")
 RULE_REAL(Combat, ProcDexDivideBy, 11000, "Divisor for the probability of a proc increased by dexterity")
 RULE_INT(Combat, MinRangedAttackDist, 25, "Minimum Distance to use Ranged Attacks")
 RULE_BOOL(Combat, ArcheryBonusRequiresStationary, true, "does the 2x archery bonus chance require a stationary npc")
+RULE_INT(Combat, ArcheryBonusLevelRequirement, 51, "Level requirement when the 2x archery bonus will be enabled. The default is 51.")
 RULE_REAL(Combat, ArcheryNPCMultiplier, 1.0, "Value is multiplied by the regular dmg to get the archery dmg")
 RULE_BOOL(Combat, AssistNoTargetSelf, true, "When assisting a target that does not have a target: true = target self, false = leave target as was before assist (false = live like)")
 RULE_INT(Combat, MaxRampageTargets, 3, "Maximum number of people hit with rampage")
@@ -706,10 +720,12 @@ RULE_BOOL(Combat, NPCsUseFrontalStunImmunityClasses, false, "Enable or disable N
 RULE_INT(Combat, FrontalStunImmunityRaces, 512, "Bitmask for Races than have frontal stun immunity, Ogre (512) only by default.")
 RULE_BOOL(Combat, NPCsUseFrontalStunImmunityRaces, true, "Enable or disable NPCs using frontal stun immunity Races from Combat:FrontalStunImmunityRaces, true by default.")
 RULE_BOOL(Combat, AssassinateOnlyHumanoids, true, "Enable or disable Assassinate only being allowed on Humanoids, true by default.")
+RULE_INT(Combat, AssassinateLevelRequirement, 60, "Level requirement to enable assassinate attempts on backstabs. The default is 60.")
 RULE_BOOL(Combat, HeadshotOnlyHumanoids, true, "Enable or disable Headshot only being allowed on Humanoids, true by default.")
 RULE_BOOL(Combat, EnableWarriorShielding, true, "Enable or disable Warrior Shielding Ability (/shield), true by default.")
 RULE_BOOL(Combat, BackstabIgnoresElemental, false, "Enable or disable Elemental weapon damage affecting backstab damage, false by default.")
 RULE_BOOL(Combat, BackstabIgnoresBane, false, "Enable or disable Bane weapon damage affecting backstab damage, false by default.")
+RULE_INT(Combat, DoubleBackstabLevelRequirement, 55, "Level requirement to enable double backstab attempts. The default is 55.")
 RULE_BOOL(Combat, SummonMeleeRange, true, "Enable or disable summoning of a player when already in melee range of the summoner.")
 RULE_BOOL(Combat, WaterMatchRequiredForAutoFireLoS, true, "Enable/Disable the requirement of both the attacker/victim being both in or out of water for AutoFire LoS to pass.")
 RULE_INT(Combat, ExtraAllowedKickClassesBitmask, 0, "Bitmask for allowing extra classes beyond Warrior, Ranger, Beastlord, and Berserker to kick, No Extra Classes (0) by default")
@@ -721,6 +737,8 @@ RULE_INT(Combat, ClassicTripleAttackChanceMonk, 100, "Innate Chance for Monk to 
 RULE_INT(Combat, ClassicTripleAttackChanceBerserker, 100, "Innate Chance for Berserker to Triple Attack after a Double Attack (200 = 20%). DEFAULT: 100")
 RULE_INT(Combat, ClassicTripleAttackChanceRanger, 100, "Innate Chance for Ranger to Triple Attack after a Double Attack (200 = 20%). DEFAULT: 100")
 RULE_INT(Combat, StunChance, 12, "Percent chance that client will be stunned when mob is behind player. DEFAULT: 12")
+RULE_INT(Combat, StunDuration, 2000, "Duration of stuns in ms. DEFAULT: 2000")
+RULE_BOOL(Combat, ClientStunMessage, false, "Client stunning NPC produces message. DEFAULT false")
 RULE_BOOL(Combat, BashTwoHanderUseShoulderAC, false, "Enable to use shoulder AC for bash calculations when two hander is equipped. Unproven if accurate DEFAULT: false")
 RULE_REAL(Combat, BashACBonusDivisor, 25.0, "this divides the AC value contribution to bash damage, lower to increase damage")
 RULE_CATEGORY_END()
@@ -1083,8 +1101,19 @@ RULE_BOOL(Items, DisablePotionBelt, false, "Enable this to disable Potion Belt I
 RULE_BOOL(Items, DisableSpellFocusEffects, false, "Enable this to disable Spell Focus Effects on Items")
 RULE_CATEGORY_END()
 
+RULE_CATEGORY(Parcel)
+RULE_BOOL(Parcel, EnableParcelMerchants, true, "Enable or Disable Parcel Merchants.  Requires RoF+ Clients.")
+RULE_BOOL(Parcel, EnableDirectToInventoryDelivery, false, "Enable or Disable RoF2 bazaar purchases to be delivered directly to the buyer's inventory.")
+RULE_BOOL(Parcel, DeleteOnDuplicate, false, "Delete retrieved item if it creates a lore conflict.")
+RULE_BOOL(Parcel, EnablePruning, false, "Enable the automatic pruning of sent parcels.  Uses rule ParcelPruneDelay for prune delay.")
+RULE_INT(Parcel, ParcelDeliveryDelay, 30000, "Sets the time that a player must wait between sending parcels.")
+RULE_INT(Parcel, ParcelMaxItems, 50, "The maximum number of parcels a player is allowed to have in their mailbox.")
+RULE_INT(Parcel, ParcelPruneDelay, 30, "The number of days after which a parcel is deleted. Items are lost!")
+RULE_CATEGORY_END()
+
 #undef RULE_CATEGORY
 #undef RULE_INT
 #undef RULE_REAL
 #undef RULE_BOOL
+#undef RULE_STRING
 #undef RULE_CATEGORY_END

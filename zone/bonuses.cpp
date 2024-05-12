@@ -487,6 +487,7 @@ void Mob::ProcessItemCaps()
 }
 
 void Mob::AddItemBonuses(const EQ::ItemInstance* inst, StatBonuses* b, bool is_augment, bool is_tribute, int recommended_level_override, bool is_ammo_item) {
+	int MaxItemHasteBonus = RuleI(Character, MaxItemHasteBonus);
 	if (!inst || !inst->IsClassCommon()) {
 		return;
 	}
@@ -620,9 +621,16 @@ void Mob::AddItemBonuses(const EQ::ItemInstance* inst, StatBonuses* b, bool is_a
 			b->HeroicDR += CalcRecommendedLevelBonus(current_level, recommended_level, item->HeroicDR);
 			b->HeroicCorrup += CalcRecommendedLevelBonus(current_level, recommended_level, item->HeroicSVCorrup);
 		}
-
-		if (b->haste < item->Haste) {
-			b->haste = item->Haste;
+		
+		if (MaxItemHasteBonus > 0) {
+			b->haste += item->Haste;
+			if (b->haste > MaxItemHasteBonus) {
+				b->haste = MaxItemHasteBonus;
+			}
+		} else {	
+			if (b->haste < item->Haste) {
+				b->haste = item->Haste;
+			}
 		}
 
 		if (item->Regen != 0) {
@@ -1175,7 +1183,7 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 		case SE_IncreaseRange:
 			break;
 		case SE_MaxHPChange:
-			newbon->MaxHPChange += base_value;
+			newbon->PercentMaxHPChange += base_value;
 			break;
 		case SE_Packrat:
 			newbon->Packrat += base_value;
@@ -1234,7 +1242,7 @@ void Mob::ApplyAABonuses(const AA::Rank &rank, StatBonuses *newbon)
 			newbon->BuffSlotIncrease += base_value;
 			break;
 		case SE_TotalHP:
-			newbon->HP += base_value;
+			newbon->FlatMaxHPChange += base_value;
 			break;
 		case SE_StunResist:
 			newbon->StunResist += base_value;
@@ -2327,7 +2335,10 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 			if (focus)
 			{
 				if (WornType){
-					if (RuleB(Spells, UseAdditiveFocusFromWornSlot)) {
+					if (RuleB(Spells, UseAdditiveFocusFromWornSlotWithLimits)) {
+						new_bonus->FocusEffectsWornWithLimits[focus] = spells[spell_id].effect_id[i];
+					}
+					else if (RuleB(Spells, UseAdditiveFocusFromWornSlot)) {
 						new_bonus->FocusEffectsWorn[focus] += spells[spell_id].base_value[i];
 					}
 				}
@@ -2471,7 +2482,7 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 
 			case SE_TotalHP:
 			{
-				new_bonus->HP += effect_value;
+				new_bonus->FlatMaxHPChange += effect_value;
 				break;
 			}
 
@@ -3023,6 +3034,25 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 				break;
 			}
 
+			case SE_ReduceSkill: {
+				// Bad data or unsupported new skill
+				if (spells[spell_id].base_value[i] > EQ::skills::HIGHEST_SKILL) {
+					break;
+				}
+				//cap skill reducation at 100%
+				uint32 skill_reducation_percent = spells[spell_id].formula[i];
+				if (spells[spell_id].formula[i] > 100) {
+					skill_reducation_percent = 100;
+				}
+
+				if (spells[spell_id].base_value[i] <= EQ::skills::HIGHEST_SKILL) {
+					if (new_bonus->ReduceSkill[spells[spell_id].base_value[i]] < skill_reducation_percent) {
+						new_bonus->ReduceSkill[spells[spell_id].base_value[i]] = skill_reducation_percent;
+					}
+				}
+				break;
+			}
+
 			case SE_StunResist:
 			{
 				if(new_bonus->StunResist < effect_value)
@@ -3153,7 +3183,7 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 			}
 
 			case SE_MaxHPChange:
-				new_bonus->MaxHPChange += effect_value;
+				new_bonus->PercentMaxHPChange += effect_value;
 				break;
 
 			case SE_EndurancePool:
@@ -3531,6 +3561,15 @@ void Mob::ApplySpellsBonuses(uint16 spell_id, uint8 casterlevel, StatBonuses *ne
 				if (new_bonus->EnduranceAbsorbPercentDamage[SBIndex::ENDURANCE_ABSORD_MITIGIATION] < effect_value) {
 					new_bonus->EnduranceAbsorbPercentDamage[SBIndex::ENDURANCE_ABSORD_MITIGIATION]  = effect_value;
 					new_bonus->EnduranceAbsorbPercentDamage[SBIndex::ENDURANCE_ABSORD_DRAIN_PER_HP] = limit_value;
+				}
+				break;
+			}
+
+			case SE_Shield_Target:
+			{
+				if (new_bonus->ShieldTargetSpa[SBIndex::SHIELD_TARGET_MITIGATION_PERCENT] < effect_value) {
+					new_bonus->ShieldTargetSpa[SBIndex::SHIELD_TARGET_MITIGATION_PERCENT] = effect_value;
+					new_bonus->ShieldTargetSpa[SBIndex::SHIELD_TARGET_BUFFSLOT] = buffslot;
 				}
 				break;
 			}
@@ -4742,9 +4781,9 @@ void Mob::NegateSpellEffectBonuses(uint16 spell_id)
 					break;
 
 				case SE_TotalHP:
-					if (negate_spellbonus) { spellbonuses.HP = effect_value; }
-					if (negate_aabonus) { aabonuses.HP = effect_value; }
-					if (negate_itembonus) { itembonuses.HP = effect_value; }
+					if (negate_spellbonus) { spellbonuses.FlatMaxHPChange = effect_value; }
+					if (negate_aabonus) { aabonuses.FlatMaxHPChange = effect_value; }
+					if (negate_itembonus) { itembonuses.FlatMaxHPChange = effect_value; }
 					break;
 
 				case SE_ManaRegen_v2:
@@ -5226,9 +5265,9 @@ void Mob::NegateSpellEffectBonuses(uint16 spell_id)
 				}
 
 				case SE_MaxHPChange:
-					if (negate_spellbonus) { spellbonuses.MaxHPChange = effect_value; }
-					if (negate_aabonus) { aabonuses.MaxHPChange = effect_value; }
-					if (negate_itembonus) { itembonuses.MaxHPChange = effect_value; }
+					if (negate_spellbonus) { spellbonuses.PercentMaxHPChange = effect_value; }
+					if (negate_aabonus) { aabonuses.PercentMaxHPChange = effect_value; }
+					if (negate_itembonus) { itembonuses.PercentMaxHPChange = effect_value; }
 					break;
 
 				case SE_EndurancePool:
@@ -6155,6 +6194,7 @@ void Mob::NegateSpellEffectBonuses(uint16 spell_id)
 						if (negate_itembonus) { itembonuses.SkillProcSuccess[e] = effect_value; }
 						if (negate_aabonus) { aabonuses.SkillProcSuccess[e] = effect_value; }
 					}
+					break;
 				}
 
 				case SE_SkillProcAttempt: {
@@ -6164,6 +6204,15 @@ void Mob::NegateSpellEffectBonuses(uint16 spell_id)
 						if (negate_itembonus) { itembonuses.SkillProc[e] = effect_value; }
 						if (negate_aabonus) { aabonuses.SkillProc[e] = effect_value; }
 					}
+					break;
+				}
+
+				case SE_Shield_Target:	{
+					if (negate_spellbonus) {
+						spellbonuses.ShieldTargetSpa[SBIndex::SHIELD_TARGET_MITIGATION_PERCENT] = effect_value;
+						spellbonuses.ShieldTargetSpa[SBIndex::SHIELD_TARGET_BUFFSLOT] = effect_value;
+					}
+					break;
 				}
 			}
 		}

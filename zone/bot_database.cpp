@@ -184,32 +184,8 @@ bool BotDatabase::QueryNameAvailablity(const std::string& bot_name, bool& availa
 	if (
 		bot_name.empty() ||
 		bot_name.size() > 60 ||
-		!database.CheckUsedName(bot_name)
+		database.IsNameUsed(bot_name)
 	) {
-		return false;
-	}
-
-	const auto& bot_data = BotDataRepository::GetWhere(
-		database,
-		fmt::format(
-			"`name` LIKE '{}' LIMIT 1",
-			bot_name
-		)
-	);
-
-	if (!bot_data.empty()) {
-		return false;
-	}
-
-	const auto& character_data = CharacterDataRepository::GetWhere(
-		database,
-		fmt::format(
-			"`name` LIKE '{}' LIMIT 1",
-			bot_name
-		)
-	);
-
-	if (!character_data.empty()) {
 		return false;
 	}
 
@@ -1788,7 +1764,8 @@ bool BotDatabase::CreateCloneBotInventory(const uint32 bot_id, const uint32 clon
 	}
 
 	for (auto& e : l) {
-		e.bot_id = clone_id;
+		e.inventories_index = 0;
+		e.bot_id            = clone_id;
 	}
 
 	return BotInventoriesRepository::InsertMany(database, l);
@@ -1921,18 +1898,14 @@ bool BotDatabase::LoadGroupedBotsByGroupID(const uint32 owner_id, const uint32 g
 	const auto& l = GroupIdRepository::GetWhere(
 		database,
 		fmt::format(
-			"`groupid` = {} AND `name` IN (SELECT `name` FROM `bot_data` WHERE `owner_id` = {})",
+			"`group_id` = {} AND `bot_id` != 0 AND `name` IN (SELECT `name` FROM `bot_data` WHERE `owner_id` = {})",
 			group_id,
 			owner_id
 		)
 	);
 
-	if (l.empty()) {
-		return true;
-	}
-
 	for (const auto& e : l) {
-		group_list.push_back(e.charid);
+		group_list.emplace_back(e.bot_id);
 	}
 
 	return true;
@@ -2367,7 +2340,7 @@ const uint8 BotDatabase::GetBotLevelByID(const uint32 bot_id)
 	return e.bot_id ? e.level : 0;
 }
 
-const std::string& BotDatabase::GetBotNameByID(const uint32 bot_id)
+const std::string BotDatabase::GetBotNameByID(const uint32 bot_id)
 {
 	const auto& e = BotDataRepository::FindOne(database, bot_id);
 
@@ -2379,4 +2352,11 @@ const uint16 BotDatabase::GetBotRaceByID(const uint32 bot_id)
 	const auto& e = BotDataRepository::FindOne(database, bot_id);
 
 	return e.bot_id ? e.race : Race::Doug;
+}
+
+const int BotDatabase::GetBotExtraHasteByID(const uint32 bot_id)
+{
+	const auto& e = BotDataRepository::FindOne(database, bot_id);
+
+	return e.bot_id ? e.extra_haste : 0;
 }

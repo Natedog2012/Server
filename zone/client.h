@@ -68,6 +68,7 @@ namespace EQ
 #include "cheat_manager.h"
 #include "../common/events/player_events.h"
 #include "../common/data_verification.h"
+#include "../common/repositories/character_parcels_repository.h"
 
 #ifdef _WINDOWS
 	// since windows defines these within windef.h (which windows.h include)
@@ -261,7 +262,7 @@ public:
 	bool GotoPlayerRaid(const std::string& player_name);
 
 	//abstract virtual function implementations required by base abstract class
-	virtual bool Death(Mob* killer_mob, int64 damage, uint16 spell_id, EQ::skills::SkillType attack_skill, KilledByTypes killed_by = KilledByTypes::Killed_NPC);
+	virtual bool Death(Mob* killer_mob, int64 damage, uint16 spell_id, EQ::skills::SkillType attack_skill, KilledByTypes killed_by = KilledByTypes::Killed_NPC, bool is_buff_tic = false);
 	virtual void Damage(Mob* from, int64 damage, uint16 spell_id, EQ::skills::SkillType attack_skill, bool avoidable = true, int8 buffslot = -1, bool iBuffTic = false, eSpecialAttacks special = eSpecialAttacks::None);
 	virtual bool HasRaid() { return (GetRaid() ? true : false); }
 	virtual bool HasGroup() { return (GetGroup() ? true : false); }
@@ -271,6 +272,8 @@ public:
 	virtual void SetAttackTimer();
 	int GetQuiverHaste(int delay);
 	void DoAttackRounds(Mob *target, int hand, bool IsFromSpell = false);
+
+	std::vector<Mob*> GetRaidOrGroupOrSelf(bool clients_only = false);
 
 	void AI_Init();
 	void AI_Start(uint32 iMoveDelay = 0);
@@ -321,8 +324,36 @@ public:
 	void ReturnTraderReq(const EQApplicationPacket* app,int16 traderitemcharges, uint32 itemid = 0);
 	void TradeRequestFailed(const EQApplicationPacket* app);
 	void BuyTraderItem(TraderBuy_Struct* tbs,Client* trader,const EQApplicationPacket* app);
-	void FinishTrade(Mob* with, bool finalizer = false, void* event_entry = nullptr, std::list<void*>* event_details = nullptr);
+	void FinishTrade(
+		Mob *with,
+		bool finalizer = false,
+		void *event_entry = nullptr,
+		std::list<void *> *event_details = nullptr
+	);
 	void SendZonePoints();
+	void SendBulkParcels();
+	void DoParcelCancel();
+	void DoParcelSend(const Parcel_Struct *parcel_in);
+	void DoParcelRetrieve(const ParcelRetrieve_Struct &parcel_in);
+	void SendParcel(const Parcel_Struct &parcel);
+	void SendParcelStatus();
+	void SendParcelAck();
+	void SendParcelRetrieveAck();
+	void SendParcelDelete(const ParcelRetrieve_Struct &parcel_in);
+	void SendParcelDeliveryToWorld(const Parcel_Struct &parcel);
+	void SetParcelEnabled(bool status) { m_parcel_enabled = status; }
+	bool GetParcelEnabled() { return m_parcel_enabled; }
+	void SetParcelCount(uint32 count) { m_parcel_count = count; }
+	int32 GetParcelCount() { return m_parcel_count; }
+	bool GetEngagedWithParcelMerchant() { return m_parcel_merchant_engaged; }
+	void SetEngagedWithParcelMerchant(bool status) { m_parcel_merchant_engaged = status; }
+	Timer *GetParcelTimer() { return &parcel_timer; }
+	bool DeleteParcel(uint32 parcel_id);
+	void AddParcel(CharacterParcelsRepository::CharacterParcels &parcel);
+	void LoadParcels();
+	std::map<uint32, CharacterParcelsRepository::CharacterParcels> GetParcels() { return m_parcels; }
+	int32 FindNextFreeParcelSlot(uint32 char_id);
+	void SendParcelIconStatus();
 
 	void SendBuyerResults(char *SearchQuery, uint32 SearchID);
 	void ShowBuyLines(const EQApplicationPacket *app);
@@ -348,6 +379,7 @@ public:
 	int GetRecipeMadeCount(uint32 recipe_id);
 	bool HasRecipeLearned(uint32 recipe_id);
 	bool CanIncreaseTradeskill(EQ::skills::SkillType tradeskill);
+	void ScribeRecipes(uint32_t item_id) const;
 
 	bool GetRevoked() const { return revoked; }
 	void SetRevoked(bool rev) { revoked = rev; }
@@ -637,14 +669,14 @@ public:
 	void SendCrystalCounts();
 
 	uint64 GetExperienceForKill(Mob *against);
-	void AddEXP(uint64 in_add_exp, uint8 conlevel = 0xFF, bool resexp = false);
+	void AddEXP(ExpSource exp_source, uint64 in_add_exp, uint8 conlevel = 0xFF, bool resexp = false);
 	uint64 CalcEXP(uint8 conlevel = 0xFF, bool ignore_mods = false);
 	void CalculateNormalizedAAExp(uint64 &add_aaxp, uint8 conlevel, bool resexp);
 	void CalculateStandardAAExp(uint64 &add_aaxp, uint8 conlevel, bool resexp);
 	void CalculateLeadershipExp(uint64 &add_exp, uint8 conlevel);
 	void CalculateExp(uint64 in_add_exp, uint64 &add_exp, uint64 &add_aaxp, uint8 conlevel, bool resexp);
-	void SetEXP(uint64 set_exp, uint64 set_aaxp, bool resexp=false);
-	void AddLevelBasedExp(uint8 exp_percentage, uint8 max_level = 0, bool ignore_mods = false);
+	void SetEXP(ExpSource exp_source, uint64 set_exp, uint64 set_aaxp, bool resexp = false);
+	void AddLevelBasedExp(ExpSource exp_source, uint8 exp_percentage, uint8 max_level = 0, bool ignore_mods = false);
 	void SetLeadershipEXP(uint64 group_exp, uint64 raid_exp);
 	void AddLeadershipEXP(uint64 group_exp, uint64 raid_exp);
 	void SendLeadershipEXPUpdate();
@@ -809,7 +841,7 @@ public:
 
 	void IncreaseSkill(int skill_id, int value = 1) { if (skill_id <= EQ::skills::HIGHEST_SKILL) { m_pp.skills[skill_id] += value; } }
 	void IncreaseLanguageSkill(uint8 language_id, uint8 increase = 1);
-	virtual uint16 GetSkill(EQ::skills::SkillType skill_id) const { if (skill_id <= EQ::skills::HIGHEST_SKILL) { return(itembonuses.skillmod[skill_id] > 0 ? (itembonuses.skillmodmax[skill_id] > 0 ? std::min(m_pp.skills[skill_id] + itembonuses.skillmodmax[skill_id], m_pp.skills[skill_id] * (100 + itembonuses.skillmod[skill_id]) / 100) : m_pp.skills[skill_id] * (100 + itembonuses.skillmod[skill_id]) / 100) : m_pp.skills[skill_id]); } return 0; }
+	virtual uint16 GetSkill(EQ::skills::SkillType skill_id) const;
 	uint32 GetRawSkill(EQ::skills::SkillType skill_id) const { if (skill_id <= EQ::skills::HIGHEST_SKILL) { return(m_pp.skills[skill_id]); } return 0; }
 	bool HasSkill(EQ::skills::SkillType skill_id) const;
 	bool CanHaveSkill(EQ::skills::SkillType skill_id) const;
@@ -823,9 +855,9 @@ public:
 	void SetHoTT(uint32 mobid);
 	void ShowSkillsWindow();
 
-	uint16 MaxSkill(EQ::skills::SkillType skillid, uint16 class_, uint16 level) const;
-	inline uint16 MaxSkill(EQ::skills::SkillType skillid) const { return MaxSkill(skillid, GetClass(), GetLevel()); }
-	uint8 SkillTrainLevel(EQ::skills::SkillType skillid, uint16 class_);
+	uint16 MaxSkill(EQ::skills::SkillType skill_id, uint8 class_id, uint8 level) const;
+	inline uint16 MaxSkill(EQ::skills::SkillType skill_id) const { return MaxSkill(skill_id, GetClass(), GetLevel()); }
+	uint8 SkillTrainLevel(EQ::skills::SkillType skill_id, uint8 class_id);
 	void MaxSkills();
 
 	void SendTradeskillSearchResults(const std::string &query, unsigned long objtype, unsigned long someid);
@@ -947,8 +979,9 @@ public:
 	void ResetAlternateAdvancementTimers();
 	void ResetOnDeathAlternateAdvancement();
 
-	void SetAAPoints(uint32 points) { m_pp.aapoints = points; SendAlternateAdvancementStats(); }
+	void SetAAPoints(uint32 points);
 	void AddAAPoints(uint32 points);
+	bool RemoveAAPoints(uint32 points);
 	int GetAAPoints() { return m_pp.aapoints; }
 	int GetSpentAA() { return m_pp.aapoints_spent; }
 	uint32 GetRequiredAAExperience();
@@ -1148,6 +1181,9 @@ public:
 	const bool GetGMSpeed() const { return (gmspeed > 0); }
 	const bool GetGMInvul() const { return gminvul; }
 	bool CanUseReport;
+
+	const std::string GetAutoLoginCharacterName();
+	bool SetAutoLoginCharacterName(const std::string& character_name);
 
 	//This is used to later set the buff duration of the spell, in slot to duration.
 	//Doesn't appear to work directly after the client recieves an action packet.
@@ -1562,6 +1598,7 @@ public:
 	void SendAltCurrencies();
 	void SetAlternateCurrencyValue(uint32 currency_id, uint32 new_amount);
 	int AddAlternateCurrencyValue(uint32 currency_id, int amount, bool is_scripted = false);
+	bool RemoveAlternateCurrencyValue(uint32 currency_id, uint32 amount);
 	void SendAlternateCurrencyValues();
 	void SendAlternateCurrencyValue(uint32 currency_id, bool send_if_null = true);
 	uint32 GetAlternateCurrencyValue(uint32 currency_id) const;
@@ -1872,6 +1909,14 @@ private:
 	bool Trader;
 	bool Buyer;
 	std::string BuyerWelcomeMessage;
+	int32                                                          m_parcel_platinum;
+	int32                                                          m_parcel_gold;
+	int32                                                          m_parcel_silver;
+	int32                                                          m_parcel_copper;
+	int32                                                          m_parcel_count;
+	bool                                                           m_parcel_enabled;
+	bool                                                           m_parcel_merchant_engaged;
+	std::map<uint32, CharacterParcelsRepository::CharacterParcels> m_parcels{};
 	int Haste; //precalced value
 	uint32 tmSitting; // time stamp started sitting, used for HP regen bonus added on MAY 5, 2004
 
@@ -1929,6 +1974,7 @@ private:
 
 	glm::vec4 m_ZoneSummonLocation;
 	uint16 zonesummon_id;
+	uint8 zonesummon_instance_id;
 	uint8 zonesummon_ignorerestrictions;
 	ZoneMode zone_mode;
 
@@ -1970,8 +2016,7 @@ private:
 	Timer dynamiczone_removal_timer;
 	Timer task_request_timer;
 	Timer pick_lock_timer;
-
-	Timer heroforge_wearchange_timer;
+	Timer parcel_timer;	//Used to limit the number of parcels to one every 30 seconds (default).  Changable via rule.
 
 	glm::vec3 m_Proximity;
 	glm::vec4 last_position_before_bulk_update;

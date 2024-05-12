@@ -1091,14 +1091,14 @@ void ClientTaskState::RewardTask(Client *c, const TaskInformation *ti, ClientTas
 
 	auto experience_reward = ti->experience_reward;
 	if (experience_reward > 0) {
-		c->AddEXP(experience_reward);
+		c->AddEXP(ExpSource::Task, experience_reward);
 	} else if (experience_reward < 0) {
 		uint32 pos_reward = experience_reward * -1;
 		// Minimal Level Based Exp reward Setting is 101 (1% exp at level 1)
 		if (pos_reward > 100 && pos_reward < 25700) {
 			uint8 max_level   = pos_reward / 100;
 			uint8 exp_percent = pos_reward - (max_level * 100);
-			c->AddLevelBasedExp(exp_percent, max_level, RuleB(TaskSystem, ExpRewardsIgnoreLevelBasedEXPMods));
+			c->AddLevelBasedExp(ExpSource::Task, exp_percent, max_level, RuleB(TaskSystem, ExpRewardsIgnoreLevelBasedEXPMods));
 		}
 	}
 
@@ -2290,8 +2290,8 @@ void ClientTaskState::CreateTaskDynamicZone(Client* client, int task_id, Dynamic
 	}
 
 	// dz should be named the version-based zone name (used in choose zone window and dz window on live)
-	auto zone_info = zone_store.GetZone(dz_request.GetZoneID(), dz_request.GetZoneVersion());
-	dz_request.SetName(zone_info->long_name.empty() ? task->title : zone_info->long_name);
+	auto zone_info = zone_store.GetZoneWithFallback(dz_request.GetZoneID(), dz_request.GetZoneVersion());
+	dz_request.SetName(zone_info && !zone_info->long_name.empty() ? zone_info->long_name : task->title);
 	dz_request.SetMinPlayers(task->min_players);
 	dz_request.SetMaxPlayers(task->max_players);
 

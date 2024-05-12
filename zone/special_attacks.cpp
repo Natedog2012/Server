@@ -707,7 +707,7 @@ void Mob::TryBackstab(Mob *other, int ReuseTime) {
 			CastToClient()->Message(Chat::White,"Your fierce attack is executed with such grace, your target did not see it coming!");
 
 		RogueBackstab(other,false,ReuseTime);
-		if (level > 54) {
+		if (level >= RuleI(Combat, DoubleBackstabLevelRequirement)) {
 			// TODO: 55-59 doesn't appear to match just checking double attack, 60+ does though
 			if(IsClient() && CastToClient()->CheckDoubleAttack())
 			{
@@ -2304,8 +2304,6 @@ void Mob::Taunt(NPC *who, bool always_succeed, int chance_bonus, bool from_spell
 		if (who->CanTalk()) {
 			who->SayString(SUCCESSFUL_TAUNT, GetCleanName());
 		}
-
-		MessageString(Chat::Skills, TAUNT_SUCCESS, who->GetCleanName());
 	} else {
 		MessageString(Chat::Skills, FAILED_TAUNT);
 	}
@@ -2424,7 +2422,7 @@ int Mob::TryAssassinate(Mob *defender, EQ::skills::SkillType skillInUse)
 	if (
 		defender &&
 		!defender->IsClient() &&
-		GetLevel() >= 60 &&
+		GetLevel() >= RuleI(Combat, AssassinateLevelRequirement) &&
 		(skillInUse == EQ::skills::SkillBackstab || skillInUse == EQ::skills::SkillThrowing) &&
 		(defender->GetBodyType() == BT_Humanoid || !RuleB(Combat, AssassinateOnlyHumanoids)) &&
 		!defender->GetSpecialAbility(IMMUNE_ASSASSINATE)

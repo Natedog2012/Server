@@ -59,6 +59,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "../common/events/player_event_logs.h"
 #include "../common/repositories/guild_tributes_repository.h"
 #include "../common/patches/patches.h"
+#include "../common/skill_caps.h"
 
 extern EntityList entity_list;
 extern Zone* zone;
@@ -1092,7 +1093,7 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 					break;
 				}
 
-				database.SetGroupID(Inviter->GetName(), group->GetID(), Inviter->CastToClient()->CharacterID(), false);
+				group->AddToGroup(Inviter);
 				database.SetGroupLeaderName(group->GetID(), Inviter->GetName());
 				group->UpdateGroupAAs();
 
@@ -1192,9 +1193,11 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 				group->UpdatePlayer(client);
 			else
 			{
-				if (client->GetMerc())
-					database.SetGroupID(client->GetMerc()->GetCleanName(), 0, client->CharacterID(), true);
-				database.SetGroupID(client->GetName(), 0, client->CharacterID(), false);	//cannot re-establish group, kill it
+				if (client->GetMerc()) {
+					Group::RemoveFromGroup(client->GetMerc());
+				}
+
+				Group::RemoveFromGroup(client);	//cannot re-establish group, kill it
 			}
 
 		}
@@ -2093,6 +2096,15 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 	{
 		zone->SendReloadMessage("Rules");
 		RuleManager::Instance()->LoadRules(&database, RuleManager::Instance()->GetActiveRuleset(), true);
+		break;
+	}
+	case ServerOP_ReloadSkillCaps:
+	{
+		if (zone && zone->IsLoaded()) {
+			zone->SendReloadMessage("Skill Caps");
+			skill_caps.ReloadSkillCaps();
+		}
+
 		break;
 	}
 	case ServerOP_ReloadDataBucketsCache:
@@ -3538,18 +3550,18 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 			zone->SetQuestHotReloadQueued(true);
 		} else if (request_zone_short_name == "all") {
 			std::string reload_quest_saylink = Saylink::Silent("#reload quest", "Locally");
-			std::string reload_world_saylink = Saylink::Silent("#reload world", "Globally");
-			worldserver.SendEmoteMessage(
-				0,
-				0,
-				AccountStatus::ApprenticeGuide,
-				Chat::Yellow,
-				fmt::format(
+			std::string reload_world_saylink = Saylink::Silent("#reload world 1", "Globally");
+			for (const auto& [client_id, client] : entity_list.GetClientList()) {
+				if (client->Admin() < AccountStatus::ApprenticeGuide) {
+					continue;
+				}
+
+				client->Message(Chat::Yellow, fmt::format(
 					"A quest, plugin, or global script has changed. Reload: [{}] [{}]",
 					reload_quest_saylink,
 					reload_world_saylink
-				).c_str()
-			);
+				).c_str());
+			}
 		}
 		break;
 	}
@@ -3559,11 +3571,6 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 		LogInfo("Loading items");
 		if (!content_db.LoadItems(hotfix_name)) {
 			LogError("Loading items failed!");
-		}
-
-		LogInfo("Loading skill caps");
-		if (!content_db.LoadSkillCaps(std::string(hotfix_name))) {
-			LogError("Loading skill caps failed!");
 		}
 
 		LogInfo("Loading spells");
@@ -3696,29 +3703,31 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 		}
 		break;
 	}
-	case ServerOP_GuildTributeUpdateDonations:
-	{
-		GuildTributeUpdate* in = (GuildTributeUpdate*)pack->pBuffer;
+	case ServerOP_GuildTributeUpdateDonations: {
+		auto in     = (GuildTributeUpdate *) pack->pBuffer;
+		auto outapp = new EQApplicationPacket(OP_GuildOptInOut, sizeof(GuildTributeOptInOutReply_Struct));
+		auto data   = (GuildTributeOptInOutReply_Struct *) outapp->pBuffer;
 
-		EQApplicationPacket* outapp = new EQApplicationPacket(OP_GuildOptInOut, sizeof(GuildTributeOptInOutReply_Struct));
-		GuildTributeOptInOutReply_Struct* data = (GuildTributeOptInOutReply_Struct*)outapp->pBuffer;
-
-		data->guild_id = in->guild_id;
+		data->guild_id              = in->guild_id;
+		data->no_donations          = in->member_favor;
+		data->tribute_toggle        = in->member_enabled ? true : false;
+		data->tribute_trophy_toggle = 0; // not yet implemented
+		data->time                  = in->member_time;
+		data->command               = 1;
 		strn0cpy(data->player_name, in->player_name, sizeof(data->player_name));
-		data->no_donations = in->member_favor;
-		data->tribute_toggle = in->member_enabled ? true : false;
-		data->tribute_trophy_toggle = 0; //not yet implemented
-		data->time = in->member_time;
-		data->command = 1;
 
 		entity_list.QueueClientsGuild(outapp, in->guild_id);
 		safe_delete(outapp);
 
-		//my new items
 		outapp = new EQApplicationPacket(OP_GuildTributeToggleReply, sizeof(GuildTributeSendActive_Struct));
-		GuildTributeSendActive_Struct *out = (GuildTributeSendActive_Struct *) outapp->pBuffer;
+		auto out = (GuildTributeSendActive_Struct *) outapp->pBuffer;
 
 		auto guild = guild_mgr.GetGuildByGuildID(in->guild_id);
+		if (!guild) {
+			safe_delete(outapp)
+			return;
+		}
+
 		out->not_used          = in->guild_id;
 		out->guild_favor       = guild->tribute.favor;
 		out->tribute_enabled   = guild->tribute.enabled;
@@ -3850,6 +3859,51 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 		}
 		break;
 	}
+		case ServerOP_ParcelDelivery: {
+			auto in = (Parcel_Struct *) pack->pBuffer;
+
+			if (strlen(in->send_to) == 0) {
+				LogError(
+					"ServerOP_ParcelDelivery pack received with incorrect character_name of {}.",
+					in->send_to
+				);
+				return;
+			}
+
+			for (auto const &c: entity_list.GetClientList()) {
+				if (strcasecmp(c.second->GetCleanName(), in->send_to) == 0) {
+					c.second->MessageString(
+						Chat::Yellow,
+						PARCEL_DELIVERY_ARRIVED
+					);
+					c.second->SendParcelStatus();
+					if (c.second->GetEngagedWithParcelMerchant()) {
+						c.second->SendParcel(*in);
+					}
+					return;
+				}
+			}
+
+			break;
+		}
+		case ServerOP_ParcelPrune: {
+			for (auto const &c: entity_list.GetClientList()) {
+				if (c.second->GetEngagedWithParcelMerchant()) {
+					c.second->Message(
+						Chat::Red,
+						"Parcel data has been updated.  Please re-open the Merchant Window."
+					);
+					c.second->SetEngagedWithParcelMerchant(false);
+					c.second->DoParcelCancel();
+
+					auto out = new EQApplicationPacket(OP_ShopEndConfirm);
+					c.second->QueuePacket(out);
+					safe_delete(out);
+					return;
+				}
+			}
+			break;
+		}
 	default: {
 		LogInfo("Unknown ZS Opcode [{}] size [{}]", (int)pack->opcode, pack->size);
 		break;

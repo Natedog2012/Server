@@ -549,12 +549,11 @@ public:
 	bool CanClassEquipItem(uint32 item_id);
 	bool CanRaceEquipItem(uint32 item_id);
 	bool AffectedBySpellExcludingSlot(int slot, int effect);
-	virtual bool Death(Mob* killer_mob, int64 damage, uint16 spell_id, EQ::skills::SkillType attack_skill, KilledByTypes killed_by = KilledByTypes::Killed_NPC) = 0;
+	virtual bool Death(Mob* killer_mob, int64 damage, uint16 spell_id, EQ::skills::SkillType attack_skill, KilledByTypes killed_by = KilledByTypes::Killed_NPC, bool is_buff_tic = false) = 0;
 	virtual void Damage(Mob* from, int64 damage, uint16 spell_id, EQ::skills::SkillType attack_skill,
 		bool avoidable = true, int8 buffslot = -1, bool iBuffTic = false, eSpecialAttacks special = eSpecialAttacks::None) = 0;
 	void SetHP(int64 hp);
 	inline void SetOOCRegen(int64 new_ooc_regen) { ooc_regen = new_ooc_regen; }
-	virtual void Heal();
 	virtual void HealDamage(uint64 ammount, Mob* caster = nullptr, uint16 spell_id = SPELL_UNKNOWN);
 	virtual void SetMaxHP() { current_hp = max_hp; }
 	virtual inline uint16 GetBaseRace() const { return base_race; }
@@ -598,6 +597,7 @@ public:
 	inline const char* GetName() const { return name; }
 	inline const char* GetOrigName() const { return orig_name; }
 	inline const char* GetLastName() const { return lastname; }
+	inline const eStandingPetOrder GetPreviousPetOrder() const { return m_previous_pet_order; }
 	const char *GetCleanName();
 	virtual void SetName(const char *new_name = nullptr) { new_name ? strn0cpy(name, new_name, 64) :
 		strn0cpy(name, GetName(), 64); return; };
@@ -839,6 +839,7 @@ public:
 	void SendHPUpdate(bool force_update_all = false);
 	virtual void ResetHPUpdateTimer() {}; // does nothing
 	static void SetSpawnLastNameByClass(NewSpawn_Struct* ns);
+	void SendRename(Mob* sender, const char* old_name, const char* new_name);
 
 	//Util
 	static uint32 RandomTimer(int min, int max);
@@ -848,8 +849,11 @@ public:
 	virtual void MakePet(uint16 spell_id, const char* pettype, const char *petname = nullptr);
 	virtual void MakePoweredPet(uint16 spell_id, const char* pettype, int16 petpower, const char *petname = nullptr, float in_size = 0.0f);
 	bool IsWarriorClass() const;
-	char GetCasterClass() const;
+	bool IsIntelligenceCasterClass() const;
+	bool IsPureMeleeClass() const;
+	bool IsWisdomCasterClass() const;
 	uint8 GetArchetype() const;
+	const std::string GetArchetypeName();
 	void SetZone(uint32 zone_id, uint32 instance_id);
 	void SendStatsWindow(Client* c, bool use_window);
 	void ShowStats(Client* client);
@@ -1002,6 +1006,7 @@ public:
 	inline void SetDualWieldingSameDelayWeapons(int32 val) { dw_same_delay = val; }
 	bool IsTargetedFocusEffect(int focus_type);
 	bool HasPersistDeathIllusion(int32 spell_id);
+	void DoShieldDamageOnShielderSpellEffect(Mob* shield_target, int64 hit_damage_done, EQ::skills::SkillType skillInUse);
 
 
 	bool TryDoubleMeleeRoundEffect();
@@ -1108,7 +1113,8 @@ public:
 	virtual void SetAttackTimer();
 	inline void SetInvul(bool invul) { invulnerable=invul; }
 	inline bool GetInvul(void) { return invulnerable; }
-	inline void SetExtraHaste(int Haste) { ExtraHaste = Haste; }
+	void SetExtraHaste(int haste, bool need_to_save = true);
+	inline int GetExtraHaste() { return extra_haste; }
 	virtual int GetHaste();
 	int32 GetMeleeMitigation();
 
@@ -1184,7 +1190,7 @@ public:
 	inline const float GetAssistRange() const { return (spellbonuses.AssistRange == -1) ? pAssistRange : spellbonuses.AssistRange; }
 
 
-	inline void SetPetOrder(eStandingPetOrder i) { pStandingPetOrder = i; }
+	void SetPetOrder(eStandingPetOrder i);
 	inline const eStandingPetOrder GetPetOrder() const { return pStandingPetOrder; }
 	inline void SetHeld(bool nState) { held = nState; }
 	inline const bool IsHeld() const { return held; }
@@ -1344,6 +1350,10 @@ public:
 
 	inline virtual bool IsBlockedBuff(int32 SpellID) { return false; }
 	inline virtual bool IsBlockedPetBuff(int32 SpellID) { return false; }
+
+	inline void RestoreEndurance() { SetEndurance(GetMaxEndurance()); }
+	inline void RestoreHealth() { SetMaxHP(); SendHPUpdate(); }
+	inline void RestoreMana() { SetMana(GetMaxMana()); }
 
 	std::string GetGlobal(const char *varname);
 	void SetGlobal(const char *varname, const char *newvalue, int options, const char *duration, Mob *other = nullptr);
@@ -1675,8 +1685,6 @@ protected:
 	int32 appearance_effects_id[MAX_APPEARANCE_EFFECTS];
 	int32 appearance_effects_slot[MAX_APPEARANCE_EFFECTS];
 
-	int queue_wearchange_slot;
-
 	Timer shield_timer;
 	uint32 m_shield_target_id;
 	uint32 m_shielder_id;
@@ -1730,7 +1738,7 @@ protected:
 
 	uint8 aa_title;
 
-	int ExtraHaste; // for the #haste command
+	int extra_haste; // for the #haste command
 	bool mezzed;
 	bool stunned;
 	bool charmed; //this isnt fully implemented yet
@@ -1782,6 +1790,7 @@ protected:
 
 	// MobAI stuff
 	eStandingPetOrder pStandingPetOrder;
+	eStandingPetOrder m_previous_pet_order;
 	uint32 minLastFightingDelayMoving;
 	uint32 maxLastFightingDelayMoving;
 	float pAggroRange = 0;

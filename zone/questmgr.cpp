@@ -39,6 +39,7 @@
 #include "zonedb.h"
 #include "dialogue_window.h"
 
+#include "../common/repositories/account_repository.h"
 #include "../common/repositories/tradeskill_recipe_repository.h"
 #include "../common/repositories/instance_list_repository.h"
 #include "../common/repositories/grid_entries_repository.h"
@@ -554,9 +555,8 @@ void QuestManager::settimer(const std::string& timer_name, uint32 seconds, Mob* 
 	);
 
 	if (!QTimerList.empty()) {
-		for (auto e : QTimerList) {
+		for (auto& e : QTimerList) {
 			if (e.mob && e.mob == mob && e.name == timer_name) {
-				e.Timer_.Enable();
 				e.Timer_.Start(seconds * 1000, false);
 
 				if (has_start_event) {
@@ -630,9 +630,8 @@ void QuestManager::settimerMS(const std::string& timer_name, uint32 milliseconds
 	}
 
 	if (!QTimerList.empty()) {
-		for (auto e : QTimerList) {
+		for (auto& e : QTimerList) {
 			if (e.mob && e.mob == owner && e.name == timer_name) {
-				e.Timer_.Enable();
 				e.Timer_.Start(milliseconds, false);
 
 				if (has_start_event) {
@@ -695,9 +694,8 @@ void QuestManager::settimerMS(const std::string& timer_name, uint32 milliseconds
 	);
 
 	if (!QTimerList.empty()) {
-		for (auto e : QTimerList) {
+		for (auto& e : QTimerList) {
 			if (e.mob && e.mob == m && e.name == timer_name) {
-				e.Timer_.Enable();
 				e.Timer_.Start(milliseconds, false);
 
 				if (has_start_event) {
@@ -1405,7 +1403,7 @@ void QuestManager::changedeity(int deity_id) {
 void QuestManager::exp(int amt) {
 	QuestManagerCurrentQuestVars();
 	if (initiator)
-		initiator->AddEXP(amt);
+		initiator->AddEXP(ExpSource::Quest, amt);
 }
 
 void QuestManager::level(int newlevel) {
@@ -2360,6 +2358,10 @@ void QuestManager::set_proximity_range(float x_range, float y_range, float z_ran
 	n->proximity->max_z         = n->GetZ() + z_range;
 	n->proximity->say           = enable_say;
 	n->proximity->proximity_set = true;
+
+	if (enable_say) {
+		HaveProximitySays = enable_say;
+	}
 }
 
 void QuestManager::set_proximity(float min_x, float max_x, float min_y, float max_y, float min_z, float max_z, bool enable_say)
@@ -2381,6 +2383,10 @@ void QuestManager::set_proximity(float min_x, float max_x, float min_y, float ma
 	n->proximity->max_z         = max_z;
 	n->proximity->say           = enable_say;
 	n->proximity->proximity_set = true;
+
+	if (enable_say) {
+		HaveProximitySays = enable_say;
+	}
 }
 
 void QuestManager::clear_proximity() {
@@ -2977,50 +2983,50 @@ bool QuestManager::createBot(const char *name, const char *lastname, uint8 level
 
 		auto spawned_bot_count = Bot::SpawnedBotCount(initiator->CharacterID());
 
-		if (
-			bot_spawn_limit >= 0 &&
-			spawned_bot_count >= bot_spawn_limit &&
-			!initiator->GetGM()
-		) {
-			std::string message;
-			if (bot_spawn_limit) {
-				message = fmt::format(
-					"You cannot have more than {} spawned bot{}.",
-					bot_spawn_limit,
-					bot_spawn_limit != 1 ? "s" : ""
-				);
-			} else {
-				message = "You are not currently allowed to spawn any bots.";
-			}
+		if (bot_spawn_limit >= 0 && spawned_bot_count >= bot_spawn_limit) {
+			if (!initiator->GetGM()) {
+				std::string message;
+				if (bot_spawn_limit) {
+					message = fmt::format(
+						"You cannot have more than {} spawned bot{}.",
+						bot_spawn_limit,
+						bot_spawn_limit != 1 ? "s" : ""
+					);
+				} else {
+					message = "You are not currently allowed to spawn any bots.";
+				}
 
-			initiator->Message(Chat::White, message.c_str());
-			return false;
+				initiator->Message(Chat::White, message.c_str());
+				return false;
+			} else {
+				initiator->Message(Chat::White, "Your GM flag allows you to bypass bot spawn limits.");
+			}
 		}
 
 		auto spawned_bot_count_class = Bot::SpawnedBotCount(initiator->CharacterID(), botclass);
 
-		if (
-			bot_spawn_limit_class >= 0 &&
-			spawned_bot_count_class >= bot_spawn_limit_class &&
-			!initiator->GetGM()
-		) {
-			std::string message;
-			if (bot_spawn_limit_class) {
-				message = fmt::format(
-					"You cannot have more than {} spawned {} bot{}.",
-					bot_spawn_limit_class,
-					GetClassIDName(botclass),
-					bot_spawn_limit_class != 1 ? "s" : ""
-				);
-			} else {
-				message = fmt::format(
-					"You are not currently allowed to spawn any {} bots.",
-					GetClassIDName(botclass)
-				);
-			}
+		if (bot_spawn_limit_class >= 0 && spawned_bot_count_class >= bot_spawn_limit_class) {
+			if (!initiator->GetGM()) {
+				std::string message;
+				if (bot_spawn_limit_class) {
+					message = fmt::format(
+						"You cannot have more than {} spawned {} bot{}.",
+						bot_spawn_limit_class,
+						GetClassIDName(botclass),
+						bot_spawn_limit_class != 1 ? "s" : ""
+					);
+				} else {
+					message = fmt::format(
+						"You are not currently allowed to spawn any {} bots.",
+						GetClassIDName(botclass)
+					);
+				}
 
-			initiator->Message(Chat::White, message.c_str());
-			return false;
+				initiator->Message(Chat::White, message.c_str());
+				return false;
+			} else {
+				initiator->Message(Chat::White, "Your GM flag allows you to bypass bot class-based spawn limits.");
+			}
 		}
 
 		std::string test_name = name;
@@ -3889,13 +3895,6 @@ void QuestManager::FlagInstanceByRaidLeader(uint32 zone, int16 version)
 			database.FlagInstanceByRaidLeader(zone, version, initiator->CharacterID(), r->GetID());
 		}
 	}
-}
-
-std::string QuestManager::saylink(char *saylink_text, bool silent, const char *link_name)
-{
-	QuestManagerCurrentQuestVars();
-
-	return Saylink::Create(saylink_text, silent, link_name);
 }
 
 std::string QuestManager::getcharnamebyid(uint32 char_id) {
@@ -4916,4 +4915,14 @@ void QuestManager::SendPlayerHandinEvent() {
 
 		RecordPlayerEventLogWithClient(initiator, PlayerEvent::NPC_HANDIN, e);
 	}
+}
+
+std::string QuestManager::GetAutoLoginCharacterNameByAccountID(uint32 account_id)
+{
+	return AccountRepository::GetAutoLoginCharacterNameByAccountID(database, account_id);
+}
+
+bool QuestManager::SetAutoLoginCharacterNameByAccountID(uint32 account_id, const std::string& character_name)
+{
+	return AccountRepository::SetAutoLoginCharacterNameByAccountID(database, account_id, character_name);
 }

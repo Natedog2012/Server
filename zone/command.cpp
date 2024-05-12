@@ -182,6 +182,7 @@ int command_init(void)
 		command_add("nukeitem", "[Item ID] - Removes the specified Item ID from you or your player target's inventory", AccountStatus::GMLeadAdmin, command_nukeitem) ||
 		command_add("object", "List|Add|Edit|Move|Rotate|Copy|Save|Undo|Delete - Manipulate static and tradeskill objects within the zone", AccountStatus::GMAdmin, command_object) ||
 		command_add("opcode", "Reloads all opcodes from server patch files", AccountStatus::GMMgmt, command_reload) ||
+		command_add("parcels", "View and edit the parcel system.  Requires parcels to be enabled in rules.", AccountStatus::GMMgmt, command_parcels) ||
 		command_add("path", "view and edit pathing", AccountStatus::GMMgmt, command_path) ||
 		command_add("peqzone", "[Zone ID|Zone Short Name] - Teleports you to the specified zone if you meet the requirements.", AccountStatus::Player, command_peqzone) ||
 		command_add("petitems", "View your pet's items if you have one", AccountStatus::ApprenticeGuide, command_petitems) ||
@@ -208,6 +209,7 @@ int command_init(void)
 		command_add("scribespells", "[Max level] [Min level] - Scribe all spells for you or your player target that are usable by them, up to level specified. (may freeze client for a few seconds)", AccountStatus::GMLeadAdmin, command_scribespells) ||
 		command_add("sendzonespawns", "Refresh spawn list for all clients in zone", AccountStatus::GMLeadAdmin, command_sendzonespawns) ||
 		command_add("sensetrap", "Analog for ldon sense trap for the newer clients since we still don't have it working.", AccountStatus::Player, command_sensetrap) ||
+		command_add("serverrules", "Show server rules", AccountStatus::Player, command_serverrules) ||
 		command_add("set", "Set command used to set various things", AccountStatus::Guide, command_set) ||
 		command_add("show", "Show command used to show various things", AccountStatus::Guide, command_show) ||
 		command_add("shutdown", "Shut this zone process down", AccountStatus::GMLeadAdmin, command_shutdown) ||
@@ -872,6 +874,7 @@ void command_bot(Client *c, const Seperator *sep)
 #include "gm_commands/nukeitem.cpp"
 #include "gm_commands/object.cpp"
 #include "gm_commands/object_manipulation.cpp"
+#include "gm_commands/parcels.cpp"
 #include "gm_commands/path.cpp"
 #include "gm_commands/peqzone.cpp"
 #include "gm_commands/petitems.cpp"
@@ -897,6 +900,7 @@ void command_bot(Client *c, const Seperator *sep)
 #include "gm_commands/scribespells.cpp"
 #include "gm_commands/sendzonespawns.cpp"
 #include "gm_commands/sensetrap.cpp"
+#include "gm_commands/serverrules.cpp"
 #include "gm_commands/set.cpp"
 #include "gm_commands/show.cpp"
 #include "gm_commands/shutdown.cpp"

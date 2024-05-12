@@ -404,6 +404,9 @@ namespace EQ
 		extern const std::map<uint32, std::string>& GetSpecialAbilityMap();
 		std::string GetSpecialAbilityName(uint32 ability_id);
 
+		extern const std::map<uint32, std::string>& GetConsiderColorMap();
+		std::string GetConsiderColorName(uint32 consider_color);
+
 		const int STANCE_TYPE_FIRST = stancePassive;
 		const int STANCE_TYPE_LAST = stanceBurnAE;
 		const int STANCE_TYPE_COUNT = stanceBurnAE;
@@ -559,6 +562,17 @@ enum ConsiderLevel : uint8 {
 	Scowls
 };
 
+namespace ConsiderColor {
+	constexpr uint32 Green         = 2;
+	constexpr uint32 DarkBlue      = 4;
+	constexpr uint32 Gray          = 6;
+	constexpr uint32 White         = 10;
+	constexpr uint32 Red           = 13;
+	constexpr uint32 Yellow        = 15;
+	constexpr uint32 LightBlue     = 18;
+	constexpr uint32 WhiteTitanium = 20;
+};
+
 enum TargetDescriptionType : uint8 {
 	LCSelf,
 	UCSelf,
@@ -656,7 +670,9 @@ enum {
 	IMMUNE_OPEN               = 53,
 	IMMUNE_ASSASSINATE        = 54,
 	IMMUNE_HEADSHOT           = 55,
-	MAX_SPECIAL_ATTACK        = 56
+	IMMUNE_AGGRO_BOT          = 56,
+	IMMUNE_DAMAGE_BOT         = 57,
+	MAX_SPECIAL_ATTACK        = 58
 };
 
 

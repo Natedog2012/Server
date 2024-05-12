@@ -105,7 +105,7 @@ public:
 		e.gid            = 0;
 		e.leadername     = "";
 		e.marknpc        = "";
-		e.leadershipaa   = 0;
+		e.leadershipaa   = "";
 		e.maintank       = "";
 		e.assist         = "";
 		e.puller         = "";
@@ -150,7 +150,7 @@ public:
 			e.gid            = row[0] ? static_cast<int32_t>(atoi(row[0])) : 0;
 			e.leadername     = row[1] ? row[1] : "";
 			e.marknpc        = row[2] ? row[2] : "";
-			e.leadershipaa   = row[3] ? row[3] : 0;
+			e.leadershipaa   = row[3] ? row[3] : "";
 			e.maintank       = row[4] ? row[4] : "";
 			e.assist         = row[5] ? row[5] : "";
 			e.puller         = row[6] ? row[6] : "";
@@ -192,7 +192,7 @@ public:
 		v.push_back(columns[0] + " = " + std::to_string(e.gid));
 		v.push_back(columns[1] + " = '" + Strings::Escape(e.leadername) + "'");
 		v.push_back(columns[2] + " = '" + Strings::Escape(e.marknpc) + "'");
-		v.push_back(columns[3] + " = '" + Strings::Escape(e.leadershipaa) + "'");
+		v.push_back(columns[3] + " = '" + e.leadershipaa + "'");
 		v.push_back(columns[4] + " = '" + Strings::Escape(e.maintank) + "'");
 		v.push_back(columns[5] + " = '" + Strings::Escape(e.assist) + "'");
 		v.push_back(columns[6] + " = '" + Strings::Escape(e.puller) + "'");
@@ -222,7 +222,7 @@ public:
 		v.push_back(std::to_string(e.gid));
 		v.push_back("'" + Strings::Escape(e.leadername) + "'");
 		v.push_back("'" + Strings::Escape(e.marknpc) + "'");
-		v.push_back("'" + Strings::Escape(e.leadershipaa) + "'");
+		v.push_back("'" + e.leadershipaa + "'");
 		v.push_back("'" + Strings::Escape(e.maintank) + "'");
 		v.push_back("'" + Strings::Escape(e.assist) + "'");
 		v.push_back("'" + Strings::Escape(e.puller) + "'");
@@ -260,7 +260,7 @@ public:
 			v.push_back(std::to_string(e.gid));
 			v.push_back("'" + Strings::Escape(e.leadername) + "'");
 			v.push_back("'" + Strings::Escape(e.marknpc) + "'");
-			v.push_back("'" + Strings::Escape(e.leadershipaa) + "'");
+			v.push_back("'" + e.leadershipaa + "'");
 			v.push_back("'" + Strings::Escape(e.maintank) + "'");
 			v.push_back("'" + Strings::Escape(e.assist) + "'");
 			v.push_back("'" + Strings::Escape(e.puller) + "'");
@@ -302,7 +302,7 @@ public:
 			e.gid            = row[0] ? static_cast<int32_t>(atoi(row[0])) : 0;
 			e.leadername     = row[1] ? row[1] : "";
 			e.marknpc        = row[2] ? row[2] : "";
-			e.leadershipaa   = row[3] ? row[3] : 0;
+			e.leadershipaa   = row[3] ? row[3] : "";
 			e.maintank       = row[4] ? row[4] : "";
 			e.assist         = row[5] ? row[5] : "";
 			e.puller         = row[6] ? row[6] : "";
@@ -335,7 +335,7 @@ public:
 			e.gid            = row[0] ? static_cast<int32_t>(atoi(row[0])) : 0;
 			e.leadername     = row[1] ? row[1] : "";
 			e.marknpc        = row[2] ? row[2] : "";
-			e.leadershipaa   = row[3] ? row[3] : 0;
+			e.leadershipaa   = row[3] ? row[3] : "";
 			e.maintank       = row[4] ? row[4] : "";
 			e.assist         = row[5] ? row[5] : "";
 			e.puller         = row[6] ? row[6] : "";
@@ -418,7 +418,7 @@ public:
 		v.push_back(std::to_string(e.gid));
 		v.push_back("'" + Strings::Escape(e.leadername) + "'");
 		v.push_back("'" + Strings::Escape(e.marknpc) + "'");
-		v.push_back("'" + Strings::Escape(e.leadershipaa) + "'");
+		v.push_back("'" + e.leadershipaa + "'");
 		v.push_back("'" + Strings::Escape(e.maintank) + "'");
 		v.push_back("'" + Strings::Escape(e.assist) + "'");
 		v.push_back("'" + Strings::Escape(e.puller) + "'");
@@ -449,7 +449,7 @@ public:
 			v.push_back(std::to_string(e.gid));
 			v.push_back("'" + Strings::Escape(e.leadername) + "'");
 			v.push_back("'" + Strings::Escape(e.marknpc) + "'");
-			v.push_back("'" + Strings::Escape(e.leadershipaa) + "'");
+			v.push_back("'" + e.leadershipaa + "'");
 			v.push_back("'" + Strings::Escape(e.maintank) + "'");
 			v.push_back("'" + Strings::Escape(e.assist) + "'");
 			v.push_back("'" + Strings::Escape(e.puller) + "'");

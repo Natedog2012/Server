@@ -27,6 +27,9 @@
 #include "../common/version.h"
 #include "emu_constants.h"
 #include "textures.h"
+#include "../cereal/include/cereal/archives/binary.hpp"
+#include "../cereal/include/cereal/types/string.hpp"
+#include "../cereal/include/cereal/types/vector.hpp"
 
 
 static const uint32 BUFF_COUNT = 42;
@@ -133,6 +136,11 @@ enum CrystalReclaimTypes
 	Ebon = 5,
 	Radiant = 4,
 };
+
+namespace ItemStackSizeConstraint {
+	constexpr int16 Minimum = 1;
+	constexpr int16 Maximum = 1000;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1532,20 +1540,32 @@ struct ExpUpdate_Struct
 ** Packet Types: See ItemPacketType enum
 **
 */
-enum ItemPacketType
-{
-	ItemPacketViewLink			= 0x00,
-	ItemPacketMerchant			= 0x64,
-	ItemPacketTradeView			= 0x65,
-	ItemPacketLoot				= 0x66,
-	ItemPacketTrade				= 0x67,
-	ItemPacketCharInventory		= 0x69,
-	ItemPacketLimbo				= 0x6A,
-	ItemPacketWorldContainer	= 0x6B,
-	ItemPacketTributeItem		= 0x6C,
-	ItemPacketGuildTribute		= 0x6D,
-	ItemPacketCharmUpdate		= 0x6E, // noted as incorrect
-	ItemPacketInvalid			= 0xFF
+enum ItemPacketType {
+    ItemPacketViewLink       = 0x00,
+    ItemPacketMerchant       = 0x64,
+    ItemPacketTradeView      = 0x65,
+    ItemPacketLoot           = 0x66,
+    ItemPacketTrade          = 0x67,
+    ItemPacketCharInventory  = 0x69,
+    ItemPacketLimbo          = 0x6A,
+    ItemPacketWorldContainer = 0x6B,
+    ItemPacketTributeItem    = 0x6C,
+    ItemPacketGuildTribute   = 0x6D,
+    ItemPacketCharmUpdate    = 0x6E, // noted as incorrect
+    ItemPacketRecovery       = 0x71,
+    ItemPacketParcel         = 0x73,
+    ItemPacketInvalid        = 0xFF
+};
+
+enum MerchantWindowTabDisplay {
+    None                 = 0x00,
+    SellBuy              = 0x01,
+    Recover              = 0x02,
+    SellBuyRecover       = 0x03,
+    Parcel               = 0x04,
+    SellBuyParcel        = 0x05,
+    RecoverParcel        = 0x06,
+    SellBuyRecoverParcel = 0x07
 };
 
 //enum ItemPacketType
@@ -1675,6 +1695,38 @@ static const uint32 MAX_NUMBER_GUILDS = 1500;
 struct GuildsList_Struct {
 	uint8 head[64]; // First on guild list seems to be empty...
 	GuildsListEntry_Struct Guilds[MAX_NUMBER_GUILDS];
+};
+
+struct GuildsListMessagingEntry_Struct {
+	/*000*/	uint32		guild_id;
+	/*004*/	std::string guild_name;
+
+	template<class Archive>
+	void serialize(Archive& archive)
+	{
+		archive(
+			CEREAL_NVP(guild_id),
+			CEREAL_NVP(guild_name)
+		);
+	}
+};
+
+struct GuildsListMessaging_Struct {
+	/*000*/    char                                         header[64];
+	/*064*/    uint32                                       no_of_guilds;
+	/*068*/    uint32                                       string_length;
+	/*072*/    std::vector<GuildsListMessagingEntry_Struct> guild_detail;
+
+	template<class Archive>
+	void serialize(Archive& archive)
+	{
+		archive(
+			CEREAL_NVP(header),
+			CEREAL_NVP(no_of_guilds),
+			CEREAL_NVP(string_length),
+			CEREAL_NVP(guild_detail)
+		);
+	}
 };
 
 struct GuildUpdate_Struct {
@@ -2056,12 +2108,75 @@ struct TimeOfDay_Struct {
 };
 
 // Darvik: shopkeeper structs
-struct Merchant_Click_Struct {
-/*000*/ uint32	npcid;			// Merchant NPC's entity id
-/*004*/ uint32	playerid;
-/*008*/ uint32	command;		//1=open, 0=cancel/close
-/*012*/ float	rate;			//cost multiplier, dosent work anymore
+struct MerchantClick_Struct
+{
+    /*000*/ uint32 npc_id;      // Merchant NPC's entity id
+    /*004*/ uint32 player_id;
+    /*008*/ uint32 command;     // 1=open, 0=cancel/close
+    /*012*/ float  rate;        // cost multiplier, dosent work anymore
+    /*016*/ int32  tab_display; // bitmask b000 none, b001 Purchase/Sell, b010 Recover, b100 Parcels
+    /*020*/ int32  unknown020;  // Seen 2592000 from Server or -1 from Client
+    /*024*/
 };
+
+enum MerchantActions {
+    Close = 0,
+    Open  = 1
+};
+
+struct Parcel_Struct
+{
+    /*000*/ uint32 npc_id;
+    /*004*/ uint32 item_slot;
+    /*008*/ uint32 quantity;
+    /*012*/ uint32 money_flag;
+    /*016*/ char   send_to[64];
+    /*080*/ char   note[128];
+    /*208*/ uint32 unknown_208;
+    /*212*/ uint32 unknown_212;
+    /*216*/ uint32 unknown_216;
+};
+
+struct ParcelRetrieve_Struct
+{
+    uint32 merchant_entity_id;
+    uint32 player_entity_id;
+    uint32 parcel_slot_id;
+    uint32 parcel_item_id;
+};
+
+struct ParcelMessaging_Struct {
+	ItemPacketType packet_type;
+	std::string    serialized_item;
+	uint32         sent_time;
+	std::string    player_name;
+	std::string    note;
+	uint32         slot_id;
+
+	template<class Archive>
+	void serialize(Archive &archive)
+	{
+		archive(
+			CEREAL_NVP(packet_type),
+			CEREAL_NVP(serialized_item),
+			CEREAL_NVP(sent_time),
+			CEREAL_NVP(player_name),
+			CEREAL_NVP(note),
+			CEREAL_NVP(slot_id)
+		);
+	}
+};
+
+struct ParcelIcon_Struct {
+	uint32 status; //0 off 1 on 2 overlimit
+};
+
+enum ParcelIconActions {
+	IconOff   = 0,
+	IconOn    = 1,
+	Overlimit = 2
+};
+
 /*
 Unknowns:
 0 is e7 from 01 to // MAYBE SLOT IN PURCHASE

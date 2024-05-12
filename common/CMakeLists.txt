@@ -83,6 +83,7 @@ SET(common_sources
     shared_tasks.cpp
     shareddb.cpp
     skills.cpp
+    skill_caps.cpp
     spdat.cpp
     strings.cpp
     struct_strategy.cpp
@@ -176,6 +177,7 @@ SET(repositories
     repositories/base/base_character_leadership_abilities_repository.h
     repositories/base/base_character_material_repository.h
     repositories/base/base_character_memmed_spells_repository.h
+    repositories/base/base_character_parcels_repository.h
     repositories/base/base_character_peqzone_flags_repository.h
     repositories/base/base_character_pet_buffs_repository.h
     repositories/base/base_character_pet_info_repository.h
@@ -356,6 +358,7 @@ SET(repositories
     repositories/character_leadership_abilities_repository.h
     repositories/character_material_repository.h
     repositories/character_memmed_spells_repository.h
+    repositories/character_parcels_repository.h
     repositories/character_peqzone_flags_repository.h
     repositories/character_pet_buffs_repository.h
     repositories/character_pet_info_repository.h
@@ -492,7 +495,7 @@ SET(repositories
     repositories/zone_repository.h
     repositories/zone_points_repository.h
 
-    )
+)
 
 SET(common_headers
     additive_lagged_fibonacci_engine.h
@@ -592,7 +595,7 @@ SET(common_headers
     ptimer.h
     queue.h
     races.h
-	raid.h
+    raid.h
     random.h
     rdtsc.h
     rulesys.h
@@ -606,6 +609,7 @@ SET(common_headers
     shared_tasks.h
     shareddb.h
     skills.h
+    skill_caps.h
     spdat.h
     strings.h
     struct_strategy.h
@@ -681,13 +685,13 @@ SOURCE_GROUP(Event FILES
     event/event_loop.h
     event/timer.h
     event/task.h
-    )
+)
 
 SOURCE_GROUP(Json FILES
     json/json.h
     json/jsoncpp.cpp
     json/json-forwards.h
-    )
+)
 
 SOURCE_GROUP(Net FILES
     net/console_server.cpp
@@ -724,7 +728,7 @@ SOURCE_GROUP(Net FILES
     net/websocket_server.h
     net/websocket_server_connection.cpp
     net/websocket_server_connection.h
-    )
+)
 
 SOURCE_GROUP(Patches FILES
     patches/patches.h
@@ -768,12 +772,12 @@ SOURCE_GROUP(Patches FILES
     patches/titanium_limits.cpp
     patches/uf.cpp
     patches/uf_limits.cpp
-    )
+)
 
 SOURCE_GROUP(StackWalker FILES
     StackWalker/StackWalker.h
     StackWalker/StackWalker.cpp
-    )
+)
 
 SOURCE_GROUP(Util FILES
     util/memory_stream.h
@@ -781,7 +785,7 @@ SOURCE_GROUP(Util FILES
     util/directory.h
     util/uuid.cpp
     util/uuid.h
-    )
+)
 
 INCLUDE_DIRECTORIES(Patches SocketLib StackWalker)
 
@@ -794,6 +798,6 @@ ENDIF (UNIX)
 
 IF (WIN32 AND EQEMU_BUILD_PCH)
     TARGET_PRECOMPILE_HEADERS(common PRIVATE pch/pch.h)
-ENDIF()
+ENDIF ()
 
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)

@@ -555,7 +555,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				if(GetClass() == Class::Bard)
 					break;
 				if(IsManaTapSpell(spell_id)) {
-					if(GetCasterClass() != 'N') {
+					if (!IsPureMeleeClass()) {
 #ifdef SPELL_EFFECT_SPAM
 						snprintf(effect_desc, _EDLEN, "Current Mana: %+i", effect_value);
 #endif
@@ -677,12 +677,12 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 									GetPet()->BuffFadeByEffect(SE_Charm);
 								}
 							}
-							
+
 							CastToClient()->MovePC(zone->GetZoneID(), zone->GetInstanceID(), x, y, z, heading, 0, EvacToSafeCoords);
 						} else {
 							GMMove(x, y, z, heading);
 						}
-						
+
 						if (RuleB(Spells, EvacClearAggroInSameZone)) {
 							entity_list.ClearAggro(this);
 						}
@@ -1045,6 +1045,10 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 #endif
 				if (IsClient()) {
 					if (CastToClient()->GetGM() || RuleB(Character, BindAnywhere)) {
+						if (CastToClient()->GetGM()) {
+							Message(Chat::White, "Your GM flag allows you to bind anywhere.");
+						}
+
 						auto action_packet =
 						    new EQApplicationPacket(OP_Action, sizeof(Action_Struct));
 						Action_Struct* action = (Action_Struct*) action_packet->pBuffer;
@@ -1157,7 +1161,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 							cd->hit_heading = action->hit_heading;
 
 							CastToClient()->QueuePacket(action_packet);
-							
+
 							if (caster->IsClient() && caster != this) {
 								caster->CastToClient()->QueuePacket(action_packet);
 							}
@@ -1167,7 +1171,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 							if (caster->IsClient() && caster != this) {
 								caster->CastToClient()->QueuePacket(message_packet);
 							}
-							
+
 							CastToClient()->SetBindPoint(spells[spell_id].base_value[i] - 1);
 							Save();
 							safe_delete(action_packet);
@@ -1204,7 +1208,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					}
 					break;
 				}
-				
+
 				DispelMagic(caster, spell_id, effect_value);
 				break;
 			}
@@ -3491,6 +3495,8 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 			case SE_ImprovedInvisAnimals:
 			case SE_InvisVsUndead:
 			case SE_InvisVsUndead2:
+			case SE_Shield_Target:
+			case SE_ReduceSkill:
 			{
 				break;
 			}
@@ -6974,9 +6980,53 @@ int64 Mob::GetFocusEffect(focusType type, uint16 spell_id, Mob* caster, bool fro
 	//Summon Spells that require reagents are typically imbue type spells, enchant metal, sacrifice and shouldn't be affected
 	//by reagent conservation for obvious reasons.
 
-	//Non-Live like feature to allow for an additive focus bonus to be applied from foci that are placed in worn slot. (No limit checks)
+
 	int32 worneffect_bonus = 0;
-	if (RuleB(Spells, UseAdditiveFocusFromWornSlot)) {
+	//Non-Live like feature to allow for an additive focus bonus to be applied from foci that are placed in worn slot. (Limit Checks)
+	if (RuleB(Spells, UseAdditiveFocusFromWornSlotWithLimits)) {
+		//Check if item focus effect exists for the mob.
+		if (itembonuses.FocusEffectsWornWithLimits[type]) {
+			const EQ::ItemData* temporary_item = nullptr;
+			const EQ::ItemData* used_item      = nullptr;
+
+			//item focus
+			for (int x = EQ::invslot::EQUIPMENT_BEGIN; x <= EQ::invslot::EQUIPMENT_END; x++) {
+				temporary_item = nullptr;
+				EQ::ItemInstance* ins = GetInv().GetItem(x);
+				if (!ins) {
+					continue;
+				}
+
+				temporary_item = ins->GetItem();
+				if (temporary_item && IsValidSpell(temporary_item->Worn.Effect)) {
+					if (rand_effectiveness) {
+						worneffect_bonus += CalcFocusEffect(type, temporary_item->Worn.Effect, spell_id, true);
+					}
+					else {
+						worneffect_bonus += CalcFocusEffect(type, temporary_item->Worn.Effect, spell_id);
+					}
+				}
+
+				for (int y = EQ::invaug::SOCKET_BEGIN; y <= EQ::invaug::SOCKET_END; ++y) {
+					EQ::ItemInstance* aug = nullptr;
+					aug = ins->GetAugment(y);
+					if (aug) {
+						const EQ::ItemData* temporary_item_augment = aug->GetItem();
+						if (temporary_item_augment && IsValidSpell(temporary_item_augment->Worn.Effect)) {
+							if (rand_effectiveness) {
+								worneffect_bonus += CalcFocusEffect(type, temporary_item_augment->Worn.Effect, spell_id, true);
+							}
+							else {
+								worneffect_bonus += CalcFocusEffect(type, temporary_item_augment->Worn.Effect, spell_id);
+						    }
+						}
+					}
+				}
+			}
+		}
+	}
+	//Non-Live like feature to allow for an additive focus bonus to be applied from foci that are placed in worn slot. (No limit checks)
+	else if (RuleB(Spells, UseAdditiveFocusFromWornSlot)) {
 		worneffect_bonus = itembonuses.FocusEffectsWorn[type];
 	}
 
@@ -7542,7 +7592,7 @@ bool Mob::PassLimitClass(uint32 Classes_, uint16 Class_)
 	return false;
 }
 
-void Mob::DispelMagic(Mob* caster, uint16 spell_id, int effect_value) 
+void Mob::DispelMagic(Mob* caster, uint16 spell_id, int effect_value)
 {
 	for (int slot = 0; slot < GetMaxTotalSlots(); slot++) {
 		if (

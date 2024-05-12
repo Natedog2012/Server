@@ -8,6 +8,7 @@
 
 #include "zone.h"
 #include "string_ids.h"
+#include "../common/skill_caps.h"
 
 extern volatile bool is_zone_loaded;
 
@@ -65,7 +66,7 @@ Merc::Merc(const NPCType* d, float x, float y, float z, float heading)
 
 	int r;
 	for (r = 0; r <= EQ::skills::HIGHEST_SKILL; r++) {
-		skills[r] = content_db.GetSkillCap(GetClass(), (EQ::skills::SkillType)r, GetLevel());
+		skills[r] = skill_caps.GetSkillCap(GetClass(), (EQ::skills::SkillType)r, GetLevel()).cap;
 	}
 
 	size = d->size;
@@ -73,9 +74,9 @@ Merc::Merc(const NPCType* d, float x, float y, float z, float heading)
 
 	// Class should use npc constructor to set light properties
 
-	SetHP(GetMaxHP());
-	SetMana(GetMaxMana());
-	SetEndurance(GetMaxEndurance());
+	RestoreHealth();
+	RestoreMana();
+	RestoreEndurance();
 
 	AI_Start();
 }
@@ -460,14 +461,12 @@ int64 Merc::CalcMaxHP() {
 	//but the actual effect sent on live causes the client
 	//to apply it to (basehp + itemhp).. I will oblige to the client's whims over
 	//the aa description
-	nd += aabonuses.MaxHP;  //Natural Durability, Physical Enhancement, Planar Durability
+	nd += aabonuses.PercentMaxHPChange + spellbonuses.PercentMaxHPChange + itembonuses.PercentMaxHPChange;  //Natural Durability, Physical Enhancement, Planar Durability
 
 	max_hp = (float)max_hp * (float)nd / (float)10000; //this is to fix the HP-above-495k issue
-	max_hp += spellbonuses.HP + aabonuses.HP;
+	max_hp += spellbonuses.FlatMaxHPChange + aabonuses.FlatMaxHPChange + itembonuses.FlatMaxHPChange;
 
 	max_hp += GroupLeadershipAAHealthEnhancement();
-
-	max_hp += max_hp * ((spellbonuses.MaxHPChange + itembonuses.MaxHPChange) / 10000.0f);
 
 	if (current_hp > max_hp)
 		current_hp = max_hp;
@@ -489,23 +488,12 @@ int64 Merc::CalcBaseHP()
 
 int64 Merc::CalcMaxMana()
 {
-	switch(GetCasterClass())
-	{
-	case 'I':
-	case 'W': {
+	if (IsIntelligenceCasterClass() || IsWisdomCasterClass()) {
 		max_mana = (CalcBaseMana() + itembonuses.Mana + spellbonuses.Mana + GroupLeadershipAAManaEnhancement());
-		break;
-			  }
-	case 'N': {
+	} else {
 		max_mana = 0;
-		break;
-			  }
-	default: {
-		LogDebug("Invalid Class [{}] in CalcMaxMana", GetCasterClass());
-		max_mana = 0;
-		break;
-			 }
 	}
+
 	if (max_mana < 0) {
 		max_mana = 0;
 	}
@@ -565,12 +553,13 @@ int64 Merc::CalcManaRegen()
 		regen = mana_regen + spellbonuses.ManaRegen + itembonuses.ManaRegen;
 	}
 
-	if(GetCasterClass() == 'I')
+	if (IsIntelligenceCasterClass()) {
 		regen += (itembonuses.HeroicINT / 25);
-	else if(GetCasterClass() == 'W')
+	} else if (IsWisdomCasterClass()) {
 		regen += (itembonuses.HeroicWIS / 25);
-	else
+	} else {
 		regen = 0;
+	}
 
 	//AAs
 	regen += aabonuses.ManaRegen;
@@ -581,14 +570,11 @@ int64 Merc::CalcManaRegen()
 int64 Merc::CalcManaRegenCap()
 {
 	int64 cap = RuleI(Character, ItemManaRegenCap) + aabonuses.ItemManaRegenCap;
-	switch(GetCasterClass())
-	{
-	case 'I':
+
+	if (IsIntelligenceCasterClass()) {
 		cap += (itembonuses.HeroicINT / 25);
-		break;
-	case 'W':
+	} else if (IsWisdomCasterClass()) {
 		cap += (itembonuses.HeroicWIS / 25);
-		break;
 	}
 
 	return (cap * RuleI(Character, ManaRegenMultiplier) / 100);
@@ -783,16 +769,16 @@ void Merc::CalcRestState() {
 }
 
 bool Merc::HasSkill(EQ::skills::SkillType skill_id) const {
-	return((GetSkill(skill_id) > 0) && CanHaveSkill(skill_id));
+	return ((GetSkill(skill_id) > 0) && CanHaveSkill(skill_id));
 }
 
 bool Merc::CanHaveSkill(EQ::skills::SkillType skill_id) const {
-	return(content_db.GetSkillCap(GetClass(), skill_id, RuleI(Character, MaxLevel)) > 0);
+	return skill_caps.GetSkillCap(GetClass(), skill_id, RuleI(Character, MaxLevel)).cap > 0;
 	//if you don't have it by max level, then odds are you never will?
 }
 
 uint16 Merc::MaxSkill(EQ::skills::SkillType skillid, uint16 class_, uint16 level) const {
-	return(content_db.GetSkillCap(class_, skillid, level));
+	return skill_caps.GetSkillCap(class_, skillid, level).cap;
 }
 
 void Merc::FillSpawnStruct(NewSpawn_Struct* ns, Mob* ForWho) {
@@ -1166,7 +1152,7 @@ void Merc::AI_Process() {
 						float newX = 0;
 						float newY = 0;
 						float newZ = 0;
-						if (PlotPositionAroundTarget(GetTarget(), newX, newY, newZ, false) && GetArchetype() != ARCHETYPE_CASTER) {
+						if (PlotPositionAroundTarget(GetTarget(), newX, newY, newZ, false) && GetArchetype() != Archetype::Caster) {
 							RunTo(newX, newY, newZ);
 							return;
 						}
@@ -1314,7 +1300,7 @@ void Merc::AI_Process() {
 			if(AI_EngagedCastCheck()) {
 				MercMeditate(false);
 			}
-			else if(GetArchetype() == ARCHETYPE_CASTER)
+			else if(GetArchetype() == Archetype::Caster)
 				MercMeditate(true);
 		}
 	}
@@ -1337,7 +1323,7 @@ void Merc::AI_Process() {
 			//TODO: Implement passive stances.
 			//if(GetStance() != MercStancePassive) {
 			if(!AI_IdleCastCheck() && !IsCasting()) {
-				if(GetArchetype() == ARCHETYPE_CASTER) {
+				if(GetArchetype() == Archetype::Caster) {
 					MercMeditate(true);
 				}
 			}
@@ -1792,7 +1778,7 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 										if( !IsImmuneToSpell(selectedMercSpell.spellid, this)
 											&& (CanBuffStack(selectedMercSpell.spellid, mercLevel, true) >= 0)) {
 
-												if( GetArchetype() == ARCHETYPE_MELEE && IsEffectInSpell(selectedMercSpell.spellid, SE_IncreaseSpellHaste)) {
+												if( GetArchetype() == Archetype::Melee && IsEffectInSpell(selectedMercSpell.spellid, SE_IncreaseSpellHaste)) {
 													continue;
 												}
 
@@ -1819,7 +1805,7 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 												if( !tar->IsImmuneToSpell(selectedMercSpell.spellid, this)
 													&& (tar->CanBuffStack(selectedMercSpell.spellid, mercLevel, true) >= 0)) {
 
-														if( tar->GetArchetype() == ARCHETYPE_MELEE && IsEffectInSpell(selectedMercSpell.spellid, SE_IncreaseSpellHaste)) {
+														if( tar->GetArchetype() == Archetype::Melee && IsEffectInSpell(selectedMercSpell.spellid, SE_IncreaseSpellHaste)) {
 															continue;
 														}
 
@@ -3808,37 +3794,37 @@ bool Merc::CheckConfidence() {
 		switch(CurrentCon) {
 
 
-					case CON_GRAY: {
+					case ConsiderColor::Gray: {
 						ConRating = 0;
 						break;
 					}
 
-					case CON_GREEN: {
+					case ConsiderColor::Green: {
 						ConRating = 0.1;
 						break;
 									}
 
-					case CON_LIGHTBLUE: {
+					case ConsiderColor::LightBlue: {
 						ConRating = 0.2;
 						break;
 										}
 
-					case CON_BLUE: {
+					case ConsiderColor::DarkBlue: {
 						ConRating = 0.6;
 						break;
 								   }
 
-					case CON_WHITE: {
+					case ConsiderColor::White: {
 						ConRating = 1.0;
 						break;
 									}
 
-					case CON_YELLOW: {
+					case ConsiderColor::Yellow: {
 						ConRating = 1.2;
 						break;
 									 }
 
-					case CON_RED: {
+					case ConsiderColor::Red: {
 						ConRating = 1.5;
 						break;
 								  }
@@ -4084,7 +4070,7 @@ Mob* Merc::GetOwnerOrSelf() {
 	return Result;
 }
 
-bool Merc::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillType attack_skill, uint8 killed_by)
+bool Merc::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillType attack_skill, uint8 killed_by, bool is_buff_tic)
 {
 	if (!NPC::Death(killer_mob, damage, spell, attack_skill)) {
 		return false;
@@ -4215,7 +4201,7 @@ const char* Merc::GetRandomName(){
 			//name must begin with an upper-case letter.
 			valid = false;
 		}
-		else if (database.CheckUsedName(rndname)) {
+		else if (!database.IsNameUsed(rndname)) {
 			valid = true;
 		}
 		else {
@@ -5289,9 +5275,9 @@ bool Merc::Unsuspend(bool setMaxStats) {
 		{
 			if(setMaxStats)
 			{
-				SetHP(GetMaxHP());
-				SetMana(GetMaxMana());
-				SetEndurance(GetMaxEndurance());
+				RestoreHealth();
+				RestoreMana();
+				RestoreEndurance();
 			}
 
 			//check for sufficient funds and remove them last
@@ -5390,7 +5376,7 @@ bool Merc::RemoveMercFromGroup(Merc* merc, Group* group) {
 				{
 					if(merc->GetMercenaryCharacterID() != 0)
 					{
-						database.SetGroupID(merc->GetName(), 0, merc->GetMercenaryCharacterID(), true);
+						Group::RemoveFromGroup(merc);
 					}
 				}
 			}
@@ -5475,7 +5461,7 @@ bool Merc::MercJoinClientGroup() {
 
 			if (AddMercToGroup(this, g))
 			{
-				database.SetGroupID(mercOwner->GetName(), g->GetID(), mercOwner->CharacterID(), false);
+				g->AddToGroup(mercOwner);
 				database.SetGroupLeaderName(g->GetID(), mercOwner->GetName());
 				database.RefreshGroupFromDB(mercOwner);
 				g->SaveGroupLeaderAA();

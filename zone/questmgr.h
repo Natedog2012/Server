@@ -287,7 +287,6 @@ public:
 	void FlagInstanceByGroupLeader(uint32 zone, int16 version);
 	void FlagInstanceByRaidLeader(uint32 zone, int16 version);
 	std::string varlink(uint32 item_id, int16 charges = 0, uint32 aug1 = 0, uint32 aug2 = 0, uint32 aug3 = 0, uint32 aug4 = 0, uint32 aug5 = 0, uint32 aug6 = 0, bool attuned = false);
-	std::string saylink(char *saylink_text, bool silent, const char *link_name);
 	std::string getcharnamebyid(uint32 char_id);
 	uint32 getcharidbyname(const char* name);
 	std::string getclassname(uint8 class_id, uint8 level = 0);
@@ -356,6 +355,8 @@ public:
 	void SendChannelMessage(uint8 channel_number, uint32 guild_id, uint8 language_id, uint8 language_skill, const char* message);
 	void SendChannelMessage(Client* from, uint8 channel_number, uint32 guild_id, uint8 language_id, uint8 language_skill, const char* message);
 	void SendChannelMessage(Client* from, const char* to, uint8 channel_number, uint32 guild_id, uint8 language_id, uint8 language_skill, const char* message);
+	std::string GetAutoLoginCharacterNameByAccountID(uint32 account_id);
+	bool SetAutoLoginCharacterNameByAccountID(uint32 account_id, const std::string& character_name);
 
 	Bot *GetBot() const;
 	Client *GetInitiator() const;

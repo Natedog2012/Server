@@ -134,7 +134,7 @@ class BaseGuildManager
         bool	CheckGMStatus(uint32 guild_id, uint8 status) const;
         bool	CheckPermission(uint32 guild_id, uint8 rank, GuildAction act) const;
         bool	UpdateDbBankerFlag(uint32 charid, bool is_banker);
-        uint8*  MakeGuildList(const char* head_name, uint32& length) const;	//make a guild list packet, returns ownership of the buffer.
+        GuildsListMessaging_Struct MakeGuildList();
         uint8	GetDisplayedRank(uint32 guild_id, uint8 rank, uint32 char_id) const;
         uint32	GetGuildIDByName(const char *GuildName);
 		uint32  GetGuildIDByCharacterID(uint32 character_id);
@@ -208,7 +208,6 @@ class BaseGuildManager
 
 		bool _StoreGuildDB(uint32 guild_id);
 		GuildInfo* _CreateGuild(uint32 guild_id, std::string guild_name, uint32 leader_char_id, uint8 minstatus, std::string guild_motd, std::string motd_setter, std::string Channel, std::string URL, uint32 favour);
-		uint32 _GetFreeGuildID();
         GuildsRepository::Guilds CreateGuildRepoFromGuildInfo(uint32 guild_id, BaseGuildManager::GuildInfo& in);
 };
 #endif /*GUILD_BASE_H_*/

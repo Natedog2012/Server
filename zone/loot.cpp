@@ -37,6 +37,14 @@ void NPC::AddLootTable(uint32 loottable_id, bool is_global)
 		return;
 	}
 
+	LogLootDetail(
+		"Attempting to load loot [{}] loottable [{}] ({}) is_global [{}]",
+		GetCleanName(),
+		loottable_id,
+		l->name,
+		is_global
+	);
+
 	auto content_flags = ContentFlags{
 		.min_expansion = l->min_expansion,
 		.max_expansion = l->max_expansion,
@@ -106,22 +114,19 @@ void NPC::AddLootTable(uint32 loottable_id, bool is_global)
 		}
 	}
 
-	LogLootDetail("Loaded [{}] Loot Table [{}]", GetCleanName(), loottable_id);
+	LogLootDetail(
+		"Loaded [{}] Loot Table [{}] is_global [{}]",
+		GetCleanName(),
+		loottable_id,
+		is_global
+	);
 }
 
 void NPC::AddLootDropTable(uint32 lootdrop_id, uint8 drop_limit, uint8 min_drop)
 {
 	const auto l  = zone->GetLootdrop(lootdrop_id);
 	const auto le = zone->GetLootdropEntries(lootdrop_id);
-
-	auto content_flags = ContentFlags{
-		.min_expansion = l.min_expansion,
-		.max_expansion = l.max_expansion,
-		.content_flags = l.content_flags,
-		.content_flags_disabled = l.content_flags_disabled
-	};
-
-	if (l.id == 0 || le.empty() || !content_service.DoesPassContentFiltering(content_flags)) {
+	if (l.id == 0 || le.empty()) {
 		return;
 	}
 
@@ -132,6 +137,15 @@ void NPC::AddLootDropTable(uint32 lootdrop_id, uint8 drop_limit, uint8 min_drop)
 				if (zone->random.Real(0.0, 100.0) <= e.chance && MeetsLootDropLevelRequirements(e, true)) {
 					const EQ::ItemData *database_item = database.GetItem(e.item_id);
 					AddLootDrop(database_item, e);
+					LogLootDetail(
+						"---- NPC (Rolled) [{}] Lootdrop [{}] Item [{}] ({}) Chance [{}] Multiplier [{}]",
+						GetCleanName(),
+						lootdrop_id,
+						database_item->Name,
+						e.item_id,
+						e.chance,
+						e.multiplier
+					);
 				}
 			}
 		}

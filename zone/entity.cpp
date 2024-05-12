@@ -1654,6 +1654,10 @@ void EntityList::QueueClientsByTarget(Mob *sender, const EQApplicationPacket *ap
 				if (inspect_buffs) { // if inspect_buffs is true we're sending a mob's buffs to those with the LAA
 					Send = clear_target_window;
 					if (c->GetGM() || RuleB(Spells, AlwaysSendTargetsBuffs)) {
+						if (c->GetGM()) {
+							c->Message(Chat::White, "Your GM flag allows you to always see your targets' buffs.");
+						}
+
 						Send = !clear_target_window;
 					} else if (c->IsRaidGrouped()) {
 						Raid *raid = c->GetRaid();
@@ -2152,7 +2156,7 @@ Group *EntityList::GetGroupByLeaderName(const char *leader)
 	iterator = group_list.begin();
 
 	while (iterator != group_list.end()) {
-		if (!strcmp((*iterator)->GetLeaderName(), leader))
+		if (!strcmp((*iterator)->GetLeaderName().c_str(), leader))
 			return *iterator;
 		++iterator;
 	}
@@ -2675,6 +2679,10 @@ void EntityList::RemoveAllMobs()
 {
 	auto it = mob_list.begin();
 	while (it != mob_list.end()) {
+		if (!it->second) {
+			++it;
+			continue;
+		}
 		safe_delete(it->second);
 		free_ids.push(it->first);
 		it = mob_list.erase(it);
@@ -2812,6 +2820,9 @@ bool EntityList::RemoveMob(uint16 delete_id)
 
 	auto it = mob_list.find(delete_id);
 	if (it != mob_list.end()) {
+		if (!it->second) {
+			return false;
+		}
 		if (npc_list.count(delete_id)) {
 			entity_list.RemoveNPC(delete_id);
 		}
@@ -4379,8 +4390,9 @@ void EntityList::AddTempPetsToHateList(Mob *owner, Mob* other, bool bFrenzy)
 			if (n->GetSwarmInfo()->owner_id == owner->GetID()) {
 				if (
 					!n->GetSpecialAbility(IMMUNE_AGGRO) &&
-					!(n->GetSpecialAbility(IMMUNE_AGGRO_CLIENT) && other->IsClient()) &&
-					!(n->GetSpecialAbility(IMMUNE_AGGRO_NPC) && other->IsNPC())
+					!(other->IsBot() && n->GetSpecialAbility(IMMUNE_AGGRO_BOT)) &&
+					!(other->IsClient() && n->GetSpecialAbility(IMMUNE_AGGRO_CLIENT)) &&
+					!(other->IsNPC() && n->GetSpecialAbility(IMMUNE_AGGRO_NPC))
 				) {
 					n->hate_list.AddEntToHateList(other, 0, 0, bFrenzy);
 				}
@@ -4405,8 +4417,9 @@ void EntityList::AddTempPetsToHateListOnOwnerDamage(Mob *owner, Mob* attacker, i
 					attacker != n &&
 					!n->IsEngaged() &&
 					!n->GetSpecialAbility(IMMUNE_AGGRO) &&
-					!(n->GetSpecialAbility(IMMUNE_AGGRO_CLIENT) && attacker->IsClient()) &&
-					!(n->GetSpecialAbility(IMMUNE_AGGRO_NPC) && attacker->IsNPC()) &&
+					!(attacker->IsBot() && n->GetSpecialAbility(IMMUNE_AGGRO_BOT)) &&
+					!(attacker->IsClient() && n->GetSpecialAbility(IMMUNE_AGGRO_CLIENT)) &&
+					!(attacker->IsNPC() && n->GetSpecialAbility(IMMUNE_AGGRO_NPC)) &&
 					!attacker->IsTrap() &&
 					!attacker->IsCorpse()
 					) {
