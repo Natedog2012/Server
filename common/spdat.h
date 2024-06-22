@@ -904,7 +904,7 @@ typedef enum {
 #define SE_AlterNPCLevel				107	// implemented - not used on live
 #define SE_Familiar						108	// implemented
 #define SE_SummonItemIntoBag			109	// implemented - summons stuff into container
-//#define SE_IncreaseArchery			110	// not used
+#define SE_IncreaseArchery				110	// implemented
 #define SE_ResistAll					111	// implemented - Note: Physical Resists are not modified by this effect.
 #define SE_CastingLevel					112	// implemented
 #define	SE_SummonHorse					113	// implemented
@@ -1524,6 +1524,7 @@ bool IsSummonPetSpell(uint16 spell_id);
 bool IsSummonPCSpell(uint16 spell_id);
 bool IsPetSpell(uint16 spell_id);
 bool IsCharmSpell(uint16 spell_id);
+bool IsResurrectionSicknessSpell(uint16 spell_id);
 bool IsBlindSpell(uint16 spell_id);
 bool IsHealthSpell(uint16 spell_id);
 bool IsCastTimeReductionSpell(uint16 spell_id);

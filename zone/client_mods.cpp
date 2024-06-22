@@ -289,7 +289,7 @@ int64 Client::CalcHPRegen(bool bCombat)
 
 	if (!bCombat && CanFastRegen() && (IsSitting() || CanMedOnHorse())) {
 		auto max_hp = GetMaxHP();
-		int64 fast_regen = 6 * (max_hp / (zone ? zone->newzone_data.fast_regen_hp : 180));
+		int64 fast_regen = 6 * (max_hp / (zone && zone->newzone_data.fast_regen_hp > 0 ? zone->newzone_data.fast_regen_hp : 180));
 		if (base < fast_regen) // weird, but what the client is doing
 			base = fast_regen;
 	}
@@ -316,7 +316,6 @@ int64 Client::CalcHPRegenCap()
 
 int64 Client::CalcMaxHP()
 {
-	/*
 	float nd = 10000;
 	max_hp = (CalcBaseHP() + itembonuses.HP);
 	//The AA desc clearly says it only applies to base hp..
@@ -336,27 +335,6 @@ int64 Client::CalcMaxHP()
 	if (hp_perc_cap) {
 		int64 curHP_cap = (max_hp * hp_perc_cap) / 100;
 		if (current_hp > curHP_cap || (spellbonuses.HPPercCap[SBIndex::RESOURCE_AMOUNT_CAP] && current_hp > spellbonuses.HPPercCap[SBIndex::RESOURCE_AMOUNT_CAP])) {
-			current_hp = curHP_cap;
-		}
-	}
-
-	return max_hp;
-	*/
-	int32 base_hp = (CalcBaseHP() + itembonuses.HP);
-	int32 nd = aabonuses.PercentMaxHPChange + spellbonuses.PercentMaxHPChange + itembonuses.PercentMaxHPChange;
-	max_hp = (base_hp * nd / 10000) + base_hp;
-	max_hp += GroupLeadershipAAHealthEnhancement();
-	max_hp += 5;
-	max_hp += GetHeroicSTA() * 10;
-	max_hp += aabonuses.HP + spellbonuses.HP;
-	if (current_hp > max_hp) {
-		current_hp = max_hp;
-	}
-	int hp_perc_cap = spellbonuses.HPPercCap[SBIndex::RESOURCE_PERCENT_CAP];
-	if (hp_perc_cap) {
-		int curHP_cap = (max_hp * hp_perc_cap) / 100;
-		if (current_hp > curHP_cap || (spellbonuses.HPPercCap[SBIndex::RESOURCE_AMOUNT_CAP] && current_hp > spellbonuses.HPPercCap[SBIndex::RESOURCE_AMOUNT_CAP])) {
-
 			current_hp = curHP_cap;
 		}
 	}
