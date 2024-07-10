@@ -2539,6 +2539,92 @@ void Mob::SendStatsWindow(Client* c, bool use_window)
 	if (!faction_item_string.empty()) {
 		final_string += faction_item_string;
 	}
+	
+	
+	final_string += DialogueWindow::Break(1);
+	//Custom -- Natedog
+	//EQ::skills::HIGHEST_SKILL + 1
+	const auto damage_bonus =  IsBot() ? CastToBot()->GetMeleeDamageMod_SE(EQ::skills::HIGHEST_SKILL + 1) : CastToClient()->GetMeleeDamageMod_SE(EQ::skills::HIGHEST_SKILL + 1);
+	const auto spell_damage_bonus =  IsBot() ? CastToBot()->GetFocusEffect(focusImprovedDamage, RuleI(Character, Default_Spell_For_DMG_Display)) : CastToClient()->GetFocusEffect(focusImprovedDamage, RuleI(Character, Default_Spell_For_DMG_Display));
+	const auto heal_bonus =  IsBot() ? CastToBot()->GetFocusEffect(focusImprovedHeal, RuleI(Character, Default_Spell_For_HEAL_Display)) : CastToClient()->GetFocusEffect(focusImprovedHeal, RuleI(Character, Default_Spell_For_HEAL_Display));
+	const auto crit_bonus =  IsBot() ? CastToBot()->GetCriticalChanceBonus(EQ::skills::HIGHEST_SKILL + 1) : CastToClient()->GetCriticalChanceBonus(EQ::skills::HIGHEST_SKILL + 1);
+	
+	const auto& custom_table = DialogueWindow::Table(
+		fmt::format(
+			"{}{}",
+			DialogueWindow::TableRow(
+				DialogueWindow::TableCell("Phys") +
+				DialogueWindow::TableCell("Spell") +
+				DialogueWindow::TableCell("Heal") +
+				DialogueWindow::TableCell("Crit")
+			),
+			DialogueWindow::TableRow(
+				DialogueWindow::TableCell(
+					fmt::format(
+					"{}%%",
+					Strings::Commify(damage_bonus)
+					)
+				) +
+				DialogueWindow::TableCell(
+					fmt::format(
+					"{}%%",
+					Strings::Commify(spell_damage_bonus)
+					)
+				) +
+				DialogueWindow::TableCell(
+					fmt::format(
+					"{}%%",
+					Strings::Commify(heal_bonus)
+					)
+				) +
+				DialogueWindow::TableCell(
+					fmt::format(
+						"{}%%",
+						Strings::Commify(crit_bonus)
+					)
+				)
+			)
+		)
+	);
+	
+	final_string += custom_table + DialogueWindow::Break(1);
+	
+	
+	//final_string += fmt::format(
+	//	"Damage Mod: {}%%{}",
+	//	Strings::Commify(damage_bonus),
+	//	DialogueWindow::Break(1)
+	//);
+	//
+	//final_string += fmt::format(
+	//	"Spell Damage Mod: {}%%{}",
+	//	Strings::Commify(spell_damage_bonus),
+	//	DialogueWindow::Break(1)
+	//);
+	//
+	//final_string += fmt::format(
+	//	"Heal Mod: {}%%{}",
+	//	Strings::Commify(heal_bonus),
+	//	DialogueWindow::Break(1)
+	//);
+
+	//CriticalHitChance[EQ::skills::HIGHEST_SKILL + 1]
+	
+	//final_string += fmt::format(
+	//	"Crit Mod: {}%%{}",
+	//	Strings::Commify(crit_bonus),
+	//	DialogueWindow::Break(1)
+	//);
+	
+	if (GetClass() == Class::Bard) {
+		const auto bard_bonus =  IsBot() ? CastToBot()->GetFocusEffect(focusFcBaseEffects, RuleI(Character, Default_Spell_For_BARD_Display)) : CastToClient()->GetFocusEffect(focusFcBaseEffects, RuleI(Character, Default_Spell_For_BARD_Display));
+		final_string += fmt::format(
+			"Bard Mod: {}%%{}",
+			Strings::Commify(bard_bonus),
+			DialogueWindow::Break(1)
+		);
+	}
+	
 
 	if (use_window) {
 		if (final_string.size() < 4096) {
@@ -5479,7 +5565,7 @@ int Mob::GetHaste()
 		cap = 10 + level;
 		cap += std::max(0, owner->GetLevel() - 39) + std::max(0, owner->GetLevel() - 60);
 	} else {
-		cap = 150;
+		cap = RuleI(Character, HasteCap);;
 	}
 
 	if(h > cap)
