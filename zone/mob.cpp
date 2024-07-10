@@ -2549,15 +2549,21 @@ void Mob::SendStatsWindow(Client* c, bool use_window)
 	const auto heal_bonus =  IsBot() ? CastToBot()->GetFocusEffect(focusImprovedHeal, RuleI(Character, Default_Spell_For_HEAL_Display)) : CastToClient()->GetFocusEffect(focusImprovedHeal, RuleI(Character, Default_Spell_For_HEAL_Display));
 	const auto crit_bonus =  IsBot() ? CastToBot()->GetCriticalChanceBonus(EQ::skills::HIGHEST_SKILL + 1) : CastToClient()->GetCriticalChanceBonus(EQ::skills::HIGHEST_SKILL + 1);
 	
+	const auto spell_scale = IsBot() ? 0: CastToClient()->GetSpellScaleMod();
+	const auto heal_scale = IsBot() ? 0: CastToClient()->GetHealScaleMod();
+	const auto melee_scale = IsBot() ? 0: CastToClient()->GetMeleeScaleMod();
+	
+	
 	const auto& custom_table = DialogueWindow::Table(
 		fmt::format(
-			"{}{}",
+			"{}{}{}",
 			DialogueWindow::TableRow(
 				DialogueWindow::TableCell("Phys") +
 				DialogueWindow::TableCell("Spell") +
 				DialogueWindow::TableCell("Heal") +
 				DialogueWindow::TableCell("Crit")
 			),
+			//ROW 2
 			DialogueWindow::TableRow(
 				DialogueWindow::TableCell(
 					fmt::format(
@@ -2581,6 +2587,33 @@ void Mob::SendStatsWindow(Client* c, bool use_window)
 					fmt::format(
 						"{}%%",
 						Strings::Commify(crit_bonus)
+					)
+				)
+			),
+			//ROW 3
+			DialogueWindow::TableRow(
+				DialogueWindow::TableCell(
+					fmt::format(
+					"{}%%",
+					Strings::Commify(melee_scale)
+					)
+				) +
+				DialogueWindow::TableCell(
+					fmt::format(
+					"{}%%",
+					Strings::Commify(spell_scale)
+					)
+				) +
+				DialogueWindow::TableCell(
+					fmt::format(
+					"{}%%",
+					Strings::Commify(heal_scale)
+					)
+				) +
+				DialogueWindow::TableCell(
+					fmt::format(
+						"{}%%",
+						Strings::Commify(0)
 					)
 				)
 			)
