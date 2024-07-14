@@ -35,6 +35,7 @@ public:
 	void HealDamage(Mob *self, Mob* caster, uint64 value, uint16 spell_id, uint64 &return_value, bool &ignore_default);
 	void SetEXP(Mob *self, ExpSource exp_source, uint64 current_exp, uint64 set_exp, bool is_rezz_exp, uint64 &return_value, bool &ignore_default);
 	void SetAAEXP(Mob *self, ExpSource exp_source, uint64 current_aa_exp, uint64 set_aa_exp, bool is_rezz_exp, uint64 &return_value, bool &ignore_default);
+	void AlterBonuses(Client *self, int type, int value, int &return_value, bool &ignoreDefault);
 private:
 	LuaParser *parser_;
 	lua_State *L;
@@ -57,4 +58,5 @@ private:
 	bool m_has_set_aa_exp;
 	bool m_has_is_immune_to_spell;
 	bool m_has_update_personal_faction;
+	bool m_has_alterbonuses;
 };

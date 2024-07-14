@@ -1656,6 +1656,15 @@ uint64 LuaParser::SetAAEXP(Mob *self, ExpSource exp_source, uint64 current_aa_ex
 	return retval;
 }
 
+int LuaParser::AlterBonuses(Client *self, int type, int value, bool &ignoreDefault)
+{
+	int retval = 0;
+	for (auto &mod : mods_) {
+		mod.AlterBonuses(self, type, value, retval, ignoreDefault);
+	}
+	return retval;
+}
+
 int LuaParser::EventBot(
 	QuestEventID evt,
 	Bot *bot,

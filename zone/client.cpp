@@ -12909,3 +12909,19 @@ void Client::RemoveItemBySerialNumber(uint32 serial_number, uint32 quantity)
 		}
 	}
 }
+
+int Client::AlterBonuses(int type, int value)
+{
+#ifdef LUA_EQEMU
+	int lua_ret = 0;
+	bool ignoreDefault = false;
+	lua_ret = LuaParser::Instance()->AlterBonuses(this, type, value, ignoreDefault);
+
+	if (ignoreDefault) {
+		return lua_ret;
+	}
+#endif
+
+return 0;
+}
+

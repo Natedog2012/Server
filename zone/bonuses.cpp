@@ -117,56 +117,57 @@ void Client::CalcBonuses()
 	
 	int melee_mod = 0;
 	int regen_mod = 0;
-	int dodge_mod = 0;
+	int crit_damage_mod = 0;
 	int melee_crit_mod = 0;
 	int spelldmg_mod = 0;
 	int healamt_mod = 0;
-	int mana_regen_mod = 0;
+	int spell_crit_damage = 0;
 	int endur_regen_mod = 0;
 	int archery_mod = 0;
 	int song_mod = 0;
 	int mod_start_value = RuleI(Character, Mod_Start_Value);
 	int mod_start_level = RuleI(Character, Mod_Start_Level);
+	int alter_bonus = 0;
 	
 	switch (GetClass()) {
 		case 1: // Warrior
 			melee_mod = RuleI(Character, Warrior_MeleeMod);
 			regen_mod = RuleI(Character, Warrior_RegenMod);
-			dodge_mod = RuleI(Character, Warrior_DodgeMod);
+			crit_damage_mod = RuleI(Character, Warrior_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Warrior_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Warrior_SpellDMGMod);
 			healamt_mod = RuleI(Character, Warrior_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Warrior_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Warrior_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Warrior_EndurRegenMod);
 			break;
 		case 2: // Cleric
 			melee_mod = RuleI(Character, Cleric_MeleeMod);
 			regen_mod = RuleI(Character, Cleric_RegenMod);
-			dodge_mod = RuleI(Character, Cleric_DodgeMod);
+			crit_damage_mod = RuleI(Character, Cleric_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Cleric_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Cleric_SpellDMGMod);
 			healamt_mod = RuleI(Character, Cleric_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Cleric_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Cleric_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Cleric_EndurRegenMod);
 			break;
 		case 3: // Paladin
 			melee_mod = RuleI(Character, Paladin_MeleeMod);
 			regen_mod = RuleI(Character, Paladin_RegenMod);
-			dodge_mod = RuleI(Character, Paladin_DodgeMod);
+			crit_damage_mod = RuleI(Character, Paladin_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Paladin_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Paladin_SpellDMGMod);
 			healamt_mod = RuleI(Character, Paladin_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Paladin_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Paladin_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Paladin_EndurRegenMod);
 			break;
 		case 4: // Ranger
 			melee_mod = RuleI(Character, Ranger_MeleeMod);
 			regen_mod = RuleI(Character, Ranger_RegenMod);
-			dodge_mod = RuleI(Character, Ranger_DodgeMod);
+			crit_damage_mod = RuleI(Character, Ranger_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Ranger_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Ranger_SpellDMGMod);
 			healamt_mod = RuleI(Character, Ranger_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Ranger_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Ranger_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Ranger_EndurRegenMod);
 			archery_mod = RuleI(Character, Ranger_ArcheryMod);
 			if (GetLevel() < RuleI(Character, Mod_Start_Level)) {
@@ -182,41 +183,41 @@ void Client::CalcBonuses()
 		case 5: // Shadowknight
 			melee_mod = RuleI(Character, Shadowknight_MeleeMod);
 			regen_mod = RuleI(Character, Shadowknight_RegenMod);
-			dodge_mod = RuleI(Character, Shadowknight_DodgeMod);
+			crit_damage_mod = RuleI(Character, Shadowknight_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Shadowknight_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Shadowknight_SpellDMGMod);
 			healamt_mod = RuleI(Character, Shadowknight_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Shadowknight_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Shadowknight_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Shadowknight_EndurRegenMod);
 			break;
 		case 6: // Druid
 			melee_mod = RuleI(Character, Druid_MeleeMod);
 			regen_mod = RuleI(Character, Druid_RegenMod);
-			dodge_mod = RuleI(Character, Druid_DodgeMod);
+			crit_damage_mod = RuleI(Character, Druid_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Druid_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Druid_SpellDMGMod);
 			healamt_mod = RuleI(Character, Druid_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Druid_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Druid_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Druid_EndurRegenMod);
 			break;
 		case 7: // Monk
 			melee_mod = RuleI(Character, Monk_MeleeMod);
 			regen_mod = RuleI(Character, Monk_RegenMod);
-			dodge_mod = RuleI(Character, Monk_DodgeMod);
+			crit_damage_mod = RuleI(Character, Monk_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Monk_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Monk_SpellDMGMod);
 			healamt_mod = RuleI(Character, Monk_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Monk_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Monk_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Monk_EndurRegenMod);
 			break;
 		case 8: // Bard
 			melee_mod = RuleI(Character, Bard_MeleeMod);
 			regen_mod = RuleI(Character, Bard_RegenMod);
-			dodge_mod = RuleI(Character, Bard_DodgeMod);
+			crit_damage_mod = RuleI(Character, Bard_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Bard_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Bard_SpellDMGMod);
 			healamt_mod = RuleI(Character, Bard_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Bard_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Bard_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Bard_EndurRegenMod);
 			song_mod = RuleI(Character, Bard_SongMod);
 			if (GetLevel() >= RuleI(Character, Mod_Start_Level)) {
@@ -228,81 +229,81 @@ void Client::CalcBonuses()
 		case 9: // Rogue
 			melee_mod = RuleI(Character, Rogue_MeleeMod);
 			regen_mod = RuleI(Character, Rogue_RegenMod);
-			dodge_mod = RuleI(Character, Rogue_DodgeMod);
+			crit_damage_mod = RuleI(Character, Rogue_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Rogue_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Rogue_SpellDMGMod);
 			healamt_mod = RuleI(Character, Rogue_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Rogue_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Rogue_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Rogue_EndurRegenMod);
 			break;
 		case 10: // Shaman
 			melee_mod = RuleI(Character, Shaman_MeleeMod);
 			regen_mod = RuleI(Character, Shaman_RegenMod);
-			dodge_mod = RuleI(Character, Shaman_DodgeMod);
+			crit_damage_mod = RuleI(Character, Shaman_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Shaman_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Shaman_SpellDMGMod);
 			healamt_mod = RuleI(Character, Shaman_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Shaman_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Shaman_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Shaman_EndurRegenMod);
 			break;
 		case 11: // Necromancer
 			melee_mod = RuleI(Character, Necromancer_MeleeMod);
 			regen_mod = RuleI(Character, Necromancer_RegenMod);
-			dodge_mod = RuleI(Character, Necromancer_DodgeMod);
+			crit_damage_mod = RuleI(Character, Necromancer_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Necromancer_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Necromancer_SpellDMGMod);
 			healamt_mod = RuleI(Character, Necromancer_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Necromancer_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Necromancer_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Necromancer_EndurRegenMod);
 			break;
 		case 12: // Wizard
 			melee_mod = RuleI(Character, Wizard_MeleeMod);
 			regen_mod = RuleI(Character, Wizard_RegenMod);
-			dodge_mod = RuleI(Character, Wizard_DodgeMod);
+			crit_damage_mod = RuleI(Character, Wizard_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Wizard_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Wizard_SpellDMGMod);
 			healamt_mod = RuleI(Character, Wizard_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Wizard_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Wizard_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Wizard_EndurRegenMod);
 			break;
 		case 13: // Magician
 			melee_mod = RuleI(Character, Magician_MeleeMod);
 			regen_mod = RuleI(Character, Magician_RegenMod);
-			dodge_mod = RuleI(Character, Magician_DodgeMod);
+			crit_damage_mod = RuleI(Character, Magician_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Magician_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Magician_SpellDMGMod);
 			healamt_mod = RuleI(Character, Magician_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Magician_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Magician_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Magician_EndurRegenMod);
 			break;
 		case 14: // Enchanter
 			melee_mod = RuleI(Character, Enchanter_MeleeMod);
 			regen_mod = RuleI(Character, Enchanter_RegenMod);
-			dodge_mod = RuleI(Character, Enchanter_DodgeMod);
+			crit_damage_mod = RuleI(Character, Enchanter_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Enchanter_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Enchanter_SpellDMGMod);
 			healamt_mod = RuleI(Character, Enchanter_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Enchanter_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Enchanter_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Enchanter_EndurRegenMod);
 			break;
 		case 15: // Beastlord
 			melee_mod = RuleI(Character, Beastlord_MeleeMod);
 			regen_mod = RuleI(Character, Beastlord_RegenMod);
-			dodge_mod = RuleI(Character, Beastlord_DodgeMod);
+			crit_damage_mod = RuleI(Character, Beastlord_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Beastlord_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Beastlord_SpellDMGMod);
 			healamt_mod = RuleI(Character, Beastlord_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Beastlord_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Beastlord_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Beastlord_EndurRegenMod);
 			break;
 		case 16: // Berserker
 			melee_mod = RuleI(Character, Berserker_MeleeMod);
 			regen_mod = RuleI(Character, Berserker_RegenMod);
-			dodge_mod = RuleI(Character, Berserker_DodgeMod);
+			crit_damage_mod = RuleI(Character, Berserker_CritDMGMod);
 			melee_crit_mod = RuleI(Character, Berserker_MeleeCritMod);
 			spelldmg_mod = RuleI(Character, Berserker_SpellDMGMod);
 			healamt_mod = RuleI(Character, Berserker_HealAMTMod);
-			mana_regen_mod = RuleI(Character, Berserker_ManaRegenMod);
+			spell_crit_damage = RuleI(Character, Berserker_SpellCritDmgMod);
 			endur_regen_mod = RuleI(Character, Berserker_EndurRegenMod);
 			break;
 	}
@@ -313,13 +314,11 @@ void Client::CalcBonuses()
 			if(MeleeScaleMod >= 0) {
 				melee_mod = (melee_mod * MeleeScaleMod) / 100;
 			}
-
-				spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100);
-				spellbonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100);
-		}
-		
-		if (GetDEX() > mod_start_value) {
-			spellbonuses.CriticalHitChance[EQ::skills::HIGHEST_SKILL+1] += (((GetDEX()-mod_start_value) * melee_crit_mod) / 100);
+				alter_bonus = AlterBonuses(1, melee_mod);
+				//spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100);
+				//spellbonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] += (((GetSTR()-mod_start_value) * melee_mod) / 100);
+				spellbonuses.DamageModifier[EQ::skills::HIGHEST_SKILL + 1] += alter_bonus;
+				spellbonuses.MinDamageModifier[EQ::skills::HIGHEST_SKILL + 1] += alter_bonus;
 		}
 		
 		if (GetINT() > mod_start_value) {
@@ -327,7 +326,9 @@ void Client::CalcBonuses()
 			if(SpellScaleMod >= 0) {
 				spelldmg_mod = (spelldmg_mod * SpellScaleMod) / 100;
 			}
-			SPELL_MOD = (((GetINT() - mod_start_value) * spelldmg_mod) / 100);
+			alter_bonus = AlterBonuses(2, spelldmg_mod);
+			SPELL_MOD = alter_bonus;
+			//SPELL_MOD = (((GetINT() - mod_start_value) * spelldmg_mod) / 100);
 		}
 		
 		if (GetWIS() > mod_start_value) {
@@ -335,18 +336,27 @@ void Client::CalcBonuses()
 			if(HealScaleMod >= 0) {
 				healamt_mod = (healamt_mod * HealScaleMod) / 100;
 			}
-			HEAL_MOD = (((GetWIS()-mod_start_value) * healamt_mod) / 100);
+			alter_bonus = AlterBonuses(3, healamt_mod);
+			HEAL_MOD = alter_bonus;
+			//HEAL_MOD = (((GetWIS()-mod_start_value) * healamt_mod) / 100);
+		}
+		
+		if (GetDEX() > mod_start_value) {
+			alter_bonus = AlterBonuses(4, melee_crit_mod);
+			spellbonuses.CriticalHitChance[EQ::skills::HIGHEST_SKILL+1] += alter_bonus;
+			//spellbonuses.CriticalHitChance[EQ::skills::HIGHEST_SKILL+1] += (((GetDEX()-mod_start_value) * melee_crit_mod) / 100);
+		}
+		
+		if (GetAGI() > mod_start_value) {
+			alter_bonus = AlterBonuses(5, crit_damage_mod);
+			spellbonuses.CritDmgMod[EQ::skills::HIGHEST_SKILL+1] += alter_bonus;
 		}
 		
 		if (GetCHA() > mod_start_value) {
-			spellbonuses.ManaRegen += (((GetCHA()-mod_start_value) * mana_regen_mod) / 100) + 14;
-			spellbonuses.EnduranceRegen += (((GetCHA()-mod_start_value) * endur_regen_mod) / 100) + 14;
+			alter_bonus = AlterBonuses(6, crit_damage_mod);
+			spellbonuses.SpellCritDmgIncrease += alter_bonus;
+			spellbonuses.DotCritDmgIncrease += alter_bonus;
 		}
-		
-		// Only at 70
-		spellbonuses.HPRegen += ((GetSTA() * regen_mod) / 100);
-		spellbonuses.DodgeChance += (GetAGI() * dodge_mod) / 100;
-		//
 	}
 
 	// hmm maybe a better way to do this

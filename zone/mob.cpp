@@ -2548,6 +2548,7 @@ void Mob::SendStatsWindow(Client* c, bool use_window)
 	const auto spell_damage_bonus =  IsBot() ? CastToBot()->GetFocusEffect(focusImprovedDamage, RuleI(Character, Default_Spell_For_DMG_Display)) : CastToClient()->GetFocusEffect(focusImprovedDamage, RuleI(Character, Default_Spell_For_DMG_Display));
 	const auto heal_bonus =  IsBot() ? CastToBot()->GetFocusEffect(focusImprovedHeal, RuleI(Character, Default_Spell_For_HEAL_Display)) : CastToClient()->GetFocusEffect(focusImprovedHeal, RuleI(Character, Default_Spell_For_HEAL_Display));
 	const auto crit_bonus =  IsBot() ? CastToBot()->GetCriticalChanceBonus(EQ::skills::HIGHEST_SKILL + 1) : CastToClient()->GetCriticalChanceBonus(EQ::skills::HIGHEST_SKILL + 1);
+	const auto crit_dmgbonus = IsBot() ? CastToBot()->GetCritDmgMod(EQ::skills::HIGHEST_SKILL + 1) : CastToClient()->GetCritDmgMod(EQ::skills::HIGHEST_SKILL + 1);
 	
 	const auto spell_scale = IsBot() ? 0: CastToClient()->GetSpellScaleMod();
 	const auto heal_scale = IsBot() ? 0: CastToClient()->GetHealScaleMod();
@@ -2568,7 +2569,7 @@ void Mob::SendStatsWindow(Client* c, bool use_window)
 				DialogueWindow::TableCell(
 					fmt::format(
 					"{}%%",
-					Strings::Commify(damage_bonus)
+					Strings::Commify(damage_bonus/2)
 					)
 				) +
 				DialogueWindow::TableCell(
@@ -2586,7 +2587,7 @@ void Mob::SendStatsWindow(Client* c, bool use_window)
 				DialogueWindow::TableCell(
 					fmt::format(
 						"{}%%",
-						Strings::Commify(crit_bonus)
+						Strings::Commify(crit_bonus/2)
 					)
 				)
 			),
@@ -2613,7 +2614,7 @@ void Mob::SendStatsWindow(Client* c, bool use_window)
 				DialogueWindow::TableCell(
 					fmt::format(
 						"{}%%",
-						Strings::Commify(0)
+						Strings::Commify(crit_dmgbonus/2)
 					)
 				)
 			)

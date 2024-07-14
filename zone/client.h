@@ -1013,6 +1013,7 @@ public:
 	bool SendGMCommand(std::string message, bool ignore_status = false);
 
 	void RegisterBug(BugReport_Struct* r);
+	int AlterBonuses(int type, int value);
 
 	std::vector<Mob*> GetApplySpellList(
 		ApplySpellType apply_type,
