@@ -16,10 +16,10 @@ void Perl_QuestItem_SetScale(EQ::ItemInstance* self, float scale_multiplier) // 
 	auto item_data = self->GetItem();
 	if (self->IsScaling()) {
 		if (scale_multiplier > 0) {
-			self->SetExp((int) (scale_multiplier * 10000 + .5));
+			self->SetExp(static_cast<uint32>(scale_multiplier * 10000 + .5));
 		} else {
 			if (item_data && item_data->ItemType == 54) {
-				self->SetExp((int)((scale_multiplier * 10000 + .5))); //Augs allowed to go negative
+				self->SetExp(static_cast<uint32>((4294967295-(-1*scale_multiplier) * 10000 - 100))); //Augs allowed to go negative
 			}
 			else {
 				self->SetExp((int)(0)); //Base slot items do not scale negative
