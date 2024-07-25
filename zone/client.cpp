@@ -9344,6 +9344,7 @@ void Client::ShowDevToolsMenu()
 	std::string menu_reload_eight;
 	std::string menu_reload_nine;
 	std::string menu_toggle;
+	std::string window_toggle;
 
 	/**
 	 * Search entity commands
@@ -9409,9 +9410,14 @@ void Client::ShowDevToolsMenu()
 	/**
 	 * Show window status
 	 */
-	menu_toggle = Saylink::Silent("#devtools enable", "Enable");
+	menu_toggle = Saylink::Silent("#devtools menu enable", "Enable");
 	if (IsDevToolsEnabled()) {
-		menu_toggle = Saylink::Silent("#devtools disable", "Disable");
+		menu_toggle = Saylink::Silent("#devtools menu disable", "Disable");
+	}
+
+	window_toggle = Saylink::Silent("#devtools window enable", "Enable");
+	if (GetDisplayMobInfoWindow()) {
+		window_toggle = Saylink::Silent("#devtools window disable", "Disable");
 	}
 
 	/**
@@ -9432,8 +9438,16 @@ void Client::ShowDevToolsMenu()
 	Message(
 		Chat::White,
 		fmt::format(
-			"Toggle | {}",
+			"Toggle Menu | {}",
 			menu_toggle
+		).c_str()
+	);
+
+	Message(
+		Chat::White,
+		fmt::format(
+			"Toggle Window | {}",
+			window_toggle
 		).c_str()
 	);
 
