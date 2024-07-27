@@ -1543,9 +1543,10 @@ void Mob::CastedSpellFinished(uint16 spell_id, uint32 target_id, CastingSlot slo
 		// check for regain concentration
 		if
 		(
-			attacked_count > 0 ||
+			(attacked_count > 0 ||
 			GetX() != GetSpellX() ||
-			GetY() != GetSpellY()
+			GetY() != GetSpellY() ) &&
+			(IsOfClientBot() && !RuleB(Spells, MoveWhileCasting))
 		)
 		{
 			// modify the chance based on how many times they were hit
