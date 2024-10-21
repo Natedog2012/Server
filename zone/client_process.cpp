@@ -121,7 +121,7 @@ bool Client::Process() {
 		}
 
 		/* I haven't naturally updated my position in 10 seconds, updating manually */
-		if (!IsMoving() && position_update_timer.Check()) {
+		if (!IsMoving() && m_position_update_timer.Check()) {
 			SentPositionPacket(0.0f, 0.0f, 0.0f, 0.0f, 0);
 		}
 
@@ -183,7 +183,7 @@ bool Client::Process() {
 			}
 
 			SetDynamicZoneMemberStatus(DynamicZoneMemberStatus::Offline);
-			BuffFadeSongs();
+			BuffFadeSongsCustom();
 			RecordPlayerEventLog(PlayerEvent::WENT_OFFLINE, PlayerEvent::EmptyEvent{});
 
 			if (parse->PlayerHasQuestSub(EVENT_DISCONNECT)) {
@@ -281,12 +281,37 @@ bool Client::Process() {
 			}
 		}
 
-		/**
-		 * Scan close range mobs
-		 * Used in aggro checks
-		 */
-		if (mob_close_scan_timer.Check()) {
-			entity_list.ScanCloseMobs(close_mobs, this, IsMoving());
+		ScanCloseMobProcess();
+
+		if (RuleB(Inventory, LazyLoadBank)) {
+			// poll once a second to see if we are close to a banker and we haven't loaded the bank yet
+			if (!m_lazy_load_bank && lazy_load_bank_check_timer.Check()) {
+				if (m_lazy_load_sent_bank_slots <= EQ::invslot::SHARED_BANK_END && IsCloseToBanker()) {
+					m_lazy_load_bank = true;
+					lazy_load_bank_check_timer.Disable();
+				}
+			}
+
+			if (m_lazy_load_bank && m_lazy_load_sent_bank_slots <= EQ::invslot::SHARED_BANK_END) {
+				const EQ::ItemInstance *inst = nullptr;
+
+				// Jump the gaps
+				if (m_lazy_load_sent_bank_slots < EQ::invslot::BANK_BEGIN) {
+					m_lazy_load_sent_bank_slots = EQ::invslot::BANK_BEGIN;
+				}
+				else if (m_lazy_load_sent_bank_slots > EQ::invslot::BANK_END &&
+						 m_lazy_load_sent_bank_slots < EQ::invslot::SHARED_BANK_BEGIN) {
+					m_lazy_load_sent_bank_slots = EQ::invslot::SHARED_BANK_BEGIN;
+				}
+				else {
+					m_lazy_load_sent_bank_slots++;
+				}
+
+				inst = m_inv[m_lazy_load_sent_bank_slots];
+				if (inst) {
+					SendItemPacket(m_lazy_load_sent_bank_slots, inst, ItemPacketType::ItemPacketTrade);
+				}
+			}
 		}
 
 		bool may_use_attacks = false;
@@ -579,30 +604,7 @@ bool Client::Process() {
 		}
 	}
 
-	//At this point, we are still connected, everything important has taken
-	//place, now check to see if anybody wants to aggro us.
-	// only if client is not feigned
-	if (zone->CanDoCombat() && ret && !GetFeigned() && client_scan_npc_aggro_timer.Check()) {
-		int npc_scan_count = 0;
-		for (auto & close_mob : close_mobs) {
-			Mob *mob = close_mob.second;
-
-			if (!mob) {
-				continue;
-			}
-
-			if (mob->IsClient()) {
-				continue;
-			}
-
-			if (mob->CheckWillAggro(this) && !mob->CheckAggro(this)) {
-				mob->AddToHateList(this, 25);
-			}
-
-			npc_scan_count++;
-		}
-		LogAggro("Checking Reverse Aggro (client->npc) scanned_npcs ([{}])", npc_scan_count);
-	}
+	ClientToNpcAggroProcess();
 
 	if (client_state != CLIENT_LINKDEAD && (client_state == CLIENT_ERROR || client_state == DISCONNECTED || client_state == CLIENT_KICKED || !eqs->CheckState(ESTABLISHED)))
 	{
@@ -686,7 +688,7 @@ void Client::OnDisconnect(bool hard_disconnect) {
 
 		auto* r = entity_list.GetRaidByClient(this);
 
-		BuffFadeSongs();
+		BuffFadeSongsCustom();
 
 		if (r) {
 			r->MemberZoned(this);
@@ -784,39 +786,41 @@ void Client::BulkSendInventoryItems()
 		last_pos = ob.tellp();
 	}
 
-	// Bank items
-	for (int16 slot_id = EQ::invslot::BANK_BEGIN; slot_id <= EQ::invslot::BANK_END; slot_id++) {
-		const EQ::ItemInstance* inst = m_inv[slot_id];
-		if (!inst)
-			continue;
+    if (!RuleB(Inventory, LazyLoadBank)) {
+        // Bank items
+        for (int16 slot_id = EQ::invslot::BANK_BEGIN; slot_id <= EQ::invslot::BANK_END; slot_id++) {
+            const EQ::ItemInstance* inst = m_inv[slot_id];
+            if (!inst)
+                continue;
 
-		inst->Serialize(ob, slot_id);
+            inst->Serialize(ob, slot_id);
 
-		if (ob.tellp() == last_pos)
-			LogInventory("Serialization failed on item slot [{}] during BulkSendInventoryItems. Item skipped", slot_id);
+            if (ob.tellp() == last_pos)
+                LogInventory("Serialization failed on item slot [{}] during BulkSendInventoryItems. Item skipped", slot_id);
 
-		last_pos = ob.tellp();
-	}
+            last_pos = ob.tellp();
+        }
 
-	// SharedBank items
-	for (int16 slot_id = EQ::invslot::SHARED_BANK_BEGIN; slot_id <= EQ::invslot::SHARED_BANK_END; slot_id++) {
-		const EQ::ItemInstance* inst = m_inv[slot_id];
-		if (!inst)
-			continue;
+        // SharedBank items
+        for (int16 slot_id = EQ::invslot::SHARED_BANK_BEGIN; slot_id <= EQ::invslot::SHARED_BANK_END; slot_id++) {
+            const EQ::ItemInstance* inst = m_inv[slot_id];
+            if (!inst)
+                continue;
 
-		inst->Serialize(ob, slot_id);
+            inst->Serialize(ob, slot_id);
 
-		if (ob.tellp() == last_pos)
-			LogInventory("Serialization failed on item slot [{}] during BulkSendInventoryItems. Item skipped", slot_id);
+            if (ob.tellp() == last_pos)
+                LogInventory("Serialization failed on item slot [{}] during BulkSendInventoryItems. Item skipped", slot_id);
 
-		last_pos = ob.tellp();
-	}
+            last_pos = ob.tellp();
+        }
+    }
 
-	auto outapp = new EQApplicationPacket(OP_CharInventory);
-	outapp->size = ob.size();
-	outapp->pBuffer = ob.detach();
-	QueuePacket(outapp);
-	safe_delete(outapp);
+    auto outapp = new EQApplicationPacket(OP_CharInventory);
+    outapp->size = ob.size();
+    outapp->pBuffer = ob.detach();
+    QueuePacket(outapp);
+    safe_delete(outapp);
 }
 
 void Client::BulkSendMerchantInventory(int merchant_id, int npcid) {

@@ -1478,8 +1478,10 @@ int64 Mob::DoDamageCaps(int64 base_damage)
 //SYNC WITH: tune.cpp, mob.h TuneDoAttack
 void Mob::DoAttack(Mob *other, DamageHitInfo &hit, ExtraAttackOptions *opts, bool FromRiposte)
 {
-	if (!other)
+	if (!other) {
 		return;
+	}
+
 	LogCombat("[{}]::DoAttack vs [{}] base [{}] min [{}] offense [{}] tohit [{}] skill [{}]", GetName(),
 		other->GetName(), hit.base_damage, hit.min_damage, hit.offense, hit.tohit, hit.skill);
 
@@ -1491,14 +1493,22 @@ void Mob::DoAttack(Mob *other, DamageHitInfo &hit, ExtraAttackOptions *opts, boo
 	if (!FromRiposte && other->AvoidDamage(this, hit)) {
 		if (int strike_through = itembonuses.StrikeThrough + spellbonuses.StrikeThrough + aabonuses.StrikeThrough;
 				strike_through && zone->random.Roll(strike_through)) {
-			MessageString(Chat::StrikeThrough,
-				STRIKETHROUGH_STRING); // You strike through your opponents defenses!
+
+			FilteredMessageString(
+				this, /* Sender */
+				Chat::StrikeThrough, /* Type: 339 */
+				FilterStrikethrough, /* FilterType: 12 */
+				STRIKETHROUGH_STRING /* You strike through your opponent's defenses! */
+			);
+
 			hit.damage_done = 1;			// set to one, we will check this to continue
 		}
+
 		if (hit.damage_done == DMG_RIPOSTED) {
 			DoRiposte(other);
 			return;
 		}
+
 		LogCombat("Avoided/strikethrough damage with code [{}]", hit.damage_done);
 	}
 
@@ -1510,9 +1520,19 @@ void Mob::DoAttack(Mob *other, DamageHitInfo &hit, ExtraAttackOptions *opts, boo
 					int stun_resist2 = other->spellbonuses.FrontalStunResist + other->itembonuses.FrontalStunResist + other->aabonuses.FrontalStunResist;
 					int stun_resist = other->spellbonuses.StunResist + other->itembonuses.StunResist + other->aabonuses.StunResist;
 					if (zone->random.Roll(stun_resist2)) {
-						other->MessageString(Chat::Stun, AVOID_STUNNING_BLOW);
+						other->FilteredMessageString(
+							this,
+							Chat::Stun,
+							FilterStuns,
+							AVOID_STUNNING_BLOW
+						);
 					} else if (zone->random.Roll(stun_resist)) {
-						other->MessageString(Chat::Stun, SHAKE_OFF_STUN);
+						other->FilteredMessageString(
+							this,
+							Chat::Stun,
+							FilterStuns,
+							SHAKE_OFF_STUN
+						);
 					} else {
 						other->Stun(3000); // yuck -- 3 seconds
 					}
@@ -1530,17 +1550,18 @@ void Mob::DoAttack(Mob *other, DamageHitInfo &hit, ExtraAttackOptions *opts, boo
 			hit.damage_done = 0;
 		}
 
-		if (IsBot()) {
-			if (parse->BotHasQuestSub(EVENT_USE_SKILL)) {
-				const auto& export_string = fmt::format(
+		parse->EventBotMerc(
+			EVENT_USE_SKILL,
+			this,
+			nullptr,
+			[&]() {
+				return fmt::format(
 					"{} {}",
 					hit.skill,
 					GetSkill(hit.skill)
 				);
-
-				parse->EventBot(EVENT_USE_SKILL, CastToBot(), nullptr, export_string, 0);
 			}
-		}
+		);
 	}
 }
 
@@ -1719,7 +1740,7 @@ bool Mob::Attack(Mob* other, int Hand, bool bRiposte, bool IsStrikethrough, bool
 			(HasOwner() && GetOwner()->IsClient() && other->IsClient())
 		)
 	) {
-		for (auto const& [id, mob] : entity_list.GetCloseMobList(other)) {
+		for (auto const& [id, mob] : other->GetCloseMobList()) {
 			if (!mob) {
 				continue;
 			}
@@ -1902,22 +1923,14 @@ bool Client::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::Skil
 	}
 
 	if (killer_mob) {
-		if (killer_mob->IsNPC()) {
-			if (parse->HasQuestSub(killer_mob->GetNPCTypeID(), EVENT_SLAY)) {
-				parse->EventNPC(EVENT_SLAY, killer_mob->CastToNPC(), this, "", 0);
-			}
+		parse->EventBotMercNPC(EVENT_SLAY, killer_mob, this);
 
+		if (killer_mob->IsNPC()) {
 			killed_by = KilledByTypes::Killed_NPC;
 
 			auto emote_id = killer_mob->GetEmoteID();
 			if (emote_id) {
 				killer_mob->CastToNPC()->DoNPCEmote(EQ::constants::EmoteEventTypes::KilledPC, emoteid, this);
-			}
-
-			killer_mob->TrySpellOnKill(killed_level, spell);
-		} else if (killer_mob->IsBot()) {
-			if (parse->BotHasQuestSub(EVENT_SLAY)) {
-				parse->EventBot(EVENT_SLAY, killer_mob->CastToBot(), this, "", 0);
 			}
 
 			killer_mob->TrySpellOnKill(killed_level, spell);
@@ -2186,6 +2199,19 @@ bool Client::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::Skil
 	return true;
 }
 
+bool Client::CheckIfAlreadyDead()
+{
+	if (!ClientFinishedLoading()) {
+		return false;
+	}
+
+	if (dead) {
+		return false;	//cant die more than once...
+	}
+
+	return true;
+}
+
 //SYNC WITH: tune.cpp, mob.h TuneNPCAttack
 bool NPC::Attack(Mob* other, int Hand, bool bRiposte, bool IsStrikethrough, bool IsFromSpell, ExtraAttackOptions *opts)
 {
@@ -2286,8 +2312,7 @@ bool NPC::Attack(Mob* other, int Hand, bool bRiposte, bool IsStrikethrough, bool
 	//Guard Assist Code
 	if (RuleB(Character, PVPEnableGuardFactionAssist)) {
 		if (IsClient() && other->IsClient() || (HasOwner() && GetOwner()->IsClient() && other->IsClient())) {
-			auto& mob_list = entity_list.GetCloseMobList(other);
-			for (auto& e : mob_list) {
+			for (auto& e : other->GetCloseMobList()) {
 				auto mob = e.second;
 				if (!mob) {
 					continue;
@@ -2426,14 +2451,10 @@ void NPC::Damage(Mob* other, int64 damage, uint16 spell_id, EQ::skills::SkillTyp
 		spell_id = SPELL_UNKNOWN;
 
 	//handle EVENT_ATTACK. Resets after we have not been attacked for 12 seconds
-	if (attacked_timer.Check())
-	{
-		if (parse->HasQuestSub(GetNPCTypeID(), EVENT_ATTACK)) {
-			LogCombat("Triggering EVENT_ATTACK due to attack by [{}]", other ? other->GetName() : "nullptr");
-
-			parse->EventNPC(EVENT_ATTACK, this, other, "", 0);
-		}
+	if (attacked_timer.Check()) {
+		parse->EventMercNPC(EVENT_ATTACK, this, other);
 	}
+
 	attacked_timer.Start(CombatEventTimer_expire);
 
 	if (!IsEngaged())
@@ -2460,11 +2481,6 @@ void NPC::Damage(Mob* other, int64 damage, uint16 spell_id, EQ::skills::SkillTyp
 
 	//do a majority of the work...
 	CommonDamage(other, damage, spell_id, attack_skill, avoidable, buffslot, iBuffTic, special);
-
-	if (damage > 0) {
-		//see if we are gunna start fleeing
-		if (!IsPet()) CheckFlee();
-	}
 }
 
 bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillType attack_skill, KilledByTypes killed_by, bool is_buff_tic)
@@ -2479,41 +2495,22 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 
 	Mob* owner_or_self = killer_mob ? killer_mob->GetOwnerOrSelf() : nullptr;
 
-	if (IsNPC()) {
-		if (parse->HasQuestSub(GetNPCTypeID(), EVENT_DEATH)) {
-			const auto& export_string = fmt::format(
-				"{} {} {} {}",
-				killer_mob ? killer_mob->GetID() : 0,
-				damage,
-				spell,
-				static_cast<int>(attack_skill)
-			);
+	auto exports = [&]() {
+		return fmt::format(
+			"{} {} {} {}",
+			killer_mob ? killer_mob->GetID() : 0,
+			damage,
+			spell,
+			static_cast<int>(attack_skill)
+		);
+	};
 
-			if (parse->EventNPC(EVENT_DEATH, this, owner_or_self, export_string, 0) != 0) {
-				if (GetHP() < 0) {
-					SetHP(0);
-				}
-
-				return false;
-			}
+	if (parse->EventBotMercNPC(EVENT_DEATH, this, owner_or_self, exports) != 0) {
+		if (GetHP() < 0) {
+			SetHP(0);
 		}
-	} else if (IsBot()) {
-		if (parse->BotHasQuestSub(EVENT_DEATH)) {
-			const auto& export_string = fmt::format(
-				"{} {} {} {}",
-				killer_mob ? killer_mob->GetID() : 0,
-				damage,
-				spell,
-				static_cast<int>(attack_skill)
-			);
-			if (parse->EventBot(EVENT_DEATH, CastToBot(), owner_or_self, export_string, 0) != 0) {
-				if (GetHP() < 0) {
-					SetHP(0);
-				}
 
-				return false;
-			}
-		}
+		return false;
 	}
 
 	if (killer_mob && killer_mob->IsOfClientBot() && IsValidSpell(spell) && damage > 0) {
@@ -2945,8 +2942,7 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 		entity_list.UnMarkNPC(GetID());
 		entity_list.RemoveNPC(GetID());
 
-		// entity_list.RemoveMobFromCloseLists(this);
-		close_mobs.clear();
+		m_close_mobs.clear();
 		SetID(0);
 		ApplyIllusionToCorpse(illusion_spell_id, corpse);
 
@@ -3051,10 +3047,8 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 		}
 	}
 
-	if (killer_mob && killer_mob->IsBot()) {
-		if (parse->BotHasQuestSub(EVENT_NPC_SLAY)) {
-			parse->EventBot(EVENT_NPC_SLAY, killer_mob->CastToBot(), this, "", 0);
-		}
+	if (killer_mob) {
+		parse->EventBotMerc(EVENT_NPC_SLAY, killer_mob, this);
 
 		killer_mob->TrySpellOnKill(killed_level, spell);
 	}
@@ -3082,24 +3076,29 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 		}
 	}
 
-	if (parse->HasQuestSub(GetNPCTypeID(), EVENT_DEATH_COMPLETE)) {
-		const auto& export_string = fmt::format(
-			"{} {} {} {} {} {} {} {} {}",
-			killer_mob ? killer_mob->GetID() : 0,
-			damage,
-			spell,
-			static_cast<int>(attack_skill),
-			entity_id,
-			m_combat_record.GetStartTime(),
-			m_combat_record.GetEndTime(),
-			m_combat_record.GetDamageReceived(),
-			m_combat_record.GetHealingReceived()
-		);
+	std::vector<std::any> args = { corpse };
 
-		std::vector<std::any> args = { corpse };
-
-		parse->EventNPC(EVENT_DEATH_COMPLETE, this, owner_or_self, export_string, 0, &args);
-	}
+	parse->EventMercNPC(
+		EVENT_DEATH_COMPLETE,
+		this,
+		owner_or_self,
+		[&]() {
+			return fmt::format(
+				"{} {} {} {} {} {} {} {} {}",
+				killer_mob ? killer_mob->GetID() : 0,
+				damage,
+				spell,
+				static_cast<int>(attack_skill),
+				entity_id,
+				m_combat_record.GetStartTime(),
+				m_combat_record.GetEndTime(),
+				m_combat_record.GetDamageReceived(),
+				m_combat_record.GetHealingReceived()
+			);
+		},
+		0,
+		&args
+	);
 
 	// Zone controller process EVENT_DEATH_ZONE (Death events)
 	if (parse->HasQuestSub(ZONE_CONTROLLER_NPC_ID, EVENT_DEATH_ZONE)) {
@@ -4132,6 +4131,7 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 			AddToHateList(attacker, 0, damage, true, false, iBuffTic, spell_id);
 	}
 
+	bool died = false;
 	if (damage > 0) {
 		//if there is some damage being done and theres an attacker involved
 		int previous_hp_ratio = GetHPRatio();
@@ -4266,110 +4266,89 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 		}
 
 		//final damage has been determined.
-		SetHP(int64(GetHP() - damage));
+		int old_hp_ratio = (int)GetHPRatio();
 
-		const auto has_bot_given_event = parse->BotHasQuestSub(EVENT_DAMAGE_GIVEN);
-
-		const auto has_bot_taken_event = parse->BotHasQuestSub(EVENT_DAMAGE_TAKEN);
-
-		const auto has_npc_given_event = (
-			(
-				IsNPC() &&
-				parse->HasQuestSub(CastToNPC()->GetNPCTypeID(), EVENT_DAMAGE_GIVEN)
-			) ||
-			(
-				attacker &&
-				attacker->IsNPC() &&
-				parse->HasQuestSub(attacker->CastToNPC()->GetNPCTypeID(), EVENT_DAMAGE_GIVEN)
-			)
-		);
-
-		const auto has_npc_taken_event = (
-			(
-				IsNPC() &&
-				parse->HasQuestSub(CastToNPC()->GetNPCTypeID(), EVENT_DAMAGE_TAKEN)
-			) ||
-			(
-				attacker &&
-				attacker->IsNPC() &&
-				parse->HasQuestSub(attacker->CastToNPC()->GetNPCTypeID(), EVENT_DAMAGE_TAKEN)
-			)
-		);
-
-		const auto has_player_given_event = parse->PlayerHasQuestSub(EVENT_DAMAGE_GIVEN);
-
-		const auto has_player_taken_event = parse->PlayerHasQuestSub(EVENT_DAMAGE_TAKEN);
-
-		const auto has_given_event = (
-			has_bot_given_event ||
-			has_npc_given_event ||
-			has_player_given_event
-		);
-
-		const auto has_taken_event = (
-			has_bot_taken_event ||
-			has_npc_taken_event ||
-			has_player_taken_event
-		);
 
 		std::vector<std::any> args;
 
-		if (has_taken_event) {
-			const auto export_string = fmt::format(
-				"{} {} {} {} {} {} {} {} {}",
-				attacker ? attacker->GetID() : 0,
-				damage,
-				spell_id,
-				static_cast<int>(skill_used),
-				FromDamageShield ? 1 : 0,
-				avoidable ? 1 : 0,
-				buffslot,
-				iBuffTic ? 1 : 0,
-				static_cast<int>(special)
-			);
+		int64 damage_override = 0;
 
-			if (IsBot() && has_bot_taken_event) {
-				parse->EventBot(EVENT_DAMAGE_TAKEN, CastToBot(), attacker ? attacker : nullptr, export_string, 0);
-			} else if (IsClient() && has_player_taken_event) {
-				args.push_back(attacker ? attacker : nullptr);
-				parse->EventPlayer(EVENT_DAMAGE_TAKEN, CastToClient(), export_string, 0, &args);
-			} else if (IsNPC() && has_npc_taken_event) {
-				parse->EventNPC(EVENT_DAMAGE_TAKEN, CastToNPC(), attacker ? attacker : nullptr, export_string, 0);
-			}
+		if (attacker) {
+			args = { this };
+
+			parse->EventMob(
+				EVENT_DAMAGE_GIVEN,
+				attacker,
+				this,
+				[&]() {
+					return fmt::format(
+						"{} {} {} {} {} {} {} {} {}",
+						GetID(),
+						damage,
+						spell_id,
+						static_cast<int>(skill_used),
+						FromDamageShield ? 1 : 0,
+						avoidable ? 1 : 0,
+						buffslot,
+						iBuffTic ? 1 : 0,
+						static_cast<int>(special)
+					);
+				},
+				0,
+				&args
+			);
 		}
 
-		if (has_given_event && attacker) {
-			const auto export_string = fmt::format(
-				"{} {} {} {} {} {} {} {} {}",
-				GetID(),
-				damage,
-				spell_id,
-				static_cast<int>(skill_used),
-				FromDamageShield ? 1 : 0,
-				avoidable ? 1 : 0,
-				buffslot,
-				iBuffTic ? 1 : 0,
-				static_cast<int>(special)
-			);
+		args = { attacker };
 
-			if (attacker->IsBot() && has_bot_given_event) {
-				parse->EventBot(EVENT_DAMAGE_GIVEN, attacker->CastToBot(), this, export_string, 0);
-			} else if (attacker->IsClient() && has_player_given_event) {
-				args.push_back(this);
-				parse->EventPlayer(EVENT_DAMAGE_GIVEN, attacker->CastToClient(), export_string, 0, &args);
-			} else if (attacker->IsNPC() && has_npc_given_event) {
-				parse->EventNPC(EVENT_DAMAGE_GIVEN, attacker->CastToNPC(), this, export_string, 0);
-			}
+		damage_override = parse->EventMob(
+			EVENT_DAMAGE_TAKEN,
+			this,
+			attacker,
+			[&]() {
+				return fmt::format(
+					"{} {} {} {} {} {} {} {} {}",
+					attacker ? attacker->GetID() : 0,
+					damage,
+					spell_id,
+					static_cast<int>(skill_used),
+					FromDamageShield ? 1 : 0,
+					avoidable ? 1 : 0,
+					buffslot,
+					iBuffTic ? 1 : 0,
+					static_cast<int>(special)
+				);
+			},
+			0,
+			&args
+		);
+
+		if (damage_override > 0) {
+			damage = damage_override;
+		} else if (damage_override < 0) {
+			damage = 0;
 		}
+
+		SetHP(int64(GetHP() - damage));
 
 		if (HasDied()) {
 			bool IsSaved = false;
 
-			if (TryDivineSave())
+			if (TryDivineSave()) {
 				IsSaved = true;
+			}
 
 			if (!IsSaved && !TrySpellOnDeath()) {
-				SetHP(-500);
+				if (IsNPC()) {
+					died = !CastToNPC()->GetDepop();
+				} else if (IsClient()) {
+					died = CastToClient()->CheckIfAlreadyDead();
+				}
+
+				if (died) {
+					SetHP(-500);
+				}
+
 				// killedByType is clarified in Client::Death if we are client.
 				if (Death(attacker, damage, spell_id, skill_used, KilledByTypes::Killed_NPC, iBuffTic)) {
 					return;
@@ -4495,32 +4474,59 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 						Stun(RuleI(Combat, StunDuration));
 						if (RuleB(Combat, ClientStunMessage) && attacker->IsClient()) {
 							if (attacker) {
-								entity_list.MessageClose(this, true, 500, Chat::Emote, "%s is stunned after being bashed by %s.", GetCleanName(), attacker->GetCleanName());
-							}
-							else {
-								entity_list.MessageClose(this, true, 500, Chat::Emote, "%s is stunned by a bash to the head.", GetCleanName());
+								entity_list.FilteredMessageClose(
+									this,
+									true,
+									RuleI(Range, StunMessages),
+									Chat::Stun,
+									FilterStuns,
+									"%s is stunned after being bashed by %s.",
+									GetCleanName(),
+									attacker->GetCleanName()
+								);
+							} else {
+								entity_list.FilteredMessageClose(
+									this,
+									true,
+									RuleI(Range, StunMessages),
+									Chat::Stun,
+									FilterStuns,
+									"%s is stunned by a bash to the head.",
+									GetCleanName()
+								);
 							}
 						}
-					}
-					else {
+					} else {
 						// stun resist passed!
-						if (IsClient())
-							MessageString(Chat::Stun, SHAKE_OFF_STUN);
+						if (IsClient()) {
+							FilteredMessageString(
+								this,
+								Chat::Stun,
+								FilterStuns,
+								SHAKE_OFF_STUN
+							);
+						}
+					}
+				} else {
+					// stun resist 2 passed!
+					if (IsClient()) {
+						FilteredMessageString(
+							this,
+							Chat::Stun,
+							FilterStuns,
+							AVOID_STUNNING_BLOW
+						);
 					}
 				}
-				else {
-					// stun resist 2 passed!
-					if (IsClient())
-						MessageString(Chat::Stun, AVOID_STUNNING_BLOW);
-				}
-			}
-			else {
+			} else {
 				// main stun failed -- extra interrupt roll
-				if (IsCasting() &&
-					!EQ::ValueWithin(casting_spell_id, 859, 1023)) // these spells are excluded
-																	  // 90% chance >< -- stun immune won't reach this branch though :(
-					if (zone->random.Int(0, 9) > 1)
+				// these spells are excluded
+				// 90% chance >< -- stun immune won't reach this branch though :(
+				if (IsCasting() && !EQ::ValueWithin(casting_spell_id, 859, 1023)) {
+					if (zone->random.Int(0, 9) > 1) {
 						InterruptSpell();
+					}
+				}
 			}
 		}
 
@@ -4539,8 +4545,21 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 		}
 
 		//send an HP update if we are hurt
-		if (GetHP() < GetMaxHP()) {
-			SendHPUpdate(); // the OP_Damage actually updates the client in these cases, so we skip the HP update for them
+		if(GetHP() < GetMaxHP())
+		{
+			// Don't send a HP update for melee damage unless we've damaged ourself.
+			if (IsNPC()) {
+				int cur_hp_ratio = (int)GetHPRatio();
+				if (cur_hp_ratio != old_hp_ratio) {
+					SendHPUpdate(true);
+				}
+			} else if (!iBuffTic || died)	{ // Let regen handle buff tics unless this tic killed us.
+				SendHPUpdate(true);
+			}
+
+			if (!died && IsNPC()) {
+				CheckFlee();
+			}
 		}
 	}	//end `if damage was done`
 

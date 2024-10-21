@@ -5604,6 +5604,37 @@ uint32 lua_get_zone_uptime()
 	return Timer::GetCurrentTime() / 1000;
 }
 
+int lua_are_tasks_completed(luabind::object task_ids)
+{
+	if (luabind::type(task_ids) != LUA_TTABLE) {
+		return 0;
+	}
+
+	std::vector<int> v;
+	int index = 1;
+	while (luabind::type(task_ids[index]) != LUA_TNIL) {
+		auto current_id = task_ids[index];
+		int task_id = 0;
+		if (luabind::type(current_id) != LUA_TNIL) {
+			try {
+				task_id = luabind::object_cast<int>(current_id);
+			} catch(luabind::cast_failed &) {
+			}
+		} else {
+			break;
+		}
+
+		v.push_back(task_id);
+		++index;
+	}
+
+	if (v.empty()) {
+		return 0;
+	}
+
+	return quest_manager.aretaskscompleted(v);
+}
+
 #define LuaCreateNPCParse(name, c_type, default_value) do { \
 	cur = table[#name]; \
 	if(luabind::type(cur) != LUA_TNIL) { \
@@ -6410,6 +6441,7 @@ luabind::scope lua_register_general() {
 		luabind::def("get_zone_short_name_by_long_name", &lua_get_zone_short_name_by_long_name),
 		luabind::def("send_parcel", &lua_send_parcel),
 		luabind::def("get_zone_uptime", &lua_get_zone_uptime),
+		luabind::def("are_tasks_completed", &lua_are_tasks_completed),
 		/*
 			Cross Zone
 		*/
@@ -6875,7 +6907,8 @@ luabind::scope lua_register_events() {
 			luabind::value("entity_variable_delete", static_cast<int>(EVENT_ENTITY_VARIABLE_DELETE)),
 			luabind::value("entity_variable_set", static_cast<int>(EVENT_ENTITY_VARIABLE_SET)),
 			luabind::value("entity_variable_update", static_cast<int>(EVENT_ENTITY_VARIABLE_UPDATE)),
-			luabind::value("aa_loss", static_cast<int>(EVENT_AA_LOSS))
+			luabind::value("aa_loss", static_cast<int>(EVENT_AA_LOSS)),
+			luabind::value("read", static_cast<int>(EVENT_READ_ITEM))
 		)];
 }
 
@@ -7256,10 +7289,10 @@ luabind::scope lua_register_filters() {
 			luabind::value("FocusEffects", FilterFocusEffects),
 			luabind::value("PetSpells", FilterPetSpells),
 			luabind::value("HealOverTime", FilterHealOverTime),
-			luabind::value("Unknown25", FilterUnknown25),
-			luabind::value("Unknown26", FilterUnknown26),
-			luabind::value("Unknown27", FilterUnknown27),
-			luabind::value("Unknown28", FilterUnknown28)
+			luabind::value("ItemSpeech", FilterItemSpeech),
+			luabind::value("Strikethrough", FilterStrikethrough),
+			luabind::value("Stuns", FilterStuns),
+			luabind::value("BardSongsOnPets", FilterBardSongsOnPets)
 		)];
 }
 

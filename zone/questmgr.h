@@ -227,7 +227,8 @@ public:
 	void assigntask(int taskid, bool enforce_level_requirement = false);
 	void failtask(int taskid);
 	int tasktimeleft(int taskid);
-	int istaskcompleted(int taskid);
+	bool istaskcompleted(int task_id);
+	bool aretaskscompleted(const std::vector<int>& task_ids);
 	int enabledtaskcount(int taskset);
 	int firsttaskinset(int taskset);
 	int lasttaskinset(int taskset);
@@ -361,6 +362,7 @@ public:
 
 	Bot *GetBot() const;
 	Client *GetInitiator() const;
+	Merc* GetMerc() const;
 	NPC *GetNPC() const;
 	Mob *GetOwner() const;
 	EQ::InventoryProfile* GetInventory() const;

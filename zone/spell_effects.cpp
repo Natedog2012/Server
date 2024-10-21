@@ -2301,10 +2301,10 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 #ifdef SPELL_EFFECT_SPAM
 				snprintf(effect_desc, _EDLEN, "Sacrifice");
 #endif
-				if(!caster || !IsClient() || !caster->IsClient()){
+				if(!caster || !IsClient() ){
 					break;
 				}
-				CastToClient()->SacrificeConfirm(caster->CastToClient());
+				CastToClient()->SacrificeConfirm(caster);
 				break;
 			}
 
@@ -2417,8 +2417,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					else if (spells[spell_id].max_value[i]) {
 						if (spells[spell_id].max_value[i] >= 1000) {
 							max_level = 1000 - spells[spell_id].max_value[i];
-						}
-						else {
+						} else {
 							max_level = GetLevel() + spells[spell_id].max_value[i];
 						}
 					}
@@ -2428,6 +2427,7 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 					if (IsClient()) {
 						int pre_aggro_count = CastToClient()->GetAggroCount();
 						entity_list.RemoveFromTargetsFadingMemories(this, true, max_level);
+						entity_list.ClearZoneFeignAggro(this);
 
 						if (spellbonuses.ShroudofStealth || aabonuses.ShroudofStealth || itembonuses.ShroudofStealth) {
 							improved_hidden = true;
@@ -2440,15 +2440,13 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 							if (pre_aggro_count == post_aggro_count) {
 								Message(Chat::SpellFailure, "You failed to escape from all your opponents.");
 								break;
-							}
-							else if (post_aggro_count) {
+							} else if (post_aggro_count) {
 								Message(Chat::SpellFailure, "You failed to escape from combat but you evade some of your opponents.");
 								break;
 							}
 						}
 						MessageString(Chat::Skills, ESCAPE);
-					}
-					else{
+					} else{
 						entity_list.RemoveFromTargets(caster);
 						SetInvisible(Invisibility::Invisible);
 					}
