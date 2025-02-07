@@ -33,9 +33,11 @@
 #include "bot.h"
 
 #include "worldserver.h"
+#include "queryserv.h"
 
-extern EntityList entity_list;
+extern EntityList  entity_list;
 extern WorldServer worldserver;
+extern QueryServ  *QServ;
 
 Raid::Raid(uint32 raidID)
 : GroupIDConsumer(raidID)
@@ -240,8 +242,6 @@ void Raid::AddBot(Bot* b, uint32 group, bool raid_leader, bool group_leader, boo
 	SendRaidAddAll(b->GetName());
 
 	b->SetRaidGrouped(true);
-	b->p_raid_instance = this;
-
 
 	auto pack = new ServerPacket(ServerOP_RaidAdd, sizeof(ServerRaidGeneralAction_Struct));
 	auto* rga = (ServerRaidGeneralAction_Struct*) pack->pBuffer;
@@ -267,6 +267,9 @@ void Raid::RemoveMember(const char *character_name)
 		b->SetFollowID(b->GetOwner()->CastToClient()->GetID());
 		b->SetTarget(nullptr);
 		b->SetRaidGrouped(false);
+		b->p_raid_instance = nullptr;
+		b->SetStoredRaid(nullptr);
+		b->SetVerifiedRaid(false);
 	}
 
 	disbandCheck = true;

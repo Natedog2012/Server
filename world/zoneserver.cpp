@@ -1353,15 +1353,6 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 			safe_delete(outapp);
 			break;
 		}
-		case ServerOP_Speech:
-		case ServerOP_QSSendQuery:
-		case ServerOP_QSPlayerLogDeletes:
-		case ServerOP_QSPlayerDropItem:
-		case ServerOP_QSPlayerLogHandins:
-		case ServerOP_QSPlayerLogMerchantTransactions:
-		case ServerOP_QSPlayerLogMoves:
-		case ServerOP_QSPlayerLogNPCKills:
-		case ServerOP_QSPlayerLogTrades:
 		case ServerOP_QueryServGeneric: {
 			QSLink.SendPacket(pack);
 			break;
@@ -1481,6 +1472,7 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 		}
 		case ServerOP_ReloadLogs: {
 			zoneserver_list.SendPacket(pack);
+			QSLink.SendPacket(pack);
 			UCSLink.SendPacket(pack);
 			LogSys.LoadLogDatabaseSettings();
 			player_event_logs.ReloadSettings();
@@ -1562,11 +1554,6 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 		case ServerOP_DzMovePC:
 		case ServerOP_DzUpdateMemberStatus: {
 			DynamicZone::HandleZoneMessage(pack);
-			break;
-		}
-		case ServerOP_DataBucketCacheUpdate: {
-			zoneserver_list.SendPacket(pack);
-
 			break;
 		}
 		case ServerOP_GuildTributeUpdate: {
@@ -1755,7 +1742,11 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 				return;
 			}
 
-			zoneserver_list.SendPacket(Zones::BAZAAR, pack);
+			auto trader = client_list.FindCLEByCharacterID(in->trader_buy_struct.trader_id);
+			if (trader) {
+				zoneserver_list.SendPacket(trader->zone(), trader->instance(), pack);
+			}
+
 			break;
 		}
 		case ServerOP_BuyerMessaging: {
@@ -1775,12 +1766,20 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 					break;
 				}
 				case Barter_SellItem: {
-					zoneserver_list.SendPacket(Zones::BAZAAR, pack);
+					auto buyer = client_list.FindCharacter(in->buyer_name);
+					if (buyer) {
+						zoneserver_list.SendPacket(buyer->zone(), buyer->instance(), pack);
+					}
+
 					break;
 				}
 				case Barter_FailedTransaction:
 				case Barter_BuyerTransactionComplete: {
-					zoneserver_list.SendPacket(in->zone_id, pack);
+					auto seller = client_list.FindCharacter(in->seller_name);
+					if (seller) {
+						zoneserver_list.SendPacket(seller->zone(), seller->instance(), pack);
+					}
+
 					break;
 				}
 				default:

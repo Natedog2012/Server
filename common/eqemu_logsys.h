@@ -142,6 +142,13 @@ namespace Logs {
 		EqTime,
 		Corpses,
 		XTargets,
+		EvolveItem,
+		PositionUpdate,
+		KSM,
+		BotSettings,
+		BotSpellChecks,
+		BotSpellTypeChecks,
+		NpcHandin,
 		MaxCategoryID /* Don't Remove this */
 	};
 
@@ -242,7 +249,14 @@ namespace Logs {
 		"Zoning",
 		"EqTime",
 		"Corpses",
-		"XTargets"
+		"XTargets",
+		"EvolveItem",
+		"PositionUpdate",
+		"KSM", // Kernel Samepage Merging
+		"Bot Settings",
+		"Bot Spell Checks",
+		"Bot Spell Type Checks",
+		"NpcHandin"
 	};
 }
 

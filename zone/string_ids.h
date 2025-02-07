@@ -286,6 +286,7 @@
 #define BEGINS_TO_SHINE				1238	//Your %1 begins to shine.
 #define CANT_FIND_PLAYER			1276 	//I can't find a player named %1!
 #define SURNAME_REJECTED			1374	//Your new surname was rejected. Please try a different name.
+#define ALREADY_SOLD				1376	//The item you were interested in has already been sold.
 #define GUILD_DISBANDED				1377    //Your guild has been disbanded!  You are no longer a member of any guild.
 #define DUEL_DECLINE				1383	//%1 has declined your challenge to duel to the death.
 #define DUEL_ACCEPTED				1384	//%1 has already accepted a duel with someone else.
@@ -308,6 +309,7 @@
 #define PLAYER_CHARMED				1461	//You lose control of yourself!
 #define TRADER_BUSY					1468	//That Trader is currently with a customer. Please wait until their transaction is finished.
 #define SENSE_CORPSE_DIRECTION		1563	//You sense a corpse in this direction.
+#define DUPE_LORE_MERCHANT			1573	//%1 tells you, 'You already have the lore item, %2, on your person, on your shroud, in the bank, in a real estate, or as an augment in another item.  You cannot have more than one of a particular lore item at a time.'
 #define QUEUED_TELL					2458	//[queued]
 #define QUEUE_TELL_FULL				2459	//[zoing and queue is full]
 #define TRADER_BUSY_TWO             3192    //Sorry, that action cannot be performed while trading.
@@ -419,6 +421,11 @@
 #define GUILD_BANK_FULL				6098	// There is no more room in the Guild Bank.
 #define GUILD_BANK_TRANSFERRED  	6100	// '%1' transferred to Guild Bank from Deposits.
 #define GUILD_BANK_EMPTY_HANDS  	6108	// You must empty your hands to withdraw from the Guild Bank.
+#define EVOLVE_ITEM_EVOLVED         6145    //Your %1 has evolved!
+#define EVOLVE_DETAILS              6146    //Evolving: Level %1/%2 %3%% %4
+#define EVOLVE_LEVEL_LIMIT          6147    //Your %1 can not evolve until you reach level %2.
+#define EVOLVE_XP_TXFR_CONFIRM      6148    //Are you sure you want to transfer experience between these two items?
+#define EVOLVE_XP_TXFRD             6149    //Your item's experience has been transferred!
 #define TRADESKILL_COMBINE_LORE 	6199	// Combine would result in a LORE item (%1) you already possess.
 #define TRANSFORM_FAILED			6326	//This mold cannot be applied to your %1.
 #define TRANSFORM_COMPLETE			6327	//You have successfully transformed your %1.

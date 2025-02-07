@@ -1052,9 +1052,9 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 						auto action_packet =
 						    new EQApplicationPacket(OP_Action, sizeof(Action_Struct));
 						Action_Struct* action = (Action_Struct*) action_packet->pBuffer;
-						auto message_packet =
-						    new EQApplicationPacket(OP_Damage, sizeof(CombatDamage_Struct));
-						CombatDamage_Struct *cd = (CombatDamage_Struct *)message_packet->pBuffer;
+
+						static EQApplicationPacket p(OP_Damage, sizeof(CombatDamage_Struct));
+						auto                       cd = (CombatDamage_Struct *) p.pBuffer;
 
 						action->target = GetID();
 						action->source = caster ? caster->GetID() : GetID();
@@ -1077,16 +1077,15 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 							caster->CastToClient()->QueuePacket(action_packet);
 						}
 
-						CastToClient()->QueuePacket(message_packet);
+						CastToClient()->QueuePacket(&p);
 
 						if (caster && caster->IsClient() && caster != this) {
-							caster->CastToClient()->QueuePacket(message_packet);
+							caster->CastToClient()->QueuePacket(&p);
 						}
 
 						CastToClient()->SetBindPoint(spells[spell_id].base_value[i] - 1);
 						Save();
 						safe_delete(action_packet);
-						safe_delete(message_packet);
 					} else {
 						if (!zone->CanBind()) {
 							MessageString(Chat::SpellFailure, CANNOT_BIND);
@@ -1101,9 +1100,9 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 								auto action_packet = new EQApplicationPacket(
 								    OP_Action, sizeof(Action_Struct));
 								Action_Struct* action = (Action_Struct*) action_packet->pBuffer;
-								auto message_packet = new EQApplicationPacket(
-								    OP_Damage, sizeof(CombatDamage_Struct));
-								CombatDamage_Struct *cd = (CombatDamage_Struct *)message_packet->pBuffer;
+
+								static EQApplicationPacket p(OP_Damage, sizeof(CombatDamage_Struct));
+								auto                       cd = (CombatDamage_Struct *) p.pBuffer;
 
 								action->target = GetID();
 								action->source = caster ? caster->GetID() : GetID();
@@ -1126,24 +1125,23 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 									caster->CastToClient()->QueuePacket(action_packet);
 								}
 
-								CastToClient()->QueuePacket(message_packet);
+								CastToClient()->QueuePacket(&p);
 
 								if (caster->IsClient() && caster != this) {
-									caster->CastToClient()->QueuePacket(message_packet);
+									caster->CastToClient()->QueuePacket(&p);
 								}
 
 								CastToClient()->SetBindPoint(spells[spell_id].base_value[i] - 1);
 								Save();
 								safe_delete(action_packet);
-								safe_delete(message_packet);
 							}
 						} else {
 							auto action_packet =
 							    new EQApplicationPacket(OP_Action, sizeof(Action_Struct));
 							Action_Struct* action = (Action_Struct*) action_packet->pBuffer;
-							auto message_packet = new EQApplicationPacket(
-							    OP_Damage, sizeof(CombatDamage_Struct));
-							CombatDamage_Struct *cd = (CombatDamage_Struct *)message_packet->pBuffer;
+
+							static EQApplicationPacket p(OP_Damage, sizeof(CombatDamage_Struct));
+							auto                       cd = (CombatDamage_Struct *) p.pBuffer;
 
 							action->target = GetID();
 							action->source = caster ? caster->GetID() : GetID();
@@ -1166,16 +1164,15 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 								caster->CastToClient()->QueuePacket(action_packet);
 							}
 
-							CastToClient()->QueuePacket(message_packet);
+							CastToClient()->QueuePacket(&p);
 
 							if (caster->IsClient() && caster != this) {
-								caster->CastToClient()->QueuePacket(message_packet);
+								caster->CastToClient()->QueuePacket(&p);
 							}
 
 							CastToClient()->SetBindPoint(spells[spell_id].base_value[i] - 1);
 							Save();
 							safe_delete(action_packet);
-							safe_delete(message_packet);
 						}
 					}
 				}
@@ -1582,6 +1579,14 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 #ifdef SPELL_EFFECT_SPAM
 				snprintf(effect_desc, _EDLEN, "Illusion: race %d", effect_value);
 #endif
+				if (caster && caster->IsOfClientBot()) {
+					Mob* target = IsClient() ? static_cast<Mob*>(CastToClient()) : static_cast<Mob*>(CastToBot());
+
+					if (target && target->GetIllusionBlock()) {
+						break;
+					}
+				}
+
 				ApplySpellEffectIllusion(spell_id, caster, buffslot, spells[spell_id].base_value[i], spells[spell_id].limit_value[i], spells[spell_id].max_value[i]);
 				break;
 			}
@@ -1591,6 +1596,14 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 #ifdef SPELL_EFFECT_SPAM
 				snprintf(effect_desc, _EDLEN, "Illusion Copy");
 #endif
+				if (caster && caster->IsOfClientBot()) {
+					Mob* target = IsClient() ? static_cast<Mob*>(CastToClient()) : static_cast<Mob*>(CastToBot());
+
+					if (target && target->GetIllusionBlock()) {
+						break;
+					}
+				}
+
 				if(caster && caster->GetTarget()){
 						SendIllusionPacket
 						(
@@ -2516,16 +2529,18 @@ bool Mob::SpellEffect(Mob* caster, uint16 spell_id, float partial, int level_ove
 				}
 				int scaled_base_damage = caster->CalcSpellEffectValue_formula(spells[spell_id].formula[i], spells[spell_id].base_value[i], spells[spell_id].max_value[i], caster->GetLevel(), spell_id);
 
+				int16 focus = RuleB(Spells, AllowFocusOnSkillDamageSpells) ? caster->GetMeleeDamageMod_SE(spells[spell_id].skill) : 0;
+
 				switch(spells[spell_id].skill) {
-				case EQ::skills::SkillThrowing:
-					caster->DoThrowingAttackDmg(this, nullptr, nullptr, scaled_base_damage,spells[spell_id].limit_value[i], 0, ReuseTime, 0, 0, 4.0f, true);
-					break;
-				case EQ::skills::SkillArchery:
-					caster->DoArcheryAttackDmg(this, nullptr, nullptr, scaled_base_damage,spells[spell_id].limit_value[i], 0, ReuseTime, 0, 0, nullptr, 0, 4.0f, true);
-					break;
-				default:
-					caster->DoMeleeSkillAttackDmg(this, scaled_base_damage, spells[spell_id].skill, spells[spell_id].limit_value[i], 0, false, ReuseTime);
-					break;
+					case EQ::skills::SkillThrowing:
+						caster->DoThrowingAttackDmg(this, nullptr, nullptr, scaled_base_damage,spells[spell_id].limit_value[i], focus, ReuseTime, 0, 0, 4.0f, true);
+						break;
+					case EQ::skills::SkillArchery:
+						caster->DoArcheryAttackDmg(this, nullptr, nullptr, scaled_base_damage,spells[spell_id].limit_value[i], focus, ReuseTime, 0, 0, nullptr, 0, 4.0f, true);
+						break;
+					default:
+						caster->DoMeleeSkillAttackDmg(this, scaled_base_damage, spells[spell_id].skill, spells[spell_id].limit_value[i], focus, false, ReuseTime);
+						break;
 				}
 				break;
 			}
@@ -10832,7 +10847,7 @@ int Mob::GetBuffStatValueBySlot(uint8 slot, const char* stat_identifier)
 
 	if (id == "caster_level") { return buffs[slot].casterlevel; }
 	else if (id == "spell_id") { return buffs[slot].spellid; }
-	else if (id == "caster_id") { return buffs[slot].spellid;; }
+	else if (id == "caster_id") { return buffs[slot].spellid; }
 	else if (id == "ticsremaining") { return buffs[slot].ticsremaining; }
 	else if (id == "counters") { return buffs[slot].counters; }
 	else if (id == "hit_number") { return  buffs[slot].hit_number; }

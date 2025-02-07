@@ -4668,16 +4668,6 @@ int lua_get_zone_npc_maximum_aggro_distance(uint32 zone_id, int version)
 	return zone_store.GetZoneNPCMaximumAggroDistance(zone_id, version);
 }
 
-uint32 lua_get_zone_maximum_movement_update_range(uint32 zone_id)
-{
-	return zone_store.GetZoneMaximumMovementUpdateRange(zone_id);
-}
-
-uint32 lua_get_zone_maximum_movement_update_range(uint32 zone_id, int version)
-{
-	return zone_store.GetZoneMaximumMovementUpdateRange(zone_id, version);
-}
-
 int8 lua_get_zone_minimum_expansion(uint32 zone_id)
 {
 	return zone_store.GetZoneMinimumExpansion(zone_id);
@@ -5635,6 +5625,16 @@ int lua_are_tasks_completed(luabind::object task_ids)
 	return quest_manager.aretaskscompleted(v);
 }
 
+void lua_spawn_circle(uint32 npc_id, float x, float y, float z, float heading, float radius, uint32 points)
+{
+	quest_manager.SpawnCircle(npc_id, glm::vec4(x, y, z, heading), radius, points);
+}
+
+void lua_spawn_grid(uint32 npc_id, float x, float y, float z, float heading, float spacing, uint32 spawn_count)
+{
+	quest_manager.SpawnGrid(npc_id, glm::vec4(x, y, z, heading), spacing, spawn_count);
+}
+
 #define LuaCreateNPCParse(name, c_type, default_value) do { \
 	cur = table[#name]; \
 	if(luabind::type(cur) != LUA_TNIL) { \
@@ -6277,8 +6277,6 @@ luabind::scope lua_register_general() {
 		luabind::def("get_zone_fast_regen_endurance", (int(*)(uint32,int))&lua_get_zone_fast_regen_endurance),
 		luabind::def("get_zone_npc_maximum_aggro_distance", (int(*)(uint32))&lua_get_zone_npc_maximum_aggro_distance),
 		luabind::def("get_zone_npc_maximum_aggro_distance", (int(*)(uint32,int))&lua_get_zone_npc_maximum_aggro_distance),
-		luabind::def("get_zone_npc_maximum_movement_update_range", (uint32(*)(uint32))&lua_get_zone_maximum_movement_update_range),
-		luabind::def("get_zone_npc_maximum_movement_update_range", (uint32(*)(uint32,int))&lua_get_zone_maximum_movement_update_range),
 		luabind::def("get_zone_minimum_expansion", (int8(*)(uint32))&lua_get_zone_minimum_expansion),
 		luabind::def("get_zone_minimum_expansion", (int8(*)(uint32,int))&lua_get_zone_minimum_expansion),
 		luabind::def("get_zone_maximum_expansion", (int8(*)(uint32))&lua_get_zone_maximum_expansion),
@@ -6442,6 +6440,8 @@ luabind::scope lua_register_general() {
 		luabind::def("send_parcel", &lua_send_parcel),
 		luabind::def("get_zone_uptime", &lua_get_zone_uptime),
 		luabind::def("are_tasks_completed", &lua_are_tasks_completed),
+		luabind::def("spawn_circle", &lua_spawn_circle),
+		luabind::def("spawn_grid", &lua_spawn_grid),
 		/*
 			Cross Zone
 		*/
@@ -6583,7 +6583,7 @@ luabind::scope lua_register_general() {
 		luabind::def("cross_zone_reset_activity_by_guild_id", &lua_cross_zone_reset_activity_by_guild_id),
 		luabind::def("cross_zone_reset_activity_by_expedition_id", &lua_cross_zone_reset_activity_by_expedition_id),
 		luabind::def("cross_zone_reset_activity_by_client_name", &lua_cross_zone_reset_activity_by_client_name),
-		luabind::def("cross_zone_set_entity_variable_by_client_name", &lua_cross_zone_set_entity_variable_by_client_name),
+		luabind::def("cross_zone_set_entity_variable_by_char_id", &lua_cross_zone_set_entity_variable_by_char_id),
 		luabind::def("cross_zone_set_entity_variable_by_group_id", &lua_cross_zone_set_entity_variable_by_group_id),
 		luabind::def("cross_zone_set_entity_variable_by_raid_id", &lua_cross_zone_set_entity_variable_by_raid_id),
 		luabind::def("cross_zone_set_entity_variable_by_guild_id", &lua_cross_zone_set_entity_variable_by_guild_id),
@@ -6771,7 +6771,6 @@ luabind::scope lua_register_random() {
 			luabind::def("Roll0", &random_roll0)
 		)];
 }
-
 
 luabind::scope lua_register_events() {
 	return luabind::class_<Events>("Event")
@@ -8007,7 +8006,6 @@ luabind::scope lua_register_journal_mode() {
 			luabind::value("Log2", static_cast<int>(Journal::Mode::Log2))
 		)];
 }
-
 
 luabind::scope lua_register_exp_source() {
 	return luabind::class_<ExpSource>("ExpSource")

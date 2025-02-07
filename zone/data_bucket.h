@@ -1,7 +1,3 @@
-//
-// Created by Akkadius on 7/7/18.
-//
-
 #ifndef EQEMU_DATABUCKET_H
 #define EQEMU_DATABUCKET_H
 
@@ -12,48 +8,28 @@
 #include "../common/json/json_archive_single_line.h"
 #include "../common/servertalk.h"
 
-enum DataBucketCacheUpdateAction : uint8 {
-	Upsert,
-	Delete
-};
-
-struct DataBucketCacheEntry {
-	DataBucketsRepository::DataBuckets e;
-	int64_t                            updated_time{};
-	DataBucketCacheUpdateAction        update_action{};
-
-	template<class Archive>
-	void serialize(Archive &ar)
-	{
-		ar(
-			CEREAL_NVP(e),
-			CEREAL_NVP(updated_time),
-			CEREAL_NVP(update_action)
-		);
-	}
-};
-
 struct DataBucketKey {
 	std::string key;
 	std::string value;
 	std::string expires;
-	int64_t     character_id;
-	int64_t     npc_id;
-	int64_t     bot_id;
+	int64_t     account_id = 0;
+	int64_t     character_id = 0;
+	int64_t     npc_id = 0;
+	int64_t     bot_id = 0;
 };
 
 namespace DataBucketLoadType {
 	enum Type : uint8 {
 		Bot,
+		Account,
 		Client,
-		NPC,
 		MaxType
 	};
 
 	static const std::string Name[Type::MaxType] = {
 		"Bot",
+		"Account",
 		"Client",
-		"NPC",
 	};
 }
 
@@ -68,27 +44,27 @@ public:
 
 	static bool GetDataBuckets(Mob *mob);
 
-	static int64_t GetCurrentTimeUNIX();
-
 	// scoped bucket methods
-	static void SetData(const DataBucketKey &k);
+	static void SetData(const DataBucketKey &k_);
 	static bool DeleteData(const DataBucketKey &k);
-	static DataBucketsRepository::DataBuckets GetData(const DataBucketKey &k, bool ignore_misses_cache = false);
+	static DataBucketsRepository::DataBuckets GetData(const DataBucketKey &k_, bool ignore_misses_cache = false);
 	static std::string GetDataExpires(const DataBucketKey &k);
 	static std::string GetDataRemaining(const DataBucketKey &k);
 	static std::string GetScopedDbFilters(const DataBucketKey &k);
 
 	// bucket repository versus key matching
 	static bool CheckBucketMatch(const DataBucketsRepository::DataBuckets &dbe, const DataBucketKey &k);
-	static bool ExistsInCache(const DataBucketsRepository::DataBuckets &e);
+	static bool ExistsInCache(const DataBucketsRepository::DataBuckets &entry);
 
-	static void BulkLoadEntities(DataBucketLoadType::Type t, std::vector<uint32> ids);
-	static void DeleteCachedBuckets(DataBucketLoadType::Type t, uint32 id);
+	static void BulkLoadEntitiesToCache(DataBucketLoadType::Type t, std::vector<uint32> ids);
+	static void DeleteCachedBuckets(DataBucketLoadType::Type type, uint32 id);
 
-	static bool SendDataBucketCacheUpdate(const DataBucketCacheEntry &e);
-	static void HandleWorldMessage(ServerPacket *p);
 	static void DeleteFromMissesCache(DataBucketsRepository::DataBuckets e);
 	static void ClearCache();
+	static void DeleteFromCache(uint64 id, DataBucketLoadType::Type type);
+	static bool CanCache(const DataBucketKey &key);
+	static DataBucketsRepository::DataBuckets
+	ExtractNestedValue(const DataBucketsRepository::DataBuckets &bucket, const std::string &full_key);
 };
 
 #endif //EQEMU_DATABUCKET_H

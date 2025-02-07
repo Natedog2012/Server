@@ -131,6 +131,16 @@
         OutF(LogSys, Logs::Detail, Logs::Error, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
 } while (0)
 
+#define LogEvolveItem(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::EvolveItem))\
+        OutF(LogSys, Logs::General, Logs::EvolveItem, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogEvolveItemDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::EvolveItem))\
+        OutF(LogSys, Logs::Detail, Logs::EvolveItem, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
 #define LogGuilds(message, ...) do {\
     if (LogSys.IsLogEnabled(Logs::General, Logs::Guilds))\
         OutF(LogSys, Logs::General, Logs::Guilds, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
@@ -842,6 +852,66 @@
 #define LogXTargetsDetail(message, ...) do {\
     if (LogSys.IsLogEnabled(Logs::Detail, Logs::XTargets))\
         OutF(LogSys, Logs::Detail, Logs::XTargets, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogPositionUpdate(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::PositionUpdate))\
+        OutF(LogSys, Logs::General, Logs::PositionUpdate, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogPositionUpdateDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::PositionUpdate))\
+        OutF(LogSys, Logs::Detail, Logs::PositionUpdate, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__); \
+} while (0)
+
+#define LogKSM(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::KSM))\
+        OutF(LogSys, Logs::General, Logs::KSM, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogKSMDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::KSM))\
+        OutF(LogSys, Logs::Detail, Logs::KSM, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogBotSettings(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::BotSettings))\
+        OutF(LogSys, Logs::General, Logs::BotSettings, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogBotSettingsDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::BotSettings))\
+        OutF(LogSys, Logs::Detail, Logs::BotSettings, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogBotSpellChecks(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::BotSpellChecks))\
+        OutF(LogSys, Logs::General, Logs::BotSpellChecks, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogBotSpellChecksDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::BotSpellChecks))\
+        OutF(LogSys, Logs::Detail, Logs::BotSpellChecks, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogBotSpellTypeChecks(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::BotSpellTypeChecks))\
+        OutF(LogSys, Logs::General, Logs::BotSpellTypeChecks, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogBotSpellTypeChecksDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::BotSpellTypeChecks))\
+        OutF(LogSys, Logs::Detail, Logs::BotSpellTypeChecks, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogNpcHandin(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::General, Logs::NpcHandin))\
+        OutF(LogSys, Logs::General, Logs::NpcHandin, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
+} while (0)
+
+#define LogNpcHandinDetail(message, ...) do {\
+    if (LogSys.IsLogEnabled(Logs::Detail, Logs::NpcHandin))\
+        OutF(LogSys, Logs::Detail, Logs::NpcHandin, __FILE__, __func__, __LINE__, message, ##__VA_ARGS__);\
 } while (0)
 
 #define Log(debug_level, log_category, message, ...) do {\

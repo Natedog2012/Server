@@ -81,7 +81,9 @@ class EQEmuConfig
 		std::string QSDatabaseUsername;
 		std::string QSDatabasePassword;
 		std::string QSDatabaseDB;
-		uint16 QSDatabasePort;
+		uint16      QSDatabasePort;
+		std::string QSHost;
+		int         QSPort;
 
 		// From <files/>
 		std::string SpellsFile;
@@ -95,6 +97,7 @@ class EQEmuConfig
 		std::string PluginDir;
 		std::string LuaModuleDir;
 		std::string PatchDir;
+		std::string OpcodeDir;
 		std::string SharedMemDir;
 		std::string LogDir;
 
@@ -136,9 +139,9 @@ class EQEmuConfig
 		{
 
 		}
-		virtual ~EQEmuConfig() {}
 
 	public:
+		virtual ~EQEmuConfig() {}
 
 		// Produce a const singleton
 		static const EQEmuConfig *get()

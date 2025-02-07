@@ -58,6 +58,7 @@ void perl_register_expedition_lock_messages();
 void perl_register_bot();
 void perl_register_buff();
 void perl_register_merc();
+void perl_register_database();
 #endif // EMBPERL_XS_CLASSES
 #endif // EMBPERL_XS
 
@@ -1186,6 +1187,7 @@ void PerlembParser::MapFunctions()
 	perl_register_bot();
 	perl_register_buff();
 	perl_register_merc();
+	perl_register_database();
 #endif // EMBPERL_XS_CLASSES
 }
 
@@ -1735,7 +1737,7 @@ void PerlembParser::ExportEventVariables(
 		case EVENT_PAYLOAD: {
 			Seperator sep(data);
 			ExportVar(package_name.c_str(), "payload_id", sep.arg[0]);
-			ExportVar(package_name.c_str(), "payload_value", sep.arg[1]);
+			ExportVar(package_name.c_str(), "payload_value", sep.argplus[1]);
 			break;
 		}
 

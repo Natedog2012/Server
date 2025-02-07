@@ -52,7 +52,7 @@
 #include "../common/repositories/zone_repository.h"
 
 #include "../common/repositories/trader_repository.h"
-
+#include "../common/repositories/character_evolving_items_repository.h"
 
 #include <ctime>
 #include <iostream>
@@ -1338,27 +1338,27 @@ bool ZoneDatabase::SaveCharacterInvSnapshot(uint32 character_id) {
 		") "
 		"SELECT"
 		" %u,"
-		" `charid`,"
-		" `slotid`,"
-		" `itemid`,"
+		" `character_id`,"
+		" `slot_id`,"
+		" `item_id`,"
 		" `charges`,"
 		" `color`,"
-		" `augslot1`,"
-		" `augslot2`,"
-		" `augslot3`,"
-		" `augslot4`,"
-		" `augslot5`,"
-		" `augslot6`,"
+		" `augment_one`,"
+		" `augment_two`,"
+		" `augment_three`,"
+		" `augment_four`,"
+		" `augment_five`,"
+		" `augment_six`,"
 		" `instnodrop`,"
 		" `custom_data`,"
-		" `ornamenticon`,"
-		" `ornamentidfile`,"
+		" `ornament_icon`,"
+		" `ornament_idfile`,"
 		" `ornament_hero_model`,"
 		" `guid` "
 		"FROM"
 		" `inventory` "
 		"WHERE"
-		" `charid` = %u",
+		" `character_id` = %u",
 		time_index,
 		character_id
 	);
@@ -1512,13 +1512,13 @@ void ZoneDatabase::DivergeCharacterInvSnapshotFromInventory(uint32 character_id,
 		"JOIN"
 		" `inventory` b "
 		"USING"
-		" (`slotid`, `itemid`) "
+		" (`slot_id`, `item_id`) "
 		"WHERE"
 		" a.`time_index` = %u "
 		"AND"
 		" a.`charid` = %u "
 		"AND"
-		" b.`charid` = %u"
+		" b.`character_id` = %u"
 		")",
 		timestamp,
 		character_id,
@@ -1543,7 +1543,7 @@ void ZoneDatabase::DivergeCharacterInventoryFromInvSnapshot(uint32 character_id,
 		"FROM"
 		" `inventory` "
 		"WHERE"
-		" `charid` = %u "
+		" `character_id` = %u "
 		"AND"
 		" `slotid` NOT IN "
 		"("
@@ -1560,7 +1560,7 @@ void ZoneDatabase::DivergeCharacterInventoryFromInvSnapshot(uint32 character_id,
 		"AND"
 		" b.`charid` = %u "
 		"AND"
-		" a.`charid` = %u"
+		" a.`character_id` = %u"
 		")",
 		character_id,
 		timestamp,
@@ -1589,7 +1589,7 @@ bool ZoneDatabase::RestoreCharacterInvSnapshot(uint32 character_id, uint32 times
 		"FROM"
 		" `inventory` "
 		"WHERE"
-		" `charid` = %u",
+		" `character_id` = %u",
 		character_id
 	);
 	auto results = database.QueryDatabase(query);
@@ -1600,23 +1600,23 @@ bool ZoneDatabase::RestoreCharacterInvSnapshot(uint32 character_id, uint32 times
 		"INSERT "
 		"INTO"
 		" `inventory` "
-		"(`charid`,"
-		" `slotid`,"
-		" `itemid`,"
+		"(`character_id`,"
+		" `slot_id`,"
+		" `item_id`,"
 		" `charges`,"
 		" `color`,"
-		" `augslot1`,"
-		" `augslot2`,"
-		" `augslot3`,"
-		" `augslot4`,"
-		" `augslot5`,"
-		" `augslot6`,"
+		" `augment_one`,"
+		" `augment_two`,"
+		" `augment_three`,"
+		" `augment_four`,"
+		" `augment_five`,"
+		" `augment_six`,"
 		" `instnodrop`,"
 		" `custom_data`,"
-		" `ornamenticon`,"
-		" `ornamentidfile`,"
+		" `ornament_icon`,"
+		" `ornament_idfile`,"
 		" `ornament_hero_model`,"
-		" `guid`"
+		" `guid` "
 		") "
 		"SELECT"
 		" `charid`,"
@@ -1905,6 +1905,7 @@ const NPCType *ZoneDatabase::LoadNPCTypesData(uint32 npc_type_id, bool bulk_load
 		t->heroic_strikethrough   = n.heroic_strikethrough;
 		t->faction_amount         = n.faction_amount;
 		t->keeps_sold_items       = n.keeps_sold_items;
+		t->multiquest_enabled     = n.multiquest_enabled != 0;
 
 		// If NPC with duplicate NPC id already in table,
 		// free item we attempted to add.
@@ -1922,8 +1923,6 @@ const NPCType *ZoneDatabase::LoadNPCTypesData(uint32 npc_type_id, bool bulk_load
 			npc_ids.emplace_back(t->npc_id);
 		}
 	}
-
-	DataBucket::BulkLoadEntities(DataBucketLoadType::NPC, npc_ids);
 
 	if (!npc_faction_ids.empty()) {
 		zone->LoadNPCFactions(npc_faction_ids);

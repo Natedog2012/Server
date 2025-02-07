@@ -46,6 +46,7 @@
 #include "client.h"
 #include "worlddb.h"
 #include "wguild_mgr.h"
+#include "../common/evolving_items.h"
 
 #ifdef _WINDOWS
 #include <process.h>
@@ -111,6 +112,7 @@ WorldContentService content_service;
 WebInterfaceList    web_interface;
 PathManager         path;
 PlayerEventLogs     player_event_logs;
+EvolvingItemsManager evolving_items_manager;
 
 void CatchSignal(int sig_num);
 
@@ -374,7 +376,9 @@ int main(int argc, char **argv)
 	);
 
 	Timer player_event_process_timer(1000);
-	player_event_logs.SetDatabase(&database)->Init();
+	if (player_event_logs.LoadDatabaseConnection()) {
+		player_event_logs.Init();
+	}
 
 	auto loop_fn = [&](EQ::Timer* t) {
 		Timer::SetCurrentTime();
@@ -439,7 +443,7 @@ int main(int argc, char **argv)
 		}
 
 		if (player_event_process_timer.Check()) {
-			player_event_logs.Process();
+			std::jthread event_thread(&PlayerEventLogs::Process, &player_event_logs);
 		}
 
 		if (PurgeInstanceTimer.Check()) {

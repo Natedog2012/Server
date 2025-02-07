@@ -3225,6 +3225,7 @@ struct BuyerMessaging_Struct {
 	char   item_name[64];
 	uint32 slot;
 	uint32 seller_quantity;
+	uint32 purchase_method; // 0 direct merchant, 1 via /barter window
 };
 
 struct BuyerAddBuyertoBarterWindow_Struct {
@@ -3745,7 +3746,8 @@ struct GetItems_Struct{
 
 struct BecomeTrader_Struct {
 	uint32 action;
-	uint32 zone_id;
+	uint16 zone_id;
+	uint16 zone_instance_id;
 	uint32 trader_id;
 	uint32 entity_id;
 	char   trader_name[64];
@@ -4285,6 +4287,10 @@ struct NewCombine_Struct {
 /*04*/
 };
 
+struct TradeSkillRecipeInspect_Struct {
+	uint32 recipe_id;
+	uint32 padding[17]; // unknown
+};
 
 //client requesting favorite recipies
 struct TradeskillFavorites_Struct {
@@ -5821,6 +5827,21 @@ struct ChangeSize_Struct
 /*16*/
 };
 
+struct ChangePetName_Struct {
+/*00*/ char new_pet_name[64];
+/*40*/ char pet_owner_name[64];
+/*80*/ int  response_code;
+};
+
+enum ChangePetNameResponse : int {
+	Denied      = 0,        // 5167 You have requested an invalid name or a Customer Service Representative has denied your name request.  Please try another name.
+	Accepted    = 1,        // 5976 Your request for a name change was successful.
+	Timeout     = -3,        // 5979 You must wait longer before submitting another name request. Please try again in a few minutes.
+	NotEligible = -4,    // 5980 Your character is not eligible for a name change.
+	Pending     = -5,        // 5193 You already have a name change pending.  Please wait until it is fully processed before attempting another name change.
+	Unhandled   = -1
+};
+
 // New OpCode/Struct for SoD+
 struct GroupMakeLeader_Struct
 {
@@ -6429,6 +6450,7 @@ enum BazaarTraderBarterActions {
 	TraderAck2                   = 22,
 	AddTraderToBazaarWindow      = 24,
 	RemoveTraderFromBazaarWindow = 25,
+	FirstOpenSearch              = 26,
 	ClickTrader                  = 28,
 	DeliveryCostUpdate           = 29
 };
@@ -6468,6 +6490,7 @@ struct BazaarSearchResultsFromDB_Struct {
 	uint32      icon_id;
 	uint32      sum_charges;
 	uint32      trader_zone_id;
+	int32       trader_zone_instance_id;
 	uint32      trader_entity_id;
 	uint32      item_stat;
 	bool        stackable;
@@ -6489,6 +6512,7 @@ struct BazaarSearchResultsFromDB_Struct {
 			CEREAL_NVP(icon_id),
 			CEREAL_NVP(sum_charges),
 			CEREAL_NVP(trader_zone_id),
+			CEREAL_NVP(trader_zone_instance_id),
 			CEREAL_NVP(trader_entity_id),
 			CEREAL_NVP(item_stat),
 			CEREAL_NVP(stackable),
@@ -6516,6 +6540,90 @@ struct BazaarSearchMessaging_Struct {
 struct BuylineItemDetails_Struct {
 	uint64      item_cost;
 	uint32      item_quantity;
+};
+
+struct PickZoneEntry_Struct {
+	int16 zone_id;
+	int16 unknown;
+	int32 player_count;
+	int32 instance_id;
+};
+
+struct PickZoneWindow_Struct {
+	char                 padding000[64];
+	int64                session_id;
+	int8                 option_count;
+	char                 padding073[23];
+	PickZoneEntry_Struct entries[10];
+};
+
+struct PickZone_Struct {
+	int64 session_id;
+	int32 selection_id;
+};
+
+struct EvolveItemToggle {
+	uint32 action;
+	uint32 unknown_004;
+	uint64 unique_id;
+	uint32 percentage;
+	uint32 activated;
+};
+
+struct EvolveXPWindowReceive {
+	uint32 action;
+	uint32 unknown_004;
+	uint64 item1_unique_id;
+	uint64 item2_unique_id;
+};
+
+struct EvolveItemMessaging {
+	uint32 action;
+	char   serialized_data[];
+};
+
+struct EvolveXPWindowSend {
+	/*000*/    uint32   action;
+	/*004*/    uint64   item1_unique_id;
+	/*012*/    uint64   item2_unique_id;
+	/*020*/    uint32   compatibility;
+	/*024*/    uint32   max_transfer_level;
+	/*028*/    uint8    item1_present;
+	/*029*/ uint8       item2_present;
+	/*030*/ std::string serialize_item_1;
+	/*034*/ std::string serialize_item_2;
+
+	template<class Archive>
+	void serialize(Archive &archive)
+	{
+		archive(
+			CEREAL_NVP(action),
+			CEREAL_NVP(item1_unique_id),
+			CEREAL_NVP(item2_unique_id),
+			CEREAL_NVP(compatibility),
+			CEREAL_NVP(max_transfer_level),
+			CEREAL_NVP(item1_present),
+			CEREAL_NVP(item2_present),
+			CEREAL_NVP(serialize_item_1),
+			CEREAL_NVP(serialize_item_2)
+		);
+	}
+};
+
+struct EvolveTransfer {
+	uint32 item_from_id;
+	uint32 item_from_current_amount;
+	uint32 item_to_id;
+	uint32 item_to_current_amount;
+	uint32 compatibility;
+	uint32 max_transfer_level;
+};
+
+struct EvolveGetNextItem {
+	uint32 new_item_id;
+	uint64 new_current_amount;
+	uint64 from_current_amount;
+	uint32 max_transfer_level;
 };
 
 // Restore structure packing to default

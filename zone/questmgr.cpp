@@ -91,13 +91,7 @@ void QuestManager::Process() {
 		if (cur->Timer_.Enabled() && cur->Timer_.Check()) {
 			if (cur->mob) {
 				if (cur->mob->IsEncounter()) {
-					parse->EventEncounter(
-						EVENT_TIMER,
-						cur->mob->CastToEncounter()->GetEncounterName(),
-						cur->name,
-						0,
-						nullptr
-					);
+					parse->EventEncounter(EVENT_TIMER, cur->mob->CastToEncounter()->GetEncounterName(), cur->name, 0, nullptr);
 				} else {
 					parse->EventMob(EVENT_TIMER, cur->mob, nullptr, [&]() { return cur->name; }, 0);
 				}
@@ -678,14 +672,7 @@ void QuestManager::stoptimer(const std::string& timer_name)
 
 	for (auto e = QTimerList.begin(); e != QTimerList.end(); ++e) {
 		if (e->mob && e->mob == owner && e->name == timer_name) {
-			parse->EventMob(
-				EVENT_TIMER_STOP,
-				owner,
-				nullptr,
-				[&]() {
-					return timer_name;
-				}
-			);
+			parse->EventMob(EVENT_TIMER_STOP, owner, nullptr, [&]() { return timer_name; });
 
 			QTimerList.erase(e);
 			break;
@@ -712,14 +699,7 @@ void QuestManager::stoptimer(const std::string& timer_name, Mob* m)
 
 	for (auto e = QTimerList.begin(); e != QTimerList.end();) {
 		if (e->mob && e->mob == m) {
-			parse->EventMob(
-				EVENT_TIMER_STOP,
-				m,
-				nullptr,
-				[&]() {
-					return timer_name;
-				}
-			);
+			parse->EventMob(EVENT_TIMER_STOP, m, nullptr, [&]() { return timer_name; });
 
 			QTimerList.erase(e);
 			break;
@@ -760,14 +740,7 @@ void QuestManager::stopalltimers()
 
 	for (auto e = QTimerList.begin(); e != QTimerList.end();) {
 		if (e->mob && e->mob == owner) {
-			parse->EventMob(
-				EVENT_TIMER_STOP,
-				owner,
-				nullptr,
-				[&]() {
-					return e->name;
-				}
-			);
+			parse->EventMob(EVENT_TIMER_STOP, owner, nullptr, [&]() { return e->name; });
 
 			e = QTimerList.erase(e);
 		} else {
@@ -809,14 +782,7 @@ void QuestManager::stopalltimers(Mob* m)
 
 	for (auto e = QTimerList.begin(); e != QTimerList.end();) {
 		if (e->mob && e->mob == m) {
-			parse->EventMob(
-				EVENT_TIMER_STOP,
-				m,
-				nullptr,
-				[&]() {
-					return e->name;
-				}
-			);
+			parse->EventMob(EVENT_TIMER_STOP, m, nullptr, [&]() { return e->name; });
 
 			e = QTimerList.erase(e);
 		} else {
@@ -870,18 +836,13 @@ void QuestManager::pausetimer(const std::string& timer_name, Mob* m)
 		}
 	);
 
-	parse->EventMob(
-		EVENT_TIMER_PAUSE,
-		mob,
-		nullptr,
-		[&]() {
-			return fmt::format(
-				"{} {}",
-				timer_name,
-				milliseconds
-			);
-		}
-	);
+	parse->EventMob(EVENT_TIMER_PAUSE, mob, nullptr, [&]() {
+		return fmt::format(
+			"{} {}",
+			timer_name,
+			milliseconds
+		);
+	});
 
 	LogQuests("Pausing timer [{}] for [{}] with [{}] ms remaining", timer_name, owner->GetName(), milliseconds);
 }
@@ -1279,50 +1240,7 @@ bool QuestManager::isdisctome(uint32 item_id) {
 		return false;
 	}
 
-	if (!item->IsClassCommon() || item->ItemType != EQ::item::ItemTypeSpell) {
-		return false;
-	}
-
-	//Need a way to determine the difference between a spell and a tome
-	//so they cant turn in a spell and get it as a discipline
-	//this is kinda a hack:
-
-	const std::string item_name = item->Name;
-
-	if (
-		!Strings::BeginsWith(item_name, "Tome of ") &&
-		!Strings::BeginsWith(item_name, "Skill: ")
-	) {
-		return false;
-	}
-
-	//we know for sure none of the int casters get disciplines
-	uint32 class_bit = 0;
-	class_bit |= 1 << (Class::Wizard - 1);
-	class_bit |= 1 << (Class::Enchanter - 1);
-	class_bit |= 1 << (Class::Magician - 1);
-	class_bit |= 1 << (Class::Necromancer - 1);
-	if (item->Classes & class_bit) {
-		return false;
-	}
-
-	const auto& spell_id = static_cast<uint32>(item->Scroll.Effect);
-	if (!IsValidSpell(spell_id)) {
-		return false;
-	}
-
-	//we know for sure none of the int casters get disciplines
-	const auto& spell = spells[spell_id];
-	if(
-		spell.classes[Class::Wizard - 1] != 255 &&
-		spell.classes[Class::Enchanter - 1] != 255 &&
-		spell.classes[Class::Magician - 1] != 255 &&
-		spell.classes[Class::Necromancer - 1] != 255
-	) {
-		return false;
-	}
-
-	return true;
+	return IsDisciplineTome(item);
 }
 
 std::string QuestManager::getracename(uint16 race_id) {
@@ -1343,7 +1261,7 @@ std::string QuestManager::getskillname(int skill_id) {
 }
 
 std::string QuestManager::getldonthemename(uint32 theme_id) {
-	return EQ::constants::GetLDoNThemeName(theme_id);
+	return LDoNTheme::GetName(theme_id);
 }
 
 std::string QuestManager::getfactionname(int faction_id) {
@@ -1872,12 +1790,6 @@ void QuestManager::setglobal(const char *varname, const char *newvalue, int opti
 	}
 
 	InsertQuestGlobal(qgCharid, qgNpcid, qgZoneid, varname, newvalue, QGVarDuration(duration));
-
-	/* QS: PlayerLogQGlobalUpdate */
-	if (RuleB(QueryServ, PlayerLogQGlobalUpdate) && qgCharid && qgCharid > 0 && initiator){
-		std::string event_desc = StringFormat("Update :: qglobal:%s to qvalue:%s zoneid:%i instid:%i", varname, newvalue, initiator->GetZoneID(), initiator->GetInstanceID());
-		QServ->PlayerLogEvent(Player_Log_QGlobal_Update, qgCharid, event_desc);
-	}
 }
 
 /* Inserts global variable into quest_globals table */
@@ -1963,12 +1875,6 @@ void QuestManager::delglobal(const char *varname) {
 		qgCharid=initiator->CharacterID();
 	else
 		qgCharid=-qgNpcid;		// make char id negative npc id as a fudge
-
-	/* QS: PlayerLogQGlobalUpdate */
-	if (RuleB(QueryServ, PlayerLogQGlobalUpdate) && qgCharid && qgCharid > 0 && initiator){
-		std::string event_desc = StringFormat("Deleted :: qglobal:%s zoneid:%i instid:%i", varname, initiator->GetZoneID(), initiator->GetInstanceID());
-		QServ->PlayerLogEvent(Player_Log_QGlobal_Update, qgCharid, event_desc);
-	}
 
     std::string query = StringFormat("DELETE FROM quest_globals "
                                     "WHERE name = '%s' "
@@ -2918,7 +2824,7 @@ bool QuestManager::createBot(const char *name, const char *lastname, uint8 level
 			initiator->Message(
 				Chat::White,
 				fmt::format(
-					"{} has invalid characters. You can use only the A-Z, a-z and _ characters in a bot name.",
+					"{} has invalid characters. You can use only the A-Z, a-z and _ characters in a bot name and it must be between 4 and 15 characters long.",
 					new_bot->GetCleanName()
 				).c_str()
 			);
@@ -3365,7 +3271,7 @@ int QuestManager::collectitems(uint32 item_id, bool remove)
 	return quantity;
 }
 
-int QuestManager::countitem(uint32 item_id) {
+uint32 QuestManager::countitem(uint32 item_id) {
 	QuestManagerCurrentQuestVars();
 
 	if (!initiator) {
@@ -3510,7 +3416,9 @@ std::string QuestManager::varlink(
 	linker.SetLinkType(EQ::saylink::SayLinkItemInst);
 	linker.SetItemInst(item);
 
-	return linker.GenerateLink();
+	auto link = linker.GenerateLink();
+	safe_delete(item);
+	return link;
 }
 
 std::string QuestManager::getitemcomment(uint32 item_id) {
@@ -4644,4 +4552,79 @@ std::string QuestManager::GetAutoLoginCharacterNameByAccountID(uint32 account_id
 bool QuestManager::SetAutoLoginCharacterNameByAccountID(uint32 account_id, const std::string& character_name)
 {
 	return AccountRepository::SetAutoLoginCharacterNameByAccountID(database, account_id, character_name);
+}
+
+void QuestManager::SpawnCircle(uint32 npc_id, glm::vec4 position, float radius, uint32 points)
+{
+	const NPCType* t = content_db.LoadNPCTypesData(npc_id);
+	if (!t) {
+		return;
+	}
+
+	glm::vec4 npc_position = position;
+
+	for (uint32 i = 0; i < points; i++) {
+		float angle = 2 * M_PI * i / points;
+
+		npc_position.x = position.x + radius * std::cos(angle);
+		npc_position.y = position.y + radius * std::sin(angle);
+
+		NPC* n = new NPC(t, nullptr, npc_position, GravityBehavior::Water);
+
+		n->FixZ();
+
+		n->AddLootTable();
+
+		if (n->DropsGlobalLoot()) {
+			n->CheckGlobalLootTables();
+		}
+
+		entity_list.AddNPC(n, true, true);
+	}
+}
+
+void QuestManager::SpawnGrid(uint32 npc_id, glm::vec4 position, float spacing, uint32 spawn_count)
+{
+	const NPCType* t = content_db.LoadNPCTypesData(npc_id);
+	if (!t) {
+		return;
+	}
+
+	glm::vec4 npc_position = position;
+
+	uint32 columns = std::ceil(std::sqrt(spawn_count));
+	uint32 rows    = std::ceil(spawn_count / columns);
+
+	float total_width  = ((columns - 1) * spacing);
+	float total_height = ((rows - 1) * spacing);
+
+	float start_x = position.x - total_width / 2;
+	float start_y = position.y - total_height / 2;
+
+	uint32 spawned = 0;
+
+	for (uint32 row = 0; row < rows; row++) {
+		for (uint32 column = 0; column < columns; column++) {
+			if (spawned >= spawn_count) {
+				break;
+			}
+
+			npc_position.x = start_x + column * spacing;
+			npc_position.y = start_y + row * spacing;
+
+			NPC* n = new NPC(t, nullptr, npc_position, GravityBehavior::Water);
+
+			n->FixZ();
+
+			n->AddLootTable();
+
+			if (n->DropsGlobalLoot()) {
+				n->CheckGlobalLootTables();
+			}
+
+			entity_list.AddNPC(n, true, true);
+
+			spawned++;
+		}
+	}
 }

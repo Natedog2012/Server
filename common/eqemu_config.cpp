@@ -94,7 +94,7 @@ void EQEmuConfig::parse_config()
 		auto_database_updates = true;
 	}
 
-	WorldIP      = _root["server"]["world"]["tcp"].get("host", "127.0.0.1").asString();
+	WorldIP      = _root["server"]["world"]["tcp"].get("ip", "127.0.0.1").asString();
 	WorldTCPPort = Strings::ToUnsignedInt(_root["server"]["world"]["tcp"].get("port", "9000").asString());
 
 	TelnetIP      = _root["server"]["world"]["telnet"].get("ip", "127.0.0.1").asString();
@@ -147,6 +147,8 @@ void EQEmuConfig::parse_config()
 	QSDatabaseUsername = _root["server"]["qsdatabase"].get("username", "eq").asString();
 	QSDatabasePassword = _root["server"]["qsdatabase"].get("password", "eq").asString();
 	QSDatabaseDB       = _root["server"]["qsdatabase"].get("db", "eq").asString();
+	QSHost             = _root["server"]["queryserver"].get("host", "localhost").asString();
+	QSPort             = Strings::ToUnsignedInt(_root["server"]["queryserver"].get("port", "9500").asString());
 
 	/**
 	 * Zones
@@ -171,6 +173,7 @@ void EQEmuConfig::parse_config()
 	PluginDir    = _root["server"]["directories"].get("plugins", "plugins/").asString();
 	LuaModuleDir = _root["server"]["directories"].get("lua_modules", "lua_modules/").asString();
 	PatchDir     = _root["server"]["directories"].get("patches", "./").asString();
+	OpcodeDir    = _root["server"]["directories"].get("opcodes", "./").asString();
 	SharedMemDir = _root["server"]["directories"].get("shared_memory", "shared/").asString();
 	LogDir       = _root["server"]["directories"].get("logs", "logs/").asString();
 

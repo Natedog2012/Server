@@ -52,6 +52,7 @@
 #include "task_manager.h"
 #include "quest_parser_collection.h"
 #include "embparser.h"
+#include "../common/evolving_items.h"
 #include "lua_parser.h"
 #include "questmgr.h"
 #include "npc_scale_manager.h"
@@ -110,6 +111,7 @@ PathManager           path;
 PlayerEventLogs       player_event_logs;
 DatabaseUpdate        database_update;
 SkillCaps             skill_caps;
+EvolvingItemsManager  evolving_items_manager;
 
 const SPDat_Spell_Struct* spells;
 int32 SPDAT_RECORDS = -1;
@@ -122,6 +124,7 @@ void CatchSignal(int sig_num);
 
 extern void MapOpcodes();
 
+bool CheckForCompatibleQuestPlugins();
 int main(int argc, char **argv)
 {
 	RegisterExecutablePlatform(ExePlatformZone);
@@ -296,7 +299,7 @@ int main(int argc, char **argv)
 	}
 
 	// command handler
-	if (ZoneCLI::RanConsoleCommand(argc, argv) && !ZoneCLI::RanSidecarCommand(argc, argv)) {
+	if (ZoneCLI::RanConsoleCommand(argc, argv) && !(ZoneCLI::RanSidecarCommand(argc, argv) || ZoneCLI::RanTestCommand(argc, argv))) {
 		LogSys.EnableConsoleLogging();
 		ZoneCLI::CommandHandler(argc, argv);
 	}
@@ -367,6 +370,11 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	if (!CheckForCompatibleQuestPlugins()) {
+		LogError("Incompatible quest plugins detected, please update your plugins to the latest version");
+		return 1;
+	}
+
 	// load these here for now until spells and items can be truly repointed to "content_db"
 	database.SetSharedItemsCount(content_db.GetItemsCount());
 	database.SetSharedSpellsCount(content_db.GetSpellsCount());
@@ -386,6 +394,11 @@ int main(int argc, char **argv)
 	content_db.LoadFactionData();
 	title_manager.LoadTitles();
 	content_db.LoadTributes();
+
+	// Load evolving item data
+	evolving_items_manager.SetDatabase(&database);
+	evolving_items_manager.SetContentDatabase(&content_db);
+	evolving_items_manager.LoadEvolvingItems();
 
 	database.GetDecayTimes(npcCorpseDecayTimes);
 
@@ -470,11 +483,14 @@ int main(int argc, char **argv)
 	LogInfo("Loading quests");
 	parse->ReloadQuests();
 
+	QServ->CheckForConnectState();
+
 	worldserver.Connect();
 	worldserver.SetScheduler(&event_scheduler);
 
 	// sidecar command handler
-	if (ZoneCLI::RanConsoleCommand(argc, argv) && ZoneCLI::RanSidecarCommand(argc, argv)) {
+	if (ZoneCLI::RanConsoleCommand(argc, argv)
+		&& (ZoneCLI::RanSidecarCommand(argc, argv) || ZoneCLI::RanTestCommand(argc, argv))) {
 		ZoneCLI::CommandHandler(argc, argv);
 	}
 
@@ -617,9 +633,10 @@ int main(int argc, char **argv)
 				if (quest_timers.Check()) {
 					quest_manager.Process();
 				}
-
 			}
 		}
+
+		QServ->CheckForConnectState();
 
 		if (InterserverTimer.Check()) {
 			InterserverTimer.Start();
@@ -658,6 +675,7 @@ int main(int argc, char **argv)
 	LogSys.CloseFileLogs();
 
 	safe_delete(mutex);
+	safe_delete(QServ);
 
 	return 0;
 }
@@ -704,4 +722,44 @@ void UpdateWindowTitle(char *iNewTitle)
 	}
 	SetConsoleTitle(tmp);
 #endif
+}
+
+bool CheckForCompatibleQuestPlugins()
+{
+	const std::vector<std::string>& directories = { "lua_modules", "plugins" };
+
+	bool lua_found  = false;
+	bool perl_found = false;
+
+	for (const auto& directory : directories) {
+		for (const auto& file : fs::directory_iterator(path.GetServerPath() + "/" + directory)) {
+			if (file.is_regular_file()) {
+				auto f = file.path().string();
+				if (File::Exists(f)) {
+					auto r = File::GetContents(std::filesystem::path{ f }.string());
+					if (Strings::Contains(r.contents, "CheckHandin")) {
+						if (Strings::EqualFold(directory, "lua_modules")) {
+							lua_found = true;
+						} else if (Strings::EqualFold(directory, "plugins")) {
+							perl_found = true;
+						}
+
+						if (lua_found && perl_found) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!lua_found) {
+		LogError("Failed to find CheckHandin in lua_modules");
+	}
+
+	if (!perl_found) {
+		LogError("Failed to find CheckHandin in plugins");
+	}
+
+	return lua_found && perl_found;
 }

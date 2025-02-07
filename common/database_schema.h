@@ -51,6 +51,7 @@ namespace DatabaseSchema {
 			{"character_enabledtasks",         "charid"},
 			{"character_expedition_lockouts",  "character_id"},
 			{"character_exp_modifiers",        "character_id"},
+			{"character_evolving_items",       "character_id"},
 			{"character_inspect_messages",     "id"},
 			{"character_instance_safereturns", "character_id"},
 			{"character_item_recast",          "id"},
@@ -63,6 +64,7 @@ namespace DatabaseSchema {
 			{"character_pet_buffs",            "char_id"},
 			{"character_pet_info",             "char_id"},
 			{"character_pet_inventory",        "char_id"},
+			{"character_pet_name",             "character_id"},
 			{"character_peqzone_flags",        "id"},
 			{"character_potionbelt",           "id"},
 			{"character_skills",               "id"},
@@ -124,6 +126,7 @@ namespace DatabaseSchema {
 			"character_enabledtasks",
 			"character_expedition_lockouts",
 			"character_exp_modifiers",
+			"character_evolving_items",
 			"character_inspect_messages",
 			"character_instance_safereturns",
 			"character_item_recast",
@@ -212,6 +215,7 @@ namespace DatabaseSchema {
 			"ground_spawns",
 			"horses",
 			"items",
+			"items_evolving_details",
 			"ldon_trap_entries",
 			"ldon_trap_templates",
 			"lootdrop",
@@ -288,32 +292,6 @@ namespace DatabaseSchema {
 	}
 
 	/**
-	 * Gets QueryServer tables
-	 *
-	 * @return
-	 */
-	static std::vector<std::string> GetQueryServerTables()
-	{
-		return {
-			"qs_merchant_transaction_record",
-			"qs_merchant_transaction_record_entries",
-			"qs_player_aa_rate_hourly",
-			"qs_player_delete_record",
-			"qs_player_delete_record_entries",
-			"qs_player_events",
-			"qs_player_handin_record",
-			"qs_player_handin_record_entries",
-			"qs_player_move_record",
-			"qs_player_move_record_entries",
-			"qs_player_npc_kill_record",
-			"qs_player_npc_kill_record_entries",
-			"qs_player_speech",
-			"qs_player_trade_record",
-			"qs_player_trade_record_entries",
-		};
-	}
-
-	/**
 	 * Gets state tables
 	 * Tables that keep track of server state
 	 *
@@ -355,8 +333,20 @@ namespace DatabaseSchema {
 			"saylink",
 			"server_scheduled_events",
 			"spawn2_disabled",
+			"player_event_aa_purchase",
+			"player_event_killed_npc",
+			"player_event_killed_named_npc",
+			"player_event_killed_raid_npc",
 			"player_event_log_settings",
 			"player_event_logs",
+			"player_event_loot_items",
+			"player_event_merchant_purchase",
+			"player_event_merchant_sell",
+			"player_event_npc_handin",
+			"player_event_npc_handin_entries",
+			"player_event_speech",
+			"player_event_trade",
+			"player_event_trade_entries",
 			"shared_task_activity_state",
 			"shared_task_dynamic_zones",
 			"shared_task_members",
@@ -402,6 +392,7 @@ namespace DatabaseSchema {
 	static std::vector<std::string> GetBotTables()
 	{
 		return {
+			"bot_blocked_buffs",
 			"bot_buffs",
 			"bot_command_settings",
 			"bot_create_combinations",
@@ -415,6 +406,7 @@ namespace DatabaseSchema {
 			"bot_pet_buffs",
 			"bot_pet_inventories",
 			"bot_pets",
+			"bot_settings",
 			"bot_spell_casting_chances",
 			"bot_spell_settings",
 			"bot_spells_entries",

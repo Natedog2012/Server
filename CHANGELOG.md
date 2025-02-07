@@ -1,3 +1,267 @@
+## [22.62.2] 2/1/2025
+
+### Fixes
+
+* Add price change check to the Bazaar Search Window purchase mechanics ([#4632](https://github.com/EQEmu/Server/pull/4632)) @neckkola 2025-02-01
+* NewBazaar Search Consumables ([#4631](https://github.com/EQEmu/Server/pull/4631)) @neckkola 2025-02-01
+* Update the shard bazaar search feature ([#4630](https://github.com/EQEmu/Server/pull/4630)) @neckkola 2025-02-01
+
+### Memory Leak
+
+* Revert " Change raw pointer to unique_ptr to avoid potential leak in dbg stream " ([#4616](https://github.com/EQEmu/Server/pull/4616)) @Akkadius 2025-01-27
+
+### Performance
+
+* Significantly Improve Client Network Resends ([#4629](https://github.com/EQEmu/Server/pull/4629)) @Akkadius 2025-02-01
+
+## [22.62.1] 1/27/2025
+
+### Memory Leak
+
+* Revert "Change raw pointer to unique_ptr to avoid potential leak in dbg stream" ([#4616](https://github.com/EQEmu/Server/pull/4616)) @Akkadius 2025-01-27
+
+### Performance
+
+* Re-use ClientUpdate packet memory ([#4619](https://github.com/EQEmu/Server/pull/4619)) @Akkadius 2025-01-27
+* Re-use OP_Animation packet ([#4621](https://github.com/EQEmu/Server/pull/4621)) @Akkadius 2025-01-27
+* Re-use OP_Damage packet memory ([#4625](https://github.com/EQEmu/Server/pull/4625)) @Akkadius 2025-01-27
+* Re-use OP_HPUpdate packet memory ([#4622](https://github.com/EQEmu/Server/pull/4622)) @Akkadius 2025-01-27
+* Re-use OP_PlayerStateAdd packet memory ([#4626](https://github.com/EQEmu/Server/pull/4626)) @Akkadius 2025-01-27
+* Re-use OP_SendFindableNPCs packet memory ([#4623](https://github.com/EQEmu/Server/pull/4623)) @Akkadius 2025-01-27
+
+### Repop
+
+* Make #repop instant ([#4620](https://github.com/EQEmu/Server/pull/4620)) @Akkadius 2025-01-27
+
+## [22.62.0] 1/26/2025
+
+### Bazaar
+
+* Improve Bazaar Search Performance ([#4615](https://github.com/EQEmu/Server/pull/4615)) @neckkola 2025-01-27
+
+### CLI
+
+* Add --skip-backup to world database:updates ([#4605](https://github.com/EQEmu/Server/pull/4605)) @Akkadius 2025-01-22
+
+### Database
+
+* Change npc_types walkspeed to be of type float ([#4589](https://github.com/EQEmu/Server/pull/4589)) @Akkadius 2025-01-07
+
+### Databuckets
+
+* Add Account Scoped Databuckets ([#4603](https://github.com/EQEmu/Server/pull/4603)) @Akkadius 2025-01-21
+* Implement Nested Databuckets ([#4604](https://github.com/EQEmu/Server/pull/4604)) @Akkadius 2025-01-27
+
+### Feature
+
+* Add Alternate Bazaar Search Approach ([#4600](https://github.com/EQEmu/Server/pull/4600)) @neckkola 2025-01-20
+* Add Support for Item Previews ([#4599](https://github.com/EQEmu/Server/pull/4599)) @Kinglykrab 2025-01-20
+* Evolving Item Support for RoF2 ([#4496](https://github.com/EQEmu/Server/pull/4496)) @neckkola 2025-01-20
+* Implement Custom Pet Names ([#4594](https://github.com/EQEmu/Server/pull/4594)) @catapultam-habeo 2025-01-22
+
+### Fixes
+
+* Add Bazaar BulkSendTrader Limit for RoF2 ([#4590](https://github.com/EQEmu/Server/pull/4590)) @neckkola 2025-01-08
+* CLI help menu from parsing correctly in World  @Akkadius 2025-01-22
+* Delete later in RemoveItem second case  @Akkadius 2025-01-25
+* Fix query error in character_evolving_items  @Akkadius 2025-01-21
+* Repair a memory leak in #summonitem ([#4591](https://github.com/EQEmu/Server/pull/4591)) @neckkola 2025-01-08
+* Repair an incorrect safe_delete call memory leak. ([#4588](https://github.com/EQEmu/Server/pull/4588)) @neckkola 2025-01-07
+* Repair levers opening the Evolving XP Transfer Window ([#4607](https://github.com/EQEmu/Server/pull/4607)) @neckkola 2025-01-23
+* Update a few Bazaar RoF2 routines for memory leaks ([#4592](https://github.com/EQEmu/Server/pull/4592)) @neckkola 2025-01-08
+* Update database version to match manifest  @Akkadius 2025-01-21
+* Update trader add/remove packets to limits for RoF2 ([#4595](https://github.com/EQEmu/Server/pull/4595)) @neckkola 2025-01-19
+
+### Linux
+
+* Implement KSM Kernel Samepage Merging with Maps ([#4601](https://github.com/EQEmu/Server/pull/4601)) @Akkadius 2025-01-21
+
+### Memory Leak
+
+* Change raw pointer to unique_ptr to avoid potential leak in dbg stream ([#4616](https://github.com/EQEmu/Server/pull/4616)) @KimLS 2025-01-27
+* Fix leak in BuyTraderItemOutsideBazaar ([#4609](https://github.com/EQEmu/Server/pull/4609)) @Akkadius 2025-01-24
+* Fix leak in Client::RemoveDuplicateLore ([#4614](https://github.com/EQEmu/Server/pull/4614)) @Akkadius 2025-01-24
+* Fix leak in NPC::RemoveItem ([#4611](https://github.com/EQEmu/Server/pull/4611)) @Akkadius 2025-01-24
+* Fix leak in QuestManager::varlink ([#4610](https://github.com/EQEmu/Server/pull/4610)) @Akkadius 2025-01-24
+* Fix leaks in Client::Handle_OP_AugmentItem ([#4612](https://github.com/EQEmu/Server/pull/4612)) @Akkadius 2025-01-24
+* Fix memory leak in Client::Handle_OP_MoveMultipleItems ([#4613](https://github.com/EQEmu/Server/pull/4613)) @Akkadius 2025-01-24
+
+### Performance
+
+* Client / NPC Position Update Optimizations ([#4602](https://github.com/EQEmu/Server/pull/4602)) @Akkadius 2025-01-21
+
+### Quest API
+
+* Add SetAAEXPPercentage to Perl/Lua ([#4597](https://github.com/EQEmu/Server/pull/4597)) @Kinglykrab 2025-01-19
+
+### Zone
+
+* Implement zone player count sharding ([#4536](https://github.com/EQEmu/Server/pull/4536)) @Akkadius 2025-01-08
+
+## [22.61.0] 1/6/2025
+
+### Bots
+
+* Fix AA ranks to account for level ([#4567](https://github.com/EQEmu/Server/pull/4567)) @nytmyr 2024-12-07
+
+### Code
+
+* Convert Event Parses to Single Line ([#4569](https://github.com/EQEmu/Server/pull/4569)) @Kinglykrab 2024-12-12
+* Fix GM Flag Spell Restriction Bypasses ([#4571](https://github.com/EQEmu/Server/pull/4571)) @Kinglykrab 2025-01-06
+* Remove Unused Group Methods ([#4559](https://github.com/EQEmu/Server/pull/4559)) @Kinglykrab 2024-12-12
+
+### Commands
+
+* Add #find bot Subcommand ([#4563](https://github.com/EQEmu/Server/pull/4563)) @Kinglykrab 2024-12-12
+* Add #find ldon_theme Subcommand ([#4564](https://github.com/EQEmu/Server/pull/4564)) @Kinglykrab 2024-12-12
+* Fix #copycharacter ([#4582](https://github.com/EQEmu/Server/pull/4582)) @Akkadius 2025-01-06
+
+### Databuckets
+
+* Improved Reliability and Performance of Databuckets ([#4562](https://github.com/EQEmu/Server/pull/4562)) @Akkadius 2024-12-12
+
+### Feature
+
+* Enable bazaar window 'Find Trader' functionality ([#4560](https://github.com/EQEmu/Server/pull/4560)) @neckkola 2024-12-12
+
+### Filesystem
+
+* Path Manager Improvements ([#4557](https://github.com/EQEmu/Server/pull/4557)) @Akkadius 2025-01-06
+
+### Fixes
+
+* Allow Items in ROF2 to Stack to 32,767 ([#4556](https://github.com/EQEmu/Server/pull/4556)) @Kinglykrab 2024-12-12
+* Fix EVENT_COMBAT on NPC Death ([#4558](https://github.com/EQEmu/Server/pull/4558)) @Kinglykrab 2024-11-28
+* Guild Membership Update Fix ([#4581](https://github.com/EQEmu/Server/pull/4581)) @neckkola 2025-01-06
+* Guild creation to propagate across zones ([#4575](https://github.com/EQEmu/Server/pull/4575)) @neckkola 2025-01-06
+* Repair a EQEMUConfig Memory Leak ([#4584](https://github.com/EQEmu/Server/pull/4584)) @neckkola 2025-01-06
+* Repair a LoadNPCEmote MemoryLeak ([#4586](https://github.com/EQEmu/Server/pull/4586)) @neckkola 2025-01-06
+* Repair a memory leak in GuildsList ([#4585](https://github.com/EQEmu/Server/pull/4585)) @neckkola 2025-01-06
+* Resolve a client crash when logging in or zoning ([#4572](https://github.com/EQEmu/Server/pull/4572)) @neckkola 2024-12-14
+
+### Groups
+
+* Fix AmIMainAssist incorrectly checking for MainTankName ([#4565](https://github.com/EQEmu/Server/pull/4565)) @nytmyr 2024-12-04
+
+### Inventory
+
+* Add GetInventorySlots() Method ([#4566](https://github.com/EQEmu/Server/pull/4566)) @Kinglykrab 2025-01-06
+
+### Logs
+
+* Improve Crash log defaults ([#4579](https://github.com/EQEmu/Server/pull/4579)) @Akkadius 2025-01-06
+
+### Maps
+
+* Fix broken Map MMFS implementation ([#4576](https://github.com/EQEmu/Server/pull/4576)) @Akkadius 2025-01-06
+
+### Network
+
+* Prune / disconnect TCP connections gracefully ([#4574](https://github.com/EQEmu/Server/pull/4574)) @Akkadius 2025-01-06
+
+### Rules
+
+* Add rules for requiring custom files from client ([#4561](https://github.com/EQEmu/Server/pull/4561)) @knervous 2024-12-12
+
+## [22.60.0] 11/25/2024
+
+### Bazaar
+
+* Further refinements for instanced bazaar ([#4544](https://github.com/EQEmu/Server/pull/4544)) @neckkola 2024-11-16
+
+### Code
+
+* Fix build with older C++ libraries ([#4549](https://github.com/EQEmu/Server/pull/4549)) @hgtw 2024-11-24
+
+### Config
+
+* Fix World TCP Address Configuration Default ([#4551](https://github.com/EQEmu/Server/pull/4551)) @Akkadius 2024-11-24
+
+### Fixes
+
+* Fix Issue with Perl EVENT_PAYLOAD ([#4545](https://github.com/EQEmu/Server/pull/4545)) @Kinglykrab 2024-11-24
+* Fix Possible Item Loss in Trades ([#4554](https://github.com/EQEmu/Server/pull/4554)) @Kinglykrab 2024-11-24
+* Fix Strings::Commify bug with #mystats ([#4547](https://github.com/EQEmu/Server/pull/4547)) @carolus21rex 2024-11-22
+* Fix an edge case with augmented items inside parceled containers ([#4546](https://github.com/EQEmu/Server/pull/4546)) @neckkola 2024-11-21
+* Fix for bazaar search of containers. ([#4540](https://github.com/EQEmu/Server/pull/4540)) @neckkola 2024-11-15
+* Fix for mult-instanced bazaar zones ([#4541](https://github.com/EQEmu/Server/pull/4541)) @neckkola 2024-11-15
+* Fix for sending money via Parcel, then changing your mind ([#4552](https://github.com/EQEmu/Server/pull/4552)) @neckkola 2024-11-24
+* Fix issue where NPC's are being hidden as traders ([#4539](https://github.com/EQEmu/Server/pull/4539)) @Akkadius 2024-11-15
+* Players could become flagged as a Trader when they were not trading ([#4553](https://github.com/EQEmu/Server/pull/4553)) @neckkola 2024-11-24
+
+### Rules
+
+* Add Rule to Disable NPCs Facing Target ([#4543](https://github.com/EQEmu/Server/pull/4543)) @Kinglykrab 2024-11-24
+
+### Tasks
+
+* Update tasks in all zones if invalid zone set ([#4550](https://github.com/EQEmu/Server/pull/4550)) @hgtw 2024-11-25
+
+## [22.59.1] 11/13/2024
+
+### Hotfix
+
+* Fix faulty database migration condition with databuckets (9285)
+
+## [22.59.0] 11/13/2024
+
+### Databuckets
+
+* Add database index to data_buckets ([#4535](https://github.com/EQEmu/Server/pull/4535)) @Akkadius 2024-11-09
+
+### Fixes
+
+* Bazaar two edge case issues resolved ([#4533](https://github.com/EQEmu/Server/pull/4533)) @neckkola 2024-11-09
+* Check if the mob is already in the close mobs list before inserting  @Akkadius 2024-11-11
+* ScanCloseMobs - Ensure scanning mob has an entity ID  @Akkadius 2024-11-10
+
+### Performance
+
+* Improvements to ScanCloseMobs logic ([#4534](https://github.com/EQEmu/Server/pull/4534)) @Akkadius 2024-11-08
+
+### Quest API
+
+* Add Native Database Querying Interface ([#4531](https://github.com/EQEmu/Server/pull/4531)) @hgtw 2024-11-13
+
+### Rules
+
+* Add Rule for restricting client versions to world server ([#4527](https://github.com/EQEmu/Server/pull/4527)) @knervous 2024-11-12
+
+## [22.58.0] 11/5/2024
+
+### Code
+
+* Add mysql prepared statement support ([#4530](https://github.com/EQEmu/Server/pull/4530)) @hgtw 2024-11-06
+* Update perlbind to 1.1.0 ([#4529](https://github.com/EQEmu/Server/pull/4529)) @hgtw 2024-11-06
+
+### Feature
+
+* Focus Skill Attack Spells ([#4528](https://github.com/EQEmu/Server/pull/4528)) @mmcgarvey 2024-10-31
+
+### Fixes
+
+* Add Missing Lua Registers ([#4525](https://github.com/EQEmu/Server/pull/4525)) @Kinglykrab 2024-10-24
+* Fix cross_zone_set_entity_variable_by_char_id in Lua ([#4526](https://github.com/EQEmu/Server/pull/4526)) @Kinglykrab 2024-10-24
+
+### Loginserver
+
+* Automatifc Opcode File Creation ([#4521](https://github.com/EQEmu/Server/pull/4521)) @KimLS 2024-10-22
+
+### Quest API
+
+* Add Spawn Circle/Grid Methods to Perl/Lua ([#4524](https://github.com/EQEmu/Server/pull/4524)) @Kinglykrab 2024-10-24
+
+## [22.57.1] 10/22/2024
+
+### Bots
+
+* Enable Bot Commands Only if Rule Enabled ([#4519](https://github.com/EQEmu/Server/pull/4519)) @Kinglykrab 2024-10-22
+* Fix pet buffs from saving duplicates every save ([#4520](https://github.com/EQEmu/Server/pull/4520)) @nytmyr 2024-10-22
+
+### Loginserver
+
+* Automatic Opcode File Creation ([#4521](https://github.com/EQEmu/Server/pull/4521)) @KimLS 2024-10-22
+
 ## [22.57.0] 10/20/2024
 
 ### Bots

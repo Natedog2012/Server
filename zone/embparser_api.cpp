@@ -278,25 +278,25 @@ int Perl__getinventoryslotid(std::string identifier)
 		else if (identifier == "generalbags.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN;
 		else if (identifier == "generalbags.end")       result = EQ::invbag::GENERAL_BAGS_END;
 		else if (identifier == "general1bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN;
-		else if (identifier == "general1bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 9;
-		else if (identifier == "general2bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + 10;
-		else if (identifier == "general2bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 19;
-		else if (identifier == "general3bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + 20;
-		else if (identifier == "general3bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 29;
-		else if (identifier == "general4bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + 30;
-		else if (identifier == "general4bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 39;
-		else if (identifier == "general5bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + 40;
-		else if (identifier == "general5bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 49;
-		else if (identifier == "general6bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + 50;
-		else if (identifier == "general6bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 59;
-		else if (identifier == "general7bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + 60;
-		else if (identifier == "general7bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 69;
-		else if (identifier == "general8bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + 70;
-		else if (identifier == "general8bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 79;
-		else if (identifier == "general9bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + 80;
-		else if (identifier == "general9bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + 89;
-		else if (identifier == "general10bag.begin")    result = EQ::invbag::GENERAL_BAGS_BEGIN + 90;
-		else if (identifier == "general10bag.end")      result = EQ::invbag::GENERAL_BAGS_BEGIN + 99;
+		else if (identifier == "general1bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT - 1);
+		else if (identifier == "general2bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + EQ::invbag::SLOT_COUNT;
+		else if (identifier == "general2bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 2) - 1);
+		else if (identifier == "general3bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT * 2);
+		else if (identifier == "general3bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 3) - 1);
+		else if (identifier == "general4bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT * 3);
+		else if (identifier == "general4bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 4) - 1);
+		else if (identifier == "general5bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT * 4);
+		else if (identifier == "general5bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 5) - 1);
+		else if (identifier == "general6bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT * 5);
+		else if (identifier == "general6bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 6) - 1);
+		else if (identifier == "general7bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT * 6);
+		else if (identifier == "general7bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 7) - 1);
+		else if (identifier == "general8bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT * 7);
+		else if (identifier == "general8bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 8) - 1);
+		else if (identifier == "general9bag.begin")     result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT * 8);
+		else if (identifier == "general9bag.end")       result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 9) - 1);
+		else if (identifier == "general10bag.begin")    result = EQ::invbag::GENERAL_BAGS_BEGIN + (EQ::invbag::SLOT_COUNT * 9);
+		else if (identifier == "general10bag.end")      result = EQ::invbag::GENERAL_BAGS_BEGIN + ((EQ::invbag::SLOT_COUNT * 10) - 1);
 		else if (identifier == "cursorbag.begin")       result = EQ::invbag::CURSOR_BAG_BEGIN;
 		else if (identifier == "cursorbag.end")         result = EQ::invbag::CURSOR_BAG_END;
 		else if (identifier == "bank.begin")            result = EQ::invslot::BANK_BEGIN;
@@ -1446,7 +1446,7 @@ int Perl__collectitems(uint32_t item_id, bool remove_item)
 	return quest_manager.collectitems(item_id, remove_item);
 }
 
-int Perl__countitem(uint32_t item_id)
+uint32 Perl__countitem(uint32_t item_id)
 {
 	return quest_manager.countitem(item_id);
 }
@@ -2428,11 +2428,6 @@ void Perl__reloadzonestaticdata()
 void Perl__qs_send_query(std::string query)
 {
 	QServ->SendQuery(std::move(query));
-}
-
-void Perl__qs_player_event(int char_id, std::string message)
-{
-	QServ->PlayerLogEvent(Player_Log_Quest, char_id, message);
 }
 
 void Perl__log(int category, const char* message)
@@ -5653,16 +5648,6 @@ int Perl__GetZoneNPCMaximumAggroDistance(uint32 zone_id, int version)
 	return zone_store.GetZoneNPCMaximumAggroDistance(zone_id, version);
 }
 
-uint32 Perl__GetZoneMaximumMovementUpdateRange(uint32 zone_id)
-{
-	return zone_store.GetZoneMaximumMovementUpdateRange(zone_id);
-}
-
-uint32 Perl__GetZoneMaximumMovementUpdateRange(uint32 zone_id, int version)
-{
-	return zone_store.GetZoneMaximumMovementUpdateRange(zone_id, version);
-}
-
 int8 Perl__GetZoneMinimumExpansion(uint32 zone_id)
 {
 	return zone_store.GetZoneMinimumExpansion(zone_id);
@@ -5978,6 +5963,16 @@ bool Perl__aretaskscompleted(perl::array task_ids)
 	return quest_manager.aretaskscompleted(v);
 }
 
+void Perl__SpawnCircle(uint32 npc_id, float x, float y, float z, float heading, float radius, uint32 points)
+{
+	quest_manager.SpawnCircle(npc_id, glm::vec4(x, y, z, heading), radius, points);
+}
+
+void Perl__SpawnGrid(uint32 npc_id, float x, float y, float z, float heading, float spacing, uint32 spawn_count)
+{
+	quest_manager.SpawnGrid(npc_id, glm::vec4(x, y, z, heading), spacing, spawn_count);
+}
+
 void perl_register_quest()
 {
 	perl::interpreter perl(PERL_GET_THX);
@@ -6102,8 +6097,6 @@ void perl_register_quest()
 	package.add("GetZoneMaximumExpansion", (int8(*)(uint32, int))&Perl__GetZoneMaximumExpansion);
 	package.add("GetZoneMaximumLevel", (uint8(*)(uint32))&Perl__GetZoneMaximumLevel);
 	package.add("GetZoneMaximumLevel", (uint8(*)(uint32, int))&Perl__GetZoneMaximumLevel);
-	package.add("GetZoneMaximumMovementUpdateRange", (uint32(*)(uint32))&Perl__GetZoneMaximumMovementUpdateRange);
-	package.add("GetZoneMaximumMovementUpdateRange", (uint32(*)(uint32, int))&Perl__GetZoneMaximumMovementUpdateRange);
 	package.add("GetZoneMaximumPlayers", (int(*)(uint32))&Perl__GetZoneMaximumPlayers);
 	package.add("GetZoneMaximumPlayers", (int(*)(uint32, int))&Perl__GetZoneMaximumPlayers);
 	package.add("GetZoneMinimumClip", (float(*)(uint32))&Perl__GetZoneMinimumClip);
@@ -6287,6 +6280,8 @@ void perl_register_quest()
 	package.add("SendMail", &Perl__SendMail);
 	package.add("SetAutoLoginCharacterNameByAccountID", &Perl__SetAutoLoginCharacterNameByAccountID);
 	package.add("SetRunning", &Perl__SetRunning);
+	package.add("SpawnCircle", &Perl__SpawnCircle);
+	package.add("SpawnGrid", &Perl__SpawnGrid);
 	package.add("activespeakactivity", &Perl__activespeakactivity);
 	package.add("activespeaktask", &Perl__activespeaktask);
 	package.add("activetasksinset", &Perl__activetasksinset);
@@ -6768,7 +6763,6 @@ void perl_register_quest()
 	package.add("popuptablerow", &Perl__popuptablerow);
 	package.add("processmobswhilezoneempty", &Perl__processmobswhilezoneempty);
 	package.add("pvp", &Perl__pvp);
-	package.add("qs_player_event", &Perl__qs_player_event);
 	package.add("qs_send_query", &Perl__qs_send_query);
 	package.add("rain", &Perl__rain);
 	package.add("rebind", (void(*)(int, float, float, float))&Perl__rebind);

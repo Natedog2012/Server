@@ -39,6 +39,7 @@ SET(common_sources
     event_sub.cpp
     events/player_event_logs.cpp
     events/player_event_discord_formatter.cpp
+    evolving_items.cpp
     expedition_lockout_timer.cpp
     extprofile.cpp
     discord/discord_manager.cpp
@@ -62,6 +63,7 @@ SET(common_sources
     mutex.cpp
     mysql_request_result.cpp
     mysql_request_row.cpp
+    mysql_stmt.cpp
     opcode_map.cpp
     opcodemgr.cpp
     packet_dump.cpp
@@ -87,6 +89,7 @@ SET(common_sources
     skills.cpp
     skill_caps.cpp
     spdat.cpp
+    spdat_bot.cpp
     strings.cpp
     struct_strategy.cpp
     textures.cpp
@@ -96,6 +99,7 @@ SET(common_sources
     json/json.hpp
     json/jsoncpp.cpp
     zone_store.cpp
+    memory/ksm.hpp
     net/console_server.cpp
     net/console_server_connection.cpp
     net/crc32.cpp
@@ -171,6 +175,7 @@ SET(repositories
     repositories/base/base_character_currency_repository.h
     repositories/base/base_character_data_repository.h
     repositories/base/base_character_disciplines_repository.h
+    repositories/base/base_character_evolving_items_repository.h
     repositories/base/base_character_expedition_lockouts_repository.h
     repositories/base/base_character_exp_modifiers_repository.h
     repositories/base/base_character_inspect_messages_repository.h
@@ -239,6 +244,7 @@ SET(repositories
     repositories/base/base_inventory_snapshots_repository.h
     repositories/base/base_ip_exemptions_repository.h
     repositories/base/base_items_repository.h
+    repositories/base/base_items_evolving_details_repository.h
     repositories/base/base_ldon_trap_entries_repository.h
     repositories/base/base_ldon_trap_templates_repository.h
     repositories/base/base_level_exp_mods_repository.h
@@ -276,8 +282,20 @@ SET(repositories
     repositories/base/base_pets_equipmentset_repository.h
     repositories/base/base_pets_equipmentset_entries_repository.h
     repositories/base/base_player_titlesets_repository.h
+    repositories/base/base_player_event_aa_purchase_repository.h
+    repositories/base/base_player_event_killed_npc_repository.h
+    repositories/base/base_player_event_killed_named_npc_repository.h
+    repositories/base/base_player_event_killed_raid_npc_repository.h
     repositories/base/base_player_event_log_settings_repository.h
     repositories/base/base_player_event_logs_repository.h
+    repositories/base/base_player_event_loot_items_repository.h
+    repositories/base/base_player_event_merchant_purchase_repository.h
+    repositories/base/base_player_event_merchant_sell_repository.h
+    repositories/base/base_player_event_npc_handin_repository.h
+    repositories/base/base_player_event_npc_handin_entries_repository.h
+    repositories/base/base_player_event_speech_repository.h
+    repositories/base/base_player_event_trade_repository.h
+    repositories/base/base_player_event_trade_entries_repository.h
     repositories/base/base_quest_globals_repository.h
     repositories/base/base_raid_details_repository.h
     repositories/base/base_raid_members_repository.h
@@ -354,6 +372,7 @@ SET(repositories
     repositories/character_currency_repository.h
     repositories/character_data_repository.h
     repositories/character_disciplines_repository.h
+    repositories/character_evolving_items_repository.h
     repositories/character_expedition_lockouts_repository.h
     repositories/character_exp_modifiers_repository.h
     repositories/character_inspect_messages_repository.h
@@ -422,6 +441,7 @@ SET(repositories
     repositories/inventory_snapshots_repository.h
     repositories/ip_exemptions_repository.h
     repositories/items_repository.h
+    repositories/items_evolving_details_repository.h
     repositories/ldon_trap_entries_repository.h
     repositories/ldon_trap_templates_repository.h
     repositories/level_exp_mods_repository.h
@@ -459,8 +479,20 @@ SET(repositories
     repositories/pets_equipmentset_repository.h
     repositories/pets_equipmentset_entries_repository.h
     repositories/player_titlesets_repository.h
+    repositories/player_event_aa_purchase_repository.h
+    repositories/player_event_killed_npc_repository.h
+    repositories/player_event_killed_named_npc_repository.h
+    repositories/player_event_killed_raid_npc_repository.h
     repositories/player_event_log_settings_repository.h
     repositories/player_event_logs_repository.h
+    repositories/player_event_loot_items_repository.h
+    repositories/player_event_merchant_purchase_repository.h
+    repositories/player_event_merchant_sell_repository.h
+    repositories/player_event_npc_handin_repository.h
+    repositories/player_event_npc_handin_entries_repository.h
+    repositories/player_event_speech_repository.h
+    repositories/player_event_trade_repository.h
+    repositories/player_event_trade_entries_repository.h
     repositories/quest_globals_repository.h
     repositories/raid_details_repository.h
     repositories/raid_members_repository.h
@@ -554,6 +586,7 @@ SET(common_headers
     events/player_event_discord_formatter.h
     events/player_events.h
     event_sub.h
+    evolving_items.h
     expedition_lockout_timer.h
     extprofile.h
     faction.h
@@ -586,6 +619,7 @@ SET(common_headers
     mutex.h
     mysql_request_result.h
     mysql_request_row.h
+    mysql_stmt.h
     op_codes.h
     opcode_dispatch.h
     opcodemgr.h
