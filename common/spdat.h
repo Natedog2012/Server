@@ -215,6 +215,7 @@
 #define SPELL_AMPLIFICATION 2603
 #define SPELL_DIVINE_REZ 2738
 #define SPELL_NATURES_RECOVERY 2520
+#define SPELL_MINOR_HEALING 200
 #define SPELL_ADRENALINE_SWELL 14445
 #define SPELL_ADRENALINE_SWELL_RK2 14446
 #define SPELL_ADRENALINE_SWELL_RK3 14447
@@ -736,14 +737,15 @@ namespace BotSpellTypes
 	constexpr uint16	DiscUtility                = 203;
 
 	constexpr uint16	START                      = BotSpellTypes::Nuke;              // Do not remove or change this
-	constexpr uint16	END                        = BotSpellTypes::PetResistBuffs;   // Do not remove this, increment as needed
-	constexpr uint16	COMMANDED_START            = BotSpellTypes::Lull;             // Do not remove or change this
-	constexpr uint16	COMMANDED_END              = BotSpellTypes::AELull;           // Do not remove this, increment as needed
-	constexpr uint16	DISCIPLINE_START           = BotSpellTypes::Discipline;       // Do not remove or change this
-	constexpr uint16	DISCIPLINE_END             = BotSpellTypes::DiscUtility;      // Do not remove this, increment as needed
+	constexpr uint16	END                        = BotSpellTypes::PetResistBuffs;    // Do not remove this, increment as needed
+	constexpr uint16	COMMANDED_START            = BotSpellTypes::Lull;              // Do not remove or change this
+	constexpr uint16	COMMANDED_END              = BotSpellTypes::AELull;            // Do not remove this, increment as needed
+	constexpr uint16	DISCIPLINE_START           = BotSpellTypes::Discipline;        // Do not remove or change this
+	constexpr uint16	DISCIPLINE_END             = BotSpellTypes::DiscUtility;       // Do not remove this, increment as needed
+	constexpr uint16 	PARENT_TYPE_END            = BotSpellTypes::PreCombatBuffSong; // This is the last ID of the original bot spell types, the rest are considered sub types.
 }
 
-static std::map<uint16, std::string> spellType_names = {
+static std::map<uint16, std::string> spell_type_names = {
 	{ BotSpellTypes::Nuke,                     "Nuke" },
 	{ BotSpellTypes::RegularHeal,              "Regular Heal" },
 	{ BotSpellTypes::Root,                     "Root" },
@@ -818,7 +820,7 @@ static std::map<uint16, std::string> spellType_names = {
 	{ BotSpellTypes::AELull,                   "AE Lull" }
 };
 
-static std::map<uint16, std::string> spellType_shortNames = {
+static std::map<uint16, std::string> spell_type_short_names = {
 	{ BotSpellTypes::Nuke,                     "nukes" },
 	{ BotSpellTypes::RegularHeal,              "regularheals" },
 	{ BotSpellTypes::Root,                     "roots" },
@@ -900,7 +902,7 @@ const uint32 SPELL_TYPES_INNATE = (SpellType_Nuke | SpellType_Lifetap | SpellTyp
 // Bot related functions
 bool IsBotSpellTypeDetrimental (uint16 spell_type);
 bool IsBotSpellTypeBeneficial (uint16 spell_type);
-bool IsBotSpellTypeOtherBeneficial(uint16 spell_type);
+bool BotSpellTypeUsesTargetSettings(uint16 spell_type);
 bool IsBotSpellTypeInnate (uint16 spell_type);
 bool IsAEBotSpellType(uint16 spell_type);
 bool IsGroupBotSpellType(uint16 spell_type);

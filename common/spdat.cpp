@@ -93,7 +93,14 @@ bool IsTargetableAESpell(uint16 spell_id)
 		return false;
 	}
 
-	return spells[spell_id].target_type == ST_AETarget;
+	return (
+		spells[spell_id].target_type == ST_AETarget ||
+		spells[spell_id].target_type == ST_TargetAETap ||
+		spells[spell_id].target_type == ST_AETargetHateList ||
+		spells[spell_id].target_type == ST_TargetAENoPlayersPets ||
+		spells[spell_id].target_type == ST_UndeadAE ||
+		spells[spell_id].target_type == ST_SummonedAE
+	);
 }
 
 bool IsSacrificeSpell(uint16 spell_id)
@@ -675,17 +682,19 @@ bool IsAnyNukeOrStunSpell(uint16 spell_id) {
 }
 
 bool IsAnyAESpell(uint16 spell_id) {
-    return (
-        IsValidSpell(spell_id) &&
-        (
-            IsAEDurationSpell(spell_id) ||
-            IsAESpell(spell_id) ||
-            IsAERainNukeSpell(spell_id) ||
-            IsAERainSpell(spell_id) ||
-            IsPBAESpell(spell_id) ||
-            IsPBAENukeSpell(spell_id)
-        )
-    );
+	if (!IsValidSpell(spell_id)) {
+		return false;
+	}
+
+	return (
+		IsTargetableAESpell(spell_id) ||
+		IsAESpell(spell_id) ||
+		IsPBAESpell(spell_id) ||
+		IsAEDurationSpell(spell_id) ||
+		IsAERainNukeSpell(spell_id) ||
+		IsAERainSpell(spell_id) ||
+		IsPBAENukeSpell(spell_id)
+	);
 }
 
 bool IsAESpell(uint16 spell_id)
@@ -740,8 +749,8 @@ bool IsPBAESpell(uint16 spell_id)
 
 	if (
 		spell.aoe_range > 0 &&
-		spell.target_type == ST_AECaster
-		) {
+		!IsTargetRequiredForSpell(spell_id)
+	) {
 		return true;
 	}
 
@@ -822,9 +831,7 @@ bool IsGroupSpell(uint16 spell_id)
 	return (
 		spell.target_type == ST_AEBard ||
 		spell.target_type == ST_Group ||
-		spell.target_type == ST_GroupTeleport ||
-		spell.target_type == ST_GroupNoPets ||
-		spell.target_type == ST_GroupClientAndPet
+		spell.target_type == ST_GroupTeleport
 	);
 }
 
@@ -1449,41 +1456,42 @@ bool IsCompleteHealSpell(uint16 spell_id)
 }
 
 bool IsFastHealSpell(uint16 spell_id) {
-    spell_id = (
-        IsEffectInSpell(spell_id, SE_CurrentHP) ?
-        spell_id :
-        GetSpellTriggerSpellID(spell_id, SE_CurrentHP)
-    );
+	spell_id = (
+		IsEffectInSpell(spell_id, SE_CurrentHP) ?
+			spell_id :
+			GetSpellTriggerSpellID(spell_id, SE_CurrentHP)
+	);
 
-    if (!spell_id) {
-        spell_id = (
-            IsEffectInSpell(spell_id, SE_CurrentHPOnce) ?
-            spell_id :
-            GetSpellTriggerSpellID(spell_id, SE_CurrentHPOnce)
-        );
-    }
+	if (!spell_id) {
+		spell_id = (
+			IsEffectInSpell(spell_id, SE_CurrentHPOnce) ?
+				spell_id :
+				GetSpellTriggerSpellID(spell_id, SE_CurrentHPOnce)
+		);
+	}
 
-    if (spell_id && IsValidSpell(spell_id)) {
-        if (
-            spells[spell_id].cast_time <= MAX_FAST_HEAL_CASTING_TIME &&
-            spells[spell_id].good_effect &&
-            !IsGroupSpell(spell_id)
-        ) {
-            for (int i = 0; i < EFFECT_COUNT; i++) {
-                if (
-                    spells[spell_id].base_value[i] > 0 &&
-                    (
-                        spells[spell_id].effect_id[i] == SE_CurrentHP ||
-                        spells[spell_id].effect_id[i] == SE_CurrentHPOnce
-                    )
-                ) {
-                    return true;
-                }
-            }
-        }
-    }
+	if (IsValidSpell(spell_id)) {
+		if (
+			spell_id != SPELL_MINOR_HEALING &&
+			(spells[spell_id].cast_time > MAX_VERY_FAST_HEAL_CASTING_TIME && spells[spell_id].cast_time <= MAX_FAST_HEAL_CASTING_TIME) &&
+			spells[spell_id].good_effect &&
+			!IsGroupSpell(spell_id)
+		) {
+			for (int i = 0; i < EFFECT_COUNT; i++) {
+				if (
+					spells[spell_id].base_value[i] > 0 &&
+					(
+						spells[spell_id].effect_id[i] == SE_CurrentHP ||
+						spells[spell_id].effect_id[i] == SE_CurrentHPOnce
+					)
+				) {
+					return true;
+				}
+			}
+		}
+	}
 
-    return false;
+	return false;
 }
 
 bool IsVeryFastHealSpell(uint16 spell_id)
@@ -1502,8 +1510,9 @@ bool IsVeryFastHealSpell(uint16 spell_id)
 		);
 	}
 
-	if (spell_id) {
+	if (IsValidSpell(spell_id)) {
 		if (
+			spell_id != SPELL_MINOR_HEALING &&
 			spells[spell_id].cast_time <= MAX_VERY_FAST_HEAL_CASTING_TIME &&
 			spells[spell_id].good_effect &&
 			!IsGroupSpell(spell_id)
@@ -1541,8 +1550,13 @@ bool IsRegularSingleTargetHealSpell(uint16 spell_id)
 		);
 	}
 
-	if (spell_id) {
+	if (IsValidSpell(spell_id)) {
+		if (spell_id == SPELL_MINOR_HEALING) {
+			return true;
+		}
+
 		if (
+			spells[spell_id].cast_time > MAX_FAST_HEAL_CASTING_TIME &&
 			spells[spell_id].target_type == ST_Target &&
 			!IsCompleteHealSpell(spell_id) &&
 			!IsHealOverTimeSpell(spell_id) &&
@@ -1582,9 +1596,14 @@ bool IsRegularPetHealSpell(uint16 spell_id)
 		);
 	}
 
-	if (spell_id && IsValidSpell(spell_id)) {
+	if (IsValidSpell(spell_id)) {
+		if (spell_id == SPELL_MINOR_HEALING) {
+			return true;
+		}
+
 		if (
-			(spells[spell_id].target_type == ST_Pet || spells[spell_id].target_type == ST_Undead) &&
+			spells[spell_id].cast_time > MAX_FAST_HEAL_CASTING_TIME &&
+			(spells[spell_id].target_type == ST_Pet || spells[spell_id].target_type == ST_SummonedPet) &&
 			!IsCompleteHealSpell(spell_id) &&
 			!IsHealOverTimeSpell(spell_id) &&
 			!IsGroupSpell(spell_id)
@@ -1623,7 +1642,7 @@ bool IsRegularGroupHealSpell(uint16 spell_id)
 		);
 	}
 
-	if (spell_id) {
+	if (IsValidSpell(spell_id)) {
 		if (
 			IsGroupSpell(spell_id) &&
 			!IsCompleteHealSpell(spell_id) &&

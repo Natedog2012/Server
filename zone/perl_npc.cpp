@@ -806,6 +806,11 @@ void Perl_NPC_MultiQuestEnable(NPC* self)
 	self->MultiQuestEnable();
 }
 
+bool Perl_NPC_IsResumedFromZoneSuspend(NPC* self)
+{
+	return self->IsResumedFromZoneSuspend();
+}
+
 bool Perl_NPC_CheckHandin(
 	NPC* self,
 	Client* c,
@@ -873,6 +878,11 @@ bool Perl_NPC_CheckHandin(
 void Perl_NPC_ReturnHandinItems(NPC *self, Client* c)
 {
 	self->ReturnHandinItems(c);
+}
+
+Spawn2* Perl_NPC_GetSpawn(NPC* self)
+{
+	return self->GetSpawn();
 }
 
 void perl_register_npc()
@@ -955,6 +965,7 @@ void perl_register_npc()
 	package.add("GetSilver", &Perl_NPC_GetSilver);
 	package.add("GetSlowMitigation", &Perl_NPC_GetSlowMitigation);
 	package.add("GetSp2", &Perl_NPC_GetSp2);
+	package.add("GetSpawn", &Perl_NPC_GetSpawn);
 	package.add("GetSpawnKillCount", &Perl_NPC_GetSpawnKillCount);
 	package.add("GetSpawnPointH", &Perl_NPC_GetSpawnPointH);
 	package.add("GetSpawnPointID", &Perl_NPC_GetSpawnPointID);
@@ -979,6 +990,7 @@ void perl_register_npc()
 	package.add("IsOnHatelist", &Perl_NPC_IsOnHatelist);
 	package.add("IsRaidTarget", &Perl_NPC_IsRaidTarget);
 	package.add("IsRareSpawn", &Perl_NPC_IsRareSpawn);
+	package.add("IsResumedFromZoneSuspend", &Perl_NPC_IsResumedFromZoneSuspend);
 	package.add("IsTaunting", &Perl_NPC_IsTaunting);
 	package.add("IsUnderwaterOnly", (bool(*)(NPC*))&Perl_NPC_IsUnderwaterOnly);
 	package.add("MerchantCloseShop", &Perl_NPC_MerchantCloseShop);

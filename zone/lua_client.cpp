@@ -1199,16 +1199,6 @@ void Lua_Client::SetStartZone(int zone_id, float x, float y, float z) {
 	self->SetStartZone(zone_id, x, y, z);
 }
 
-void Lua_Client::KeyRingAdd(uint32 item) {
-	Lua_Safe_Call_Void();
-	self->KeyRingAdd(item);
-}
-
-bool Lua_Client::KeyRingCheck(uint32 item) {
-	Lua_Safe_Call_Bool();
-	return self->KeyRingCheck(item);
-}
-
 void Lua_Client::AddPVPPoints(uint32 points) {
 	Lua_Safe_Call_Void();
 	self->AddPVPPoints(points);
@@ -1944,12 +1934,12 @@ Lua_Expedition Lua_Client::CreateExpedition(luabind::object expedition_table) {
 
 Lua_Expedition Lua_Client::CreateExpedition(std::string zone_name, uint32 version, uint32 duration, std::string expedition_name, uint32 min_players, uint32 max_players) {
 	Lua_Safe_Call_Class(Lua_Expedition);
-	return self->CreateExpedition(zone_name, version, duration, expedition_name, min_players, max_players);
+	return self->CreateExpedition(ZoneID(zone_name), version, duration, expedition_name, min_players, max_players);
 }
 
 Lua_Expedition Lua_Client::CreateExpedition(std::string zone_name, uint32 version, uint32 duration, std::string expedition_name, uint32 min_players, uint32 max_players, bool disable_messages) {
 	Lua_Safe_Call_Class(Lua_Expedition);
-	return self->CreateExpedition(zone_name, version, duration, expedition_name, min_players, max_players, disable_messages);
+	return self->CreateExpedition(ZoneID(zone_name), version, duration, expedition_name, min_players, max_players, disable_messages);
 }
 
 Lua_Expedition Lua_Client::CreateExpeditionFromTemplate(uint32_t dz_template_id) {
@@ -1968,16 +1958,15 @@ luabind::object Lua_Client::GetExpeditionLockouts(lua_State* L)
 	if (d_)
 	{
 		auto self = reinterpret_cast<NativeType*>(d_);
-		auto lockouts = self->GetExpeditionLockouts();
-
+		const auto& lockouts = self->GetDzLockouts();
 		for (const auto& lockout : lockouts)
 		{
-			auto lockout_table = lua_table[lockout.GetExpeditionName()];
+			auto lockout_table = lua_table[lockout.DzName()];
 			if (luabind::type(lockout_table) != LUA_TTABLE)
 			{
 				lockout_table = luabind::newtable(L);
 			}
-			lockout_table[lockout.GetEventName()] = lockout.GetSecondsRemaining();
+			lockout_table[lockout.Event()] = lockout.GetSecondsRemaining();
 		}
 	}
 	return lua_table;
@@ -1989,13 +1978,12 @@ luabind::object Lua_Client::GetExpeditionLockouts(lua_State* L, std::string expe
 	if (d_)
 	{
 		auto self = reinterpret_cast<NativeType*>(d_);
-		auto lockouts = self->GetExpeditionLockouts();
-
+		const auto& lockouts = self->GetDzLockouts();
 		for (const auto& lockout : lockouts)
 		{
-			if (lockout.GetExpeditionName() == expedition_name)
+			if (lockout.DzName() == expedition_name)
 			{
-				lua_table[lockout.GetEventName()] = lockout.GetSecondsRemaining();
+				lua_table[lockout.Event()] = lockout.GetSecondsRemaining();
 			}
 		}
 	}
@@ -2005,52 +1993,54 @@ luabind::object Lua_Client::GetExpeditionLockouts(lua_State* L, std::string expe
 std::string Lua_Client::GetLockoutExpeditionUUID(std::string expedition_name, std::string event_name) {
 	Lua_Safe_Call_String();
 	std::string uuid;
-	auto lockout = self->GetExpeditionLockout(expedition_name, event_name);
+	auto lockout = self->GetDzLockout(expedition_name, event_name);
 	if (lockout)
 	{
-		uuid = lockout->GetExpeditionUUID();
+		uuid = lockout->UUID();
 	}
 	return uuid;
 }
 
 void Lua_Client::AddExpeditionLockout(std::string expedition_name, std::string event_name, uint32 seconds) {
 	Lua_Safe_Call_Void();
-	self->AddNewExpeditionLockout(expedition_name, event_name, seconds);
+	self->AddDzLockout(expedition_name, event_name, seconds);
 }
 
 void Lua_Client::AddExpeditionLockout(std::string expedition_name, std::string event_name, uint32 seconds, std::string uuid) {
 	Lua_Safe_Call_Void();
-	self->AddNewExpeditionLockout(expedition_name, event_name, seconds, uuid);
+	self->AddDzLockout(expedition_name, event_name, seconds, uuid);
 }
 
 void Lua_Client::AddExpeditionLockoutDuration(std::string expedition_name, std::string event_name, int seconds) {
 	Lua_Safe_Call_Void();
-	self->AddExpeditionLockoutDuration(expedition_name, event_name, seconds, {}, true);
+	auto lockout = DzLockout::Create(expedition_name, event_name, seconds);
+	self->AddDzLockoutDuration(lockout, seconds, {}, true);
 }
 
 void Lua_Client::AddExpeditionLockoutDuration(std::string expedition_name, std::string event_name, int seconds, std::string uuid) {
 	Lua_Safe_Call_Void();
-	self->AddExpeditionLockoutDuration(expedition_name, event_name, seconds, uuid, true);
+	auto lockout = DzLockout::Create(expedition_name, event_name, seconds, uuid);
+	self->AddDzLockoutDuration(lockout, seconds, uuid, true);
 }
 
 void Lua_Client::RemoveAllExpeditionLockouts() {
 	Lua_Safe_Call_Void();
-	self->RemoveAllExpeditionLockouts({}, true);
+	self->RemoveDzLockouts({}, true);
 }
 
 void Lua_Client::RemoveAllExpeditionLockouts(std::string expedition_name) {
 	Lua_Safe_Call_Void();
-	self->RemoveAllExpeditionLockouts(expedition_name, true);
+	self->RemoveDzLockouts(expedition_name, true);
 }
 
 void Lua_Client::RemoveExpeditionLockout(std::string expedition_name, std::string event_name) {
 	Lua_Safe_Call_Void();
-	self->RemoveExpeditionLockout(expedition_name, event_name, true);
+	self->RemoveDzLockout(expedition_name, event_name, true);
 }
 
 bool Lua_Client::HasExpeditionLockout(std::string expedition_name, std::string event_name) {
 	Lua_Safe_Call_Bool();
-	return self->HasExpeditionLockout(expedition_name, event_name);
+	return self->HasDzLockout(expedition_name, event_name);
 }
 
 void Lua_Client::MovePCDynamicZone(uint32 zone_id) {
@@ -3506,6 +3496,24 @@ std::string Lua_Client::GetAccountBucketRemaining(std::string bucket_name)
 	return self->GetAccountBucketRemaining(bucket_name);
 }
 
+void Lua_Client::GrantNameChange()
+{
+	Lua_Safe_Call_Void();
+	self->GrantNameChange();
+}
+
+bool Lua_Client::IsNameChangeAllowed()
+{
+	Lua_Safe_Call_Bool();
+	return self->IsNameChangeAllowed();
+}
+
+bool Lua_Client::ClearNameChange()
+{
+	Lua_Safe_Call_Bool();
+	return self->ClearNameChange();
+}
+
 std::string Lua_Client::GetBandolierName(uint8 bandolier_slot)
 {
 	Lua_Safe_Call_String();
@@ -3546,6 +3554,34 @@ std::string Lua_Client::GetPotionBeltItemName(uint8 slot_id)
 {
 	Lua_Safe_Call_String();
 	return self->GetPotionBeltItemName(slot_id);
+}
+
+bool Lua_Client::KeyRingAdd(uint32 item) {
+	Lua_Safe_Call_Bool();
+	return self->KeyRingAdd(item);
+}
+
+bool Lua_Client::KeyRingCheck(uint32 item) {
+	Lua_Safe_Call_Bool();
+	return self->KeyRingCheck(item);
+}
+
+bool Lua_Client::KeyRingClear()
+{
+	Lua_Safe_Call_Bool();
+	return self->KeyRingClear();
+}
+
+void Lua_Client::KeyRingList()
+{
+	Lua_Safe_Call_Void();
+	self->KeyRingList();
+}
+
+bool Lua_Client::KeyRingRemove(uint32 item_id)
+{
+	Lua_Safe_Call_Bool();
+	return self->KeyRingRemove(item_id);
 }
 
 luabind::scope lua_register_client() {
@@ -3617,6 +3653,7 @@ luabind::scope lua_register_client() {
 	.def("CashReward", &Lua_Client::CashReward)
 	.def("ChangeLastName", (void(Lua_Client::*)(std::string))&Lua_Client::ChangeLastName)
 	.def("GrantPetNameChange", &Lua_Client::GrantPetNameChange)
+	.def("ClearNameChange", &Lua_Client::ClearNameChange)
 	.def("CharacterID", (uint32(Lua_Client::*)(void))&Lua_Client::CharacterID)
 	.def("CheckIncreaseSkill", (void(Lua_Client::*)(int,Lua_Mob))&Lua_Client::CheckIncreaseSkill)
 	.def("CheckIncreaseSkill", (void(Lua_Client::*)(int,Lua_Mob,int))&Lua_Client::CheckIncreaseSkill)
@@ -3833,6 +3870,7 @@ luabind::scope lua_register_client() {
 	.def("GrantAllAAPoints", (void(Lua_Client::*)(uint8,bool))&Lua_Client::GrantAllAAPoints)
 	.def("GrantAlternateAdvancementAbility", (bool(Lua_Client::*)(int, int))&Lua_Client::GrantAlternateAdvancementAbility)
 	.def("GrantAlternateAdvancementAbility", (bool(Lua_Client::*)(int, int, bool))&Lua_Client::GrantAlternateAdvancementAbility)
+	.def("GrantNameChange", &Lua_Client::GrantNameChange)
 	.def("GuildID", (uint32(Lua_Client::*)(void))&Lua_Client::GuildID)
 	.def("GuildRank", (int(Lua_Client::*)(void))&Lua_Client::GuildRank)
 	.def("HasAugmentEquippedByID", (bool(Lua_Client::*)(uint32))&Lua_Client::HasAugmentEquippedByID)
@@ -3863,14 +3901,18 @@ luabind::scope lua_register_client() {
 	.def("IsInAGuild", (bool(Lua_Client::*)(void))&Lua_Client::IsInAGuild)
 	.def("IsLD", (bool(Lua_Client::*)(void))&Lua_Client::IsLD)
 	.def("IsMedding", (bool(Lua_Client::*)(void))&Lua_Client::IsMedding)
+	.def("IsNameChangeAllowed", &Lua_Client::IsNameChangeAllowed)
 	.def("IsRaidGrouped", (bool(Lua_Client::*)(void))&Lua_Client::IsRaidGrouped)
 	.def("IsSitting", (bool(Lua_Client::*)(void))&Lua_Client::IsSitting)
 	.def("IsStanding", (bool(Lua_Client::*)(void))&Lua_Client::IsStanding)
 	.def("IsTaskActive", (bool(Lua_Client::*)(int))&Lua_Client::IsTaskActive)
 	.def("IsTaskActivityActive", (bool(Lua_Client::*)(int,int))&Lua_Client::IsTaskActivityActive)
 	.def("IsTaskCompleted", (bool(Lua_Client::*)(int))&Lua_Client::IsTaskCompleted)
-	.def("KeyRingAdd", (void(Lua_Client::*)(uint32))&Lua_Client::KeyRingAdd)
+	.def("KeyRingAdd", (bool(Lua_Client::*)(uint32))&Lua_Client::KeyRingAdd)
 	.def("KeyRingCheck", (bool(Lua_Client::*)(uint32))&Lua_Client::KeyRingCheck)
+	.def("KeyRingClear", (bool(Lua_Client::*)(void))&Lua_Client::KeyRingClear)
+	.def("KeyRingList", (void(Lua_Client::*)(void))&Lua_Client::KeyRingList)
+	.def("KeyRingRemove", (bool(Lua_Client::*)(uint32))&Lua_Client::KeyRingRemove)
 	.def("Kick", (void(Lua_Client::*)(void))&Lua_Client::Kick)
 	.def("LearnDisciplines", (uint16(Lua_Client::*)(uint8,uint8))&Lua_Client::LearnDisciplines)
 	.def("LearnRecipe", (void(Lua_Client::*)(uint32))&Lua_Client::LearnRecipe)

@@ -2789,32 +2789,35 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 	const uint16 entity_id = GetID();
 
 	if (
-		!HasOwner() &&
-		!IsMerc() &&
-		!GetSwarmInfo() &&
-		(!is_merchant || allow_merchant_corpse) &&
 		(
+			!HasOwner() &&
+			!IsMerc() &&
+			!GetSwarmInfo() &&
+			(!is_merchant || allow_merchant_corpse) &&
 			(
-				killer &&
 				(
-					killer->IsClient() ||
+					killer &&
 					(
-						killer->HasOwner() &&
-						killer->GetUltimateOwner()->IsClient()
-					) ||
-					(
-						killer->IsNPC() &&
-						killer->CastToNPC()->GetSwarmInfo() &&
-						killer->CastToNPC()->GetSwarmInfo()->GetOwner() &&
-						killer->CastToNPC()->GetSwarmInfo()->GetOwner()->IsClient()
+						killer->IsClient() ||
+						(
+							killer->HasOwner() &&
+							killer->GetUltimateOwner()->IsClient()
+						) ||
+						(
+							killer->IsNPC() &&
+							killer->CastToNPC()->GetSwarmInfo() &&
+							killer->CastToNPC()->GetSwarmInfo()->GetOwner() &&
+							killer->CastToNPC()->GetSwarmInfo()->GetOwner()->IsClient()
+						)
 					)
+				) ||
+				(
+					killer_mob && is_ldon_treasure
 				)
-			) ||
-			(
-				killer_mob && is_ldon_treasure
 			)
 		)
-	) {
+		|| IsQueuedForCorpse()
+		) {
 		if (killer) {
 			if (killer->GetOwner() != 0 && killer->GetOwner()->IsClient()) {
 				killer = killer->GetOwner();
@@ -3038,7 +3041,13 @@ void Mob::AddToHateList(Mob* other, int64 hate /*= 0*/, int64 damage /*= 0*/, bo
 	if (!other)
 		return;
 
+	if (other->IsDestroying())
+		return;
+
 	if (other == this)
+		return;
+
+	if (other->IsClient() && (other->CastToClient()->IsZoning() || other->CastToClient()->Connected() == false))
 		return;
 
 	if (other->IsTrap())

@@ -74,7 +74,7 @@ void bot_command_pet_remove(Client *c, const Seperator *sep)
 		if (bot_iter->IsBotCharmer()) {
 			bot_iter->SetBotCharmer(false);
 			if (sbl.size() == 1)
-				Bot::RaidGroupSay(bot_iter, "Using a summoned pet");
+				bot_iter->RaidGroupSay("Using a summoned pet");
 			++summoned_pet;
 			continue;
 		}
@@ -86,7 +86,7 @@ void bot_command_pet_remove(Client *c, const Seperator *sep)
 		}
 		bot_iter->SetBotCharmer(true);
 		if (sbl.size() == 1)
-			Bot::RaidGroupSay(bot_iter, "Available for Charming");
+			bot_iter->RaidGroupSay("Available for Charming");
 		++charmed_pet;
 	}
 
@@ -106,6 +106,12 @@ void bot_command_pet_set_type(Client *c, const Seperator *sep)
 		BotCommandHelpParams p;
 
 		p.description = { "Allows you to change the type of pet Magician bots will cast." };
+		p.notes = {
+			fmt::format(
+				"- Epic pets are currently {} on this server.",
+				RuleB(Bots, AllowMagicianEpicPet) ? "allowed" : "not allowed"
+			)
+		};
 		p.example_format = { fmt::format("{} [current | water | fire | air | earth | monster | epic] [actionable, default: target]", sep->arg[0]) };
 		p.examples_one =
 		{

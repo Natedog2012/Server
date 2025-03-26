@@ -62,6 +62,7 @@
 #else
 #include <stdlib.h>
 #include <pthread.h>
+
 #endif
 
 extern Zone* zone;
@@ -131,6 +132,9 @@ NPC::NPC(const NPCType *npc_type_data, Spawn2 *in_respawn, const glm::vec4 &posi
 	  ),
 	  attacked_timer(CombatEventTimer_expire),
 	  swarm_timer(100),
+	  m_corpse_queue_timer(1000),
+	  m_corpse_queue_shutoff_timer(30000),
+	  m_resumed_from_zone_suspend_shutoff_timer(10000),
 	  classattack_timer(1000),
 	  monkattack_timer(1000),
 	  knightattack_timer(1000),
@@ -618,7 +622,49 @@ bool NPC::Process()
 		}
 	}
 
+	// zone state corpse creation timer
+	if (RuleB(Zone, StateSavingOnShutdown)) {
+		// creates a corpse if the NPC is queued for corpse creation
+		if (m_corpse_queue_timer.Check()) {
+			if (IsQueuedForCorpse()) {
+				auto   decay_timer = m_corpse_decay_time;
+				uint16 corpse_id   = GetID();
+				Death(this, GetHP() + 1, SPELL_UNKNOWN, EQ::skills::SkillHandtoHand);
+				auto c = entity_list.GetCorpseByID(corpse_id);
+				if (c) {
+					c->UnLock();
+					c->SetDecayTimer(decay_timer);
+				}
+			}
+			m_corpse_queue_timer.Disable();
+			m_corpse_queue_shutoff_timer.Disable();
+		}
+
+		// shuts off the corpse queue timer if it is still running
+		if (m_corpse_queue_shutoff_timer.Check()) {
+			m_corpse_queue_timer.Disable();
+			m_corpse_queue_shutoff_timer.Disable();
+		}
+
+		// shuts off the temporary spawn protected state of the NPC
+		if (m_resumed_from_zone_suspend_shutoff_timer.Check()) {
+			m_resumed_from_zone_suspend_shutoff_timer.Disable();
+			SetResumedFromZoneSuspend(false);
+		}
+	}
+
 	if (tic_timer.Check()) {
+		if (RuleB(Zone, StateSavingOnShutdown) && IsQueuedForCorpse()) {
+			auto decay_timer = m_corpse_decay_time;
+			uint16 corpse_id = GetID();
+			Death(this, GetHP() + 1, SPELL_UNKNOWN, EQ::skills::SkillHandtoHand);
+			auto c = entity_list.GetCorpseByID(corpse_id);
+			if (c) {
+				c->UnLock();
+				c->SetDecayTimer(decay_timer);
+			}
+		}
+
 		if (parse->HasQuestSub(GetNPCTypeID(), EVENT_TICK)) {
 			parse->EventNPC(EVENT_TICK, this, nullptr, "", 0);
 		}
@@ -859,9 +905,9 @@ void NPC::Depop(bool start_spawn_timer) {
 
 bool NPC::SpawnZoneController()
 {
-
-	if (!RuleB(Zone, UseZoneController))
+	if (!RuleB(Zone, UseZoneController)) {
 		return false;
+	}
 
 	auto npc_type = new NPCType;
 	memset(npc_type, 0, sizeof(NPCType));
@@ -895,13 +941,14 @@ bool NPC::SpawnZoneController()
 
 	npc_type->findable  = 0;
 	npc_type->trackable = 0;
+	npc_type->untargetable = 1;
 
-	strcpy(npc_type->special_abilities, "12,1^13,1^14,1^15,1^16,1^17,1^19,1^22,1^24,1^25,1^28,1^31,1^35,1^39,1^42,1");
+	strcpy(npc_type->special_abilities, "1,1,3000,50^12,1^14,1^16,1^18,1^19,1^20,1^21,1^22,1^23,1^24,1^25,1^26,1^32,1^33,1^35,1^46,1^47,1^48,1^49,1^50,1^52,1^53,1^54,1^55,1^56,1^57,1");
 
 	glm::vec4 point;
-	point.x = 3000;
-	point.y = 1000;
-	point.z = 500;
+	point.x = 30000;
+	point.y = 10000;
+	point.z = -10000;
 
 	auto npc = new NPC(npc_type, nullptr, point, GravityBehavior::Flying);
 	npc->GiveNPCTypeData(npc_type);
@@ -2751,10 +2798,7 @@ void NPC::LevelScale() {
 
 uint32 NPC::GetSpawnPointID() const
 {
-	if (respawn2) {
-		return respawn2->GetID();
-	}
-	return 0;
+	return respawn2 ? respawn2->GetID() : 0;
 }
 
 void NPC::NPCSlotTexture(uint8 slot, uint32 texture)
@@ -4272,11 +4316,13 @@ bool NPC::CanPetTakeItem(const EQ::ItemInstance *inst)
 		return false;
 	}
 
-	if (!IsPetOwnerClient()) {
+	if (!IsPetOwnerOfClientBot() && !IsCharmedPet()) {
 		return false;
 	}
 
-	const bool can_take_nodrop         = RuleB(Pets, CanTakeNoDrop) || inst->GetItem()->NoDrop != 0;
+	const bool can_take_nodrop = (RuleB(Pets, CanTakeNoDrop) || inst->GetItem()->NoDrop != 0)
+								 || inst->GetItem()->NoRent == 0;
+
 	const bool is_charmed_with_attuned = IsCharmed() && inst->IsAttuned();
 
 	auto o = GetOwner() && GetOwner()->IsClient() ? GetOwner()->CastToClient() : nullptr;
@@ -4297,7 +4343,7 @@ bool NPC::CanPetTakeItem(const EQ::ItemInstance *inst)
 	for (const auto &c : checks) {
 		if (c.condition) {
 			if (o) {
-				o->Message(Chat::PetResponse, c.message.c_str());
+				o->Message(Chat::PetResponse, fmt::format("{} says '{}'", GetCleanName(), c.message).c_str());
 			}
 			return false;
 		}
@@ -4350,6 +4396,10 @@ bool NPC::CheckHandin(
 	// if the npc is a multi-quest npc, we want to re-use our previously set hand-in bucket
 	if (!m_handin_started && IsMultiQuestEnabled()) {
 		h = m_hand_in;
+	}
+
+	if (IsMultiQuestEnabled()) {
+		LogNpcHandin("{} Multi-Quest hand-in enabled", log_handin_prefix);
 	}
 
 	std::vector<std::pair<const std::map<std::string, uint32>&, Handin&>> datasets = {};
@@ -4431,6 +4481,17 @@ bool NPC::CheckHandin(
 	// remove items from the hand-in bucket that were used to fulfill the requirement
 	std::vector<HandinEntry> items_to_remove;
 
+	// multi-quest
+	if (IsMultiQuestEnabled()) {
+		for (auto &h_item: m_hand_in.items) {
+			for (const auto &r_item: r.items) {
+				if (h_item.item_id == r_item.item_id && h_item.count == r_item.count) {
+					h_item.is_multiquest_item = true;
+				}
+			}
+		}
+	}
+
 	// check if the hand-in items fulfill the requirement
 	bool items_met = true;
 	if (!handin_items.empty() && !r.items.empty()) {
@@ -4448,7 +4509,10 @@ bool NPC::CheckHandin(
 
 				if (id_match) {
 					uint32 used_count = std::min(remaining_requirement, h_item.count);
-					h_item.count -= used_count;
+					// If the item is a multi-quest item, we don't want to consume it for the hand-in bucket
+					if (!IsMultiQuestEnabled()) {
+						h_item.count -= used_count;
+					}
 					remaining_requirement -= used_count;
 
 					LogNpcHandinDetail(
@@ -4498,17 +4562,6 @@ bool NPC::CheckHandin(
 	}
 
 	requirement_met = money_met && items_met;
-
-	// multi-quest
-	if (IsMultiQuestEnabled()) {
-		for (auto &h_item: h.items) {
-			for (const auto &r_item: r.items) {
-				if (h_item.item_id == r_item.item_id && h_item.count == r_item.count) {
-					h_item.is_multiquest_item = true;
-				}
-			}
-		}
-	}
 
 	// in-case we trigger CheckHand-in multiple times, only set these once
 	if (!m_handin_started) {
@@ -4690,6 +4743,11 @@ bool NPC::CheckHandin(
 		}
 	}
 
+	// when we meet requirements under multi-quest, we want to reset the hand-in bucket
+	if (requirement_met && IsMultiQuestEnabled()) {
+		ResetMultiQuest();
+	}
+
 	return requirement_met;
 }
 
@@ -4770,7 +4828,11 @@ NPC::Handin NPC::ReturnHandinItems(Client *c)
 					}
 
 					c->PushItemOnCursor(*i.item, true);
-					LogNpcHandin("Hand-in failed, returning item [{}]", i.item->GetItem()->Name);
+					LogNpcHandin(
+						"Hand-in failed, returning item [{}] i.is_multiquest_item [{}]",
+						i.item->GetItem()->Name,
+						i.is_multiquest_item
+					);
 
 					returned_handin = true;
 					return true; // Mark this item for removal
@@ -4817,6 +4879,12 @@ NPC::Handin NPC::ReturnHandinItems(Client *c)
 		return_money.silver   = m_hand_in.money.silver;
 		return_money.gold     = m_hand_in.money.gold;
 		return_money.platinum = m_hand_in.money.platinum;
+
+		// if multi-quest and we returned money, reset the hand-in bucket
+		if (IsMultiQuestEnabled()) {
+			m_hand_in.money = {};
+			m_hand_in.original_money = {};
+		}
 	}
 
 	if (money_returned_via_external_quest_methods) {
@@ -4872,6 +4940,7 @@ NPC::Handin NPC::ReturnHandinItems(Client *c)
 
 void NPC::ResetHandin()
 {
+	LogNpcHandin("Resetting hand-in bucket for [{}]", GetCleanName());
 	m_has_processed_handin_return = false;
 	m_handin_started              = false;
 	if (!IsMultiQuestEnabled()) {
@@ -4881,4 +4950,13 @@ void NPC::ResetHandin()
 
 		m_hand_in = {};
 	}
+}
+
+void NPC::ResetMultiQuest() {
+	LogNpcHandin("Resetting multi-quest hand-in bucket for [{}]", GetCleanName());
+	for (auto &i: m_hand_in.original_items) {
+		safe_delete(i.item);
+	}
+
+	m_hand_in = {};
 }

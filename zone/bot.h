@@ -93,7 +93,7 @@ enum BotCastingChanceConditional : uint8
 	cntHSND = 16
 };
 
-namespace BotSettingCategories { // Update GetBotSpellCategoryName as needed
+namespace BotSettingCategories {
 	constexpr uint8 BaseSetting                       = 0;
 	constexpr uint8 SpellHold                         = 1;
 	constexpr uint8 SpellDelay                        = 2;
@@ -118,13 +118,32 @@ namespace BotSettingCategories { // Update GetBotSpellCategoryName as needed
 	constexpr uint16 END                              = BotSettingCategories::SpellTypeAnnounceCast;
 };
 
-static std::map<uint8, std::string> botSpellCategory_names = {
+static std::map<uint8, std::string> bot_setting_category_names = {
+	{ BotSettingCategories::BaseSetting,                   "Base Setting" },
+	{ BotSettingCategories::SpellHold,                     "Spell Holds" },
+	{ BotSettingCategories::SpellDelay,                    "Spell Delays" },
+	{ BotSettingCategories::SpellMinThreshold,             "Spell Minimum Thresholds" },
+	{ BotSettingCategories::SpellMaxThreshold,             "Spell Maximum Thresholds" },
+	{ BotSettingCategories::SpellTypeResistLimit,          "Spell Resist Limits" },
+	{ BotSettingCategories::SpellTypeAggroCheck,           "Spell Aggro Checks" },
+	{ BotSettingCategories::SpellTypeMinManaPct,           "Spell Min Mana Percent" },
+	{ BotSettingCategories::SpellTypeMaxManaPct,           "Spell Max Mana Percent" },
+	{ BotSettingCategories::SpellTypeMinHPPct,             "Spell Min HP Percent" },
+	{ BotSettingCategories::SpellTypeMaxHPPct,             "Spell Max HP Percent" },
+	{ BotSettingCategories::SpellTypeIdlePriority,         "Spell Idle Priority" },
+	{ BotSettingCategories::SpellTypeEngagedPriority,      "Spell Engaged Priority" },
+	{ BotSettingCategories::SpellTypePursuePriority,       "Spell Pursue Priority" },
+	{ BotSettingCategories::SpellTypeAEOrGroupTargetCount, "Spell Target Counts" },
+	{ BotSettingCategories::SpellTypeAnnounceCast,         "Spell Announce Casts" }
+};
+
+static std::map<uint8, std::string> bot_setting_category_short_names = {
 	{ BotSettingCategories::BaseSetting,                   "BaseSetting" },
 	{ BotSettingCategories::SpellHold,                     "SpellHolds" },
 	{ BotSettingCategories::SpellDelay,                    "SpellDelays" },
 	{ BotSettingCategories::SpellMinThreshold,             "SpellMinThresholds" },
 	{ BotSettingCategories::SpellMaxThreshold,             "SpellMaxThresholds" },
-	{ BotSettingCategories::SpellTypeResistLimit,          "SpellResistLimit" },
+	{ BotSettingCategories::SpellTypeResistLimit,          "SpellResistLimits" },
 	{ BotSettingCategories::SpellTypeAggroCheck,           "SpellAggroChecks" },
 	{ BotSettingCategories::SpellTypeMinManaPct,           "SpellMinManaPct" },
 	{ BotSettingCategories::SpellTypeMaxManaPct,           "SpellMaxManaPct" },
@@ -137,7 +156,7 @@ static std::map<uint8, std::string> botSpellCategory_names = {
 	{ BotSettingCategories::SpellTypeAnnounceCast,         "SpellAnnounceCasts" }
 };
 
-namespace BotPriorityCategories { // Update GetBotSpellCategoryName as needed
+namespace BotPriorityCategories {
 	constexpr uint8 Idle                              = 0;
 	constexpr uint8 Engaged                           = 1;
 	constexpr uint8 Pursue                            = 2;
@@ -216,7 +235,6 @@ static std::map<uint16, std::string> botSubType_names = {
 struct CombatRangeInput {
 	Mob*                    target;
 	float                   target_distance;
-	bool                    behind_mob;
 	uint8                   stop_melee_level;
 	const EQ::ItemInstance* p_item;
 	const EQ::ItemInstance* s_item;
@@ -305,7 +323,7 @@ public:
 	uint16 BotGetSpells(int spellslot) { return AIBot_spells[spellslot].spellid; }
 	uint32 BotGetSpellType(int spellslot) { return AIBot_spells[spellslot].type; }
 	uint16 BotGetSpellPriority(int spellslot) { return AIBot_spells[spellslot].priority; }
-	std::vector<BotSpells_wIndex> BotGetSpellsByType(uint16 spell_type);
+	const std::vector<BotSpells_wIndex>& BotGetSpellsByType(uint16 spell_type) const;
 	float GetProcChances(float ProcBonus, uint16 hand) override;
 	int GetHandToHandDamage(void) override;
 	bool TryFinishingBlow(Mob *defender, int64 &damage) override;
@@ -526,6 +544,7 @@ public:
 	void DoAttackRounds(Mob* target, int hand);
 
 	bool BotPassiveCheck();
+	bool ValidStateCheck(Mob* other, bool same_raid_group = false);
 	Raid* GetStoredRaid() { return _storedRaid; }
 	void SetStoredRaid(Raid* stored_raid) { _storedRaid = stored_raid; }
 	bool GetVerifiedRaid() { return _verifiedRaid; }
@@ -590,7 +609,6 @@ public:
 	void SetBotBaseSetting(uint16 bot_setting, int setting_value);
 	int GetSetting(uint16 setting_category, uint16 setting_type);
 	void SetBotSetting(uint8 setting_type, uint16 bot_setting, int setting_value);
-	void CopySettings(Bot* to, uint8 setting_type, uint16 spell_type = UINT16_MAX);
 	void CopyBotSpellSettings(Bot* to);
 	void ResetBotSpellSettings();
 
@@ -642,7 +660,7 @@ public:
 	uint8 GetDefaultSpellTypeMinThreshold(uint16 spell_type, uint8 stance = Stance::Balanced);
 	uint8 GetDefaultSpellTypeMaxThreshold(uint16 spell_type, uint8 stance = Stance::Balanced);
 	uint16 GetUltimateSpellTypeDelay(uint16 spell_type, Mob* tar);
-	bool GetUltimateSpellTypeDelayCheck(uint16 spell_type, Mob* tar);
+	bool GetUltimateSpellTypeRecastCheck(uint16 spell_type, Mob* tar);
 	uint8 GetUltimateSpellTypeMinThreshold(uint16 spell_type, Mob* tar);
 	uint8 GetUltimateSpellTypeMaxThreshold(uint16 spell_type, Mob* tar);
 	void SetIllusionBlock(bool value) { _illusionBlock = value; }
@@ -665,17 +683,15 @@ public:
 	void SetSitManaPct(uint8 value) { _SitManaPct = value; }
 
 	// Spell lists
-	void CheckBotSpells();
-	void MapSpellTypeLevels();
-	const std::map<int32_t, std::map<int32_t, BotSpellTypesByClass>>& GetCommandedSpellTypesMinLevels() { return commanded_spells_min_level; }
 	std::list<BotSpellTypeOrder> GetSpellTypesPrioritized(uint8 priority_type);
-	uint16 GetParentSpellType(uint16 spell_type);
-	bool IsValidSpellTypeBySpellID(uint16 spell_type, uint16 spell_id);
+	static uint16 GetParentSpellType(uint16 spell_type);
+	static bool IsValidSpellTypeBySpellID(uint16 spell_type, uint16 spell_id);
 	inline uint16 GetCastedSpellType() const { return _castedSpellType; }
 	void SetCastedSpellType(uint16 spell_type);
 	bool IsValidSpellTypeSubType(uint16 spell_type, uint16 sub_type, uint16 spell_id);
 	static bool IsValidBotSpellCategory(uint8 setting_type);
 	static std::string GetBotSpellCategoryName(uint8 setting_type);
+	static std::string GetBotSpellCategoryShortName(uint8 setting_type);
 	static uint16 GetBotSpellCategoryIDByShortName(std::string setting_string);
 	void AssignBotSpellsToTypes(std::vector<BotSpells>& AIBot_spells, std::unordered_map<uint16, std::vector<BotSpells_wIndex>>& AIBot_spells_by_type);
 	uint16 GetSpellByAA(int id, AA::Rank*& rank);
@@ -777,7 +793,7 @@ public:
 	// Static Bot Group Methods
 	static bool AddBotToGroup(Bot* bot, Group* group);
 	static bool RemoveBotFromGroup(Bot* bot, Group* group);
-	static void RaidGroupSay(Mob *speaker, const char *msg, ...);
+	void RaidGroupSay(const char *msg, ...);
 
 	// "GET" Class Methods
 	uint32 GetBotID() const { return _botID; }
@@ -796,6 +812,7 @@ public:
 
 	bool GetRangerAutoWeaponSelect() { return _rangerAutoWeaponSelect; }
 	uint8 GetBotStance() { return _botStance; }
+	static bool IsValidBotStance(uint8 stance);
 	uint8 GetChanceToCastBySpellType(uint16 spell_type);
 	bool IsGroupHealer() const { return m_CastingRoles.GroupHealer; }
 	bool IsGroupSlower() const { return m_CastingRoles.GroupSlower; }
@@ -1106,6 +1123,7 @@ public:
 	bool TryAutoDefend(Client* bot_owner, float leash_distance);
 	bool TryIdleChecks(float fm_distance);
 	bool TryNonCombatMovementChecks(Client* bot_owner, const Mob* follow_mob, glm::vec3& Goal);
+	void DoOutOfCombatChecks(Client* bot_owner, Mob* follow_mob, glm::vec3& Goal, float leash_distance, float fm_distance);
 	bool TryBardMovementCasts();
 	bool BotRangedAttack(Mob* other, bool can_double_attack = false);
 	bool CheckDoubleRangedAttack();
@@ -1130,8 +1148,6 @@ protected:
 	std::vector<BotSpells> AIBot_spells;
 	std::vector<BotSpells> AIBot_spells_enforced;
 	std::unordered_map<uint16, std::vector<BotSpells_wIndex>> AIBot_spells_by_type;
-
-	std::map<int32_t, std::map<int32_t, BotSpellTypesByClass>> commanded_spells_min_level;
 
 	std::vector<BotTimer> bot_timers;
 	std::vector<BotBlockedBuffs> bot_blocked_buffs;

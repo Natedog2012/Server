@@ -19,10 +19,6 @@ void DataBucket::SetData(const std::string &bucket_key, const std::string &bucke
 		.key = bucket_key,
 		.value = bucket_value,
 		.expires = expires_time,
-		.account_id = 0,
-		.character_id = 0,
-		.npc_id = 0,
-		.bot_id = 0
 	};
 
 	DataBucket::SetData(k);
@@ -31,7 +27,8 @@ void DataBucket::SetData(const std::string &bucket_key, const std::string &bucke
 void DataBucket::SetData(const DataBucketKey &k_)
 {
 	DataBucketKey k = k_; // copy the key so we can modify it
-	if (k.key.find(NESTED_KEY_DELIMITER) != std::string::npos) {
+	bool is_nested = k.key.find(NESTED_KEY_DELIMITER) != std::string::npos;
+	if (is_nested) {
 		k.key = Strings::Split(k.key, NESTED_KEY_DELIMITER).front();
 	}
 
@@ -54,6 +51,9 @@ void DataBucket::SetData(const DataBucketKey &k_)
 	}
 	else if (k.bot_id > 0) {
 		b.bot_id = k.bot_id;
+	} else if (k.zone_id > 0) {
+		b.zone_id = k.zone_id;
+		b.instance_id = k.instance_id;
 	}
 
 	const uint64 bucket_id         = b.id;
@@ -63,6 +63,10 @@ void DataBucket::SetData(const DataBucketKey &k_)
 		expires_time_unix = static_cast<int64>(std::time(nullptr)) + Strings::ToInt(k.expires);
 		if (isalpha(k.expires[0]) || isalpha(k.expires[k.expires.length() - 1])) {
 			expires_time_unix = static_cast<int64>(std::time(nullptr)) + Strings::TimeToSeconds(k.expires);
+		}
+		if (is_nested) {
+			LogDataBuckets("Nested keys can't expire; set expiration on the parent key");
+			expires_time_unix = 0;
 		}
 	}
 
@@ -76,26 +80,45 @@ void DataBucket::SetData(const DataBucketKey &k_)
 		std::string existing_value = r.id > 0 ? r.value : "{}";
 		json json_value = json::object();
 
-		try {
-			json_value = json::parse(existing_value);
-		} catch (json::parse_error &e) {
-			LogError("Failed to parse JSON for key [{}]: {}", k_.key, e.what());
-			json_value = json::object(); // Reset to an empty object on error
+		// Check if the JSON is valid
+		if (Strings::IsValidJson(existing_value)) {
+			try {
+				json_value = json::parse(existing_value);
+			} catch (json::parse_error &e) {
+				LogDataBuckets("Failed to parse JSON for key [{}] [{}]", k_.key, e.what());
+				json_value = json::object(); // Reset to an empty object on error
+			}
 		}
 
 		// Recursively merge new key-value pair into the JSON object
 		auto nested_keys = Strings::Split(k_.key, NESTED_KEY_DELIMITER);
+		auto top_key = nested_keys.front();
+		// remove the top-level key
+		nested_keys.erase(nested_keys.begin());
+
 		json *current = &json_value;
 
 		for (size_t i = 0; i < nested_keys.size(); ++i) {
 			const std::string &key_part = nested_keys[i];
+
 			if (i == nested_keys.size() - 1) {
+
+				LogDataBucketsDetail("Setting key [{}] key_part [{}]", k.key, key_part);
+
+				// If the key already exists and is an object or array, prevent overwriting to avoid data loss
+				if (current->contains(key_part) &&
+					((*current)[key_part].is_object() || (*current)[key_part].is_array())) {
+					LogDataBuckets("Attempted to overwrite an existing object or array at key [{}] - skipping", k_.key);
+					return;
+				}
+
 				// Set the value at the final key
 				(*current)[key_part] = k_.value;
 			} else {
 				// Traverse or create nested objects
 				if (!current->contains(key_part)) {
 					(*current)[key_part] = json::object();
+					LogDataBucketsDetail("Creating nested root key [{}] key_part [{}]", k.key, key_part);
 				} else if (!(*current)[key_part].is_object()) {
 					// If key exists but is not an object, reset to object to avoid conflicts
 					(*current)[key_part] = json::object();
@@ -106,7 +129,7 @@ void DataBucket::SetData(const DataBucketKey &k_)
 
 		// Serialize JSON back to string
 		b.value = json_value.dump();
-		b.key_ = nested_keys.front(); // Use the top-level key
+		b.key_ = top_key; // Use the top-level key
 	}
 
 	if (bucket_id) {
@@ -143,12 +166,20 @@ DataBucketsRepository::DataBuckets DataBucket::ExtractNestedValue(
 	const std::string &full_key)
 {
 	auto nested_keys = Strings::Split(full_key, NESTED_KEY_DELIMITER);
+	auto top_key = nested_keys.front();
+	nested_keys.erase(nested_keys.begin());
 	json json_value;
+
+	// Check if the JSON is valid
+	if (!Strings::IsValidJson(bucket.value)) {
+		LogDataBuckets("Invalid JSON for key [{}]", bucket.key_);
+		return DataBucketsRepository::NewEntity();
+	}
 
 	try {
 		json_value = json::parse(bucket.value); // Parse the JSON
 	} catch (json::parse_error &ex) {
-		LogError("Failed to parse JSON for key [{}]: {}", bucket.key_, ex.what());
+		LogDataBuckets("Failed to parse JSON for key [{}] [{}]", bucket.key_, ex.what());
 		return DataBucketsRepository::NewEntity(); // Return empty entity on parse error
 	}
 
@@ -189,12 +220,14 @@ DataBucketsRepository::DataBuckets DataBucket::GetData(const DataBucketKey &k_, 
 	}
 
 	LogDataBuckets(
-		"Getting bucket key [{}] bot_id [{}] account_id [{}] character_id [{}] npc_id [{}]",
+		"Getting bucket key [{}] bot_id [{}] account_id [{}] character_id [{}] npc_id [{}] zone_id [{}] instance_id [{}]",
 		k.key,
 		k.bot_id,
 		k.account_id,
 		k.character_id,
-		k.npc_id
+		k.npc_id,
+		k.zone_id,
+		k.instance_id
 	);
 
 	bool can_cache = CanCache(k);
@@ -211,7 +244,7 @@ DataBucketsRepository::DataBuckets DataBucket::GetData(const DataBucketKey &k_, 
 
 				LogDataBuckets("Returning key [{}] value [{}] from cache", e.key_, e.value);
 
-				if (is_nested_key) {
+				if (is_nested_key && !k_.key.empty()) {
 					return ExtractNestedValue(e, k_.key);
 				}
 
@@ -244,17 +277,21 @@ DataBucketsRepository::DataBuckets DataBucket::GetData(const DataBucketKey &k_, 
 					.account_id = k.account_id,
 					.character_id = k.character_id,
 					.npc_id = k.npc_id,
-					.bot_id = k.bot_id
+					.bot_id = k.bot_id,
+					.zone_id = k.zone_id,
+					.instance_id = k.instance_id
 				}
 			);
 
 			LogDataBuckets(
-				"Key [{}] not found in database, adding to cache as a miss account_id [{}] character_id [{}] npc_id [{}] bot_id [{}] cache size before [{}] after [{}]",
+				"Key [{}] not found in database, adding to cache as a miss account_id [{}] character_id [{}] npc_id [{}] bot_id [{}] zone_id [{}] instance_id [{}] cache size before [{}] after [{}]",
 				k.key,
 				k.account_id,
 				k.character_id,
 				k.npc_id,
 				k.bot_id,
+				k.zone_id,
+				k.instance_id,
 				size_before,
 				g_data_bucket_cache.size()
 			);
@@ -287,7 +324,7 @@ DataBucketsRepository::DataBuckets DataBucket::GetData(const DataBucketKey &k_, 
 	}
 
 	// Handle nested key extraction
-	if (is_nested_key) {
+	if (is_nested_key && !k_.key.empty()) {
 		return ExtractNestedValue(bucket, k_.key);
 	}
 
@@ -331,41 +368,116 @@ bool DataBucket::GetDataBuckets(Mob *mob)
 
 bool DataBucket::DeleteData(const DataBucketKey &k)
 {
-	if (CanCache(k)) {
-		size_t size_before = g_data_bucket_cache.size();
+	bool is_nested_key = k.key.find(NESTED_KEY_DELIMITER) != std::string::npos;
 
-		// delete from cache where contents match
-		g_data_bucket_cache.erase(
-			std::remove_if(
-				g_data_bucket_cache.begin(),
-				g_data_bucket_cache.end(),
-				[&](DataBucketsRepository::DataBuckets &e) {
-					return CheckBucketMatch(e, k);
-				}
-			),
-			g_data_bucket_cache.end()
-		);
+	if (!is_nested_key) {
+		// Update cache
+		if (CanCache(k)) {
+			// delete from cache where contents match
+			g_data_bucket_cache.erase(
+				std::remove_if(
+					g_data_bucket_cache.begin(),
+					g_data_bucket_cache.end(),
+					[&](DataBucketsRepository::DataBuckets &e) {
+						return CheckBucketMatch(e, k);
+					}
+				),
+				g_data_bucket_cache.end()
+			);
+		}
 
-		LogDataBuckets(
-			"Deleting bucket key [{}] bot_id [{}] account_id [{}] character_id [{}] npc_id [{}] cache size before [{}] after [{}]",
-			k.key,
-			k.bot_id,
-			k.account_id,
-			k.character_id,
-			k.npc_id,
-			size_before,
-			g_data_bucket_cache.size()
+		// Regular key deletion, no nesting involved
+		return DataBucketsRepository::DeleteWhere(
+			database,
+			fmt::format("{} `key` = '{}'", DataBucket::GetScopedDbFilters(k), k.key)
 		);
 	}
 
-	return DataBucketsRepository::DeleteWhere(
-		database,
-		fmt::format(
-			"{} `key` = '{}'",
-			DataBucket::GetScopedDbFilters(k),
-			k.key
-		)
-	);
+	// If it's a nested key, retrieve the top-level JSON object
+	auto top_level_key = Strings::Split(k.key, NESTED_KEY_DELIMITER).front();
+	DataBucketKey top_level_k = k;
+	top_level_k.key = top_level_key;
+
+	auto r = GetData(top_level_k);
+	if (r.id == 0 || r.value.empty() || !Strings::IsValidJson(r.value)) {
+		LogDataBuckets("Attempted to delete nested key [{}] but parent key [{}] does not exist or is invalid JSON", k.key, top_level_key);
+		return false;
+	}
+
+	json json_value;
+	try {
+		json_value = json::parse(r.value);
+	} catch (json::parse_error &ex) {
+		LogDataBuckets("Failed to parse JSON for key [{}] [{}]", top_level_key, ex.what());
+		return false;
+	}
+
+	// Recursively remove the nested key
+	auto nested_keys = Strings::Split(k.key, NESTED_KEY_DELIMITER);
+	auto top_key = nested_keys.front();
+	nested_keys.erase(nested_keys.begin());
+	json *current = &json_value;
+
+	for (size_t i = 0; i < nested_keys.size(); ++i) {
+		const std::string &key_part = nested_keys[i];
+
+		if (i == nested_keys.size() - 1) {
+			// Last key in the hierarchy - delete it
+			if (current->contains(key_part)) {
+				current->erase(key_part);
+				LogDataBuckets("Deleted nested key [{}] from [{}]", key_part, k.key);
+			} else {
+				LogDataBuckets("Key [{}] not found in JSON - nothing to delete", k.key);
+				return false;
+			}
+		} else {
+			if (!current->contains(key_part) || !(*current)[key_part].is_object()) {
+				LogDataBuckets("Parent key [{}] does not exist or is not an object", key_part);
+				return false;
+			}
+			current = &(*current)[key_part];
+		}
+	}
+
+	// If the JSON object is now empty, delete the top-level key
+	if (json_value.empty()) {
+		LogDataBuckets("Top-level key [{}] is now empty, deleting entire entry", top_level_key);
+
+		// delete cache
+		if (CanCache(k)) {
+			g_data_bucket_cache.erase(
+				std::remove_if(
+					g_data_bucket_cache.begin(),
+					g_data_bucket_cache.end(),
+					[&](DataBucketsRepository::DataBuckets &e) {
+						return CheckBucketMatch(e, top_level_k);
+					}
+				),
+				g_data_bucket_cache.end()
+			);
+		}
+
+		return DataBucketsRepository::DeleteWhere(
+			database,
+			fmt::format("{} `key` = '{}'", DataBucket::GetScopedDbFilters(k), top_level_key)
+		);
+	}
+
+	// Otherwise, update the existing JSON without the deleted key
+	r.value = json_value.dump();
+	DataBucketsRepository::UpdateOne(database, r);
+
+	// Update cache
+	if (CanCache(k)) {
+		for (auto &e : g_data_bucket_cache) {
+			if (CheckBucketMatch(e, top_level_k)) {
+				e.value = r.value;
+				break;
+			}
+		}
+	}
+
+	return true;
 }
 
 std::string DataBucket::GetDataExpires(const DataBucketKey &k)
@@ -390,12 +502,15 @@ std::string DataBucket::GetDataExpires(const DataBucketKey &k)
 std::string DataBucket::GetDataRemaining(const DataBucketKey &k)
 {
 	LogDataBuckets(
-		"Getting bucket remaining key [{}] bot_id [{}] account_id [{}] character_id [{}] npc_id [{}]",
+		"Getting bucket remaining key [{}] bot_id [{}] account_id [{}] character_id [{}] npc_id [{}] bot_id [{}] zone_id [{}] instance_id [{}]",
 		k.key,
 		k.bot_id,
 		k.account_id,
 		k.character_id,
-		k.npc_id
+		k.npc_id,
+		k.bot_id,
+		k.zone_id,
+		k.instance_id
 	);
 
 	auto r = GetData(k);
@@ -408,39 +523,46 @@ std::string DataBucket::GetDataRemaining(const DataBucketKey &k)
 
 std::string DataBucket::GetScopedDbFilters(const DataBucketKey &k)
 {
-	std::vector<std::string> query = {};
+	std::vector<std::string> q = {};
 	if (k.character_id > 0) {
-		query.emplace_back(fmt::format("character_id = {}", k.character_id));
+		q.emplace_back(fmt::format("character_id = {}", k.character_id));
 	}
 	else {
-		query.emplace_back("character_id = 0");
+		q.emplace_back("character_id = 0");
 	}
 
 	if (k.account_id > 0) {
-		query.emplace_back(fmt::format("account_id = {}", k.account_id));
+		q.emplace_back(fmt::format("account_id = {}", k.account_id));
 	}
 	else {
-		query.emplace_back("account_id = 0");
+		q.emplace_back("account_id = 0");
 	}
 
 	if (k.npc_id > 0) {
-		query.emplace_back(fmt::format("npc_id = {}", k.npc_id));
+		q.emplace_back(fmt::format("npc_id = {}", k.npc_id));
 	}
 	else {
-		query.emplace_back("npc_id = 0");
+		q.emplace_back("npc_id = 0");
 	}
 
 	if (k.bot_id > 0) {
-		query.emplace_back(fmt::format("bot_id = {}", k.bot_id));
+		q.emplace_back(fmt::format("bot_id = {}", k.bot_id));
 	}
 	else {
-		query.emplace_back("bot_id = 0");
+		q.emplace_back("bot_id = 0");
+	}
+
+	if (k.zone_id > 0) {
+		q.emplace_back(fmt::format("zone_id = {} AND instance_id = {}", k.zone_id, k.instance_id));
+	}
+	else {
+		q.emplace_back("zone_id = 0 AND instance_id = 0");
 	}
 
 	return fmt::format(
 		"{} {}",
-		Strings::Join(query, " AND "),
-		!query.empty() ? "AND" : ""
+		Strings::Join(q, " AND "),
+		!q.empty() ? "AND" : ""
 	);
 }
 
@@ -451,7 +573,52 @@ bool DataBucket::CheckBucketMatch(const DataBucketsRepository::DataBuckets &dbe,
 		dbe.bot_id == k.bot_id &&
 		dbe.account_id == k.account_id &&
 		dbe.character_id == k.character_id &&
-		dbe.npc_id == k.npc_id
+		dbe.npc_id == k.npc_id &&
+		dbe.zone_id == k.zone_id &&
+		dbe.instance_id == k.instance_id
+	);
+}
+
+void DataBucket::LoadZoneCache(uint16 zone_id, uint16 instance_id)
+{
+	const auto &l = DataBucketsRepository::GetWhere(
+		database,
+		fmt::format(
+			"zone_id = {} AND instance_id = {} AND (`expires` > {} OR `expires` = 0)",
+			zone_id,
+			instance_id,
+			(long long) std::time(nullptr)
+		)
+	);
+
+	if (l.empty()) {
+		return;
+	}
+
+	LogDataBucketsDetail("cache size before [{}] l size [{}]", g_data_bucket_cache.size(), l.size());
+
+	uint32 added_count = 0;
+
+	for (const auto &e: l) {
+		if (!ExistsInCache(e)) {
+			added_count++;
+		}
+	}
+
+	for (const auto &e: l) {
+		if (!ExistsInCache(e)) {
+			LogDataBucketsDetail("bucket id [{}] bucket key [{}] bucket value [{}]", e.id, e.key_, e.value);
+
+			g_data_bucket_cache.emplace_back(e);
+		}
+	}
+
+	LogDataBucketsDetail("cache size after [{}]", g_data_bucket_cache.size());
+
+	LogDataBuckets(
+		"Loaded [{}] zone keys new cache size is [{}]",
+		l.size(),
+		g_data_bucket_cache.size()
 	);
 }
 
@@ -541,7 +708,7 @@ void DataBucket::BulkLoadEntitiesToCache(DataBucketLoadType::Type t, std::vector
 	);
 }
 
-void DataBucket::DeleteCachedBuckets(DataBucketLoadType::Type type, uint32 id)
+void DataBucket::DeleteCachedBuckets(DataBucketLoadType::Type type, uint32 id, uint32 secondary_id)
 {
 	size_t size_before = g_data_bucket_cache.size();
 
@@ -553,7 +720,8 @@ void DataBucket::DeleteCachedBuckets(DataBucketLoadType::Type type, uint32 id)
 				return (
 					(type == DataBucketLoadType::Bot && e.bot_id == id) ||
 					(type == DataBucketLoadType::Account && e.account_id == id) ||
-					(type == DataBucketLoadType::Client && e.character_id == id)
+					(type == DataBucketLoadType::Client && e.character_id == id) ||
+					(type == DataBucketLoadType::Zone && e.zone_id == id && e.instance_id == secondary_id)
 				);
 			}
 		),
@@ -595,7 +763,9 @@ void DataBucket::DeleteFromMissesCache(DataBucketsRepository::DataBuckets e)
 					   ce.account_id == e.account_id &&
 					   ce.character_id == e.character_id &&
 					   ce.npc_id == e.npc_id &&
-					   ce.bot_id == e.bot_id;
+					   ce.bot_id == e.bot_id &&
+					   ce.zone_id == e.zone_id &&
+					   ce.instance_id == e.instance_id;
 			}
 		),
 		g_data_bucket_cache.end()
@@ -647,13 +817,42 @@ void DataBucket::DeleteFromCache(uint64 id, DataBucketLoadType::Type type)
 	);
 }
 
+void DataBucket::DeleteZoneFromCache(uint16 zone_id, uint16 instance_id, DataBucketLoadType::Type type)
+{
+	size_t size_before = g_data_bucket_cache.size();
+
+	g_data_bucket_cache.erase(
+		std::remove_if(
+			g_data_bucket_cache.begin(),
+			g_data_bucket_cache.end(),
+			[&](DataBucketsRepository::DataBuckets &e) {
+				switch (type) {
+					case DataBucketLoadType::Zone:
+						return e.zone_id == zone_id && e.instance_id == instance_id;
+					default:
+						return false;
+				}
+			}
+		),
+		g_data_bucket_cache.end()
+	);
+
+	LogDataBuckets(
+		"Deleted zone [{}] instance [{}] from cache size before [{}] after [{}]",
+		zone_id,
+		instance_id,
+		size_before,
+		g_data_bucket_cache.size()
+	);
+}
+
 // CanCache returns whether a bucket can be cached or not
 // characters are only in one zone at a time so we can cache locally to the zone
 // bots (not implemented) are only in one zone at a time so we can cache locally to the zone
 // npcs (ids) can be in multiple zones so we can't cache locally to the zone
 bool DataBucket::CanCache(const DataBucketKey &key)
 {
-	if (key.character_id > 0 || key.account_id > 0 || key.bot_id > 0) {
+	if (key.character_id > 0 || key.account_id > 0 || key.bot_id > 0 || key.zone_id > 0) {
 		return true;
 	}
 

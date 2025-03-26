@@ -12,6 +12,7 @@ void bot_command_taunt(Client* c, const Seperator* sep)
 		BotCommandHelpParams p;
 
 		p.description = { "Allows you to turn on/off the taunting state of your bots and/or their pets." };
+		p.notes = { "- If a taunting class is set to Aggressive (5) stance, they will automatically taunt and don't need to have it enabled manually." };
 		p.example_format = { fmt::format("{} [on / off / pet] [optional: pet]  [actionable, default: target]", sep->arg[0]) };
 		p.examples_one =
 		{
@@ -130,8 +131,7 @@ void bot_command_taunt(Client* c, const Seperator* sep)
 
 			bot_iter->SetTaunting(taunt_state);
 
-			Bot::RaidGroupSay(
-				bot_iter,
+			bot_iter->RaidGroupSay(
 				fmt::format(
 					"I am {} taunting.",
 					bot_iter->IsTaunting() ? "now" : "no longer"
@@ -154,8 +154,7 @@ void bot_command_taunt(Client* c, const Seperator* sep)
 
 			bot_iter->GetPet()->CastToNPC()->SetTaunting(taunt_state);
 
-			Bot::RaidGroupSay(
-				bot_iter,
+			bot_iter->RaidGroupSay(
 				fmt::format(
 					"My Pet is {} taunting.",
 					bot_iter->GetPet()->CastToNPC()->IsTaunting() ? "now" : "no longer"

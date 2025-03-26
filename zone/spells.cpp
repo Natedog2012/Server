@@ -2691,7 +2691,11 @@ bool Mob::SpellFinished(uint16 spell_id, Mob *spell_target, CastingSlot slot, in
 						}
 					}
 				} else if (spell_target->IsRaidGrouped() && spell_target->IsOfClientBot()) {
-					Raid *target_raid = (IsClient() ? entity_list.GetRaidByClient(spell_target->CastToClient()) : entity_list.GetRaidByBot(spell_target->CastToBot()));
+					Raid *target_raid = entity_list.GetRaidByClient(spell_target->CastToClient());
+					if (IsBot()) {
+						target_raid = entity_list.GetRaidByBot(spell_target->CastToBot());
+					}
+
 					uint32 gid = 0xFFFFFFFF;
 					if (target_raid) {
 						gid = target_raid->GetGroup(spell_target->GetName());
@@ -3133,6 +3137,17 @@ int Mob::CheckStackConflict(uint16 spellid1, int caster_level1, uint16 spellid2,
 		} else if (spellid1 == SPELL_MANA_BURN) {
 			LogSpells("Blocking spell because manaburn does not stack with itself");
 			return -1;
+		}
+	}
+
+	const std::string& always_stack_spells = RuleS(Spells, AlwaysStackSpells);
+	if (spellid1 != spellid2 && !always_stack_spells.empty()) {
+		const auto& v = Strings::Split(always_stack_spells, ",");
+		if (Strings::Contains(v, std::to_string(spellid1))) {
+			return 0;
+		}
+		if (Strings::Contains(v, std::to_string(spellid2))) {
+			return 0;
 		}
 	}
 
@@ -3814,10 +3829,10 @@ int Mob::CanBuffStack(uint16 spellid, uint8 caster_level, bool iFailIfOverwrite)
 		}
 
 		if (
-			IsBot() && 
-			GetClass() == Class::Bard && 
-			curbuf.spellid == spellid && 
-			curbuf.ticsremaining == 0 && 
+			IsBot() &&
+			GetClass() == Class::Bard &&
+			curbuf.spellid == spellid &&
+			curbuf.ticsremaining == 0 &&
 			curbuf.casterid == GetID()
 		) {
 			LogAI("Bard check for song, spell [{}] has [{}] ticks remaining.", spellid, curbuf.ticsremaining);
@@ -4043,17 +4058,17 @@ bool Mob::SpellOnTarget(
 		return false;
 	}
 
-	bool client_blocked_buffs = 
+	bool client_blocked_buffs =
 		RuleB(Spells, EnableBlockedBuffs) &&
 		(
 			spelltar->IsClient() ||
 			(spelltar->IsPet() && spelltar->IsPetOwnerClient())
 		);
 
-	bool bot_blocked_buffs = 
-		RuleB(Bots, AllowBotBlockedBuffs) && 
+	bool bot_blocked_buffs =
+		RuleB(Bots, AllowBotBlockedBuffs) &&
 		(
-			spelltar->IsBot() || 
+			spelltar->IsBot() ||
 			(spelltar->IsPet() && spelltar->IsPetOwnerBot())
 		);
 

@@ -139,6 +139,7 @@ namespace DatabaseSchema {
 			"character_pet_buffs",
 			"character_pet_info",
 			"character_pet_inventory",
+			"character_pet_name",
 			"character_peqzone_flags",
 			"character_potionbelt",
 			"character_skills",
@@ -311,10 +312,9 @@ namespace DatabaseSchema {
 			"completed_shared_task_members",
 			"completed_shared_tasks",
 			"discord_webhooks",
+			"dynamic_zone_lockouts",
 			"dynamic_zone_members",
 			"dynamic_zones",
-			"expedition_lockouts",
-			"expeditions",
 			"gm_ips",
 			"group_id",
 			"group_leaders",
@@ -351,6 +351,7 @@ namespace DatabaseSchema {
 			"shared_task_dynamic_zones",
 			"shared_task_members",
 			"shared_tasks",
+			"zone_state_spawns",
 		};
 	}
 

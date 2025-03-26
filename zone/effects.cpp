@@ -1127,7 +1127,7 @@ void EntityList::AESpell(
 	) {
 		max_targets_allowed = RuleI(Spells, TargetedAOEMaxTargets);
 	} else if (
-		IsPBAENukeSpell(spell_id) &&
+		IsPBAESpell(spell_id) &&
 		IsDetrimentalSpell &&
 		!is_npc
 	) {

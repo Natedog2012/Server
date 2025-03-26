@@ -30,8 +30,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "../common/repositories/respawn_times_repository.h"
 #include "../common/repositories/spawn_condition_values_repository.h"
 #include "repositories/spawn2_disabled_repository.h"
-
-
+#include "repositories/data_buckets_repository.h"
+#include "repositories/zone_state_spawns_repository.h"
 #include "database.h"
 
 #include <iomanip>
@@ -479,6 +479,10 @@ void Database::DeleteInstance(uint16 instance_id)
 	DynamicZoneMembersRepository::DeleteByInstance(*this, instance_id);
 	DynamicZonesRepository::DeleteWhere(*this, fmt::format("instance_id = {}", instance_id));
 	CharacterCorpsesRepository::BuryInstance(*this, instance_id);
+	DataBucketsRepository::DeleteWhere(*this, fmt::format("instance_id = {}", instance_id));
+	if (RuleB(Zone, StateSavingOnShutdown)) {
+		ZoneStateSpawnsRepository::DeleteWhere(*this, fmt::format("`instance_id` = {}", instance_id));
+	}
 }
 
 void Database::FlagInstanceByGroupLeader(uint32 zone_id, int16 version, uint32 character_id, uint32 group_id)
@@ -561,6 +565,10 @@ void Database::PurgeExpiredInstances()
 	DynamicZoneMembersRepository::DeleteByManyInstances(*this, imploded_instance_ids);
 	DynamicZonesRepository::DeleteWhere(*this, fmt::format("instance_id IN ({})", imploded_instance_ids));
 	Spawn2DisabledRepository::DeleteWhere(*this, fmt::format("instance_id IN ({})", imploded_instance_ids));
+	DataBucketsRepository::DeleteWhere(*this, fmt::format("instance_id != 0 and instance_id IN ({})", imploded_instance_ids));
+	if (RuleB(Zone, StateSavingOnShutdown)) {
+		ZoneStateSpawnsRepository::DeleteWhere(*this, fmt::format("`instance_id` IN ({})", imploded_instance_ids));
+	}
 }
 
 void Database::SetInstanceDuration(uint16 instance_id, uint32 new_duration)

@@ -2231,7 +2231,7 @@ Raid* EntityList::GetRaidByBotName(const char* name)
 			}
 		}
 	}
-	
+
 	return nullptr;
 }
 
@@ -2332,30 +2332,18 @@ void EntityList::QueueClientsGuild(const EQApplicationPacket *app, uint32 guild_
 	}
 }
 
-void EntityList::QueueClientsGuildBankItemUpdate(const GuildBankItemUpdate_Struct *gbius, uint32 GuildID)
+void EntityList::QueueClientsGuildBankItemUpdate(GuildBankItemUpdate_Struct *gbius, uint32 guild_id)
 {
-	auto outapp = new EQApplicationPacket(OP_GuildBank, sizeof(GuildBankItemUpdate_Struct));
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_GuildBank, sizeof(GuildBankItemUpdate_Struct));
+	auto data   = reinterpret_cast<GuildBankItemUpdate_Struct *>(outapp->pBuffer);
 
-	GuildBankItemUpdate_Struct *outgbius = (GuildBankItemUpdate_Struct*)outapp->pBuffer;
+	memcpy(data, gbius, sizeof(GuildBankItemUpdate_Struct));
 
-	memcpy(outgbius, gbius, sizeof(GuildBankItemUpdate_Struct));
-
-	const EQ::ItemData *Item = database.GetItem(gbius->ItemID);
-
-	auto it = client_list.begin();
-	while (it != client_list.end()) {
-		Client *client = it->second;
-
-		if (client->IsInGuild(GuildID)) {
-			if (Item && (gbius->Permissions == GuildBankPublicIfUsable))
-				outgbius->Useable = Item->IsEquipable(client->GetBaseRace(), client->GetBaseClass());
-
-			client->QueuePacket(outapp);
+	for (auto const &[key, client]: client_list) {
+		if (client->IsInGuild(guild_id)) {
+			client->QueuePacket(outapp.get());
 		}
-
-		++it;
 	}
-	safe_delete(outapp);
 }
 
 void EntityList::MessageStatus(uint32 to_guild_id, int to_minstatus, uint32 type, const char *message, ...)
@@ -2926,7 +2914,7 @@ void EntityList::ScanCloseMobs(Mob *scanning_mob)
 		return;
 	}
 
-	if (scanning_mob->GetID() <= 0) {
+	if (scanning_mob->GetID() <= 0 || scanning_mob->IsZoneController()) {
 		return;
 	}
 
@@ -2945,7 +2933,7 @@ void EntityList::ScanCloseMobs(Mob *scanning_mob)
 	for (auto &e : mob_list) {
 		auto mob = e.second;
 
-		if (mob->GetID() <= 0) {
+		if (mob && (mob->GetID() <= 0 || mob->IsZoneController())) {
 			continue;
 		}
 
@@ -5518,7 +5506,7 @@ void EntityList::ExpeditionWarning(uint32 minutes_left)
 
 	auto it = client_list.begin();
 	while (it != client_list.end()) {
-		it->second->MessageString(Chat::Yellow, EXPEDITION_MIN_REMAIN, itoa((int)minutes_left));
+		it->second->MessageString(Chat::Yellow, DZ_MINUTES_REMAIN, itoa((int)minutes_left));
 		it->second->QueuePacket(outapp);
 		++it;
 	}

@@ -76,10 +76,10 @@
 #include "web_interface.h"
 #include "console.h"
 #include "dynamic_zone_manager.h"
-#include "expedition_database.h"
 
 #include "world_server_cli.h"
 #include "../common/content/world_content_service.h"
+#include "../common/repositories/character_expedition_lockouts_repository.h"
 #include "../common/repositories/character_task_timers_repository.h"
 #include "../common/zone_store.h"
 #include "world_event_scheduler.h"
@@ -89,6 +89,7 @@
 #include "../common/events/player_event_logs.h"
 #include "../common/skill_caps.h"
 #include "../common/repositories/character_parcels_repository.h"
+#include "../common/ip_util.h"
 
 SkillCaps           skill_caps;
 ZoneStore           zone_store;
@@ -187,6 +188,11 @@ int main(int argc, char **argv)
 	LogInfo("Loading launcher list");
 	launcher_list.LoadList();
 	zoneserver_list.Init();
+
+	if (IpUtil::IsPortInUse(Config->WorldIP, Config->WorldTCPPort)) {
+		LogError("World port [{}] already in use", Config->WorldTCPPort);
+		return 1;
+	}
 
 	std::unique_ptr<EQ::Net::ConsoleServer> console;
 	if (Config->TelnetEnabled) {
@@ -449,7 +455,7 @@ int main(int argc, char **argv)
 		if (PurgeInstanceTimer.Check()) {
 			database.PurgeExpiredInstances();
 			database.PurgeAllDeletedDataBuckets();
-			ExpeditionDatabase::PurgeExpiredCharacterLockouts();
+			CharacterExpeditionLockoutsRepository::DeleteWhere(database, "expire_time <= NOW()");
 			CharacterTaskTimersRepository::DeleteWhere(database, "expire_time <= NOW()");
 		}
 

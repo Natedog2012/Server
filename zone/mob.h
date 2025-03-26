@@ -680,6 +680,7 @@ public:
 		((static_cast<float>(current_mana) / max_mana) * 100); }
 	virtual int64 CalcMaxMana();
 	uint32 GetNPCTypeID() const { return npctype_id; }
+	inline bool IsZoneController() const { return npctype_id == ZONE_CONTROLLER_NPC_ID; }
 	void SetNPCTypeID(uint32 npctypeid) { npctype_id = npctypeid; }
 	inline const glm::vec4& GetPosition() const { return m_Position; }
 	inline void SetPosition(const float x, const float y, const float z) { m_Position.x = x; m_Position.y = y; m_Position.z = z; }
@@ -1298,6 +1299,7 @@ public:
 	void SetLooting(uint16 val) { entity_id_being_looted = val; }
 
 	bool CheckWillAggro(Mob *mob);
+	bool IsPetAggroExempt(Mob *pet_owner);
 
 	void InstillDoubt(Mob *who);
 	bool Charmed() const { return type_of_pet == petCharmed; }
@@ -1517,6 +1519,7 @@ public:
 
 	void ClearDataBucketCache();
 	bool IsGuildmaster() const;
+	bool IsDestroying() const { return m_destroying; }
 
 protected:
 	void CommonDamage(Mob* other, int64 &damage, const uint16 spell_id, const EQ::skills::SkillType attack_skill, bool &avoidable, const int8 buffslot, const bool iBuffTic, eSpecialAttacks specal = eSpecialAttacks::None);
@@ -1948,6 +1951,7 @@ private:
 	EQ::InventoryProfile m_inv;
 	std::shared_ptr<HealRotation> m_target_of_heal_rotation;
 	bool m_manual_follow;
+	bool m_destroying;
 
 	void SetHeroicStrBonuses(StatBonuses* n);
 	void SetHeroicStaBonuses(StatBonuses* n);

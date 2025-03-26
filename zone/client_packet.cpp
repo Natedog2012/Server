@@ -43,8 +43,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "../common/data_verification.h"
 #include "../common/rdtsc.h"
 #include "data_bucket.h"
+#include "dynamic_zone.h"
 #include "event_codes.h"
-#include "expedition.h"
 #include "guild_mgr.h"
 #include "merc.h"
 #include "petitions.h"
@@ -827,6 +827,10 @@ void Client::CompleteConnect()
 		if (IsPetNameChangeAllowed() && !RuleB(Pets, AlwaysAllowPetRename)) {
 			InvokeChangePetName(false);
 		}
+
+		if (IsNameChangeAllowed() && !RuleB(Character, AlwaysAllowNameChange)) {
+			InvokeChangeNameWindow(false);
+		}
 	}
 
 	if(ClientVersion() == EQ::versions::ClientVersion::RoF2 && RuleB(Parcel, EnableParcelMerchants)) {
@@ -1300,7 +1304,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 
 	/* Load Character Data */
 	query = fmt::format(
-		"SELECT `lfp`, `lfg`, `xtargets`, `firstlogon`, `guild_id`, `rank`, `exp_enabled`, `tribute_enable`, `extra_haste` FROM `character_data` LEFT JOIN `guild_members` ON `id` = `char_id` WHERE `id` = {}",
+		"SELECT `lfp`, `lfg`, `xtargets`, `firstlogon`, `guild_id`, `rank`, `exp_enabled`, `tribute_enable`, `extra_haste`, `illusion_block` FROM `character_data` LEFT JOIN `guild_members` ON `id` = `char_id` WHERE `id` = {}",
 		cid
 	);
 	auto results = database.QueryDatabase(query);
@@ -1313,6 +1317,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 
 		SetEXPEnabled(Strings::ToBool(row[6]));
 		SetExtraHaste(Strings::ToInt(row[8]), false);
+		SetIllusionBlock(Strings::ToBool(row[9]));
 
 		if (LFP) { LFP = Strings::ToInt(row[0]); }
 		if (LFG) { LFG = Strings::ToInt(row[1]); }
@@ -1781,8 +1786,6 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 		m_dynamic_zone_ids.emplace_back(entry.dynamic_zone_id);
 	}
 
-	m_expedition_id = ExpeditionsRepository::GetIDByMemberID(database, CharacterID());
-
 	auto dz = zone->GetDynamicZone();
 	if (dz && dz->GetSafeReturnLocation().zone_id != 0)
 	{
@@ -2171,20 +2174,7 @@ void Client::Handle_OP_AdventureMerchantPurchase(const EQApplicationPacket *app)
 	if (item->MaxCharges != 0)
 		charges = item->MaxCharges;
 
-	if (RuleB(Character, EnableDiscoveredItems) && !IsDiscovered(item->ID)) {
-		if (!GetGM()) {
-			DiscoverItem(item->ID);
-		} else {
-			const std::string& item_link = database.CreateItemLink(item->ID);
-			Message(
-				Chat::White,
-				fmt::format(
-					"Your GM flag prevents {} from being added to discovered items.",
-					item_link
-				).c_str()
-			);
-		}
-	}
+	CheckItemDiscoverability(item->ID);
 
 	EQ::ItemInstance *inst = database.CreateItem(item, charges);
 	if (!AutoPutLootInInventory(*inst, true, true))
@@ -2731,20 +2721,7 @@ void Client::Handle_OP_AltCurrencyPurchase(const EQApplicationPacket *app)
 			RecordPlayerEventLog(PlayerEvent::MERCHANT_PURCHASE, e);
 		}
 
-		if (RuleB(Character, EnableDiscoveredItems) && !IsDiscovered(item->ID)) {
-			if (!GetGM()) {
-				DiscoverItem(item->ID);
-			} else {
-				const std::string& item_link = database.CreateItemLink(item->ID);
-				Message(
-					Chat::White,
-					fmt::format(
-						"Your GM flag prevents {} from being added to discovered items.",
-						item_link
-					).c_str()
-				);
-			}
-		}
+		CheckItemDiscoverability(item->ID);
 
 		EQ::ItemInstance *inst = database.CreateItem(item, charges);
 		if (!AutoPutLootInInventory(*inst, true, true))
@@ -4299,7 +4276,14 @@ void Client::Handle_OP_Camp(const EQApplicationPacket *app)
 
 	if (GetGM())
 	{
-		OnDisconnect(true);
+		if (RuleB(Character, EnableHackedFastCampForGM))
+		{
+			camp_timer.Start(100, true);
+		}
+		else {
+			OnDisconnect(true);
+		}
+
 		return;
 	}
 
@@ -4591,14 +4575,14 @@ void Client::Handle_OP_ChangePetName(const EQApplicationPacket *app) {
 
 	auto p = (ChangePetName_Struct *) app->pBuffer;
 	if (!IsPetNameChangeAllowed()) {
-		p->response_code = ChangePetNameResponse::NotEligible;
+		p->response_code = ChangeNameResponse::Ineligible;
 		QueuePacket(app);
 		return;
 	}
 
-	p->response_code = ChangePetNameResponse::Denied;
+	p->response_code = ChangeNameResponse::Denied;
 	if (ChangePetName(p->new_pet_name)) {
-		p->response_code = ChangePetNameResponse::Accepted;
+		p->response_code = ChangeNameResponse::Accepted;
 	}
 
 	QueuePacket(app);
@@ -6103,8 +6087,8 @@ void Client::Handle_OP_DzAddPlayer(const EQApplicationPacket *app)
 	}
 	else
 	{
-		// the only /dz command that sends an error message if no active expedition
-		Message(Chat::System, DZ_YOU_NOT_ASSIGNED);
+		// message string 8271 (not in emu clients) is the only /dz command that sends an error if no active expedition
+		Message(Chat::System, "You could not use this command because you are not currently assigned to a dynamic zone.");
 	}
 }
 
@@ -6137,14 +6121,14 @@ void Client::Handle_OP_DzChooseZoneReply(const EQApplicationPacket *app)
 
 void Client::Handle_OP_DzExpeditionInviteResponse(const EQApplicationPacket *app)
 {
-	auto expedition = Expedition::FindCachedExpeditionByID(m_pending_expedition_invite.expedition_id);
-	std::string swap_remove_name = m_pending_expedition_invite.swap_remove_name;
-	m_pending_expedition_invite = { 0 }; // clear before re-validating
+	auto expedition = DynamicZone::FindDynamicZoneByID(m_dz_invite.dz_id);
+	std::string swap_name = m_dz_invite.swap_name;
+	m_dz_invite = {}; // clear before re-validating
 
 	if (expedition)
 	{
 		auto dzmsg = reinterpret_cast<ExpeditionInviteResponse_Struct*>(app->pBuffer);
-		expedition->DzInviteResponse(this, dzmsg->accepted, swap_remove_name);
+		expedition->DzInviteResponse(this, dzmsg->accepted, swap_name);
 	}
 }
 
@@ -6819,6 +6803,21 @@ void Client::Handle_OP_GMLastName(const EQApplicationPacket *app)
 
 void Client::Handle_OP_GMNameChange(const EQApplicationPacket *app)
 {
+	if (app->size == sizeof(AltChangeName_Struct)) {
+		auto p = (AltChangeName_Struct *) app->pBuffer;
+
+		if (!IsNameChangeAllowed()) {
+			p->response_code = ChangeNameResponse::Ineligible;
+			QueuePacket(app);
+			return;
+		}
+
+		p->response_code = ChangeFirstName(p->new_name) ? ChangeNameResponse::Accepted : ChangeNameResponse::Denied;
+		QueuePacket(app);
+
+		return;
+	}
+
 	if (app->size != sizeof(GMName_Struct)) {
 		LogError("Wrong size: OP_GMNameChange, size=[{}], expected [{}]", app->size, sizeof(GMName_Struct));
 		return;
@@ -7633,292 +7632,303 @@ void Client::Handle_OP_GroupUpdate(const EQApplicationPacket *app)
 
 void Client::Handle_OP_GuildBank(const EQApplicationPacket *app)
 {
-	if (!GuildBanks)
+	if (!GuildBanks) {
+		GuildBankAck();
 		return;
+	}
 
-	if (zone->GetZoneID() != Zones::GUILDHALL)
-	{
+	if (zone->GetZoneID() != Zones::GUILDHALL) {
 		Message(Chat::Red, "The Guild Bank is not available in this zone.");
-
+		GuildBankAck();
 		return;
 	}
 
 	if (app->size < sizeof(uint32)) {
 		LogError("Wrong size: OP_GuildBank, size=[{}], expected [{}]", app->size, sizeof(uint32));
 		DumpPacket(app);
+		GuildBankAck();
 		return;
 	}
 
-	char *Buffer = (char *)app->pBuffer;
-
-	uint32 Action = VARSTRUCT_DECODE_TYPE(uint32, Buffer);
+	char  *Buffer     = (char *) app->pBuffer;
+	uint32 Action     = VARSTRUCT_DECODE_TYPE(uint32, Buffer);
 	uint32 sentAction = Action;
 
-	if (!IsInAGuild())
-	{
+	if (!IsInAGuild()) {
 		Message(Chat::Red, "You must be in a Guild to use the Guild Bank.");
-
-		if (Action == GuildBankDeposit)
+		if (Action == GuildBankDeposit) {
 			GuildBankDepositAck(true, sentAction);
-		else
+		}
+		else {
 			GuildBankAck();
+		}
 
 		return;
 	}
 
 	if (!IsGuildBanker())
 	{
-		if ((Action != GuildBankDeposit) && (Action != GuildBankViewItem) && (Action != GuildBankWithdraw))
+		if (Action != GuildBankDeposit && Action != GuildBankViewItem && Action != GuildBankWithdraw)
 		{
 			LogError("Suspected hacking attempt on guild bank from [{}]", GetName());
-
 			GuildBankAck();
-
 			return;
 		}
 	}
 
-	switch (Action)
-	{
-	case GuildBankPromote:
-	{
-		if (GuildBanks->IsAreaFull(GuildID(), GuildBankMainArea))
-		{
-			MessageString(Chat::Red, GUILD_BANK_FULL);
-
-			GuildBankDepositAck(true, sentAction);
-
-			return;
-		}
-
-		GuildBankPromote_Struct *gbps = (GuildBankPromote_Struct*)app->pBuffer;
-
-		int Slot = GuildBanks->Promote(GuildID(), gbps->Slot);
-
-		if (Slot >= 0)
-		{
-			EQ::ItemInstance* inst = GuildBanks->GetItem(GuildID(), GuildBankMainArea, Slot, 1);
-
-			if (inst)
-			{
-				MessageString(Chat::LightGray, GUILD_BANK_TRANSFERRED, inst->GetItem()->Name);
-				safe_delete(inst);
-			}
-		}
-		else
-			Message(Chat::Red, "Unexpected error while moving item into Guild Bank.");
-
-		GuildBankAck();
-
-		break;
-	}
-
-	case GuildBankViewItem:
-	{
-		GuildBankViewItem_Struct *gbvis = (GuildBankViewItem_Struct*)app->pBuffer;
-
-		EQ::ItemInstance* inst = GuildBanks->GetItem(GuildID(), gbvis->Area, gbvis->SlotID, 1);
-
-		if (!inst)
-			break;
-
-		SendItemPacket(0, inst, ItemPacketViewLink);
-
-		safe_delete(inst);
-
-		break;
-	}
-
-	case GuildBankDeposit:	// Deposit Item
-	{
-		EQ::ItemInstance *CursorItemInst = GetInv().GetItem(EQ::invslot::slotCursor);
-
-		bool Allowed = true;
-
-		if (!CursorItemInst)
-		{
-			Message(Chat::Red, "No Item on the cursor.");
-
-			GuildBankDepositAck(true, sentAction);
-
-			return;
-		}
-
-		const EQ::ItemData* CursorItem = CursorItemInst->GetItem();
-
-		if (GuildBanks->IsAreaFull(GuildID(), GuildBankDepositArea))
-		{
-			MessageString(Chat::Red, GUILD_BANK_FULL);
-			GuildBankDepositAck(true, sentAction);
-			if (ClientVersion() >= EQ::versions::ClientVersion::RoF) {
-				GetInv().PopItem(EQ::invslot::slotCursor);
-				PushItemOnCursor(CursorItem, true);
+	switch (Action) {
+		case GuildBankPromote: {
+			if (GuildBanks->IsAreaFull(GuildID(), GuildBankMainArea)) {
+				MessageString(Chat::Red, GUILD_BANK_FULL);
+				GuildBankAck();
+				return;
 			}
 
-			return;
-		}
+			auto gbps    = (GuildBankPromote_Struct *) app->pBuffer;
+			int  slot_id = GuildBanks->Promote(GuildID(), gbps->Slot, this);
 
-		if (!CursorItem->NoDrop || CursorItemInst->IsAttuned())
-		{
-			Allowed = false;
-		}
-		else if (CursorItemInst->IsNoneEmptyContainer())
-		{
-			Allowed = false;
-		}
-		else if (CursorItemInst->IsAugmented())
-		{
-			Allowed = false;
-		}
-		else if (CursorItem->NoRent == 0)
-		{
-			Allowed = false;
-		}
-		else if (CursorItem->LoreFlag && GuildBanks->HasItem(GuildID(), CursorItem->ID))
-		{
-			Allowed = false;
-		}
+			if (slot_id >= 0) {
+				auto inst = GuildBanks->GetItem(GuildID(), GuildBankMainArea, slot_id, 1);
+				if (inst) {
+					if (player_event_logs.IsEventEnabled(PlayerEvent::GUILD_BANK_MOVE_TO_BANK_AREA)) {
+						PlayerEvent::GuildBankTransaction log{};
+						log.char_id  = CharacterID();
+						log.guild_id = GuildID();
+						log.item_id  = inst->GetID();
+						log.quantity = 1;
+						if (inst->GetCharges() > 0 || inst->IsStackable() || inst->GetItem()->MaxCharges > 0) {
+							log.quantity = inst->GetCharges();
+						}
 
-		if (!Allowed)
-		{
-			MessageString(Chat::Red, GUILD_BANK_CANNOT_DEPOSIT);
-			GuildBankDepositAck(true, sentAction);
+						if (inst->IsAugmented()) {
+							auto augs          = inst->GetAugmentIDs();
+							log.aug_slot_one   = augs.at(0);
+							log.aug_slot_two   = augs.at(1);
+							log.aug_slot_three = augs.at(2);
+							log.aug_slot_four  = augs.at(3);
+							log.aug_slot_five  = augs.at(4);
+							log.aug_slot_six   = augs.at(5);
+						}
 
-			if (ClientVersion() >= EQ::versions::ClientVersion::RoF) {
-				GetInv().PopItem(EQ::invslot::slotCursor);
-				PushItemOnCursor(CursorItem, true);
+						RecordPlayerEventLog(PlayerEvent::GUILD_BANK_MOVE_TO_BANK_AREA, log);
+					}
+
+					MessageString(Chat::LightGray, GUILD_BANK_TRANSFERRED, inst->GetItem()->Name);
+				}
 			}
-			return;
-		}
-
-		if (GuildBanks->AddItem(GuildID(), GuildBankDepositArea, CursorItem->ID, CursorItemInst->GetCharges(), GetName(), GuildBankBankerOnly, ""))
-		{
-			GuildBankDepositAck(false, sentAction);
-
-			DeleteItemInInventory(EQ::invslot::slotCursor, 0, false);
-		}
-
-		break;
-	}
-
-	case GuildBankPermissions:
-	{
-		GuildBankPermissions_Struct *gbps = (GuildBankPermissions_Struct*)app->pBuffer;
-
-		if (gbps->Permissions == 1)
-			GuildBanks->SetPermissions(GuildID(), gbps->SlotID, gbps->Permissions, gbps->MemberName);
-		else
-			GuildBanks->SetPermissions(GuildID(), gbps->SlotID, gbps->Permissions, "");
-
-		GuildBankAck();
-		break;
-	}
-
-	case GuildBankWithdraw:
-	{
-		if (GetInv()[EQ::invslot::slotCursor])
-		{
-			MessageString(Chat::Red, GUILD_BANK_EMPTY_HANDS);
+			else {
+				Message(Chat::Red, "Unexpected error while moving item into Guild Bank.");
+			}
 
 			GuildBankAck();
+			break;
+		}
+
+		case GuildBankViewItem: {
+			auto gbvis = (GuildBankViewItem_Struct *) app->pBuffer;
+			auto inst  = GuildBanks->GetItem(GuildID(), gbvis->Area, gbvis->SlotID, 1);
+
+			if (!inst) {
+				break;
+			}
+
+			SendItemPacket(0, inst.get(), ItemPacketViewLink);
+			break;
+		}
+
+		case GuildBankDeposit: // Deposit Item
+		{
+			const auto cursor_item_inst = GetInv().GetItem(EQ::invslot::slotCursor);
+			bool       allowed          = true;
+
+			if (!cursor_item_inst) {
+				Message(Chat::Red, "No Item on the cursor.");
+				GuildBankDepositAck(true, sentAction);
+				return;
+			}
+
+			const auto cursor_item = cursor_item_inst->GetItem();
+			if (GuildBanks->IsAreaFull(GuildID(), GuildBankDepositArea)) {
+				MessageString(Chat::Red, GUILD_BANK_FULL);
+				GuildBankDepositAck(true, sentAction);
+				if (ClientVersion() >= EQ::versions::ClientVersion::RoF) {
+					GetInv().PopItem(EQ::invslot::slotCursor);
+					PushItemOnCursor(*cursor_item_inst, true);
+				}
+
+				return;
+			}
+
+			if (!cursor_item->NoDrop ||
+				cursor_item_inst->IsAttuned() ||
+				cursor_item_inst->IsNoneEmptyContainer() ||
+				cursor_item->NoRent == 0 ||
+				(cursor_item->LoreFlag && GuildBanks->HasItem(GuildID(), cursor_item->ID))
+				) {
+				allowed = false;
+			}
+
+			if (!allowed) {
+				MessageString(Chat::Red, GUILD_BANK_CANNOT_DEPOSIT);
+				GuildBankDepositAck(true, sentAction);
+
+				if (ClientVersion() >= EQ::versions::ClientVersion::RoF) {
+					GetInv().PopItem(EQ::invslot::slotCursor);
+					PushItemOnCursor(*cursor_item_inst, true);
+				}
+				return;
+			}
+
+			auto item        = GuildBankRepository::NewEntity();
+			item.guild_id    = GuildID();
+			item.area        = GuildBankDepositArea;
+			item.item_id     = cursor_item->ID;
+			item.quantity    = 1;
+			if (cursor_item_inst->GetCharges() > 0 || cursor_item_inst->IsStackable() || cursor_item->MaxCharges > 0) {
+				item.quantity = cursor_item_inst->GetCharges();
+			}
+
+			item.donator     = GetCleanName();
+			item.permissions = GuildBankBankerOnly;
+			if (cursor_item_inst->IsAugmented()) {
+				auto const augs       = cursor_item_inst->GetAugmentIDs();
+				item.augment_one_id   = augs.at(0);
+				item.augment_two_id   = augs.at(1);
+				item.augment_three_id = augs.at(2);
+				item.augment_four_id  = augs.at(3);
+				item.augment_five_id  = augs.at(4);
+				item.augment_six_id   = augs.at(5);
+			}
+
+			if (GuildBanks->AddItem(item, this)) {
+				GuildBankDepositAck(false, sentAction);
+				DeleteItemInInventory(EQ::invslot::slotCursor, 0, false);
+
+				if (player_event_logs.IsEventEnabled(PlayerEvent::GUILD_BANK_DEPOSIT)) {
+					PlayerEvent::GuildBankTransaction log{};
+					log.char_id        = CharacterID();
+					log.guild_id       = GuildID();
+					log.item_id        = item.item_id;
+					log.quantity       = item.quantity;
+					log.aug_slot_one   = item.augment_one_id;
+					log.aug_slot_two   = item.augment_two_id;
+					log.aug_slot_three = item.augment_three_id;
+					log.aug_slot_four  = item.augment_four_id;
+					log.aug_slot_five  = item.augment_five_id;
+					log.aug_slot_six   = item.augment_six_id;
+
+					RecordPlayerEventLog(PlayerEvent::GUILD_BANK_DEPOSIT, log);
+				}
+			}
 
 			break;
 		}
 
-		GuildBankWithdrawItem_Struct *gbwis = (GuildBankWithdrawItem_Struct*)app->pBuffer;
+		case GuildBankPermissions: {
+			auto gbps = (GuildBankPermissions_Struct *) app->pBuffer;
 
-		EQ::ItemInstance* inst = GuildBanks->GetItem(GuildID(), gbwis->Area, gbwis->SlotID, gbwis->Quantity);
+			if (gbps->Permissions == 1) {
+				GuildBanks->SetPermissions(GuildID(), gbps->SlotID, gbps->Permissions, gbps->MemberName, this);
+			}
+			else {
+				GuildBanks->SetPermissions(GuildID(), gbps->SlotID, gbps->Permissions, "", this);
+			}
 
-		if (!inst)
-		{
 			GuildBankAck();
-
 			break;
 		}
 
-		if (!guild_mgr.CheckPermission(GuildID(), GuildRank(), GUILD_ACTION_BANK_WITHDRAW_ITEMS))
-		{
-			Message(Chat::Red, "You do not have permission to withdraw.");
+		case GuildBankWithdraw: {
+			if (GetInv()[EQ::invslot::slotCursor]) {
+				MessageString(Chat::Red, GUILD_BANK_EMPTY_HANDS);
+				GuildBankAck();
+				break;
+			}
+
+			auto gbwis = (GuildBankWithdrawItem_Struct *) app->pBuffer;
+			auto inst  = GuildBanks->GetItem(GuildID(), gbwis->Area, gbwis->SlotID, gbwis->Quantity);
+
+			if (!inst) {
+				GuildBankAck();
+				break;
+			}
+
+			if (!guild_mgr.CheckPermission(GuildID(), GuildRank(), GUILD_ACTION_BANK_WITHDRAW_ITEMS)) {
+				Message(Chat::Red, "You do not have permission to withdraw.");
+				GuildBankAck();
+				break;
+			}
+
+			if (!IsGuildBanker()) {
+				LogError("Suspected attempted hack on the guild bank from [{}]", GetName());
+				GuildBankAck();
+				break;
+			}
+
+			if (CheckLoreConflict(inst->GetItem())) {
+				MessageString(Chat::Red, DUP_LORE);
+				GuildBankAck();
+				break;
+			}
+
+			gbwis->Quantity = 1;
+			if (inst->GetCharges() > 0 || inst->IsStackable() || inst->GetItem()->MaxCharges > 0) {
+				gbwis->Quantity = inst->GetCharges();
+			}
+
+			PushItemOnCursor(*inst.get());
+			SendItemPacket(EQ::invslot::slotCursor, inst.get(), ItemPacketLimbo);
+			GuildBanks->DeleteItem(GuildID(), gbwis->Area, gbwis->SlotID, gbwis->Quantity, this);
+
+			if (player_event_logs.IsEventEnabled(PlayerEvent::GUILD_BANK_WITHDRAWAL)) {
+				PlayerEvent::GuildBankTransaction log{};
+				log.char_id  = CharacterID();
+				log.guild_id = GuildID();
+				log.item_id  = inst->GetID();
+				log.quantity = gbwis->Quantity;
+				if (inst->IsAugmented()) {
+					auto augs          = inst->GetAugmentIDs();
+					log.aug_slot_one   = augs.at(0);
+					log.aug_slot_two   = augs.at(1);
+					log.aug_slot_three = augs.at(2);
+					log.aug_slot_four  = augs.at(3);
+					log.aug_slot_five  = augs.at(4);
+					log.aug_slot_six   = augs.at(5);
+				}
+
+				RecordPlayerEventLog(PlayerEvent::GUILD_BANK_WITHDRAWAL, log);
+			}
+
+			else {
+				Message(Chat::Red, "Unable to withdraw 0 quantity of %s", inst->GetItem()->Name);
+			}
+
 			GuildBankAck();
-			safe_delete(inst);
+			break;
+		}
+		case GuildBankSplitStacks: {
+			if (GuildBanks->IsAreaFull(GuildID(), GuildBankMainArea)) {
+				MessageString(Chat::Red, GUILD_BANK_FULL);
+			}
+			else {
+				auto gbwis = (GuildBankWithdrawItem_Struct *) app->pBuffer;
+				GuildBanks->SplitStack(GuildID(), gbwis->SlotID, gbwis->Quantity, this);
+			}
+
+			GuildBankAck();
+			break;
+		}
+		case GuildBankMergeStacks: {
+			auto gbwis = (GuildBankWithdrawItem_Struct *) app->pBuffer;
+			GuildBanks->MergeStacks(GuildID(), gbwis->SlotID, this);
+			GuildBankAck();
 			break;
 		}
 
-		if (!IsGuildBanker() && !GuildBanks->AllowedToWithdraw(GuildID(), gbwis->Area, gbwis->SlotID, GetName()))
-		{
-			LogError("Suspected attempted hack on the guild bank from [{}]", GetName());
-
-			GuildBankAck();
-
-			safe_delete(inst);
-
-			break;
+		default: {
+			Message(Chat::Red, "Unexpected GuildBank action.");
+			LogError("Received unexpected guild bank action code [{}] from [{}]", Action, GetName());
 		}
-
-		if (CheckLoreConflict(inst->GetItem()))
-		{
-			MessageString(Chat::Red, DUP_LORE);
-
-			GuildBankAck();
-
-			safe_delete(inst);
-
-			break;
-		}
-
-		if (gbwis->Quantity > 0)
-		{
-			PushItemOnCursor(*inst);
-
-			SendItemPacket(EQ::invslot::slotCursor, inst, ItemPacketLimbo);
-
-			GuildBanks->DeleteItem(GuildID(), gbwis->Area, gbwis->SlotID, gbwis->Quantity);
-		}
-		else
-		{
-			Message(Chat::Red, "Unable to withdraw 0 quantity of %s", inst->GetItem()->Name);
-		}
-
-		safe_delete(inst);
-
-		GuildBankAck();
-
-		break;
-	}
-
-	case GuildBankSplitStacks:
-	{
-		if (GuildBanks->IsAreaFull(GuildID(), GuildBankMainArea))
-			MessageString(Chat::Red, GUILD_BANK_FULL);
-		else
-		{
-			GuildBankWithdrawItem_Struct *gbwis = (GuildBankWithdrawItem_Struct*)app->pBuffer;
-
-			GuildBanks->SplitStack(GuildID(), gbwis->SlotID, gbwis->Quantity);
-		}
-
-		GuildBankAck();
-
-		break;
-	}
-
-	case GuildBankMergeStacks:
-	{
-		GuildBankWithdrawItem_Struct *gbwis = (GuildBankWithdrawItem_Struct*)app->pBuffer;
-
-		GuildBanks->MergeStacks(GuildID(), gbwis->SlotID);
-
-		GuildBankAck();
-
-		break;
-	}
-
-	default:
-	{
-		Message(Chat::Red, "Unexpected GuildBank action.");
-
-		LogError("Received unexpected guild bank action code [{}] from [{}]", Action, GetName());
-	}
 	}
 }
 
@@ -13523,10 +13533,11 @@ void Client::Handle_OP_RequestDuel(const EQApplicationPacket *app)
 void Client::Handle_OP_RequestTitles(const EQApplicationPacket *app)
 {
 
-	EQApplicationPacket *outapp = title_manager.MakeTitlesPacket(this);
+	auto outapp = title_manager.MakeTitlesPacket(this);
 
-	if (outapp != nullptr)
+	if (outapp) {
 		FastQueuePacket(&outapp);
+	}
 }
 
 void Client::Handle_OP_RespawnWindow(const EQApplicationPacket *app)
@@ -14233,20 +14244,7 @@ void Client::Handle_OP_ShopPlayerBuy(const EQApplicationPacket *app)
 		parse->EventPlayer(EVENT_MERCHANT_BUY, this, export_string, 0);
 	}
 
-	if (RuleB(Character, EnableDiscoveredItems) && !IsDiscovered(item_id)) {
-		if (!GetGM()) {
-			DiscoverItem(item_id);
-		} else {
-			const std::string& item_link = database.CreateItemLink(item_id);
-			Message(
-				Chat::White,
-				fmt::format(
-					"Your GM flag prevents {} from being added to discovered items.",
-					item_link
-				).c_str()
-			);
-		}
-	}
+	CheckItemDiscoverability(item_id);
 
 	safe_delete(inst);
 	safe_delete(outapp);
@@ -15518,7 +15516,7 @@ void Client::Handle_OP_TraderBuy(const EQApplicationPacket *app)
 			);
 			Message(
 				Chat::Yellow,
-				"Direct inventory delivey is not yet implemented.  Please visit the vendor directly or purchase via parcel delivery."
+				"Direct inventory delivery is not yet implemented.  Please visit the vendor directly or purchase via parcel delivery."
 			);
 			in->method     = BazaarByDirectToInventory;
 			in->sub_action = Failed;
@@ -15694,7 +15692,7 @@ void Client::Handle_OP_TradeSkillRecipeInspect(const EQApplicationPacket* app)
 	auto s = (TradeSkillRecipeInspect_Struct*) app->pBuffer;
 
 	const auto& v = TradeskillRecipeEntriesRepository::GetWhere(
-		database,
+		content_db,
 		fmt::format(
 			"`recipe_id` = {} AND `componentcount` = 0 AND `successcount` > 0 LIMIT 1",
 			s->recipe_id
@@ -17064,7 +17062,7 @@ void Client::Handle_OP_GuildTributeDonateItem(const EQApplicationPacket *app)
 
 		SendGuildTributeDonateItemReply(in, favor);
 
-		if(player_event_logs.IsEventEnabled(PlayerEvent::GUILD_TRIBUTE_DONATE_ITEM)) {
+		if(inst && player_event_logs.IsEventEnabled(PlayerEvent::GUILD_TRIBUTE_DONATE_ITEM)) {
 			auto e = PlayerEvent::GuildTributeDonateItem{ .item_id      = inst->GetID(),
 														  .augment_1_id = inst->GetAugmentItemID(0),
 														  .augment_2_id = inst->GetAugmentItemID(1),

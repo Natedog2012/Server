@@ -57,6 +57,7 @@
 #include "water_map.h"
 #include "worldserver.h"
 #include "mob.h"
+#include "bot_database.h"
 
 #include <fmt/format.h>
 
@@ -218,6 +219,13 @@ int bot_command_init(void)
 
 	std::vector<std::pair<std::string, uint8>> injected_bot_command_settings;
 	std::vector<std::string> orphaned_bot_command_settings;
+
+	if (RuleB(Bots, RunSpellTypeChecksOnBoot)) {
+		LogBotSpellTypeChecks("Running SpellType checks. There may be some spells that are mislabeled as incorrect. Use this as a loose guideline.");
+		database.botdb.CheckBotSpells();
+	}
+
+	database.botdb.MapCommandedSpellTypeMinLevels();
 
 	for (auto bcs_iter : bot_command_settings) {
 
@@ -796,10 +804,10 @@ void helper_send_usage_required_bots(Client *bot_owner, uint16 spell_type)
 		}
 	}
 
-	auto& spell_map = bot->GetCommandedSpellTypesMinLevels();
+	auto spell_map = database.botdb.GetCommandedSpellTypesMinLevels();
 
 	if (spell_map.empty()) {
-		bot_owner->Message(Chat::Yellow, "No bots are capable of casting this spell type");
+		bot_owner->Message(Chat::Yellow, "No bots are capable of casting this spell type.");
 		return;
 	}
 
@@ -810,7 +818,7 @@ void helper_send_usage_required_bots(Client *bot_owner, uint16 spell_type)
 		auto spell_type_itr = spell_map.find(spell_type);
 		auto class_itr = spell_type_itr->second.find(i);
 		const auto& spell_info = class_itr->second;
-			
+
 		if (spell_info.min_level < UINT8_MAX) {
 			found = true;
 

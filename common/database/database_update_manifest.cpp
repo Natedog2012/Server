@@ -6417,7 +6417,7 @@ ADD COLUMN `guid` bigint(20) UNSIGNED NOT NULL DEFAULT 0 AFTER `ornament_hero_mo
 ADD PRIMARY KEY (`account_id`, `slot_id`);
 )",
 		.content_schema_update = false,
-		.force_interactive = true
+		.force_interactive = false
 	},
 	ManifestEntry{
 		.version = 9298,
@@ -6481,7 +6481,7 @@ UPDATE `sharedbank` SET `slot_id` = ((`slot_id` - 2531) + 11010) WHERE `slot_id`
 UPDATE `sharedbank` SET `slot_id` = ((`slot_id` - 2541) + 11210) WHERE `slot_id` BETWEEN 2541 AND 2550; -- Shared Bank Bag 2
 )",
 		.content_schema_update = false,
-		.force_interactive = true
+		.force_interactive = false
 	},
 	ManifestEntry{
 		.version = 9299,
@@ -6747,7 +6747,260 @@ COLLATE='latin1_swedish_ci'
 ENGINE=InnoDB
 ;
 )"
-	}
+	},
+	ManifestEntry{
+		.version = 9302,
+		.description = "2025_02_09_illusion_block.sql",
+		.check = "SHOW COLUMNS FROM `character_data` LIKE 'illusion_block'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `character_data`
+	ADD COLUMN `illusion_block` TINYINT(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `deleted_at`;
+
+UPDATE `command_settings`
+SET `aliases` =
+    CASE
+        WHEN LENGTH(`aliases`) > 0 AND `aliases` NOT LIKE '%|ib%'
+            THEN CONCAT(`aliases`, '|ib')
+        WHEN LENGTH(`aliases`) = 0
+            THEN 'ib'
+        ELSE `aliases`
+    END
+WHERE `command` = 'illusionblock'
+AND `aliases` NOT LIKE '%ib%';
+)",
+	},
+	ManifestEntry{
+		.version = 9303,
+		.description = "2025_02_13_corpse_slot_fix.sql",
+		.check = "SELECT * FROM `character_corpse_items` WHERE `equip_slot` BETWEEN 251 AND 350",
+		.condition = "not_empty",
+		.match = "",
+		.sql = R"(
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 251) + 4010) WHERE `equip_slot` BETWEEN 251 AND 260; -- Bag 1
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 261) + 4210) WHERE `equip_slot` BETWEEN 261 AND 270; -- Bag 2
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 271) + 4410) WHERE `equip_slot` BETWEEN 271 AND 280; -- Bag 3
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 281) + 4610) WHERE `equip_slot` BETWEEN 281 AND 290; -- Bag 4
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 291) + 4810) WHERE `equip_slot` BETWEEN 291 AND 300; -- Bag 5
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 301) + 5010) WHERE `equip_slot` BETWEEN 301 AND 310; -- Bag 6
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 311) + 5210) WHERE `equip_slot` BETWEEN 311 AND 320; -- Bag 7
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 321) + 5410) WHERE `equip_slot` BETWEEN 321 AND 330; -- Bag 8
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 331) + 5610) WHERE `equip_slot` BETWEEN 331 AND 340; -- Bag 9
+UPDATE `character_corpse_items` SET `equip_slot` = ((`equip_slot` - 341) + 5810) WHERE `equip_slot` BETWEEN 341 AND 350; -- Bag 10
+)",
+	},
+	ManifestEntry{
+		.version     = 9304,
+		.description = "2024_12_01_2024_update_guild_bank",
+		.check       = "SHOW COLUMNS FROM `guild_bank` LIKE 'augment_one_id'",
+		.condition   = "empty",
+		.match       = "",
+		.sql         = R"(
+ALTER TABLE `guild_bank`
+	DROP INDEX `guildid`,
+	CHANGE COLUMN `guildid` `guild_id` INT(10) UNSIGNED NOT NULL DEFAULT '0' AFTER `id`,
+	CHANGE COLUMN `itemid` `item_id` INT(10) UNSIGNED NOT NULL DEFAULT '0' AFTER `slot`,
+	CHANGE COLUMN `whofor` `who_for` VARCHAR(64) NULL DEFAULT NULL COLLATE 'utf8_general_ci' AFTER `permissions`,
+	ADD COLUMN `augment_one_id` INT UNSIGNED NULL DEFAULT '0' AFTER `item_id`,
+	ADD COLUMN `augment_two_id` INT UNSIGNED NULL DEFAULT '0' AFTER `augment_one_id`,
+	ADD COLUMN `augment_three_id` INT UNSIGNED NULL DEFAULT '0' AFTER `augment_two_id`,
+	ADD COLUMN `augment_four_id` INT UNSIGNED NULL DEFAULT '0' AFTER `augment_three_id`,
+	ADD COLUMN `augment_five_id` INT UNSIGNED NULL DEFAULT '0' AFTER `augment_four_id`,
+	ADD COLUMN `augment_six_id` INT UNSIGNED NULL DEFAULT '0' AFTER `augment_five_id`,
+	CHANGE COLUMN `qty` `quantity` INT(10) NOT NULL DEFAULT '0' AFTER `augment_six_id`;
+ALTER TABLE `guild_bank`
+	ADD INDEX `guild_id` (`guild_id`);
+)"
+	},
+	ManifestEntry{
+		.version = 9305,
+		.description = "2024_12_01_expedition_dz_merge.sql",
+		.check = "SHOW COLUMNS FROM `dynamic_zones` LIKE 'is_locked'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `dynamic_zones`
+	ADD COLUMN `is_locked` TINYINT NOT NULL DEFAULT '0' AFTER `has_zone_in`,
+	ADD COLUMN `add_replay` TINYINT NOT NULL DEFAULT '1' AFTER `is_locked`;
+
+ALTER TABLE `expedition_lockouts`
+	CHANGE COLUMN `expedition_id` `dynamic_zone_id` INT(10) UNSIGNED NOT NULL AFTER `id`,
+	DROP INDEX `expedition_id_event_name`,
+	ADD UNIQUE INDEX `dz_id_event_name` (`dynamic_zone_id`, `event_name`) USING BTREE;
+
+UPDATE expedition_lockouts lockouts
+	INNER JOIN expeditions ON lockouts.dynamic_zone_id = expeditions.id
+	SET lockouts.dynamic_zone_id = expeditions.dynamic_zone_id;
+
+DROP TABLE `expeditions`;
+
+RENAME TABLE `expedition_lockouts` TO `dynamic_zone_lockouts`;
+)"
+	},
+	ManifestEntry{
+		.version = 9306,
+		.description = "2025_02_16_data_buckets_zone_id_instance_id.sql",
+		.check       = "SHOW COLUMNS FROM `data_buckets` LIKE 'zone_id'",
+		.condition   = "empty",
+		.match = "",
+		.sql = R"(
+-- Drop old indexes if exists
+DROP INDEX IF EXISTS `keys` ON `data_buckets`;
+DROP INDEX IF EXISTS `idx_npc_expires` ON `data_buckets`;
+DROP INDEX IF EXISTS `idx_bot_expires` ON `data_buckets`;
+
+-- Add zone_id, instance_id
+ALTER TABLE `data_buckets`
+	MODIFY COLUMN `npc_id` int(11) NOT NULL DEFAULT 0 AFTER `character_id`,
+	MODIFY COLUMN `bot_id` int(11) NOT NULL DEFAULT 0 AFTER `npc_id`,
+	ADD COLUMN `zone_id` smallint(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `bot_id`,
+	ADD COLUMN `instance_id` smallint(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `zone_id`;
+
+ALTER TABLE `data_buckets`
+	MODIFY COLUMN `account_id` bigint(11) UNSIGNED NULL DEFAULT 0 AFTER `expires`,
+	MODIFY COLUMN `character_id` bigint(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `account_id`,
+	MODIFY COLUMN `npc_id` int(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `character_id`,
+	MODIFY COLUMN `bot_id` int(11) UNSIGNED NOT NULL DEFAULT 0 AFTER `npc_id`;
+
+-- Create optimized unique index with `key` first
+CREATE UNIQUE INDEX `keys` ON data_buckets (`key`, character_id, npc_id, bot_id, account_id, zone_id, instance_id);
+
+-- Create indexes for just instance_id (instance deletion)
+CREATE INDEX idx_instance_id ON data_buckets (instance_id);
+)",
+		.content_schema_update = false
+	},
+	ManifestEntry{
+		.version     = 9307,
+		.description = "2025_02_17_zone_state_spawns.sql",
+		.check       = "SHOW TABLES LIKE 'zone_state_spawns'",
+		.condition   = "empty",
+		.match       = "",
+		.sql         = R"(
+CREATE TABLE `zone_state_spawns` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `zone_id` int(11) unsigned DEFAULT NULL,
+  `instance_id` int(11) unsigned DEFAULT NULL,
+  `is_corpse` tinyint(11) DEFAULT 0,
+  `decay_in_seconds` int(11) DEFAULT 0,
+  `npc_id` int(10) unsigned DEFAULT NULL,
+  `spawn2_id` int(10) unsigned NOT NULL,
+  `spawngroup_id` int(10) unsigned NOT NULL,
+  `x` float NOT NULL,
+  `y` float NOT NULL,
+  `z` float NOT NULL,
+  `heading` float NOT NULL,
+  `respawn_time` int(10) unsigned NOT NULL,
+  `variance` int(10) unsigned NOT NULL,
+  `grid` int(10) unsigned DEFAULT 0,
+  `current_waypoint` int(11) DEFAULT 0,
+  `path_when_zone_idle` smallint(6) DEFAULT 0,
+  `condition_id` smallint(5) unsigned DEFAULT 0,
+  `condition_min_value` smallint(6) DEFAULT 0,
+  `enabled` smallint(6) DEFAULT 1,
+  `anim` smallint(5) unsigned DEFAULT 0,
+  `loot_data` text DEFAULT NULL,
+  `entity_variables` text DEFAULT NULL,
+  `buffs` text DEFAULT NULL,
+  `hp` bigint(20) DEFAULT 0,
+  `mana` bigint(20) DEFAULT 0,
+  `endurance` bigint(20) DEFAULT 0,
+  `created_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4
+)",
+		.content_schema_update = false
+	},
+	ManifestEntry{
+		.version = 9308,
+		.description = "2025_add_multivalue_support_to_evolving_subtype.sql",
+		.check = "SHOW COLUMNS FROM `items_evolving_details` LIKE 'sub_type'",
+		.condition = "missing",
+		.match = "varchar(200)",
+		.sql = R"(
+ALTER TABLE `items_evolving_details`
+	CHANGE COLUMN `sub_type` `sub_type` VARCHAR(200) NULL DEFAULT '0' AFTER `type`;
+)",
+		.content_schema_update = true
+	},
+	// this one got missed being added to PEQ dumps so adding it again so it gets added when folks take a new release
+	ManifestEntry{
+		.version = 9309,
+		.description = "2025_03_1_create_pet_names_table_if_not_exist.sql",
+		.check = "SHOW TABLES LIKE 'character_pet_name'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+CREATE TABLE `character_pet_name` (
+    `character_id` INT(11) NOT NULL PRIMARY KEY,
+    `name` VARCHAR(64) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+)",
+	},
+	ManifestEntry{
+		.version = 9310,
+		.description = "2025_03_7_expand_horse_def.sql",
+		.check = "SHOW COLUMNS FROM `horses` LIKE 'helmtexture'",
+		.condition = "missing",
+		.match = "TINYINT(2)",
+		.sql = R"(
+ALTER TABLE `horses`
+	ADD COLUMN `helmtexture` TINYINT(2) NOT NULL DEFAULT -1 AFTER `texture`;
+)",
+		.content_schema_update = true
+	},
+	ManifestEntry{
+		.version = 9311,
+		.description = "2025_03_09_add_zone_state_is_zone_field.sql",
+		.check = "SHOW COLUMNS FROM `zone_state_spawns` LIKE 'is_zone'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+ALTER TABLE `zone_state_spawns`
+	ADD COLUMN `is_zone` tinyint(11) NULL DEFAULT 0 AFTER `is_corpse`;
+)",
+		.content_schema_update = false
+	},
+	ManifestEntry{
+		.version = 9312,
+		.description = "2025_03_11_data_bucket_indexes.sql",
+		.check = "SHOW INDEX FROM data_buckets",
+		.condition = "missing",
+		.match = "idx_zone_instance_expires",
+		.sql = R"(
+DROP INDEX IF EXISTS `idx_zone_instance_expires` ON `data_buckets`;
+DROP INDEX IF EXISTS `idx_character_expires` ON `data_buckets`;
+DROP INDEX IF EXISTS `idx_bot_expires` ON `data_buckets`;
+ALTER TABLE data_buckets ADD INDEX idx_zone_instance_expires (zone_id, instance_id, expires);
+ALTER TABLE data_buckets ADD INDEX idx_character_expires (character_id, expires);
+ALTER TABLE data_buckets ADD INDEX idx_bot_expires (bot_id, expires);
+)",
+	.content_schema_update = false
+	},
+	ManifestEntry{
+		.version = 9313,
+		.description = "2025_03_11_zone_state_spawns.sql",
+		.check = "SHOW INDEX FROM zone_state_spawns",
+		.condition = "missing",
+		.match = "idx_zone_instance",
+		.sql = R"(
+ALTER TABLE zone_state_spawns ADD INDEX idx_zone_instance (zone_id, instance_id);
+ALTER TABLE zone_state_spawns ADD INDEX idx_instance_id (instance_id);
+)",
+	.content_schema_update = false
+	},
+	ManifestEntry{
+		.version = 9314,
+		.description = "2025_03_12_zone_state_spawns_one_time_truncate.sql",
+		.check = "SELECT * FROM db_version WHERE version >= 9314",
+		.condition = "empty",
+		.match = "",
+		.sql = R"(
+TRUNCATE TABLE zone_state_spawns;
+)",
+		.content_schema_update = false
+	},
 // -- template; copy/paste this when you need to create a new entry
 //	ManifestEntry{
 //		.version = 9228,

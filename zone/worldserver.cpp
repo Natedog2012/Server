@@ -40,8 +40,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "client.h"
 #include "command.h"
 #include "corpse.h"
+#include "dynamic_zone.h"
 #include "entity.h"
-#include "expedition.h"
 #include "quest_parser_collection.h"
 #include "guild_mgr.h"
 #include "mob.h"
@@ -60,6 +60,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "../common/repositories/guild_tributes_repository.h"
 #include "../common/patches/patches.h"
 #include "../common/skill_caps.h"
+#include "../common/server_reload_types.h"
 #include "queryserv.h"
 
 extern EntityList             entity_list;
@@ -80,9 +81,26 @@ WorldServer::WorldServer()
 	cur_groupid = 0;
 	last_groupid = 0;
 	oocmuted = false;
+	m_process_timer = std::make_unique<EQ::Timer>(1000, true, std::bind(&WorldServer::Process, this));
 }
 
 WorldServer::~WorldServer() {
+}
+
+void WorldServer::Process()
+{
+	if (!m_reload_queue.empty()) {
+		m_reload_mutex.lock();
+		for (auto it = m_reload_queue.begin(); it != m_reload_queue.end(); ) {
+			if (it->second.reload_at_unix < std::time(nullptr)) {
+				ProcessReload(it->second);
+				it = m_reload_queue.erase(it);
+			} else {
+				++it;
+			}
+		}
+		m_reload_mutex.unlock();
+	}
 }
 
 void WorldServer::Connect()
@@ -573,7 +591,7 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 
 			auto *s = (ServerZoneStateChange_Struct *) pack->pBuffer;
 			LogInfo("Zone shutdown by {}.", s->admin_name);
-			Zone::Shutdown();
+			zone->Shutdown();
 		}
 		break;
 	}
@@ -605,6 +623,10 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 		}
 
 		Zone::Bootup(s->zone_id, s->instance_id, s->is_static);
+		if (zone) {
+			zone->SetZoneServerId(s->zone_server_id);
+		}
+
 		break;
 	}
 	case ServerOP_ZoneIncClient: {
@@ -1973,232 +1995,10 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 		}
 		break;
 	}
-	case ServerOP_ReloadAAData:
+	case ServerOP_ServerReloadRequest:
 	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Alternate Advancement Data");
-			zone->LoadAlternateAdvancement();
-			entity_list.SendAlternateAdvancementStats();
-		}
-		break;
-	}
-	case ServerOP_ReloadOpcodes:
-	{
-		zone->SendReloadMessage("Opcodes");
-		ReloadAllPatches();
-		break;
-	}
-	case ServerOP_ReloadAlternateCurrencies:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Alternate Currencies");
-			zone->LoadAlternateCurrencies();
-		}
-		break;
-	}
-	case ServerOP_ReloadBaseData:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Base Data");
-			zone->ReloadBaseData();
-		}
-
-		break;
-	}
-	case ServerOP_ReloadBlockedSpells:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Blocked Spells");
-			zone->LoadZoneBlockedSpells();
-		}
-		break;
-	}
-	case ServerOP_ReloadCommands:
-	{
-		zone->SendReloadMessage("Commands");
-		command_init();
-		if (RuleB(Bots, Enabled) && database.DoesTableExist("bot_command_settings")) {
-			bot_command_init();
-		}
-		break;
-	}
-	case ServerOP_ReloadContentFlags:
-	{
-		zone->SendReloadMessage("Content Flags");
-		content_service.SetExpansionContext()->ReloadContentFlags();
-		break;
-	}
-	case ServerOP_ReloadDzTemplates:
-	{
-		if (zone)
-		{
-			zone->SendReloadMessage("Dynamic Zone Templates");
-			zone->LoadDynamicZoneTemplates();
-		}
-		break;
-	}
-	case ServerOP_ReloadFactions:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Factions");
-			content_db.LoadFactionData();
-			zone->ReloadNPCFactions();
-			zone->ReloadFactionAssociations();
-		}
-
-		break;
-	}
-	case ServerOP_ReloadLevelEXPMods:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Level Based Experience Modifiers");
-			zone->LoadLevelEXPMods();
-		}
-		break;
-	}
-	case ServerOP_ReloadLogs:
-	{
-		zone->SendReloadMessage("Log Settings");
-		LogSys.LoadLogDatabaseSettings();
-		player_event_logs.ReloadSettings();
-		break;
-	}
-	case ServerOP_ReloadLoot:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Loot");
-			zone->ReloadLootTables();
-		}
-		break;
-	}
-	case ServerOP_ReloadMerchants: {
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Merchants");
-			entity_list.ReloadMerchants();
-		}
-		break;
-	}
-	case ServerOP_ReloadNPCEmotes:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("NPC Emotes");
-			zone->LoadNPCEmotes(&zone->npc_emote_list);
-		}
-		break;
-	}
-	case ServerOP_ReloadNPCSpells:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("NPC Spells");
-			content_db.ClearNPCSpells();
-			for (auto& e : entity_list.GetNPCList()) {
-				e.second->ReloadSpells();
-			}
-		}
-		break;
-	}
-	case ServerOP_ReloadPerlExportSettings:
-	{
-		zone->SendReloadMessage("Perl Event Export Settings");
-		parse->LoadPerlEventExportSettings(parse->perl_event_export_settings);
-		break;
-	}
-	case ServerOP_ReloadRules:
-	{
-		zone->SendReloadMessage("Rules");
-		RuleManager::Instance()->LoadRules(&database, RuleManager::Instance()->GetActiveRuleset(), true);
-		break;
-	}
-	case ServerOP_ReloadSkillCaps:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Skill Caps");
-			skill_caps.ReloadSkillCaps();
-		}
-
-		break;
-	}
-	case ServerOP_ReloadDataBucketsCache:
-	{
-		zone->SendReloadMessage("Data buckets cache");
-		DataBucket::ClearCache();
-		break;
-	}
-	case ServerOP_ReloadDoors:
-	case ServerOP_ReloadGroundSpawns:
-	case ServerOP_ReloadObjects:
-	case ServerOP_ReloadStaticZoneData: {
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Static Zone Data");
-			zone->ReloadStaticData();
-		}
-		break;
-	}
-	case ServerOP_ReloadTasks:
-	{
-		if (RuleB(Tasks, EnableTaskSystem) && zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Tasks");
-			HandleReloadTasks(pack);
-		}
-
-		break;
-	}
-	case ServerOP_ReloadTitles:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Titles");
-			title_manager.LoadTitles();
-		}
-		break;
-	}
-	case ServerOP_ReloadTraps:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Traps");
-			entity_list.UpdateAllTraps(true, true);
-		}
-
-		break;
-	}
-	case ServerOP_ReloadVariables:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Variables");
-			database.LoadVariables();
-		}
-		break;
-	}
-	case ServerOP_ReloadVeteranRewards:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Veteran Rewards");
-			zone->LoadVeteranRewards();
-		}
-		break;
-	}
-	case ServerOP_ReloadWorld:
-	{
-		auto* reload_world = (ReloadWorld_Struct*)pack->pBuffer;
-		if (zone) {
-			zone->ReloadWorld(reload_world->global_repop);
-		}
-		break;
-	}
-	case ServerOP_ReloadZonePoints:
-	{
-		if (zone && zone->IsLoaded()) {
-			zone->SendReloadMessage("Zone Points");
-			content_db.LoadStaticZonePoints(&zone->zone_point_list, zone->GetShortName(), zone->GetInstanceVersion());
-		}
-		break;
-	}
-	case ServerOP_ReloadZoneData:
-	{
-		zone_store.LoadZones(content_db);
-		if (zone && zone->IsLoaded()) {
-			zone->LoadZoneCFG(zone->GetShortName(), zone->GetInstanceVersion());
-			zone->SendReloadMessage("Zone Data");
-		}
+		auto o = (ServerReload::Request*) pack->pBuffer;
+		QueueReload(*o);
 		break;
 	}
 	case ServerOP_CameraShake:
@@ -3601,25 +3401,16 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 
 		break;
 	}
-	case ServerOP_ExpeditionCreate:
-	case ServerOP_ExpeditionLockout:
-	case ServerOP_ExpeditionLockoutDuration:
-	case ServerOP_ExpeditionLockState:
-	case ServerOP_ExpeditionReplayOnJoin:
-	case ServerOP_ExpeditionDzAddPlayer:
-	case ServerOP_ExpeditionDzMakeLeader:
-	case ServerOP_ExpeditionCharacterLockout:
-	{
-		Expedition::HandleWorldMessage(pack);
-		break;
-	}
 	case ServerOP_DzCreated:
 	case ServerOP_DzDeleted:
+	case ServerOP_DzAddPlayer:
+	case ServerOP_DzMakeLeader:
 	case ServerOP_DzAddRemoveMember:
 	case ServerOP_DzSwapMembers:
 	case ServerOP_DzRemoveAllMembers:
 	case ServerOP_DzDurationUpdate:
 	case ServerOP_DzGetMemberStatuses:
+	case ServerOP_DzGetBulkMemberStatuses:
 	case ServerOP_DzSetCompass:
 	case ServerOP_DzSetSafeReturn:
 	case ServerOP_DzSetZoneIn:
@@ -3628,6 +3419,11 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 	case ServerOP_DzLeaderChanged:
 	case ServerOP_DzExpireWarning:
 	case ServerOP_DzMovePC:
+	case ServerOP_DzLock:
+	case ServerOP_DzReplayOnJoin:
+	case ServerOP_DzLockout:
+	case ServerOP_DzLockoutDuration:
+	case ServerOP_DzCharacterLockout:
 	{
 		DynamicZone::HandleWorldMessage(pack);
 		break;
@@ -3990,6 +3786,13 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 				return;
 			}
 
+			if (trader_pc->IsThereACustomer()) {
+				auto customer = entity_list.GetClientByID(trader_pc->GetCustomerID());
+				if (customer) {
+					customer->CancelTraderTradeWindow();
+				}
+			}
+
 			auto item_sn = Strings::ToUnsignedBigInt(in->trader_buy_struct.serial_number);
 			auto outapp  = std::make_unique<EQApplicationPacket>(OP_Trader, sizeof(TraderBuy_Struct));
 			auto data    = (TraderBuy_Struct *) outapp->pBuffer;
@@ -4002,21 +3805,23 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 
 			TraderRepository::UpdateActiveTransaction(database, in->id, false);
 
-			if (player_event_logs.IsEventEnabled(PlayerEvent::TRADER_SELL)) {
-				auto buy_item = trader_pc->FindTraderItemBySerialNumber(item_sn);
-				auto e        = PlayerEvent::TraderSellEvent{
-					.item_id              = in->trader_buy_struct.item_id,
-					.augment_1_id         = buy_item->GetAugmentItemID(0),
-					.augment_2_id         = buy_item->GetAugmentItemID(1),
-					.augment_3_id         = buy_item->GetAugmentItemID(2),
-					.augment_4_id         = buy_item->GetAugmentItemID(3),
-					.augment_5_id         = buy_item->GetAugmentItemID(4),
-					.augment_6_id         = buy_item->GetAugmentItemID(5),
+			auto item = trader_pc->FindTraderItemBySerialNumber(item_sn);
+
+			if (item && player_event_logs.IsEventEnabled(PlayerEvent::TRADER_SELL)) {
+				auto e = PlayerEvent::TraderSellEvent{
+					.item_id              = item ? item->GetID() : 0,
+					.augment_1_id         = item->GetAugmentItemID(0),
+					.augment_2_id         = item->GetAugmentItemID(1),
+					.augment_3_id         = item->GetAugmentItemID(2),
+					.augment_4_id         = item->GetAugmentItemID(3),
+					.augment_5_id         = item->GetAugmentItemID(4),
+					.augment_6_id         = item->GetAugmentItemID(5),
 					.item_name            = in->trader_buy_struct.item_name,
 					.buyer_id             = in->buyer_id,
 					.buyer_name           = in->trader_buy_struct.buyer_name,
 					.price                = in->trader_buy_struct.price,
-					.charges              = in->trader_buy_struct.quantity,
+					.quantity             = in->trader_buy_struct.quantity,
+					.charges              = item ? item->IsStackable() ? 1 : item->GetCharges() : 0,
 					.total_cost           = (in->trader_buy_struct.price * in->trader_buy_struct.quantity),
 					.player_money_balance = trader_pc->GetCarriedMoney(),
 				};
@@ -4121,7 +3926,7 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 										 sell_line.seller_quantity,
 										 sell_line.item_name,
 										 buyer->GetCleanName());
-								buyer->AddMoneyToPPWithOverflow(total_cost, true);
+								buyer->AddMoneyToPP(total_cost, true);
 								buyer->RemoveItem(sell_line.item_id, sell_line.seller_quantity);
 
 								buyer->Message(
@@ -4183,6 +3988,12 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 						worldserver.SendPacket(pack);
 						return;
 					}
+					if (buyer->IsThereACustomer()) {
+						auto customer = entity_list.GetClientByID(buyer->GetCustomerID());
+						if (customer) {
+							customer->CancelBuyerTradeWindow();
+						}
+					}
 
 					BuyerLineSellItem_Struct sell_line{};
 					sell_line.item_id         = in->buy_item_id;
@@ -4220,7 +4031,7 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 					if (inst->IsStackable()) {
 						if (!buyer->PutItemInInventoryWithStacking(inst.get())) {
 							buyer->Message(Chat::Red, "Error putting item in your inventory.");
-							buyer->AddMoneyToPPWithOverflow(total_cost, true);
+							buyer->AddMoneyToPP(total_cost, true);
 							in->action     = Barter_FailedTransaction;
 							in->sub_action = Barter_FailedBuyerChecks;
 							worldserver.SendPacket(pack);
@@ -4232,7 +4043,7 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 							inst->SetCharges(1);
 							if (!buyer->PutItemInInventoryWithStacking(inst.get())) {
 								buyer->Message(Chat::Red, "Error putting item in your inventory.");
-								buyer->AddMoneyToPPWithOverflow(total_cost, true);
+								buyer->AddMoneyToPP(total_cost, true);
 								in->action     = Barter_FailedTransaction;
 								in->sub_action = Barter_FailedBuyerChecks;
 								worldserver.SendPacket(pack);
@@ -4241,7 +4052,7 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 						}
 					}
 
-					if (!buyer->TakeMoneyFromPPWithOverFlow(total_cost, false)) {
+					if (!buyer->TakeMoneyFromPP(total_cost, false)) {
 						in->action     = Barter_FailedTransaction;
 						in->sub_action = Barter_FailedBuyerChecks;
 						worldserver.SendPacket(pack);
@@ -4306,7 +4117,7 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 
 					uint64 total_cost = (uint64) sell_line.item_cost * (uint64) sell_line.seller_quantity;
 					seller->RemoveItem(in->buy_item_id, in->seller_quantity);
-					seller->AddMoneyToPPWithOverflow(total_cost, false);
+					seller->AddMoneyToPP(total_cost, false);
 					seller->SendBarterBuyerClientMessage(
 						sell_line,
 						Barter_SellerTransactionComplete,
@@ -4502,58 +4313,8 @@ bool WorldServer::RezzPlayer(EQApplicationPacket* rpack, uint32 rezzexp, uint32 
 }
 
 void WorldServer::SendReloadTasks(uint8 reload_type, uint32 task_id) {
-	auto pack = new ServerPacket(ServerOP_ReloadTasks, sizeof(ReloadTasks_Struct));
-	auto rts = (ReloadTasks_Struct*) pack->pBuffer;
-
-	rts->reload_type = reload_type;
-	rts->task_id = task_id;
-
-	SendPacket(pack);
-	safe_delete(pack);
+	SendReload(ServerReload::Type::Tasks);
 }
-
-void WorldServer::HandleReloadTasks(ServerPacket *pack)
-{
-	auto rts = (ReloadTasks_Struct*) pack->pBuffer;
-
-	LogTasks("Global reload of tasks received with Reload Type [{}] Task ID [{}]", rts->reload_type, rts->task_id);
-
-	switch (rts->reload_type) {
-		case RELOADTASKS:
-		{
-			entity_list.SaveAllClientsTaskState();
-
-			// TODO: Reload at the world level for shared tasks
-
-			if (!rts->task_id) {
-				LogTasks("Global reload of all Tasks");
-				safe_delete(task_manager);
-				task_manager = new TaskManager;
-				task_manager->LoadTasks();
-
-				entity_list.ReloadAllClientsTaskState();
-			} else {
-				LogTasks("Global reload of Task ID [{}]", rts->task_id);
-				task_manager->LoadTasks(rts->task_id);
-				entity_list.ReloadAllClientsTaskState(rts->task_id);
-			}
-
-			break;
-		}
-		case RELOADTASKSETS:
-		{
-			LogTasks("Global reload of all Task Sets");
-			task_manager->LoadTaskSets();
-			break;
-		}
-		default:
-		{
-			LogTasks("Unhandled global reload of Tasks Reload Type [{}] Task ID [{}]", rts->reload_type, rts->task_id);
-			break;
-		}
-	}
-}
-
 
 uint32 WorldServer::NextGroupID() {
 	//this system wastes a lot of potential group IDs (~5%), but
@@ -4735,3 +4496,213 @@ void WorldServer::SetScheduler(ZoneEventScheduler *scheduler)
 	WorldServer::m_zone_scheduler = scheduler;
 }
 
+void WorldServer::SendReload(ServerReload::Type type, bool is_global)
+{
+	static auto pack = ServerPacket(ServerOP_ServerReloadRequest, sizeof(ServerReload::Request));
+	auto reload = (ServerReload::Request*) pack.pBuffer;
+	reload->type = type;
+	reload->zone_server_id = 0;
+	if (!is_global && zone && zone->IsLoaded()) {
+		reload->zone_server_id = zone->GetZoneServerId();
+	}
+
+	SendPacket(&pack);
+}
+
+void WorldServer::QueueReload(ServerReload::Request r)
+{
+	m_reload_mutex.lock();
+	int64_t reload_at = r.reload_at_unix - std::time(nullptr);
+
+	LogInfo(
+		"Queuing reload for [{}] ({}) to reload in [{}]",
+		ServerReload::GetName(r.type),
+		r.type,
+		reload_at > 0 ? Strings::SecondsToTime(reload_at) : "Now"
+	);
+
+	m_reload_queue[r.type] = r;
+	m_reload_mutex.unlock();
+}
+
+void WorldServer::ProcessReload(const ServerReload::Request& request)
+{
+	LogInfo(
+		"Reloading [{}] ({}) zone booted required [{}]",
+		ServerReload::GetName(request.type),
+		request.type,
+		request.requires_zone_booted
+	);
+
+	if (request.requires_zone_booted) {
+		if (!zone || (zone && !zone->IsLoaded())) {
+			LogInfo("Zone not booted, skipping reload for [{}] ({})", ServerReload::GetName(request.type), request.type);
+			return;
+		}
+	}
+
+	zone->SendReloadMessage(ServerReload::GetName(request.type));
+
+	switch (request.type) {
+		case ServerReload::Type::AAData:
+			zone->LoadAlternateAdvancement();
+			entity_list.SendAlternateAdvancementStats();
+			break;
+
+		case ServerReload::Type::Opcodes:
+			ReloadAllPatches();
+			break;
+
+		case ServerReload::Type::AlternateCurrencies:
+			zone->LoadAlternateCurrencies();
+			break;
+
+		case ServerReload::Type::BaseData:
+			zone->ReloadBaseData();
+			break;
+
+		case ServerReload::Type::BlockedSpells:
+			zone->LoadZoneBlockedSpells();
+			break;
+
+		case ServerReload::Type::Commands:
+			command_init();
+			if (RuleB(Bots, Enabled) && database.DoesTableExist("bot_command_settings")) {
+				bot_command_init();
+			}
+			break;
+
+		case ServerReload::Type::ContentFlags:
+			content_service.SetExpansionContext()->ReloadContentFlags();
+			break;
+
+		case ServerReload::Type::DzTemplates:
+			zone->LoadDynamicZoneTemplates();
+			break;
+
+		case ServerReload::Type::Factions:
+			content_db.LoadFactionData();
+			zone->ReloadNPCFactions();
+			zone->ReloadFactionAssociations();
+			break;
+
+		case ServerReload::Type::LevelEXPMods:
+			zone->LoadLevelEXPMods();
+			break;
+
+		case ServerReload::Type::Logs:
+			LogSys.LoadLogDatabaseSettings();
+			player_event_logs.ReloadSettings();
+			break;
+
+		case ServerReload::Type::Loot:
+			zone->ReloadLootTables();
+			break;
+
+		case ServerReload::Type::Merchants:
+			entity_list.ReloadMerchants();
+			break;
+
+		case ServerReload::Type::NPCEmotes:
+			zone->LoadNPCEmotes(&zone->npc_emote_list);
+			break;
+
+		case ServerReload::Type::NPCSpells:
+			content_db.ClearNPCSpells();
+			for (auto &e: entity_list.GetNPCList()) {
+				e.second->ReloadSpells();
+			}
+			break;
+
+		case ServerReload::Type::PerlExportSettings:
+			parse->LoadPerlEventExportSettings(parse->perl_event_export_settings);
+			break;
+
+		case ServerReload::Type::Rules:
+			RuleManager::Instance()->LoadRules(&database, RuleManager::Instance()->GetActiveRuleset(), true);
+			break;
+
+		case ServerReload::Type::SkillCaps:
+			skill_caps.ReloadSkillCaps();
+			break;
+
+		case ServerReload::Type::DataBucketsCache:
+			DataBucket::ClearCache();
+			break;
+
+		case ServerReload::Type::StaticZoneData:
+		case ServerReload::Type::Doors:
+		case ServerReload::Type::GroundSpawns:
+		case ServerReload::Type::Objects:
+			zone->ReloadStaticData();
+			break;
+
+		case ServerReload::Type::Tasks:
+			if (RuleB(Tasks, EnableTaskSystem)) {
+				entity_list.SaveAllClientsTaskState();
+				safe_delete(task_manager);
+				task_manager = new TaskManager;
+				task_manager->LoadTasks();
+				entity_list.ReloadAllClientsTaskState();
+				task_manager->LoadTaskSets();
+			}
+			break;
+
+		case ServerReload::Type::Quests:
+			entity_list.ClearAreas();
+			parse->ReloadQuests(false);
+			break;
+
+		case ServerReload::Type::QuestsTimerReset:
+			entity_list.ClearAreas();
+			parse->ReloadQuests(true);
+			break;
+
+		case ServerReload::Type::Titles:
+			title_manager.LoadTitles();
+			break;
+
+		case ServerReload::Type::Traps:
+			entity_list.UpdateAllTraps(true, true);
+			break;
+
+		case ServerReload::Type::Variables:
+			database.LoadVariables();
+			break;
+
+		case ServerReload::Type::VeteranRewards:
+			zone->LoadVeteranRewards();
+			break;
+
+		case ServerReload::Type::WorldRepop:
+			parse->ReloadQuests();
+			if (zone && zone->IsLoaded()) {
+				entity_list.ClearAreas();
+				zone->Repop();
+			}
+			break;
+
+		case ServerReload::Type::WorldWithRespawn:
+			parse->ReloadQuests();
+			if (zone && zone->IsLoaded()) {
+				entity_list.ClearAreas();
+				zone->Repop();
+				zone->ClearSpawnTimers();
+			}
+			break;
+
+		case ServerReload::Type::ZonePoints:
+			content_db.LoadStaticZonePoints(&zone->zone_point_list, zone->GetShortName(), zone->GetInstanceVersion());
+			break;
+
+		case ServerReload::Type::ZoneData:
+			zone_store.LoadZones(content_db);
+			zone->LoadZoneCFG(zone->GetShortName(), zone->GetInstanceVersion());
+			break;
+
+		default:
+			break;
+	}
+
+	LogInfo("Reloaded [{}] ({})", ServerReload::GetName(request.type), request.type);
+}

@@ -9,6 +9,7 @@
 #include "lua_client.h"
 #include "lua_item.h"
 #include "lua_iteminst.h"
+#include "lua_spawn.h"
 
 struct Lua_NPC_Loot_List {
 	std::vector<uint32> entries;
@@ -932,6 +933,18 @@ void Lua_NPC::ReturnHandinItems(Lua_Client c)
 	self->ReturnHandinItems(c);
 }
 
+Lua_Spawn Lua_NPC::GetSpawn(lua_State* L)
+{
+	Lua_Safe_Call_Class(Lua_Spawn);
+	return Lua_Spawn(self->GetSpawn());
+}
+
+bool Lua_NPC::IsResumedFromZoneSuspend()
+{
+	Lua_Safe_Call_Bool();
+	return self->IsResumedFromZoneSuspend();
+}
+
 luabind::scope lua_register_npc() {
 	return luabind::class_<Lua_NPC, Lua_Mob>("NPC")
 	.def(luabind::constructor<>())
@@ -1009,6 +1022,7 @@ luabind::scope lua_register_npc() {
 	.def("GetSilver", (uint32(Lua_NPC::*)(void))&Lua_NPC::GetSilver)
 	.def("GetSlowMitigation", (int(Lua_NPC::*)(void))&Lua_NPC::GetSlowMitigation)
 	.def("GetSp2", (uint32(Lua_NPC::*)(void))&Lua_NPC::GetSp2)
+	.def("GetSpawn", (Lua_Spawn(Lua_NPC::*)(void))&Lua_NPC::GetSpawn)
 	.def("GetSpawnKillCount", (int(Lua_NPC::*)(void))&Lua_NPC::GetSpawnKillCount)
 	.def("GetSpawnPointH", (float(Lua_NPC::*)(void))&Lua_NPC::GetSpawnPointH)
 	.def("GetSpawnPointID", (int(Lua_NPC::*)(void))&Lua_NPC::GetSpawnPointID)
@@ -1032,6 +1046,7 @@ luabind::scope lua_register_npc() {
 	.def("IsOnHatelist", (bool(Lua_NPC::*)(Lua_Mob))&Lua_NPC::IsOnHatelist)
 	.def("IsRaidTarget", (bool(Lua_NPC::*)(void))&Lua_NPC::IsRaidTarget)
 	.def("IsRareSpawn", (bool(Lua_NPC::*)(void))&Lua_NPC::IsRareSpawn)
+	.def("IsResumedFromZoneSuspend",(bool(Lua_NPC::*)(void))&Lua_NPC::IsResumedFromZoneSuspend)
 	.def("IsTaunting", (bool(Lua_NPC::*)(void))&Lua_NPC::IsTaunting)
 	.def("IsUnderwaterOnly", (bool(Lua_NPC::*)(void))&Lua_NPC::IsUnderwaterOnly)
 	.def("MerchantCloseShop", (void(Lua_NPC::*)(void))&Lua_NPC::MerchantCloseShop)

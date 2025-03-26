@@ -601,6 +601,8 @@ void EQEmuLogSys::SilenceConsoleLogging()
 		log_settings[log_index].is_category_enabled = 0;
 	}
 
+	log_settings[Logs::MySQLError].log_to_console = static_cast<uint8>(Logs::MySQLError);
+	log_settings[Logs::Error].log_to_console = static_cast<uint8>(Logs::Error);
 	log_settings[Logs::Crash].log_to_console = static_cast<uint8>(Logs::General);
 }
 
@@ -612,7 +614,7 @@ void EQEmuLogSys::EnableConsoleLogging()
 	std::copy(std::begin(pre_silence_settings), std::end(pre_silence_settings), std::begin(log_settings));
 }
 
-EQEmuLogSys *EQEmuLogSys::LoadLogDatabaseSettings()
+EQEmuLogSys *EQEmuLogSys::LoadLogDatabaseSettings(bool silent_load)
 {
 	InjectTablesIfNotExist();
 
@@ -697,6 +699,10 @@ EQEmuLogSys *EQEmuLogSys::LoadLogDatabaseSettings()
 		return this;
 	}
 
+	if (silent_load) {
+		SilenceConsoleLogging();
+	}
+
 	LogInfo("Loaded [{}] log categories", categories.size());
 
 	auto webhooks = DiscordWebhooksRepository::GetWhere(*m_database, fmt::format("id < {}", MAX_DISCORD_WEBHOOK_ID));
@@ -713,6 +719,10 @@ EQEmuLogSys *EQEmuLogSys::LoadLogDatabaseSettings()
 	log_settings[Logs::Crash].log_to_file    = static_cast<uint8>(Logs::General);
 	log_settings[Logs::Info].log_to_file     = static_cast<uint8>(Logs::General);
 	log_settings[Logs::Info].log_to_console  = static_cast<uint8>(Logs::General);
+
+	if (silent_load) {
+		SilenceConsoleLogging();
+	}
 
 	return this;
 }

@@ -40,8 +40,7 @@ extern volatile bool RunLoops;
 #include "../common/data_verification.h"
 #include "../common/profanity_manager.h"
 #include "data_bucket.h"
-#include "expedition.h"
-#include "expedition_database.h"
+#include "dynamic_zone.h"
 #include "expedition_request.h"
 #include "position.h"
 #include "worldserver.h"
@@ -61,6 +60,7 @@ extern volatile bool RunLoops;
 #include "lua_parser.h"
 
 #include "../common/repositories/character_alternate_abilities_repository.h"
+#include "../common/repositories/character_expedition_lockouts_repository.h"
 #include "../common/repositories/account_flags_repository.h"
 #include "../common/repositories/bug_reports_repository.h"
 #include "../common/repositories/char_recipe_list_repository.h"
@@ -711,6 +711,9 @@ Client::Client(EQStreamInterface *ieqs) : Mob(
 }
 
 Client::~Client() {
+	entity_list.RemoveMobFromCloseLists(this);
+	m_close_mobs.clear();
+
 	if (ClientVersion() == EQ::versions::ClientVersion::RoF2 && RuleB (Parcel, EnableParcelMerchants)) {
 		DoParcelCancel();
 	}
@@ -967,6 +970,10 @@ bool Client::SaveAA()
 	}
 
 	m_pp.aapoints_spent = aa_points_spent + m_epp.expended_aa;
+
+	if (v.empty()) {
+		return true;
+	}
 
 	return CharacterAlternateAbilitiesRepository::ReplaceMany(database, v);
 }
@@ -2547,40 +2554,59 @@ void Client::ChangeLastName(std::string last_name) {
 	safe_delete(outapp);
 }
 
-bool Client::ChangeFirstName(const char* in_firstname, const char* gmname)
+// Deprecated, this packet does not actually work in ROF2
+bool Client::ChangeFirstName(const std::string in_firstname, const std::string gmname)
 {
-	// check duplicate name
-	bool used_name = database.IsNameUsed((const char*) in_firstname);
-	if (used_name) {
+	if (!ChangeFirstName(in_firstname)) {
 		return false;
 	}
-
-	// update character_
-	if(!database.UpdateName(GetName(), in_firstname))
-		return false;
-
-	// update pp
-	memset(m_pp.name, 0, sizeof(m_pp.name));
-	snprintf(m_pp.name, sizeof(m_pp.name), "%s", in_firstname);
-	strcpy(name, m_pp.name);
-	Save();
 
 	// send name update packet
 	auto outapp = new EQApplicationPacket(OP_GMNameChange, sizeof(GMName_Struct));
 	GMName_Struct* gmn=(GMName_Struct*)outapp->pBuffer;
-	strn0cpy(gmn->gmname,gmname,64);
+	strn0cpy(gmn->gmname,gmname.c_str(),64);
 	strn0cpy(gmn->oldname,GetName(),64);
-	strn0cpy(gmn->newname,in_firstname,64);
+	strn0cpy(gmn->newname,in_firstname.c_str(),64);
 	gmn->unknown[0] = 1;
 	gmn->unknown[1] = 1;
 	gmn->unknown[2] = 1;
 	entity_list.QueueClients(this, outapp, false);
 	safe_delete(outapp);
 
+	// success
+	return true;
+}
+
+bool Client::ChangeFirstName(const std::string in_firstname)
+{
+	// check duplicate name
+	bool used_name = database.IsNameUsed(in_firstname) || database.IsPetNameUsed(in_firstname);
+	if (used_name || !database.CheckNameFilter(in_firstname, false)) {
+		return false;
+	}
+
+	// update character_
+	if(!database.UpdateNameByID(CharacterID(), in_firstname))
+		return false;
+
+	// Send Name Update to Clients
+	SendRename(this, GetName(), in_firstname.c_str());
+	SetName(in_firstname.c_str());
+
+	// update pp
+	memset(m_pp.name, 0, sizeof(m_pp.name));
+	snprintf(m_pp.name, sizeof(m_pp.name), "%s", in_firstname.c_str());
+	strcpy(name, m_pp.name);
+	Save();
+
+	// Update the active char in account table
+	database.UpdateLiveChar(in_firstname, AccountID());
+
 	// finally, update the /who list
 	UpdateWho();
 
 	// success
+	ClearNameChange();
 	return true;
 }
 
@@ -4627,7 +4653,7 @@ void Client::KeyRingLoad()
 	const auto &l = KeyringRepository::GetWhere(
 		database,
 		fmt::format(
-			"`char_id` = {} ORDER BY `item_id`",
+			"`char_id` = {} ORDER BY `item_id` ASC",
 			character_id
 		)
 	);
@@ -4636,21 +4662,15 @@ void Client::KeyRingLoad()
 		return;
 	}
 
-
-	for (const auto &e : l) {
+	for (const auto& e : l) {
 		keyring.emplace_back(e.item_id);
 	}
 }
 
-void Client::KeyRingAdd(uint32 item_id)
+bool Client::KeyRingAdd(uint32 item_id)
 {
-	if (!item_id) {
-		return;
-	}
-
-	const bool found = KeyRingCheck(item_id);
-	if (found) {
-		return;
+	if (!item_id || KeyRingCheck(item_id)) {
+		return false;
 	}
 
 	auto e = KeyringRepository::NewEntity();
@@ -4661,14 +4681,14 @@ void Client::KeyRingAdd(uint32 item_id)
 	e = KeyringRepository::InsertOne(database, e);
 
 	if (!e.id) {
-		return;
+		return false;
 	}
 
 	keyring.emplace_back(item_id);
 
 	if (!RuleB(World, UseItemLinksForKeyRing)) {
 		Message(Chat::LightBlue, "Added to keyring.");
-		return;
+		return true;
 	}
 
 	const std::string &item_link = database.CreateItemLink(item_id);
@@ -4680,17 +4700,25 @@ void Client::KeyRingAdd(uint32 item_id)
 			item_link
 		).c_str()
 	);
+	return true;
 }
 
 bool Client::KeyRingCheck(uint32 item_id)
 {
-	for (const auto &e : keyring) {
-		if (e == item_id) {
-			return true;
-		}
-	}
+	return std::find(keyring.begin(), keyring.end(), item_id) != keyring.end();
+}
 
-	return false;
+bool Client::KeyRingClear()
+{
+	keyring.clear();
+
+	return KeyringRepository::DeleteWhere(
+		database,
+		fmt::format(
+			"`char_id` = {}",
+			CharacterID()
+		)
+	);
 }
 
 void Client::KeyRingList()
@@ -4699,14 +4727,89 @@ void Client::KeyRingList()
 
 	const EQ::ItemData *item = nullptr;
 
-	for (const auto &e : keyring) {
+	for (const uint32& e : keyring) {
 		item = database.GetItem(e);
 		if (item) {
-			const std::string &item_string = RuleB(World, UseItemLinksForKeyRing) ? database.CreateItemLink(e) : item->Name;
+			const std::string& item_string = (
+				RuleB(World, UseItemLinksForKeyRing) ?
+				database.CreateItemLink(e) :
+				item->Name
+			);
 
 			Message(Chat::LightBlue, item_string.c_str());
 		}
 	}
+}
+
+bool Client::KeyRingRemove(uint32 item_id)
+{
+	keyring.erase(
+		std::remove(
+			keyring.begin(),
+			keyring.end(),
+			item_id
+		)
+	);
+
+	return KeyringRepository::DeleteWhere(
+		database,
+		fmt::format(
+			"`char_id` = {} AND `item_id` = {}",
+			CharacterID(),
+			item_id
+		)
+	);
+}
+
+bool Client::IsNameChangeAllowed() {
+	if (RuleB(Character, AlwaysAllowNameChange)) {
+		return true;
+	}
+
+	auto k = GetScopedBucketKeys();
+	k.key = "name_change_allowed";
+
+	auto b = DataBucket::GetData(k);
+	if (!b.value.empty()) {
+		return true;
+	}
+
+	return false;
+}
+
+bool Client::ClearNameChange() {
+	if (!IsNameChangeAllowed()) {
+		return false;
+	}
+
+	auto k = GetScopedBucketKeys();
+	k.key = "name_change_allowed";
+
+	DataBucket::DeleteData(k);
+
+	return true;
+}
+
+void Client::InvokeChangeNameWindow(bool immediate) {
+	if (!IsNameChangeAllowed()) {
+		return;
+	}
+
+	auto packet_op = immediate ? OP_InvokeNameChangeImmediate : OP_InvokeNameChangeLazy;
+
+	auto outapp = new EQApplicationPacket(packet_op, 0);
+	QueuePacket(outapp);
+	safe_delete(outapp);
+}
+
+void Client::GrantNameChange() {
+
+	auto k = GetScopedBucketKeys();
+	k.key = "name_change_allowed";
+	k.value = "allowed"; // potentially put a timestamp here
+	DataBucket::SetData(k);
+
+	InvokeChangeNameWindow(true);
 }
 
 bool Client::IsPetNameChangeAllowed() {
@@ -4790,17 +4893,31 @@ bool Client::ChangePetName(std::string new_name)
 	return true;
 }
 
-bool Client::IsDiscovered(uint32 item_id) {
-	const auto& l = DiscoveredItemsRepository::GetWhere(
-		database,
-		fmt::format(
-			"item_id = {}",
+bool Client::IsDiscovered(uint32 item_id)
+{
+	if (
+		std::find(
+			zone->discovered_items.begin(),
+			zone->discovered_items.end(),
 			item_id
-		)
-	);
-	if (l.empty()) {
+		) != zone->discovered_items.end()
+	) {
+		return true;
+	}
+
+	if (
+		DiscoveredItemsRepository::GetWhere(
+			database,
+			fmt::format(
+				"`item_id` = {} LIMIT 1",
+				item_id
+			)
+		).empty()
+	) {
 		return false;
 	}
+
+	zone->discovered_items.emplace_back(item_id);
 
 	return true;
 }
@@ -9720,14 +9837,6 @@ void Client::ShowDevToolsMenu()
 	std::string menu_search;
 	std::string menu_show;
 	std::string menu_reload_one;
-	std::string menu_reload_two;
-	std::string menu_reload_three;
-	std::string menu_reload_four;
-	std::string menu_reload_five;
-	std::string menu_reload_six;
-	std::string menu_reload_seven;
-	std::string menu_reload_eight;
-	std::string menu_reload_nine;
 	std::string menu_toggle;
 	std::string window_toggle;
 
@@ -9752,45 +9861,7 @@ void Client::ShowDevToolsMenu()
 	/**
 	 * Reload
 	 */
-	menu_reload_one += Saylink::Silent("#reload aa", "AAs");
-	menu_reload_one += " | " + Saylink::Silent("#reload alternate_currencies", "Alternate Currencies");
-	menu_reload_one += " | " + Saylink::Silent("#reload base_data", "Base Data");
-	menu_reload_one += " | " + Saylink::Silent("#reload blocked_spells", "Blocked Spells");
-
-	menu_reload_two += Saylink::Silent("#reload commands", "Commands");
-	menu_reload_two += " | " + Saylink::Silent("#reload content_flags", "Content Flags");
-
-	menu_reload_three += Saylink::Silent("#reload data_buckets_cache", "Databuckets");
-	menu_reload_three += " | " + Saylink::Silent("#reload doors", "Doors");
-	menu_reload_three += " | " + Saylink::Silent("#reload factions", "Factions");
-	menu_reload_three += " | " + Saylink::Silent("#reload ground_spawns", "Ground Spawns");
-
-	menu_reload_four += Saylink::Silent("#reload logs", "Level Based Experience Modifiers");
-	menu_reload_four += " | " + Saylink::Silent("#reload logs", "Log Settings");
-	menu_reload_four += " | " + Saylink::Silent("#reload Loot", "Loot");
-
-	menu_reload_five += Saylink::Silent("#reload merchants", "Merchants");
-	menu_reload_five += " | " + Saylink::Silent("#reload npc_emotes", "NPC Emotes");
-	menu_reload_five += " | " + Saylink::Silent("#reload npc_spells", "NPC Spells");
-	menu_reload_five += " | " + Saylink::Silent("#reload objects", "Objects");
-	menu_reload_five += " | " + Saylink::Silent("#reload opcodes", "Opcodes");
-
-	menu_reload_six += Saylink::Silent("#reload perl_export", "Perl Event Export Settings");
-	menu_reload_six += " | " + Saylink::Silent("#reload quest", "Quests");
-
-	menu_reload_seven += Saylink::Silent("#reload rules", "Rules");
-	menu_reload_seven += " | " + Saylink::Silent("#reload skill_caps", "Skill Caps");
-	menu_reload_seven += " | " + Saylink::Silent("#reload static", "Static Zone Data");
-	menu_reload_seven += " | " + Saylink::Silent("#reload tasks", "Tasks");
-
-	menu_reload_eight += Saylink::Silent("#reload titles", "Titles");
-	menu_reload_eight += " | " + Saylink::Silent("#reload traps 1", "Traps");
-	menu_reload_eight += " | " + Saylink::Silent("#reload variables", "Variables");
-	menu_reload_eight += " | " + Saylink::Silent("#reload veteran_rewards", "Veteran Rewards");
-
-	menu_reload_nine += Saylink::Silent("#reload world", "World");
-	menu_reload_nine += " | " + Saylink::Silent("#reload zone", "Zone");
-	menu_reload_nine += " | " + Saylink::Silent("#reload zone_points", "Zone Points");
+	menu_reload_one += Saylink::Silent("#reload", "Reload Menu (#reload)");
 
 	/**
 	 * Show window status
@@ -9857,70 +9928,6 @@ void Client::ShowDevToolsMenu()
 		fmt::format(
 			"Reload | {}",
 			menu_reload_one
-		).c_str()
-	);
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Reload | {}",
-			menu_reload_two
-		).c_str()
-	);
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Reload | {}",
-			menu_reload_three
-		).c_str()
-	);
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Reload | {}",
-			menu_reload_four
-		).c_str()
-	);
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Reload | {}",
-			menu_reload_five
-		).c_str()
-	);
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Reload | {}",
-			menu_reload_six
-		).c_str()
-	);
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Reload | {}",
-			menu_reload_seven
-		).c_str()
-	);
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Reload | {}",
-			menu_reload_eight
-		).c_str()
-	);
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Reload | {}",
-			menu_reload_nine
 		).c_str()
 	);
 
@@ -10016,13 +10023,13 @@ void Client::SendCrossZoneMessageString(
 		return;
 	}
 
-	SerializeBuffer argument_buffer;
+	SerializeBuffer argbuf;
 	for (const auto& argument : arguments)
 	{
-		argument_buffer.WriteString(argument);
+		argbuf.WriteString(argument);
 	}
 
-	uint32_t args_size = static_cast<uint32_t>(argument_buffer.size());
+	uint32_t args_size = static_cast<uint32_t>(argbuf.size());
 	uint32_t pack_size = sizeof(CZClientMessageString_Struct) + args_size;
 	auto pack = std::make_unique<ServerPacket>(ServerOP_CZClientMessageString, pack_size);
 	auto buf = reinterpret_cast<CZClientMessageString_Struct*>(pack->pBuffer);
@@ -10030,7 +10037,10 @@ void Client::SendCrossZoneMessageString(
 	buf->chat_type = chat_type;
 	strn0cpy(buf->client_name, character_name.c_str(), sizeof(buf->client_name));
 	buf->args_size = args_size;
-	memcpy(buf->args, argument_buffer.buffer(), argument_buffer.size());
+	if (argbuf.size() > 0)
+	{
+		memcpy(buf->args, argbuf.buffer(), argbuf.size());
+	}
 
 	if (client)
 	{
@@ -10048,56 +10058,52 @@ void Client::SendDynamicZoneUpdates()
 	SendDzCompassUpdate();
 	SetDynamicZoneMemberStatus(DynamicZoneMemberStatus::Online);
 
-	m_expedition_lockouts = ExpeditionDatabase::LoadCharacterLockouts(CharacterID());
+	m_dz_lockouts = CharacterExpeditionLockoutsRepository::GetLockouts(database, CharacterID());
 
 	// expeditions are the only dz type that keep the window updated
-	auto expedition = GetExpedition();
-	if (expedition)
+	if (DynamicZone* dz = GetExpedition())
 	{
-		expedition->GetDynamicZone()->SendClientWindowUpdate(this);
+		dz->SendClientWindowUpdate(this);
 
 		// live synchronizes lockouts obtained during the active expedition to
 		// members once they zone into the expedition's dynamic zone instance
-		if (expedition->GetDynamicZone()->IsCurrentZoneDzInstance())
+		if (dz->IsCurrentZoneDz())
 		{
-			expedition->SyncCharacterLockouts(CharacterID(), m_expedition_lockouts);
+			dz->SyncCharacterLockouts(CharacterID(), m_dz_lockouts);
 		}
 	}
 
-	SendExpeditionLockoutTimers();
+	SendDzLockoutTimers();
 
 	// ask world for any pending invite we saved from a previous zone
-	RequestPendingExpeditionInvite();
+	RequestPendingDzInvite();
 }
 
-Expedition* Client::CreateExpedition(DynamicZone& dz, bool disable_messages)
+DynamicZone* Client::CreateExpedition(DynamicZone& dz, bool silent)
 {
-	return Expedition::TryCreate(this, dz, disable_messages);
+	return DynamicZone::TryCreate(*this, dz, silent);
 }
 
-Expedition* Client::CreateExpedition(
-	const std::string& zone_name, uint32 version, uint32 duration, const std::string& expedition_name,
-	uint32 min_players, uint32 max_players, bool disable_messages)
+DynamicZone* Client::CreateExpedition(uint32 zone, uint32 version, uint32 duration, const std::string& name, uint32 min_players, uint32 max_players, bool silent)
 {
-	DynamicZone dz{ ZoneID(zone_name), version, duration, DynamicZoneType::Expedition };
-	dz.SetName(expedition_name);
+	DynamicZone dz{ zone, version, duration, DynamicZoneType::Expedition };
+	dz.SetName(name);
 	dz.SetMinPlayers(min_players);
 	dz.SetMaxPlayers(max_players);
 
-	return Expedition::TryCreate(this, dz, disable_messages);
+	return DynamicZone::TryCreate(*this, dz, silent);
 }
 
-Expedition* Client::CreateExpeditionFromTemplate(uint32_t dz_template_id)
+DynamicZone* Client::CreateExpeditionFromTemplate(uint32_t dz_template_id)
 {
-	Expedition* expedition = nullptr;
 	auto it = zone->dz_template_cache.find(dz_template_id);
 	if (it != zone->dz_template_cache.end())
 	{
 		DynamicZone dz(DynamicZoneType::Expedition);
 		dz.LoadTemplate(it->second);
-		expedition = Expedition::TryCreate(this, dz, false);
+		return DynamicZone::TryCreate(*this, dz, false);
 	}
-	return expedition;
+	return nullptr;
 }
 
 void Client::CreateTaskDynamicZone(int task_id, DynamicZone& dz_request)
@@ -10108,57 +10114,58 @@ void Client::CreateTaskDynamicZone(int task_id, DynamicZone& dz_request)
 	}
 }
 
-Expedition* Client::GetExpedition() const
+DynamicZone* Client::GetExpedition() const
 {
-	if (zone && m_expedition_id)
+	if (zone)
 	{
-		auto expedition_cache_iter = zone->expedition_cache.find(m_expedition_id);
-		if (expedition_cache_iter != zone->expedition_cache.end())
+		for (uint32_t dz_id : m_dynamic_zone_ids)
 		{
-			return expedition_cache_iter->second.get();
+			auto it = zone->dynamic_zone_cache.find(dz_id);
+			if (it != zone->dynamic_zone_cache.end() && it->second->IsExpedition())
+			{
+				return it->second.get();
+			}
 		}
 	}
 	return nullptr;
 }
 
-void Client::AddExpeditionLockout(const ExpeditionLockoutTimer& lockout, bool update_db)
+uint32_t Client::GetExpeditionID() const
+{
+	if (const DynamicZone* dz = GetExpedition())
+	{
+		return dz->GetID();
+	}
+	return 0;
+}
+
+void Client::AddDzLockout(const DzLockout& lockout, bool update_db)
 {
 	// todo: support for account based lockouts like live AoC expeditions
 
 	// if client already has this lockout, we're replacing it with the new one
-	m_expedition_lockouts.erase(std::remove_if(m_expedition_lockouts.begin(), m_expedition_lockouts.end(),
-		[&](const ExpeditionLockoutTimer& existing_lockout) {
-			return existing_lockout.IsSameLockout(lockout);
-		}
-	), m_expedition_lockouts.end());
+	std::erase_if(m_dz_lockouts, [&](const DzLockout& l) { return l.IsSame(lockout); });
 
-	m_expedition_lockouts.emplace_back(lockout);
+	m_dz_lockouts.push_back(lockout);
 
 	if (update_db) // for quest api
 	{
-		ExpeditionDatabase::InsertCharacterLockouts(CharacterID(), { lockout });
+		CharacterExpeditionLockoutsRepository::InsertLockouts(database, CharacterID(), { lockout });
 	}
 
-	SendExpeditionLockoutTimers();
+	SendDzLockoutTimers();
 }
 
-void Client::AddNewExpeditionLockout(
-	const std::string& expedition_name, const std::string& event_name, uint32_t seconds, std::string uuid)
+void Client::AddDzLockout(const std::string& expedition, const std::string& event, uint32_t seconds, std::string uuid)
 {
-	auto lockout = ExpeditionLockoutTimer::CreateLockout(expedition_name, event_name, seconds, uuid);
-	AddExpeditionLockout(lockout, true);
+	auto lockout = DzLockout::Create(expedition, event, seconds, uuid);
+	AddDzLockout(lockout, true);
 }
 
-void Client::AddExpeditionLockoutDuration(
-	const std::string& expedition_name, const std::string& event_name, int seconds,
-	const std::string& uuid, bool update_db)
+void Client::AddDzLockoutDuration(const DzLockout& lockout, int seconds, const std::string& uuid, bool update_db)
 {
-	auto it = std::find_if(m_expedition_lockouts.begin(), m_expedition_lockouts.end(),
-		[&](const ExpeditionLockoutTimer& lockout) {
-			return lockout.IsSameLockout(expedition_name, event_name);
-		});
-
-	if (it != m_expedition_lockouts.end())
+	auto it = std::ranges::find_if(m_dz_lockouts, [&](const DzLockout& l) { return l.IsSame(lockout); });
+	if (it != m_dz_lockouts.end())
 	{
 		it->AddLockoutTime(seconds);
 
@@ -10169,98 +10176,86 @@ void Client::AddExpeditionLockoutDuration(
 
 		if (update_db)
 		{
-			ExpeditionDatabase::InsertCharacterLockouts(CharacterID(), { *it });
+			CharacterExpeditionLockoutsRepository::InsertLockouts(database, CharacterID(), { *it });
 		}
 
-		SendExpeditionLockoutTimers();
+		SendDzLockoutTimers();
 	}
 	else if (seconds > 0) // missing lockouts inserted for reductions would be instantly expired
 	{
-		auto lockout = ExpeditionLockoutTimer::CreateLockout(expedition_name, event_name, seconds, uuid);
-		AddExpeditionLockout(lockout, update_db);
+		AddDzLockout(lockout, update_db);
 	}
 }
 
-void Client::RemoveExpeditionLockout(
-	const std::string& expedition_name, const std::string& event_name, bool update_db)
+void Client::RemoveDzLockout(const std::string& expedition, const std::string& event, bool update_db)
 {
-	m_expedition_lockouts.erase(std::remove_if(m_expedition_lockouts.begin(), m_expedition_lockouts.end(),
-		[&](const ExpeditionLockoutTimer& lockout) {
-			return lockout.IsSameLockout(expedition_name, event_name);
-		}
-	), m_expedition_lockouts.end());
+	std::erase_if(m_dz_lockouts, [&](const DzLockout& l) { return l.IsSame(expedition, event); });
 
 	if (update_db) // for quest api
 	{
-		ExpeditionDatabase::DeleteCharacterLockout(CharacterID(), expedition_name, event_name);
+		CharacterExpeditionLockoutsRepository::DeleteWhere(database, fmt::format(
+			"character_id = {} AND expedition_name = '{}' AND event_name = '{}'",
+			CharacterID(), Strings::Escape(expedition), Strings::Escape(event)));
 	}
 
-	SendExpeditionLockoutTimers();
+	SendDzLockoutTimers();
 }
 
-void Client::RemoveAllExpeditionLockouts(const std::string& expedition_name, bool update_db)
+void Client::RemoveDzLockouts(const std::string& expedition, bool update_db)
 {
-	if (expedition_name.empty())
+	if (expedition.empty())
 	{
 		if (update_db)
 		{
-			ExpeditionDatabase::DeleteAllCharacterLockouts(CharacterID());
+			CharacterExpeditionLockoutsRepository::DeleteWhere(database, fmt::format(
+				"character_id = {}", CharacterID()));
 		}
-		m_expedition_lockouts.clear();
+		m_dz_lockouts.clear();
 	}
 	else
 	{
 		if (update_db)
 		{
-			ExpeditionDatabase::DeleteAllCharacterLockouts(CharacterID(), expedition_name);
+			CharacterExpeditionLockoutsRepository::DeleteWhere(database, fmt::format(
+				"character_id = {} AND expedition_name = '{}'", CharacterID(), Strings::Escape(expedition)));
 		}
-
-		m_expedition_lockouts.erase(std::remove_if(m_expedition_lockouts.begin(), m_expedition_lockouts.end(),
-			[&](const ExpeditionLockoutTimer& lockout) {
-				return lockout.GetExpeditionName() == expedition_name;
-			}
-		), m_expedition_lockouts.end());
+		std::erase_if(m_dz_lockouts, [&](const DzLockout& l) { return l.DzName() == expedition; });
 	}
 
-	SendExpeditionLockoutTimers();
+	SendDzLockoutTimers();
 }
 
-const ExpeditionLockoutTimer* Client::GetExpeditionLockout(
-	const std::string& expedition_name, const std::string& event_name, bool include_expired) const
+const DzLockout* Client::GetDzLockout(const std::string& expedition, const std::string& event) const
 {
-	for (const auto& expedition_lockout : m_expedition_lockouts)
+	for (const auto& lockout : m_dz_lockouts)
 	{
-		if ((include_expired || !expedition_lockout.IsExpired()) &&
-			expedition_lockout.IsSameLockout(expedition_name, event_name))
+		if (!lockout.IsExpired() && lockout.IsSame(expedition, event))
 		{
-			return &expedition_lockout;
+			return &lockout;
 		}
 	}
 	return nullptr;
 }
 
-std::vector<ExpeditionLockoutTimer> Client::GetExpeditionLockouts(
-	const std::string& expedition_name, bool include_expired)
+std::vector<DzLockout> Client::GetDzLockouts(const std::string& expedition)
 {
-	std::vector<ExpeditionLockoutTimer> lockouts;
-	for (const auto& lockout : m_expedition_lockouts)
+	std::vector<DzLockout> lockouts;
+	for (const auto& lockout : m_dz_lockouts)
 	{
-		if ((include_expired || !lockout.IsExpired()) &&
-			lockout.GetExpeditionName() == expedition_name)
+		if (!lockout.IsExpired() && lockout.DzName() == expedition)
 		{
-			lockouts.emplace_back(lockout);
+			lockouts.push_back(lockout);
 		}
 	}
 	return lockouts;
 }
 
-bool Client::HasExpeditionLockout(
-	const std::string& expedition_name, const std::string& event_name, bool include_expired)
+bool Client::HasDzLockout(const std::string& expedition, const std::string& event) const
 {
-	return (GetExpeditionLockout(expedition_name, event_name, include_expired) != nullptr);
+	return GetDzLockout(expedition, event) != nullptr;
 }
 
-void Client::SendExpeditionLockoutTimers()
+void Client::SendDzLockoutTimers()
 {
 	std::vector<ExpeditionLockoutTimerEntry_Struct> lockout_entries;
 
@@ -10269,20 +10264,20 @@ void Client::SendExpeditionLockoutTimers()
 	constexpr uint32_t rounding_seconds = 60;
 
 	// erases expired lockouts while building lockout timer list
-	for (auto it = m_expedition_lockouts.begin(); it != m_expedition_lockouts.end();)
+	for (auto it = m_dz_lockouts.begin(); it != m_dz_lockouts.end();)
 	{
 		uint32_t seconds_remaining = it->GetSecondsRemaining();
 		if (seconds_remaining == 0)
 		{
-			it = m_expedition_lockouts.erase(it);
+			it = m_dz_lockouts.erase(it);
 		}
 		else
 		{
-			ExpeditionLockoutTimerEntry_Struct lockout;
-			strn0cpy(lockout.expedition_name, it->GetExpeditionName().c_str(), sizeof(lockout.expedition_name));
+			ExpeditionLockoutTimerEntry_Struct lockout{};
+			strn0cpy(lockout.expedition_name, it->DzName().c_str(), sizeof(lockout.expedition_name));
 			lockout.seconds_remaining = seconds_remaining + rounding_seconds;
-			lockout.event_type = it->IsReplayTimer() ? Expedition::REPLAY_TIMER_ID : Expedition::EVENT_TIMER_ID;
-			strn0cpy(lockout.event_name, it->GetEventName().c_str(), sizeof(lockout.event_name));
+			lockout.event_type = it->IsReplay() ? DynamicZone::ReplayTimerID : DynamicZone::EventTimerID;
+			strn0cpy(lockout.event_name, it->Event().c_str(), sizeof(lockout.event_name));
 
 			lockout_entries.emplace_back(lockout);
 			++it;
@@ -10302,38 +10297,31 @@ void Client::SendExpeditionLockoutTimers()
 	QueuePacket(outapp.get());
 }
 
-void Client::RequestPendingExpeditionInvite()
+void Client::RequestPendingDzInvite() const
 {
-	uint32_t packsize = sizeof(ServerExpeditionCharacterID_Struct);
-	auto pack = std::make_unique<ServerPacket>(ServerOP_ExpeditionRequestInvite, packsize);
-	auto packbuf = reinterpret_cast<ServerExpeditionCharacterID_Struct*>(pack->pBuffer);
-	packbuf->character_id = CharacterID();
-	worldserver.SendPacket(pack.get());
+	ServerPacket pack(ServerOP_DzRequestInvite, static_cast<uint32_t>(sizeof(ServerCharacterID_Struct)));
+	auto packbuf = reinterpret_cast<ServerCharacterID_Struct*>(pack.pBuffer);
+	packbuf->char_id = CharacterID();
+	worldserver.SendPacket(&pack);
 }
 
 void Client::DzListTimers()
 {
 	// only lists player's current replay timer lockouts, not all event lockouts
 	bool found = false;
-	for (const auto& lockout : m_expedition_lockouts)
+	for (const auto& lockout : m_dz_lockouts)
 	{
-		if (lockout.IsReplayTimer())
+		if (lockout.IsReplay())
 		{
 			found = true;
-			auto time_remaining = lockout.GetDaysHoursMinutesRemaining();
-			MessageString(
-				Chat::Yellow, DZLIST_REPLAY_TIMER,
-				time_remaining.days.c_str(),
-				time_remaining.hours.c_str(),
-				time_remaining.mins.c_str(),
-				lockout.GetExpeditionName().c_str()
-			);
+			auto time = lockout.GetTimeRemainingStrs();
+			MessageString(Chat::Yellow, DZ_TIMER, time.days.c_str(), time.hours.c_str(), time.mins.c_str(), lockout.DzName().c_str());
 		}
 	}
 
 	if (!found)
 	{
-		MessageString(Chat::Yellow, EXPEDITION_NO_TIMERS);
+		MessageString(Chat::Yellow, DZ_NO_TIMERS);
 	}
 }
 
@@ -10439,7 +10427,10 @@ std::unique_ptr<EQApplicationPacket> Client::CreateCompassPacket(
 	auto outapp = std::make_unique<EQApplicationPacket>(OP_DzCompass, outsize);
 	auto outbuf = reinterpret_cast<DynamicZoneCompass_Struct*>(outapp->pBuffer);
 	outbuf->count = count;
-	memcpy(outbuf->entries, compass_entries.data(), entries_size);
+	if (!compass_entries.empty())
+	{
+		memcpy(outbuf->entries, compass_entries.data(), entries_size);
+	}
 
 	return outapp;
 }
@@ -10448,7 +10439,7 @@ void Client::GoToDzSafeReturnOrBind(const DynamicZone* dynamic_zone)
 {
 	if (dynamic_zone)
 	{
-		auto safereturn = dynamic_zone->GetSafeReturnLocation();
+		const auto& safereturn = dynamic_zone->GetSafeReturnLocation();
 		if (safereturn.zone_id != 0)
 		{
 			LogDynamicZonesDetail("Sending [{}] to safereturn zone [{}]", CharacterID(), safereturn.zone_id);
@@ -10505,7 +10496,7 @@ void Client::SetDynamicZoneMemberStatus(DynamicZoneMemberStatus status)
 	for (auto& dz : GetDynamicZones())
 	{
 		// the rule to disable this status is handled internally by the dz
-		if (status == DynamicZoneMemberStatus::Online && dz->IsCurrentZoneDzInstance())
+		if (status == DynamicZoneMemberStatus::Online && dz->IsCurrentZoneDz())
 		{
 			status = DynamicZoneMemberStatus::InDynamicZone;
 		}
@@ -10526,7 +10517,7 @@ void Client::MovePCDynamicZone(uint32 zone_id, int zone_version, bool msg_if_inv
 	{
 		if (msg_if_invalid)
 		{
-			MessageString(Chat::Red, DYNAMICZONE_WAY_IS_BLOCKED); // unconfirmed message
+			MessageString(Chat::Red, DZ_WAY_IS_BLOCKED); // unconfirmed message
 		}
 	}
 	else if (client_dzs.size() == 1)
@@ -12013,338 +12004,22 @@ void Client::ReconnectUCS()
 void Client::SendReloadCommandMessages() {
 	SendChatLineBreak();
 
-	auto aa_link = Saylink::Silent("#reload aa");
+	for (auto &t: ServerReload::GetTypes()) {
+		std::string reload_slug = Strings::Slugify(ServerReload::GetNameClean(t), "_");;
+		auto reload_link        = Saylink::Silent(fmt::format("#reload {}", reload_slug), "Local");
+		auto reload_link_global = Saylink::Silent(fmt::format("#reload {} global", reload_slug), "Global");
 
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Alternate Advancement Data globally",
-			aa_link
-		).c_str()
-	);
-
-	auto alternate_currencies_link = Saylink::Silent("#reload alternate_currencies");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Alternate Currencies globally",
-			alternate_currencies_link
-		).c_str()
-	);
-
-	auto base_data_link = Saylink::Silent("#reload base_data");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Base Data globally",
-			base_data_link
-		).c_str()
-	);
-
-	auto blocked_spells_link = Saylink::Silent("#reload blocked_spells");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Blocked Spells globally",
-			blocked_spells_link
-		).c_str()
-	);
-
-	auto commands_link = Saylink::Silent("#reload commands");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Commands globally",
-			commands_link
-		).c_str()
-	);
-
-	auto content_flags_link = Saylink::Silent("#reload content_flags");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Content Flags globally",
-			content_flags_link
-		).c_str()
-	);
-
-	auto doors_link = Saylink::Silent("#reload doors");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Doors globally",
-			doors_link
-		).c_str()
-	);
-
-	auto data_buckets_link = Saylink::Silent("#reload data_buckets_cache");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads data buckets cache globally",
-			data_buckets_link
-		).c_str()
-	);
-
-	auto dztemplates_link = Saylink::Silent("#reload dztemplates");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Dynamic Zone Templates globally",
-			dztemplates_link
-		).c_str()
-	);
-
-	auto factions_link = Saylink::Silent("#reload factions");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Factions globally",
-			factions_link
-		).c_str()
-	);
-
-	auto ground_spawns_link = Saylink::Silent("#reload ground_spawns");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Ground Spawns globally",
-			ground_spawns_link
-		).c_str()
-	);
-
-	auto level_mods_link = Saylink::Silent("#reload level_mods");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Level Based Experience Modifiers globally",
-			level_mods_link
-		).c_str()
-	);
-
-	auto logs_link = Saylink::Silent("#reload logs");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Log Settings globally",
-			logs_link
-		).c_str()
-	);
-
-	auto loot_link = Saylink::Silent("#reload loot");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Loot globally",
-			loot_link
-		).c_str()
-	);
-
-	auto merchants_link = Saylink::Silent("#reload merchants");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Merchants globally",
-			merchants_link
-		).c_str()
-	);
-
-	auto npc_emotes_link = Saylink::Silent("#reload npc_emotes");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads NPC Emotes globally",
-			npc_emotes_link
-		).c_str()
-	);
-
-	auto npc_spells_link = Saylink::Silent("#reload npc_spells");
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads NPC Spells globally",
-			npc_spells_link
-		).c_str()
-	);
-
-	auto objects_link = Saylink::Silent("#reload objects");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Objects globally",
-			objects_link
-		).c_str()
-	);
-
-	auto opcodes_link = Saylink::Silent("#reload opcodes");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Opcodes globally",
-			opcodes_link
-		).c_str()
-	);
-
-	auto perl_export_link = Saylink::Silent("#reload perl_export");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Perl Event Export Settings globally",
-			perl_export_link
-		).c_str()
-	);
-
-	auto quest_link_one = Saylink::Silent("#reload quest");
-	auto quest_link_two = Saylink::Silent("#reload quest", "0");
-	auto quest_link_three = Saylink::Silent("#reload quest 1", "1");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} [{}|{}] - Reloads Quests and Timers in your current zone if specified (0 = Do Not Reload Timers, 1 = Reload Timers)",
-			quest_link_one,
-			quest_link_two,
-			quest_link_three
-		).c_str()
-	);
-
-	auto rules_link = Saylink::Silent("#reload rules");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Rules globally",
-			rules_link
-		).c_str()
-	);
-
-	auto skill_caps_link = Saylink::Silent("#reload skill_caps");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Skill Caps globally",
-			skill_caps_link
-		).c_str()
-	);
-
-	auto static_link = Saylink::Silent("#reload static");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Static Zone Data globally",
-			static_link
-		).c_str()
-	);
-
-	auto tasks_link = Saylink::Silent("#reload tasks");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} [Task ID] - Reloads Tasks globally or by ID if specified",
-			tasks_link
-		).c_str()
-	);
-
-	auto titles_link = Saylink::Silent("#reload titles");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Titles globally",
-			titles_link
-		).c_str()
-	);
-
-	auto traps_link_one = Saylink::Silent("#reload traps");
-	auto traps_link_two = Saylink::Silent("#reload traps", "0");
-	auto traps_link_three = Saylink::Silent("#reload traps 1", "1");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} [{}|{}] - Reloads Traps in your current zone or globally if specified",
-			traps_link_one,
-			traps_link_two,
-			traps_link_three
-		).c_str()
-	);
-
-	auto variables_link = Saylink::Silent("#reload variables");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Variables globally",
-			variables_link
-		).c_str()
-	);
-
-	auto veteran_rewards_link = Saylink::Silent("#reload veteran_rewards");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Veteran Rewards globally",
-			veteran_rewards_link
-		).c_str()
-	);
-
-	auto world_link_one = Saylink::Silent("#reload world");
-	auto world_link_two = Saylink::Silent("#reload world", "0");
-	auto world_link_three = Saylink::Silent("#reload world 1", "1");
-	auto world_link_four = Saylink::Silent("#reload world 2", "2");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} [{}|{}|{}] - Reloads Quests and repops globally if specified (0 = No Repop, 1 = Repop, 2 = Force Repop)",
-			world_link_one,
-			world_link_two,
-			world_link_three,
-			world_link_four
-		).c_str()
-	);
-
-	auto zone_link = Saylink::Silent("#reload zone");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} [Zone ID] [Version] - Reloads Zone configuration for your current zone, can load another Zone's configuration if specified",
-			zone_link
-		).c_str()
-	);
-
-	auto zone_points_link = Saylink::Silent("#reload zone_points");
-
-	Message(
-		Chat::White,
-		fmt::format(
-			"Usage: {} - Reloads Zone Points globally",
-			zone_points_link
-		).c_str()
-	);
+		Message(
+			Chat::White,
+			fmt::format(
+				"Usage: [{}] [{}] #reload {} - Reloads {}",
+				reload_link,
+				reload_link_global,
+				reload_slug,
+				ServerReload::GetName(t)
+			).c_str()
+		);
+	}
 
 	SendChatLineBreak();
 }
@@ -13300,107 +12975,6 @@ int Client::AlterBonuses(int type, int value)
 return 0;
 }
 
-void Client::AddMoneyToPPWithOverflow(uint64 copper, bool update_client)
-{
-	//I noticed in the ROF2 client that the client auto updates the currency values using overflow
-	//Therefore, I created this method to ensure that the db matches and clients don't see 10 pp 5 gp
-	//becoming 9pp 15 gold with the current AddMoneyToPP method.
-
-	auto add_pp = copper / 1000;
-	auto add_gp = (copper - add_pp * 1000) / 100;
-	auto add_sp = (copper - add_pp * 1000 - add_gp * 100) / 10;
-	auto add_cp = copper - add_pp * 1000 - add_gp * 100 - add_sp * 10;
-
-	m_pp.copper += add_cp;
-	if (m_pp.copper >= 10) {
-		m_pp.silver += m_pp.copper / 10;
-		m_pp.copper = m_pp.copper % 10;
-	}
-
-	m_pp.silver += add_sp;
-	if (m_pp.silver >= 10) {
-		m_pp.gold += m_pp.silver / 10;
-		m_pp.silver = m_pp.silver % 10;
-	}
-
-	m_pp.gold += add_gp;
-	if (m_pp.gold >= 10) {
-		m_pp.platinum += m_pp.gold / 10;
-		m_pp.gold = m_pp.gold % 10;
-	}
-
-	m_pp.platinum += add_pp;
-
-	if (update_client) {
-		SendMoneyUpdate();
-	}
-
-	RecalcWeight();
-	SaveCurrency();
-
-	LogDebug("Client::AddMoneyToPPWithOverflow() [{}] should have: plat:[{}] gold:[{}] silver:[{}] copper:[{}]",
-		GetName(),
-		m_pp.platinum,
-		m_pp.gold,
-		m_pp.silver,
-		m_pp.copper
-	);
-}
-
-bool Client::TakeMoneyFromPPWithOverFlow(uint64 copper, bool update_client)
-{
-	int32 remove_pp = copper / 1000;
-	int32 remove_gp = (copper - remove_pp * 1000) / 100;
-	int32 remove_sp = (copper - remove_pp * 1000 - remove_gp * 100) / 10;
-	int32 remove_cp = copper - remove_pp * 1000 - remove_gp * 100 - remove_sp * 10;
-
-	uint64 current_money = GetCarriedMoney();
-
-	if (copper > current_money) {
-		return false; //client does not have enough money on them
-	}
-
-	m_pp.copper -= remove_cp;
-	if (m_pp.copper < 0) {
-		m_pp.silver -= 1;
-		m_pp.copper = m_pp.copper + 10;
-		if (m_pp.copper >= 10) {
-			m_pp.silver += m_pp.copper / 10;
-			m_pp.copper = m_pp.copper % 10;
-		}
-	}
-
-	m_pp.silver -= remove_sp;
-	if (m_pp.silver < 0) {
-		m_pp.gold -= 1;
-		m_pp.silver = m_pp.silver + 10;
-		if (m_pp.silver >= 10) {
-			m_pp.gold += m_pp.silver / 10;
-			m_pp.silver = m_pp.silver % 10;
-		}
-	}
-
-	m_pp.gold -= remove_gp;
-	if (m_pp.gold < 0) {
-		m_pp.platinum -= 1;
-		m_pp.gold = m_pp.gold + 10;
-		if (m_pp.gold >= 10) {
-			m_pp.platinum += m_pp.gold / 10;
-			m_pp.gold = m_pp.gold % 10;
-		}
-	}
-
-	m_pp.platinum -= remove_pp;
-
-	if (update_client) {
-		SendMoneyUpdate();
-	}
-
-	SaveCurrency();
-	RecalcWeight();
-	return true;
-}
-
 void Client::SendTopLevelInventory()
 {
 	EQ::ItemInstance* inst = nullptr;
@@ -13906,4 +13480,25 @@ void Client::SendMerchantEnd()
 
 	EQApplicationPacket empty(OP_ShopEndConfirm);
 	QueuePacket(&empty);
+}
+
+void Client::CheckItemDiscoverability(uint32 item_id)
+{
+	if (!RuleB(Character, EnableDiscoveredItems) || IsDiscovered(item_id)) {
+		return;
+	}
+
+	if (GetGM()) {
+		const std::string& item_link = database.CreateItemLink(item_id);
+		Message(
+			Chat::White,
+			fmt::format(
+				"Your GM flag prevents {} from being added to discovered items.",
+				item_link
+			).c_str()
+		);
+		return;
+	}
+
+	DiscoverItem(item_id);
 }
