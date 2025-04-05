@@ -1604,12 +1604,6 @@ uint32 Mob::GetInstrumentMod(uint16 spell_id)
 void Client::CalcMaxEndurance()
 {
 	max_end = CalcBaseEndurance() + spellbonuses.Endurance + itembonuses.Endurance + aabonuses.Endurance;
-	int32 heroic_stats = (GetHeroicSTR() + GetHeroicSTA() + GetHeroicDEX() + GetHeroicAGI()) / 4;
-
-	if (heroic_stats > 0) {
-		max_end += heroic_stats * 10;
-	}
-
 	if (max_end < 0) {
 		max_end = 0;
 	}
