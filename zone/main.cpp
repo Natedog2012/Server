@@ -500,6 +500,9 @@ int main(int argc, char **argv)
 	}
 
 	Timer InterserverTimer(INTERSERVER_TIMER); // does MySQL pings and auto-reconnect
+	Timer UpdateWhoTimer(RuleI(Zone, UpdateWhoTimer) * 1000); // updates who list every 2 minutes
+	Timer WorldserverProcess(1000);
+
 #ifdef EQPROFILE
 #ifdef PROFILE_DUMP_TIME
 	Timer profile_dump_timer(PROFILE_DUMP_TIME * 1000);
@@ -615,6 +618,10 @@ int main(int argc, char **argv)
 			}
 		}
 
+		if (WorldserverProcess.Check()) {
+			worldserver.Process();
+		}
+
 		if (is_zone_loaded) {
 			{
 				entity_list.GroupProcess();
@@ -647,7 +654,10 @@ int main(int argc, char **argv)
 			InterserverTimer.Start();
 			database.ping();
 			content_db.ping();
-			entity_list.UpdateWho();
+			if (UpdateWhoTimer.Check()) {
+				UpdateWhoTimer.SetTimer(RuleI(Zone, UpdateWhoTimer) * 1000); // in-case it was changed
+				entity_list.UpdateWho();
+			}
 		}
 	};
 
@@ -668,6 +678,7 @@ int main(int argc, char **argv)
 	safe_delete(Config);
 
 	if (zone != 0) {
+		zone->SetSaveZoneState(false);
 		zone->Shutdown(true);
 	}
 	//Fix for Linux world server problem.

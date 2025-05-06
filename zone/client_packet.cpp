@@ -73,6 +73,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "../common/repositories/character_stats_record_repository.h"
 #include "dialogue_window.h"
 #include "../common/rulesys.h"
+#include "../common/repositories/adventure_members_repository.h"
 
 extern QueryServ* QServ;
 extern Zone* zone;
@@ -914,11 +915,14 @@ void Client::CompleteConnect()
 
 	SendDynamicZoneUpdates();
 
-	/** Request adventure info **/
-	auto pack = new ServerPacket(ServerOP_AdventureDataRequest, 64);
-	strcpy((char*)pack->pBuffer, GetName());
-	worldserver.SendPacket(pack);
-	delete pack;
+	// Request adventure info
+	auto members = AdventureMembersRepository::GetWhere(database, fmt::format("charid = {}", CharacterID()));
+	if (!members.empty()) {
+		auto pack = new ServerPacket(ServerOP_AdventureDataRequest, 64);
+		strcpy((char*)pack->pBuffer, GetName());
+		worldserver.SendPacket(pack);
+		delete pack;
+	}
 
 	if (IsClient() && CastToClient()->ClientVersionBit() & EQ::versions::maskUFAndLater) {
 		EQApplicationPacket *outapp = MakeBuffsPacket(false);
@@ -8003,7 +8007,7 @@ void Client::Handle_OP_GuildCreate(const EQApplicationPacket *app)
 	}
 
 	SetGuildID(new_guild_id);
-	SendGuildList();
+	UpdateWho();
 	guild_mgr.MemberAdd(new_guild_id, CharacterID(), GetLevel(), GetClass(), GUILD_LEADER, GetZoneID(), GetName());
 	guild_mgr.SendGuildRefresh(new_guild_id, true, true, true, true);
 	guild_mgr.SendToWorldSendGuildList();
@@ -8172,7 +8176,7 @@ void Client::Handle_OP_GuildInvite(const EQApplicationPacket *app)
 	if (!invitee) {
 		Message(
 			Chat::Red,
-			"Prospective guild member %s must be in zone to preform guild operations on them.",
+			"Prospective guild member %s must be in zone to perform guild operations on them.",
 			gc->othername
 		);
 		return;
@@ -11096,7 +11100,7 @@ void Client::Handle_OP_PetCommands(const EQApplicationPacket *app)
 		if (!target)
 			break;
 
-		if (RuleB(Map, CheckForLoSCheat) && (!DoLosChecks(target) || !CheckLosCheat(target))) {
+		if (RuleB(Pets, PetsRequireLoS) && !DoLosChecks(target)) {
 			mypet->SayString(this, NOT_LEGAL_TARGET);
 			break;
 		}
@@ -11164,7 +11168,7 @@ void Client::Handle_OP_PetCommands(const EQApplicationPacket *app)
 			break;
 		}
 
-		if (RuleB(Map, CheckForLoSCheat) && (!DoLosChecks(GetTarget()) || !CheckLosCheat(GetTarget()))) {
+		if (RuleB(Pets, PetsRequireLoS) && !DoLosChecks(GetTarget())) {
 			mypet->SayString(this, NOT_LEGAL_TARGET);
 			break;
 		}

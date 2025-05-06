@@ -807,7 +807,7 @@ public:
 	static bool CheckLosFN(glm::vec3 posWatcher, float sizeWatcher, glm::vec3 posTarget, float sizeTarget);
 	virtual bool CheckWaterLoS(Mob* m);
 	bool CheckPositioningLosFN(Mob* other, float posX, float posY, float posZ);
-	bool CheckLosCheat(Mob* other); //door skipping checks for LoS
+	bool CheckDoorLoSCheat(Mob* other); //door skipping checks for LoS
 	bool CheckLosCheatExempt(Mob* other); //exemptions to bypass los
 	bool DoLosChecks(Mob* other);
 	inline void SetLastLosState(bool value) { last_los_check = value; }
@@ -971,7 +971,7 @@ public:
 	uint16 GetSympatheticFocusEffect(focusType type, uint16 spell_id);
 	bool TryFadeEffect(int slot);
 	void DispelMagic(Mob* casterm, uint16 spell_id, int effect_value);
-	uint16 GetSpellEffectResistChance(uint16 spell_id);
+	bool TrySpellEffectResist(uint16 spell_id);
 	int32 GetVulnerability(Mob *caster, uint32 spell_id, uint32 ticsremaining, bool from_buff_tic = false);
 	int64 GetFcDamageAmtIncoming(Mob *caster, int32 spell_id, bool from_buff_tic = false);
 	int64 GetFocusIncoming(focusType type, int effect, Mob *caster, uint32 spell_id); //**** This can be removed when bot healing focus code is updated ****
@@ -1134,7 +1134,7 @@ public:
 
 	virtual void SetAttackTimer();
 	inline void SetInvul(bool invul) { invulnerable=invul; }
-	inline bool GetInvul(void) { return invulnerable; }
+	inline bool GetInvul() { return invulnerable; }
 	void SetExtraHaste(int haste, bool need_to_save = true);
 	inline int GetExtraHaste() { return extra_haste; }
 	virtual int GetHaste();

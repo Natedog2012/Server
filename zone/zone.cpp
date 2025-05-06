@@ -887,10 +887,7 @@ void Zone::Shutdown(bool quiet)
 		c.second->WorldKick();
 	}
 
-	bool does_zone_have_entities =
-			 zone && zone->IsLoaded() &&
-			 (!entity_list.GetNPCList().empty() || !entity_list.GetCorpseList().empty());
-	if (RuleB(Zone, StateSavingOnShutdown) && does_zone_have_entities) {
+	if (m_save_zone_state && RuleB(Zone, StateSavingOnShutdown) && zone && zone->IsLoaded()) {
 		SaveZoneState();
 	}
 
@@ -1013,6 +1010,7 @@ Zone::Zone(uint32 in_zoneid, uint32 in_instanceid, const char* in_short_name)
 
 	SetIdleWhenEmpty(true);
 	SetSecondsBeforeIdle(60);
+	SetSaveZoneState(false);
 
 	if (database.GetServerType() == 1) {
 		pvpzone = true;
@@ -1193,6 +1191,11 @@ bool Zone::Init(bool is_static) {
 
 	RespawnTimesRepository::ClearExpiredRespawnTimers(database);
 
+	// Loading zone variables so they're available for things like encounter_load
+	if (RuleB(Zone, StateSavingOnShutdown)) {
+		zone->LoadZoneVariablesState();
+	}
+
 	// make sure that anything that needs to be loaded prior to scripts is loaded before here
 	// this is to ensure that the scripts have access to the data they need
 	parse->ReloadQuests(true);
@@ -1207,6 +1210,8 @@ bool Zone::Init(bool is_static) {
 	}
 
 	content_db.PopulateZoneSpawnList(zoneid, spawn2_list, GetInstanceVersion());
+	SetSaveZoneState(true);
+
 	database.LoadCharacterCorpses(zoneid, instanceid);
 
 	content_db.LoadTraps(short_name, GetInstanceVersion());
@@ -1537,7 +1542,6 @@ bool Zone::Process() {
 	spawn_conditions.Process();
 
 	if (spawn2_timer.Check()) {
-
 		LinkedListIterator<Spawn2 *> iterator(spawn2_list);
 
 		EQ::InventoryProfile::CleanDirty();
@@ -3288,5 +3292,11 @@ bool Zone::VariableExists(const std::string& variable_name)
 	return m_zone_variables.find(variable_name) != m_zone_variables.end();
 }
 
-#include "zone_save_state.cpp"
+void Zone::ReloadMaps()
+{
+	zonemap  = Map::LoadMapFile(map_name);
+	watermap = WaterMap::LoadWaterMapfile(map_name);
+	pathing  = IPathfinder::Load(map_name);
+}
+
 #include "zone_loot.cpp"

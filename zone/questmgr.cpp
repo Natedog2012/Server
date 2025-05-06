@@ -716,7 +716,7 @@ void QuestManager::stoptimer(const std::string& timer_name, Mob* m)
 	}
 
 	for (auto e = QTimerList.begin(); e != QTimerList.end(); ++e) {
-		if (e->mob && e->mob == m) {
+		if (e->mob && e->mob == m && e->name == timer_name) {
 			parse->EventMob(EVENT_TIMER_STOP, m, nullptr, [&]() { return timer_name; });
 
 			QTimerList.erase(e);
@@ -2808,7 +2808,7 @@ bool QuestManager::createBot(const char *name, const char *lastname, uint8 level
 
 		std::string test_name = name;
 		bool available_flag = false;
-		if (!database.botdb.QueryNameAvailablity(test_name, available_flag)) {
+		if (!database.botdb.QueryNameAvailability(test_name, available_flag)) {
 			initiator->Message(
 				Chat::White,
 				fmt::format(
@@ -3528,6 +3528,7 @@ void QuestManager::UpdateInstanceTimer(uint16 instance_id, uint32 new_duration)
 
 	e.duration   = new_duration;
 	e.start_time = std::time(nullptr);
+	e.expire_at  = e.start_time + e.duration;
 
 	const int updated = InstanceListRepository::UpdateOne(database, e);
 
