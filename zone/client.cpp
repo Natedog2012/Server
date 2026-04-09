@@ -9710,7 +9710,7 @@ void Client::SetPrimaryWeaponOrnamentation(uint32 model_id)
 
 		e.ornament_idfile = model_id;
 
-		const int updated = InventoryRepository::UpdateOne(database, e);
+		const int updated = InventoryRepository::UpdateOne(database, e, e.slot_id);
 
 		if (updated) {
 			primary_item->SetOrnamentationIDFile(model_id);
@@ -9743,7 +9743,7 @@ void Client::SetSecondaryWeaponOrnamentation(uint32 model_id)
 
 		e.ornament_idfile = model_id;
 
-		const int updated = InventoryRepository::UpdateOne(database, e);
+		const int updated = InventoryRepository::UpdateOne(database, e, e.slot_id);
 
 		if (updated) {
 			secondary_item->SetOrnamentationIDFile(model_id);

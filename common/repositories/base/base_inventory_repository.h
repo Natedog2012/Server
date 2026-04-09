@@ -222,7 +222,8 @@ public:
 
 	static int UpdateOne(
 		Database& db,
-		const Inventory &e
+		const Inventory &e,
+		int slot_id
 	)
 	{
 		std::vector<std::string> v;
@@ -249,11 +250,12 @@ public:
 
 		auto results = db.QueryDatabase(
 			fmt::format(
-				"UPDATE {} SET {} WHERE {} = {}",
+				"UPDATE {} SET {} WHERE {} = {} AND slot_id = {}",
 				TableName(),
 				Strings::Implode(", ", v),
 				PrimaryKey(),
-				e.character_id
+				e.character_id,
+				slot_id
 			)
 		);
 
