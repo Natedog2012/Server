@@ -1,5 +1,23 @@
-#ifndef EQEMU_OPTIONS_H
-#define EQEMU_OPTIONS_H
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include <string>
 
 class Options {
 public:
@@ -31,7 +49,7 @@ public:
 	inline void DefaultLoginServerName(const std::string &v) { m_default_loginserver_name = v; }
 	inline std::string GetDefaultLoginServerName() const { return m_default_loginserver_name; }
 	inline bool IsShowPlayerCountEnabled() const { return m_show_player_count; }
-	inline void SetShowPlayerCount(bool show_player_count) { show_player_count = show_player_count; }
+	inline void SetShowPlayerCount(bool show_player_count) { m_show_player_count = show_player_count; }
 	inline bool IsWorldDevTestServersListBottom() const { return m_world_dev_list_bottom; }
 	inline void SetWorldDevTestServersListBottom(bool list_bottom) { m_world_dev_list_bottom = list_bottom; }
 	inline bool IsWorldSpecialCharacterStartListBottom() const { return m_special_char_list_bottom; }
@@ -51,7 +69,3 @@ private:
 	std::string m_eqemu_loginserver_address;
 	std::string m_default_loginserver_name;
 };
-
-
-#endif
-

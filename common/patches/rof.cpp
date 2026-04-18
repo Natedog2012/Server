@@ -1,40 +1,36 @@
-/*	EQEMu: Everquest Server Emulator
+/*	EQEmu: EQEmulator
 
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.net)
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../global_define.h"
-#include "../eqemu_config.h"
-#include "../eqemu_logsys.h"
 #include "rof.h"
-#include "../opcodemgr.h"
-
-#include "../eq_stream_ident.h"
-#include "../crc32.h"
-
-#include "../eq_packet_structs.h"
-#include "../misc_functions.h"
-#include "../strings.h"
-#include "../inventory_profile.h"
 #include "rof_structs.h"
-#include "../rulesys.h"
-#include "../path_manager.h"
-#include "../races.h"
-#include "../raid.h"
+
+#include "common/crc32.h"
+#include "common/eq_packet_structs.h"
+#include "common/eq_stream_ident.h"
+#include "common/eqemu_config.h"
+#include "common/eqemu_logsys.h"
+#include "common/inventory_profile.h"
+#include "common/misc_functions.h"
+#include "common/opcodemgr.h"
+#include "common/path_manager.h"
+#include "common/races.h"
+#include "common/raid.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
 
 #include <iostream>
 #include <sstream>
@@ -78,7 +74,7 @@ namespace RoF
 	{
 		//create our opcode manager if we havent already
 		if (opcodes == nullptr) {
-			std::string opfile = fmt::format("{}/patch_{}.conf", path.GetPatchPath(), name);
+			std::string opfile = fmt::format("{}/patch_{}.conf", PathManager::Instance()->GetPatchPath(), name);
 
 			//load up the opcode manager.
 			//TODO: figure out how to support shared memory with multiple patches...
@@ -117,7 +113,7 @@ namespace RoF
 		//we need to go to every stream and replace it's manager.
 
 		if (opcodes != nullptr) {
-			std::string opfile = fmt::format("{}/patch_{}.conf", path.GetPatchPath(), name);
+			std::string opfile = fmt::format("{}/patch_{}.conf", PathManager::Instance()->GetPatchPath(), name);
 			if (!opcodes->ReloadOpcodes(opfile.c_str())) {
 				LogNetcode("[OPCODES] Error reloading opcodes file [{}] for patch [{}]", opfile.c_str(), name);
 				return;
@@ -3225,7 +3221,7 @@ namespace RoF
 
 		buf.WriteString(new_message);
 
-		auto outapp = new EQApplicationPacket(OP_SpecialMesg, buf);
+		auto outapp = new EQApplicationPacket(OP_SpecialMesg, std::move(buf));
 
 		dest->FastQueuePacket(&outapp, ack_req);
 		delete in;

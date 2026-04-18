@@ -1,8 +1,24 @@
-#ifndef EQEMU_DOOR_MANIPULATION_H
-#define EQEMU_DOOR_MANIPULATION_H
+/*	EQEmu: EQEmulator
 
-#include "../client.h"
-#include "../../common/repositories/tool_game_objects_repository.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/repositories/tool_game_objects_repository.h"
+#include "zone/client.h"
 
 class DoorManipulation {
 
@@ -18,6 +34,3 @@ public:
 		std::vector<ToolGameObjectsRepository::ToolGameObjects> game_objects
 	);
 };
-
-
-#endif //EQEMU_DOOR_MANIPULATION_H

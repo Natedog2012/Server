@@ -1,10 +1,26 @@
-#include "../common/features.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/features.h"
 
 #ifdef EMBPERL_XS_CLASSES
 
-#include "../common/global_define.h"
-#include "embperl.h"
-#include "npc.h"
+#include "zone/embperl.h"
+#include "zone/npc.h"
 
 void Perl_NPC_SignalNPC(NPC* self, int signal_id) // @categories Script Utility
 {
@@ -885,6 +901,16 @@ Spawn2* Perl_NPC_GetSpawn(NPC* self)
 	return self->GetSpawn();
 }
 
+void Perl_NPC_SetNPCTintIndex(NPC* self, uint32 index)
+{
+	self->SetNPCTintIndex(index);
+}
+
+uint32 Perl_NPC_GetNPCTintIndex(NPC* self)
+{
+	return self->GetNPCTintIndex();
+}
+
 void perl_register_npc()
 {
 	perl::interpreter perl(PERL_GET_THX);
@@ -956,6 +982,7 @@ void perl_register_npc()
 	package.add("GetNPCSpellsEffectsID", &Perl_NPC_GetNPCSpellsEffectsID);
 	package.add("GetNPCSpellsID", &Perl_NPC_GetNPCSpellsID);
 	package.add("GetNPCStat", &Perl_NPC_GetNPCStat);
+	package.add("GetNPCTintIndex", &Perl_NPC_GetNPCTintIndex);
 	package.add("GetPetSpellID", &Perl_NPC_GetPetSpellID);
 	package.add("GetPlatinum", &Perl_NPC_GetPlatinum);
 	package.add("GetPrimSkill", &Perl_NPC_GetPrimSkill);
@@ -1036,6 +1063,7 @@ void perl_register_npc()
 	package.add("SetGold", &Perl_NPC_SetGold);
 	package.add("SetGrid", &Perl_NPC_SetGrid);
 	package.add("SetNPCFactionID", &Perl_NPC_SetNPCFactionID);
+	package.add("SetNPCTintIndex", &Perl_NPC_SetNPCTintIndex);
 	package.add("SetPetSpellID", &Perl_NPC_SetPetSpellID);
 	package.add("SetPlatinum", &Perl_NPC_SetPlatinum);
 	package.add("SetPrimSkill", &Perl_NPC_SetPrimSkill);

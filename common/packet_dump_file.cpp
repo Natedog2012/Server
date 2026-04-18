@@ -1,44 +1,31 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#include "packet_dump_file.h"
 
-#include "../common/global_define.h"
+#include "common/eq_stream_intf.h"
 
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <stdio.h>
 
-//#ifdef _CRTDBG_MAP_ALLOC
-//	#undef new
-//	#define new new(_NORMAL_BLOCK, __FILE__, __LINE__)
-//#endif
-#include <string.h>
-
-#ifdef _WINDOWS
-	#define snprintf	_snprintf
-	#define strncasecmp	_strnicmp
-	#define strcasecmp	_stricmp
-#else
-	#include <stdarg.h>
-#endif
-
-#include "eq_stream_intf.h"
-#include "packet_dump_file.h"
 
 void FileDumpPacketAscii(const char* filename, const uchar* buf, uint32 size, uint32 cols, uint32 skip) {
 	std::ofstream logfile(filename, std::ios::app);

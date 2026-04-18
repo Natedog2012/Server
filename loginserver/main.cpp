@@ -1,37 +1,41 @@
-#include "../common/global_define.h"
-#include "../common/types.h"
-#include "../common/opcodemgr.h"
-#include "../common/event/event_loop.h"
-#include "../common/timer.h"
-#include "../common/platform.h"
-#include "../common/crash.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/http/httplib.h"
-#include "login_server.h"
-#include "loginserver_webserver.h"
-#include "loginserver_command_handler.h"
-#include "../common/strings.h"
-#include "../common/path_manager.h"
-#include "../common/database.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/zone_store.h"
-#include <time.h>
-#include <stdlib.h>
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/crash.h"
+#include "common/database.h"
+#include "common/eqemu_logsys.h"
+#include "common/event/event_loop.h"
+#include "common/event/timer.h"
+#include "common/events/player_event_logs.h"
+#include "common/http/httplib.h"
+#include "common/path_manager.h"
+#include "common/platform.h"
+#include "common/timer.h"
+#include "common/types.h"
+#include "loginserver/login_server.h"
+#include "loginserver/loginserver_command_handler.h"
+#include "loginserver/loginserver_webserver.h"
+
 #include <string>
-#include <sstream>
 #include <thread>
 
 LoginServer     server;
-EQEmuLogSys     LogSys;
 bool            run_server = true;
-PathManager     path;
 Database        database;
-PlayerEventLogs player_event_logs;
-ZoneStore       zone_store;
-
-void CatchSignal(int sig_num)
-{
-}
 
 void LoadDatabaseConnection()
 {
@@ -52,7 +56,7 @@ void LoadDatabaseConnection()
 void LoadServerConfig()
 {
 	server.config = EQ::JsonConfigFile::Load(
-		fmt::format("{}/login.json", path.GetServerPath())
+		fmt::format("{}/login.json", PathManager::Instance()->GetServerPath())
 	);
 	LogInfo("Config System Init");
 
@@ -159,21 +163,21 @@ int main(int argc, char **argv)
 	LogInfo("Logging System Init");
 
 	if (argc == 1) {
-		LogSys.LoadLogSettingsDefaults();
+		EQEmuLogSys::Instance()->LoadLogSettingsDefaults();
 	}
 
-	path.LoadPaths();
+	PathManager::Instance()->Init();
 
 	// command handler
 	if (argc > 1) {
-		LogSys.SilenceConsoleLogging();
+		EQEmuLogSys::Instance()->SilenceConsoleLogging();
 
 		LoadServerConfig();
 		LoadDatabaseConnection();
 
-		LogSys.LoadLogSettingsDefaults();
-		LogSys.log_settings[Logs::Debug].log_to_console = static_cast<uint8>(Logs::General);
-		LogSys.log_settings[Logs::Debug].is_category_enabled = 1;
+		EQEmuLogSys::Instance()->LoadLogSettingsDefaults();
+		EQEmuLogSys::Instance()->log_settings[Logs::Debug].log_to_console = static_cast<uint8>(Logs::General);
+		EQEmuLogSys::Instance()->log_settings[Logs::Debug].is_category_enabled = 1;
 
 		LoginserverCommandHandler::CommandHandler(argc, argv);
 	}
@@ -182,7 +186,7 @@ int main(int argc, char **argv)
 	LoadDatabaseConnection();
 
 	if (argc == 1) {
-		LogSys.SetDatabase(&database)
+		EQEmuLogSys::Instance()->SetDatabase(&database)
 			->SetLogPath("logs")
 			->LoadLogDatabaseSettings()
 			->StartFileLogs();

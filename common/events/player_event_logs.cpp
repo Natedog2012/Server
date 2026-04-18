@@ -1,23 +1,42 @@
-#include "player_event_logs.h"
-#include <cereal/archives/json.hpp>
+/*	EQEmu: EQEmulator
 
-#include "../platform.h"
-#include "../rulesys.h"
-#include "player_event_discord_formatter.h"
-#include "../repositories/player_event_loot_items_repository.h"
-#include "../repositories/player_event_merchant_sell_repository.h"
-#include "../repositories/player_event_merchant_purchase_repository.h"
-#include "../repositories/player_event_npc_handin_repository.h"
-#include "../repositories/player_event_npc_handin_entries_repository.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "player_event_logs.h"
+
+#include "common/events/player_event_discord_formatter.h"
+#include "common/platform.h"
+#include "common/repositories/player_event_loot_items_repository.h"
+#include "common/repositories/player_event_merchant_purchase_repository.h"
+#include "common/repositories/player_event_merchant_sell_repository.h"
+#include "common/repositories/player_event_npc_handin_entries_repository.h"
+#include "common/repositories/player_event_npc_handin_repository.h"
+#include "common/rulesys.h"
+
+#include "cereal/archives/json.hpp"
+#include "fmt/ranges.h"
 
 const uint32 PROCESS_RETENTION_TRUNCATION_TIMER_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 // general initialization routine
 void PlayerEventLogs::Init()
 {
-
 	m_process_batch_events_timer.SetTimer(RuleI(Logging, BatchPlayerEventProcessIntervalSeconds) * 1000);
 	m_process_retention_truncation_timer.SetTimer(PROCESS_RETENTION_TRUNCATION_TIMER_INTERVAL);
+	m_database_ping_timer.SetTimer(10 * 1000); // 10 seconds
 
 	ValidateDatabaseConnection();
 
@@ -37,12 +56,12 @@ void PlayerEventLogs::Init()
 	auto             s = PlayerEventLogSettingsRepository::All(*m_database);
 	std::vector<int> db{};
 	db.reserve(s.size());
-	for (auto &e: s) {
+	for (auto& e: s) {
 		if (e.id >= PlayerEvent::MAX) {
 			continue;
 		}
 		m_settings[e.id] = e;
-		db.emplace_back(e.id);
+		db.emplace_back(static_cast<int>(e.id));
 	}
 
 	std::vector<PlayerEventLogSettingsRepository::PlayerEventLogSettings> settings_to_insert{};
@@ -195,10 +214,12 @@ void PlayerEventLogs::ProcessBatchQueue()
 	};
 
 	// Helper to assign ETL table ID
-	auto                                                                                                          AssignEtlId      = [&](
-		PlayerEventLogsRepository::PlayerEventLogs &r,
-		PlayerEvent::EventType type
-	) {
+
+	auto AssignEtlId = [&](
+		PlayerEventLogsRepository::PlayerEventLogs& r,
+		PlayerEvent::EventType                      type
+	)
+	{
 		if (m_etl_settings.contains(type)) {
 			r.etl_table_id = m_etl_settings.at(type).next_id++;
 		}
@@ -406,7 +427,6 @@ void PlayerEventLogs::ProcessBatchQueue()
 			auto it = event_processors.find(static_cast<PlayerEvent::EventType>(r.event_type_id));
 			if (it != event_processors.end()) {
 				it->second(r);  // Call the appropriate lambda
-				r.event_data = "{}"; // Clear event data
 			}
 			else {
 				LogPlayerEventsDetail("Non-Implemented ETL routing [{}]", r.event_type_id);
@@ -508,7 +528,7 @@ bool PlayerEventLogs::IsEventDiscordEnabled(int32_t event_type_id)
 	}
 
 	// ensure there is a matching webhook to begin with
-	if (!LogSys.GetDiscordWebhooks()[m_settings[event_type_id].discord_webhook_id].webhook_url.empty()) {
+	if (!EQEmuLogSys::Instance()->GetDiscordWebhooks()[m_settings[event_type_id].discord_webhook_id].webhook_url.empty()) {
 		return true;
 	}
 
@@ -528,11 +548,25 @@ std::string PlayerEventLogs::GetDiscordWebhookUrlFromEventType(int32_t event_typ
 	}
 
 	// ensure there is a matching webhook to begin with
-	if (!LogSys.GetDiscordWebhooks()[m_settings[event_type_id].discord_webhook_id].webhook_url.empty()) {
-		return LogSys.GetDiscordWebhooks()[m_settings[event_type_id].discord_webhook_id].webhook_url;
+	if (!EQEmuLogSys::Instance()->GetDiscordWebhooks()[m_settings[event_type_id].discord_webhook_id].webhook_url.empty()) {
+		return EQEmuLogSys::Instance()->GetDiscordWebhooks()[m_settings[event_type_id].discord_webhook_id].webhook_url;
 	}
 
 	return "";
+}
+
+void PlayerEventLogs::LoadPlayerEventSettingsFromQS(
+	const std::vector<PlayerEventLogSettingsRepository::PlayerEventLogSettings> &settings
+)
+{
+	for (const auto &e : settings) {
+		if (e.id >= PlayerEvent::MAX || e.id < 0) {
+			continue;
+		}
+		m_settings[e.id] = e;
+	}
+
+	LogInfo("Applied [{}] player event log settings from QS", settings.size());
 }
 
 // GM_COMMAND           | [x] Implemented Formatter
@@ -916,6 +950,10 @@ std::string PlayerEventLogs::GetDiscordPayloadFromEvent(const PlayerEvent::Playe
 // general process function, used in world or QS depending on rule Logging:PlayerEventsQSProcess
 void PlayerEventLogs::Process()
 {
+	if (m_database_ping_timer.Check()) {
+		m_database->ping();
+	}
+
 	if (m_process_batch_events_timer.Check() ||
 		m_record_batch_queue.size() >= RuleI(Logging, BatchPlayerEventProcessChunkSize)) {
 		ProcessBatchQueue();

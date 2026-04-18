@@ -1,11 +1,28 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #pragma once
 
 #ifdef LUA_EQEMU
 
-#include "lua_client.h"
-#include "lua_ptr.h"
-#include "common.h"
-#include "zone.h"
+#include "zone/common.h"
+#include "zone/lua_client.h"
+#include "zone/lua_ptr.h"
+#include "zone/zone.h"
 
 class Lua_Zone;
 
@@ -141,12 +158,25 @@ public:
 	void SetInstanceTimeRemaining(uint32 time_remaining);
 	void SetIsHotzone(bool is_hotzone);
 	void ShowZoneGlobalLoot(Lua_Client c);
-	void ClearVariables();
+	bool ClearVariables();
 	bool DeleteVariable(const std::string& variable_name);
 	std::string GetVariable(const std::string& variable_name);
 	luabind::object GetVariables(lua_State* L);
 	void SetVariable(const std::string& variable_name, const std::string& variable_value);
 	bool VariableExists(const std::string& variable_name);
+	uint32 GetTimerDuration(std::string name);
+	uint32 GetTimerRemainingTime(std::string name);
+	bool HasTimer(std::string name);
+	bool IsPausedTimer(std::string name);
+	void PauseTimer(std::string name);
+	void ResumeTimer(std::string name);
+	void SetTimer(std::string name, uint32 duration);
+	void StopTimer(std::string name);
+	void StopAllTimers();
+	void Signal(int signal_id);
+	void SendPayload(int payload_id, std::string payload_value);
+	luabind::object GetPausedTimers(lua_State* L);
+	luabind::object GetTimers(lua_State* L);
 
 	// data buckets
 	void SetBucket(const std::string& bucket_name, const std::string& bucket_value);
@@ -158,4 +188,4 @@ public:
 
 };
 
-#endif
+#endif // LUA_EQEMU

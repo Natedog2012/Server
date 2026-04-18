@@ -1,9 +1,26 @@
-#ifndef EQEMU_BUYER_REPOSITORY_H
-#define EQEMU_BUYER_REPOSITORY_H
+/*	EQEmu: EQEmulator
 
-#include "../database.h"
-#include "../strings.h"
-#include "base/base_buyer_repository.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/repositories/base/base_buyer_repository.h"
+
+#include "common/database.h"
+#include "common/strings.h"
 #include "base/base_buyer_trade_items_repository.h"
 #include "base/base_buyer_buy_lines_repository.h"
 
@@ -106,13 +123,8 @@ public:
 				return false;
 			}
 
-			auto buy_lines = BaseBuyerBuyLinesRepository::GetWhere(
-				db,
-				fmt::format("`buyer_id` = '{}'", buyer.front().id)
-			);
-			if (buy_lines.empty()) {
-				return false;
-			}
+			auto buy_lines =
+				BaseBuyerBuyLinesRepository::GetWhere(db, fmt::format("`buyer_id` = {}", buyer.front().id));
 
 			std::vector<std::string> buy_line_ids{};
 			for (auto const &bl: buy_lines) {
@@ -121,23 +133,63 @@ public:
 
 			DeleteWhere(db, fmt::format("`char_id` = '{}';", char_id));
 			if (buy_line_ids.empty()) {
-				return false;
+				return true;
 			}
 
 			BaseBuyerBuyLinesRepository::DeleteWhere(
-				db,
-				fmt::format("`id` IN({})", Strings::Implode(", ", buy_line_ids))
+				db, fmt::format("`id` IN({})", Strings::Implode(", ", buy_line_ids))
 			);
 			BaseBuyerTradeItemsRepository::DeleteWhere(
-				db,
-				fmt::format(
-					"`buyer_buy_lines_id` IN({})",
-					Strings::Implode(", ", buy_line_ids))
+				db, fmt::format("`buyer_buy_lines_id` IN({})", Strings::Implode(", ", buy_line_ids))
 			);
 		}
 
 		return true;
 	}
-};
 
-#endif //EQEMU_BUYER_REPOSITORY_H
+	static bool DeleteBuyers(Database &db, uint32 char_zone_id, uint32 char_zone_instance_id)
+	{
+		auto buyers = GetWhere(
+			db,
+			fmt::format(
+				"`char_zone_id` = {} AND `char_zone_instance_id` = {}", char_zone_id, char_zone_instance_id
+			)
+		);
+		if (buyers.empty()) {
+			return false;
+		}
+
+		std::vector<std::string> buyer_ids{};
+		std::vector<std::string> buy_line_ids{};
+
+		for (auto const &b: buyers) {
+			buyer_ids.push_back(std::to_string(b.id));
+		}
+
+		auto buy_lines = BaseBuyerBuyLinesRepository::GetWhere(
+			db, fmt::format("`buyer_id` IN({})", Strings::Implode(", ", buyer_ids))
+		);
+
+		if (!buy_lines.empty()) {
+			for (auto const &bl: buy_lines) {
+				buy_line_ids.push_back(std::to_string(bl.id));
+			}
+		}
+
+		DeleteWhere(db, fmt::format("`id` IN({});", Strings::Implode(", ", buyer_ids)));
+		if (buy_line_ids.empty()) {
+			return true;
+		}
+
+		BaseBuyerBuyLinesRepository::DeleteWhere(
+			db,
+			fmt::format("`id` IN({})", Strings::Implode(", ", buy_line_ids))
+		);
+		BaseBuyerTradeItemsRepository::DeleteWhere(
+			db,
+			fmt::format("`buyer_buy_lines_id` IN({})", Strings::Implode(", ", buy_line_ids))
+		);
+
+		return true;
+	}
+};

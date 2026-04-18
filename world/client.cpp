@@ -1,73 +1,68 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/global_define.h"
-#include "../common/eq_packet.h"
-#include "../common/eq_stream_intf.h"
-#include "../common/misc.h"
-#include "../common/rulesys.h"
-#include "../common/emu_opcodes.h"
-#include "../common/eq_packet_structs.h"
-#include "../common/packet_dump.h"
-#include "../common/eq_stream_intf.h"
-#include "../common/inventory_profile.h"
-#include "../common/races.h"
-#include "../common/classes.h"
-#include "../common/skills.h"
-#include "../common/extprofile.h"
-#include "../common/strings.h"
-#include "../common/emu_versions.h"
-#include "../common/random.h"
-#include "../common/shareddb.h"
-#include "../common/opcodemgr.h"
-#include "../common/data_verification.h"
-
 #include "client.h"
-#include "worlddb.h"
-#include "world_config.h"
-#include "login_server.h"
-#include "login_server_list.h"
-#include "zoneserver.h"
-#include "zonelist.h"
-#include "clientlist.h"
-#include "wguild_mgr.h"
-#include "sof_char_create_data.h"
-#include "../common/zone_store.h"
-#include "../common/repositories/account_repository.h"
-#include "../common/repositories/player_event_logs_repository.h"
-#include "../common/repositories/inventory_repository.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/content/world_content_service.h"
-#include "../common/repositories/group_id_repository.h"
-#include "../common/repositories/character_data_repository.h"
-#include "../common/skill_caps.h"
 
-#include <iostream>
+#include "common/classes.h"
+#include "common/content/world_content_service.h"
+#include "common/data_bucket.h"
+#include "common/data_verification.h"
+#include "common/emu_opcodes.h"
+#include "common/emu_versions.h"
+#include "common/eq_packet_structs.h"
+#include "common/eq_packet.h"
+#include "common/eq_stream_intf.h"
+#include "common/eq_stream_intf.h"
+#include "common/events/player_event_logs.h"
+#include "common/extprofile.h"
+#include "common/inventory_profile.h"
+#include "common/misc.h"
+#include "common/opcodemgr.h"
+#include "common/packet_dump.h"
+#include "common/races.h"
+#include "common/random.h"
+#include "common/repositories/account_repository.h"
+#include "common/repositories/character_data_repository.h"
+#include "common/repositories/group_id_repository.h"
+#include "common/repositories/inventory_repository.h"
+#include "common/repositories/player_event_logs_repository.h"
+#include "common/rulesys.h"
+#include "common/shareddb.h"
+#include "common/skill_caps.h"
+#include "common/skills.h"
+#include "common/strings.h"
+#include "common/zone_store.h"
+#include "world/clientlist.h"
+#include "world/login_server_list.h"
+#include "world/login_server.h"
+#include "world/sof_char_create_data.h"
+#include "world/wguild_mgr.h"
+#include "world/world_config.h"
+#include "world/worlddb.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
+
+#include "zlib.h"
+#include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <iomanip>
-
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <zlib.h>
-#include <limits.h>
-
-//FatherNitwit: uncomment to enable my IP based authentication hack
-//#define IPBASED_AUTH_HACK
+#include <iostream>
 
 // Disgrace: for windows compile
 #ifdef _WINDOWS
@@ -88,10 +83,6 @@
 std::vector<RaceClassAllocation> character_create_allocations;
 std::vector<RaceClassCombos> character_create_race_class_combos;
 
-extern ZSList zoneserver_list;
-extern LoginServerList loginserverlist;
-extern ClientList client_list;
-extern EQ::Random emu_random;
 extern uint32 numclients;
 extern volatile bool RunLoops;
 extern volatile bool UCSServerAvailable_;
@@ -135,6 +126,8 @@ Client::Client(EQStreamInterface* ieqs)
 }
 
 Client::~Client() {
+	ClearDataBucketsCache();
+
 	if (RunLoops && cle && zone_id == 0)
 		cle->SetOnline(CLE_Status::Offline);
 
@@ -476,7 +469,9 @@ bool Client::HandleSendLoginInfoPacket(const EQApplicationPacket *app)
 
 	LogClientLogin("Checking authentication id [{}]", id);
 
-	if ((cle = client_list.CheckAuth(id, password))) {
+	if ((cle = ClientList::Instance()->CheckAuth(id, password))) {
+		LoadDataBucketsCache();
+
 		LogClientLogin("Checking authentication id [{}] passed", id);
 		if (!is_player_zoning) {
 			// Track who is in and who is out of the game
@@ -514,7 +509,7 @@ bool Client::HandleSendLoginInfoPacket(const EQApplicationPacket *app)
 			ServerLSPlayerJoinWorld_Struct* join =(ServerLSPlayerJoinWorld_Struct*)pack->pBuffer;
 			strcpy(join->key,GetLSKey());
 			join->lsaccount_id = GetLSID();
-			loginserverlist.SendPacket(pack);
+			LoginServerList::Instance()->SendPacket(pack);
 			safe_delete(pack);
 		}
 
@@ -797,7 +792,7 @@ bool Client::HandleEnterWorldPacket(const EQApplicationPacket *app) {
 		RuleB(World, EnableIPExemptions) ||
 		RuleI(World, MaxClientsPerIP) > 0
 	) {
-		client_list.GetCLEIP(GetIP()); //Check current CLE Entry IPs against incoming connection
+		ClientList::Instance()->GetCLEIP(GetIP()); //Check current CLE Entry IPs against incoming connection
 	}
 
 	auto ew = (EnterWorld_Struct *) app->pBuffer;
@@ -817,7 +812,7 @@ bool Client::HandleEnterWorldPacket(const EQApplicationPacket *app) {
 		return true;
 	}
 
-	auto r = content_service.FindZone(zone_id, instance_id);
+	auto r = WorldContentService::Instance()->FindZone(zone_id, instance_id);
 	if (r.zone_id && r.instance.id != instance_id) {
 		LogInfo(
 			"Zone [{}] has been remapped to instance_id [{}] from instance_id [{}] for client [{}]",
@@ -984,7 +979,7 @@ bool Client::HandleEnterWorldPacket(const EQApplicationPacket *app) {
 	safe_delete(outapp);
 
 	// set mailkey - used for duration of character session
-	int mail_key = emu_random.Int(1, INT_MAX);
+	uint32 mail_key = EQ::Random::Instance()->Int(1, INT_MAX);
 
 	database.SetMailKey(charid, GetIP(), mail_key);
 	if (UCSServerAvailable_) {
@@ -1018,8 +1013,16 @@ bool Client::HandleEnterWorldPacket(const EQApplicationPacket *app) {
 				break;
 		}
 
+		std::string ucs_addr = config->GetUCSHost();
+		if (cle && cle->IsLocalClient()) {
+			const char* local_addr = config->LocalAddress.c_str();
+			if (local_addr[0]) {
+				ucs_addr = local_addr;
+			}
+		}
+
 		buffer = fmt::format("{},{},{}.{},{}{:08X}",
-			config->GetUCSHost(),
+			ucs_addr,
 			config->GetUCSPort(),
 			config->ShortName,
 			GetCharName(),
@@ -1045,7 +1048,7 @@ bool Client::HandleEnterWorldPacket(const EQApplicationPacket *app) {
 		}
 
 		buffer = fmt::format("{},{},{}.{},{}{:08X}",
-			config->GetUCSHost(),
+			ucs_addr,
 			config->GetUCSPort(),
 			config->ShortName,
 			GetCharName(),
@@ -1097,7 +1100,7 @@ bool Client::HandlePacket(const EQApplicationPacket *app) {
 		OpcodeManager::EmuToName(app->GetOpcode()),
 		o->EmuToEQ(app->GetOpcode()) == 0 ? app->GetProtocolOpcode() : o->EmuToEQ(app->GetOpcode()),
 		app->Size(),
-		(LogSys.IsLogEnabled(Logs::Detail, Logs::PacketClientServer) ? DumpPacketToString(app) : "")
+		(EQEmuLogSys::Instance()->IsLogEnabled(Logs::Detail, Logs::PacketClientServer) ? DumpPacketToString(app) : "")
 	);
 
 	if (!eqs->CheckState(ESTABLISHED)) {
@@ -1246,7 +1249,7 @@ bool Client::Process() {
 			ServerLSPlayerLeftWorld_Struct* logout =(ServerLSPlayerLeftWorld_Struct*)pack->pBuffer;
 			strcpy(logout->key,GetLSKey());
 			logout->lsaccount_id = GetLSID();
-			loginserverlist.SendPacket(pack);
+			LoginServerList::Instance()->SendPacket(pack);
 			safe_delete(pack);
 		}
 		LogInfo("Client disconnected (not active in process)");
@@ -1412,18 +1415,18 @@ void Client::EnterWorld(bool TryBootup) {
 			return;
 		}
 
-		zone_server = zoneserver_list.FindByInstanceID(instance_id);
+		zone_server = ZSList::Instance()->FindByInstanceID(instance_id);
 	}
 	else
 	{
-		zone_server = zoneserver_list.FindByZoneID(zone_id);
+		zone_server = ZSList::Instance()->FindByZoneID(zone_id);
 	}
 
 	const char *zone_name = ZoneName(zone_id, true);
 	if (zone_server) {
 		if (false == enter_world_triggered) {
 			//Drop any clients we own in other zones.
-			zoneserver_list.DropClient(GetLSID(), zone_server);
+			ZSList::Instance()->DropClient(GetLSID(), zone_server);
 
 			// warn the zone we're coming
 			zone_server->IncomingClient(this);
@@ -1436,7 +1439,7 @@ void Client::EnterWorld(bool TryBootup) {
 		if (TryBootup) {
 			LogInfo("Attempting autobootup of [{}] [{}] [{}]", zone_name, zone_id, instance_id);
 			autobootup_timeout.Start();
-			zone_waiting_for_bootup = zoneserver_list.TriggerBootup(zone_id, instance_id);
+			zone_waiting_for_bootup = ZSList::Instance()->TriggerBootup(zone_id, instance_id);
 			if (zone_waiting_for_bootup == 0) {
 				LogInfo("No zoneserver available to boot up");
 				TellClientZoneUnavailable();
@@ -1452,7 +1455,7 @@ void Client::EnterWorld(bool TryBootup) {
 
 	zone_waiting_for_bootup = 0;
 
-	if (GetAdmin() < 80 && zoneserver_list.IsZoneLocked(zone_id)) {
+	if (GetAdmin() < 80 && ZSList::Instance()->IsZoneLocked(zone_id)) {
 		LogInfo("Enter world failed. Zone is locked");
 		TellClientZoneUnavailable();
 		return;
@@ -1498,11 +1501,11 @@ void Client::Clearance(int8 response)
 	ZoneServer* zs = nullptr;
 	if(instance_id > 0)
 	{
-		zs = zoneserver_list.FindByInstanceID(instance_id);
+		zs = ZSList::Instance()->FindByInstanceID(instance_id);
 	}
 	else
 	{
-		zs = zoneserver_list.FindByZoneID(zone_id);
+		zs = ZSList::Instance()->FindByZoneID(zone_id);
 	}
 
 	if(zs == 0 || response == -1 || response == 0)
@@ -2075,10 +2078,10 @@ bool CheckCharCreateInfoTitanium(CharCreate_Struct *cc)
 	classtemp = cc->class_ - 1;
 	racetemp = cc->race - 1;
 	// these have non sequential race numbers so they need to be mapped
-	if (cc->race == FROGLOK) racetemp = 14;
-	if (cc->race == VAHSHIR) racetemp = 13;
-	if (cc->race == IKSAR) racetemp = 12;
-	if (cc->race == DRAKKIN) racetemp = 15;
+	if (cc->race == Race::Froglok2) racetemp = 14;
+	if (cc->race == Race::VahShir) racetemp = 13;
+	if (cc->race == Race::Iksar) racetemp = 12;
+	if (cc->race == Race::Drakkin) racetemp = 15;
 
 	// if out of range looking it up in the table would crash stuff
 	// so we return from these
@@ -2171,7 +2174,7 @@ void Client::SetClassStartingSkills(PlayerProfile_Struct *pp)
 				i == EQ::skills::SkillAlcoholTolerance || i == EQ::skills::SkillBindWound)
 				continue;
 
-			pp->skills[i] = skill_caps.GetSkillCap(pp->class_, (EQ::skills::SkillType)i, 1).cap;
+			pp->skills[i] = SkillCaps::Instance()->GetSkillCap(pp->class_, (EQ::skills::SkillType)i, 1).cap;
 		}
 	}
 
@@ -2185,43 +2188,43 @@ void Client::SetRaceStartingSkills( PlayerProfile_Struct *pp )
 {
 	switch( pp->race )
 	{
-	case BARBARIAN:
-	case DWARF:
-	case ERUDITE:
-	case HALF_ELF:
-	case HIGH_ELF:
-	case HUMAN:
-	case OGRE:
-	case TROLL:
-	case DRAKKIN:	//Drakkin are supposed to get a starting AA Skill
+	case Race::Barbarian:
+	case Race::Dwarf:
+	case Race::Erudite:
+	case Race::HalfElf:
+	case Race::HighElf:
+	case Race::Human:
+	case Race::Ogre:
+	case Race::Troll:
+	case Race::Drakkin:	//Drakkin are supposed to get a starting AA Skill
 		{
 			// No Race Specific Skills
 			break;
 		}
-	case DARK_ELF:
+	case Race::DarkElf:
 		{
 			pp->skills[EQ::skills::SkillHide] = 50;
 			break;
 		}
-	case FROGLOK:
+	case Race::Froglok2:
 		{
 			if (RuleI(Skills, SwimmingStartValue) < 125) {
 				pp->skills[EQ::skills::SkillSwimming] = 125;
 			}
 			break;
 		}
-	case GNOME:
+	case Race::Gnome:
 		{
 			pp->skills[EQ::skills::SkillTinkering] = 50;
 			break;
 		}
-	case HALFLING:
+	case Race::Halfling:
 		{
 			pp->skills[EQ::skills::SkillHide] = 50;
 			pp->skills[EQ::skills::SkillSneak] = 50;
 			break;
 		}
-	case IKSAR:
+	case Race::Iksar:
 		{
 			pp->skills[EQ::skills::SkillForage] = 50;
 			if (RuleI(Skills, SwimmingStartValue) < 100) {
@@ -2229,13 +2232,13 @@ void Client::SetRaceStartingSkills( PlayerProfile_Struct *pp )
 			}
 			break;
 		}
-	case WOOD_ELF:
+	case Race::WoodElf:
 		{
 			pp->skills[EQ::skills::SkillForage] = 50;
 			pp->skills[EQ::skills::SkillHide] = 50;
 			break;
 		}
-	case VAHSHIR:
+	case Race::VahShir:
 		{
 			pp->skills[EQ::skills::SkillSafeFall] = 50;
 			pp->skills[EQ::skills::SkillSneak] = 50;
@@ -2369,7 +2372,7 @@ bool Client::StoreCharacter(
 		return false;
 	}
 
-	const std::string& zone_name = zone_store.GetZoneName(p_player_profile_struct->zone_id, true);
+	const std::string& zone_name = ZoneStore::Instance()->GetZoneName(p_player_profile_struct->zone_id, true);
 	if (Strings::EqualFold(zone_name, "UNKNOWN")) {
 		p_player_profile_struct->zone_id = Zones::QEYNOS;
 	}
@@ -2427,7 +2430,7 @@ bool Client::StoreCharacter(
 
 void Client::RecordPossibleHack(const std::string& message)
 {
-	if (player_event_logs.IsEventEnabled(PlayerEvent::POSSIBLE_HACK)) {
+	if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::POSSIBLE_HACK)) {
 		auto event = PlayerEvent::PossibleHackEvent{.message = message};
 		std::stringstream ss;
 		{
@@ -2517,4 +2520,20 @@ void Client::SendUnsupportedClientPacket(const std::string& message)
 	e->Enabled     = 0;
 
 	QueuePacket(&packet);
+}
+
+void Client::LoadDataBucketsCache()
+{
+	DataBucket::BulkLoadEntitiesToCache(&database, DataBucketLoadType::Account, {GetAccountID()});
+	const auto ids = CharacterDataRepository::GetCharacterIDsByAccountID(database, GetAccountID());
+	DataBucket::BulkLoadEntitiesToCache(&database, DataBucketLoadType::Client, ids);
+}
+
+void Client::ClearDataBucketsCache()
+{
+	DataBucket::DeleteFromCache(GetAccountID(), DataBucketLoadType::Account);
+	auto ids = CharacterDataRepository::GetCharacterIDsByAccountID(database, GetAccountID());
+	for (const auto& id : ids) {
+		DataBucket::DeleteFromCache(id, DataBucketLoadType::Client);
+	}
 }

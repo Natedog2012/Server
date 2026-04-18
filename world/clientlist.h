@@ -1,16 +1,33 @@
-#ifndef CLIENTLIST_H_
-#define CLIENTLIST_H_
+/*	EQEmu: EQEmulator
 
-#include "../common/eq_packet_structs.h"
-#include "../common/linked_list.h"
-#include "../common/json/json.h"
-#include "../common/timer.h"
-#include "../common/rulesys.h"
-#include "../common/servertalk.h"
-#include "../common/event/timer.h"
-#include "../common/net/console_server_connection.h"
-#include <vector>
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/eq_packet_structs.h"
+#include "common/event/timer.h"
+#include "common/json/json.h"
+#include "common/linked_list.h"
+#include "common/net/console_server_connection.h"
+#include "common/rulesys.h"
+#include "common/servertalk.h"
+#include "common/timer.h"
+
 #include <string>
+#include <vector>
 
 class Client;
 class ZoneServer;
@@ -45,7 +62,7 @@ public:
 	void	SendClientVersionSummary(const char *Name);
 	void	SendLFGMatches(ServerLFGMatchesRequest_Struct *LFGMatchesRequest);
 	void	ConsoleSendWhoAll(const char* to, int16 admin, Who_All_Struct* whom, WorldTCPConnection* connection);
-	void	SendCLEList(const int16& admin, const char* to, WorldTCPConnection* connection, const char* iName = 0);
+	void	SendCLEList(const int16& admin, const char* to, WorldTCPConnection* connection, const char* search_criteria = 0);
 
 	bool	SendPacket(const char* to, ServerPacket* pack);
 
@@ -85,6 +102,12 @@ public:
 		return {m_gm_zone_server_ids.begin(), m_gm_zone_server_ids.end()};
 	}
 
+	static ClientList* Instance()
+	{
+		static ClientList instance;
+		return &instance;
+	}
+
 private:
 	void OnTick(EQ::Timer *t);
 	inline uint32 GetNextCLEID() { return NextCLEID++; }
@@ -105,6 +128,3 @@ private:
 	std::unordered_set<uint32_t>                               m_gm_zone_server_ids;
 	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> m_guild_zone_server_ids;
 };
-
-#endif /*CLIENTLIST_H_*/
-

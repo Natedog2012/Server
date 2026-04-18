@@ -1,11 +1,29 @@
-#include "eqstream.h"
-#include "../eqemu_logsys.h"
+/*	EQEmu: EQEmulator
 
-EQ::Net::EQStreamManager::EQStreamManager(const EQStreamManagerInterfaceOptions &options) : EQStreamManagerInterface(options), m_daybreak(options.daybreak_options)
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "eqstream.h"
+
+#include "common/eqemu_logsys.h"
+
+EQ::Net::EQStreamManager::EQStreamManager(const EQStreamManagerInterfaceOptions &options) : EQStreamManagerInterface(options), m_reliable_stream(options.reliable_stream_options)
 {
-	m_daybreak.OnNewConnection(std::bind(&EQStreamManager::DaybreakNewConnection, this, std::placeholders::_1));
-	m_daybreak.OnConnectionStateChange(std::bind(&EQStreamManager::DaybreakConnectionStateChange, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-	m_daybreak.OnPacketRecv(std::bind(&EQStreamManager::DaybreakPacketRecv, this, std::placeholders::_1, std::placeholders::_2));
+	m_reliable_stream.OnNewConnection(std::bind(&EQStreamManager::ReliableStreamNewConnection, this, std::placeholders::_1));
+	m_reliable_stream.OnConnectionStateChange(std::bind(&EQStreamManager::ReliableStreamConnectionStateChange, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+	m_reliable_stream.OnPacketRecv(std::bind(&EQStreamManager::ReliableStreamPacketRecv, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 EQ::Net::EQStreamManager::~EQStreamManager()
@@ -15,11 +33,11 @@ EQ::Net::EQStreamManager::~EQStreamManager()
 void EQ::Net::EQStreamManager::SetOptions(const EQStreamManagerInterfaceOptions &options)
 {
 	m_options = options;
-	auto &opts = m_daybreak.GetOptions();
-	opts = options.daybreak_options;
+	auto &opts = m_reliable_stream.GetOptions();
+	opts = options.reliable_stream_options;
 }
 
-void EQ::Net::EQStreamManager::DaybreakNewConnection(std::shared_ptr<DaybreakConnection> connection)
+void EQ::Net::EQStreamManager::ReliableStreamNewConnection(std::shared_ptr<ReliableStreamConnection> connection)
 {
 	std::shared_ptr<EQStream> stream(new EQStream(this, connection));
 	m_streams.emplace(std::make_pair(connection, stream));
@@ -28,7 +46,7 @@ void EQ::Net::EQStreamManager::DaybreakNewConnection(std::shared_ptr<DaybreakCon
 	}
 }
 
-void EQ::Net::EQStreamManager::DaybreakConnectionStateChange(std::shared_ptr<DaybreakConnection> connection, DbProtocolStatus from, DbProtocolStatus to)
+void EQ::Net::EQStreamManager::ReliableStreamConnectionStateChange(std::shared_ptr<ReliableStreamConnection> connection, DbProtocolStatus from, DbProtocolStatus to)
 {
 	auto iter = m_streams.find(connection);
 	if (iter != m_streams.end()) {
@@ -42,7 +60,7 @@ void EQ::Net::EQStreamManager::DaybreakConnectionStateChange(std::shared_ptr<Day
 	}
 }
 
-void EQ::Net::EQStreamManager::DaybreakPacketRecv(std::shared_ptr<DaybreakConnection> connection, const Packet &p)
+void EQ::Net::EQStreamManager::ReliableStreamPacketRecv(std::shared_ptr<ReliableStreamConnection> connection, const Packet &p)
 {
 	auto iter = m_streams.find(connection);
 	if (iter != m_streams.end()) {
@@ -53,7 +71,7 @@ void EQ::Net::EQStreamManager::DaybreakPacketRecv(std::shared_ptr<DaybreakConnec
 	}
 }
 
-EQ::Net::EQStream::EQStream(EQStreamManagerInterface *owner, std::shared_ptr<DaybreakConnection> connection)
+EQ::Net::EQStream::EQStream(EQStreamManagerInterface *owner, std::shared_ptr<ReliableStreamConnection> connection)
 {
 	m_owner = owner;
 	m_connection = connection;
@@ -71,7 +89,7 @@ void EQ::Net::EQStream::QueuePacket(const EQApplicationPacket *p, bool ack_req) 
 		OpcodeManager::EmuToName(p->GetOpcode()),
 		(*m_opcode_manager)->EmuToEQ(p->GetOpcode()),
 		p->Size(),
-		(LogSys.IsLogEnabled(Logs::Detail, Logs::PacketServerClient) ? DumpPacketToString(p) : "")
+		(EQEmuLogSys::Instance()->IsLogEnabled(Logs::Detail, Logs::PacketServerClient) ? DumpPacketToString(p) : "")
 	);
 
 	if (m_opcode_manager && *m_opcode_manager) {
@@ -235,7 +253,7 @@ EQStreamState EQ::Net::EQStream::GetState() {
 EQ::Net::EQStream::Stats EQ::Net::EQStream::GetStats() const
 {
 	Stats ret;
-	ret.DaybreakStats = m_connection->GetStats();
+	ret.ReliableStreamStats = m_connection->GetStats();
 
 	for (int i = 0; i < _maxEmuOpcode; ++i) {
 		ret.RecvCount[i] = 0;

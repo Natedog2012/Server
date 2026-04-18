@@ -1,12 +1,29 @@
-#ifndef ZONESERVER_H
-#define ZONESERVER_H
+/*	EQEmu: EQEmulator
 
-#include "../world/world_tcp_connection.h"
-#include "../common/net/servertalk_server.h"
-#include "../common/event/timer.h"
-#include "../common/timer.h"
-#include "../common/emu_constants.h"
-#include "../world/console.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/emu_constants.h"
+#include "common/event/timer.h"
+#include "common/net/servertalk_server.h"
+#include "common/timer.h"
+#include "world/console.h"
+#include "world/world_tcp_connection.h"
+
 #include <string>
 
 class Client;
@@ -16,17 +33,15 @@ class ZoneServer : public WorldTCPConnection {
 public:
 	ZoneServer(std::shared_ptr<EQ::Net::ServertalkServerConnection> in_connection, EQ::Net::ConsoleServer *in_console);
 	~ZoneServer();
-	void SendPacket(ServerPacket *pack) { m_connection->SendPacket(pack); }
-	void SetIsZoneConnected(bool in) { m_is_zone_connected = in; }
-	bool GetIsZoneConnected() { return m_is_zone_connected; }
-	void HandleMessage(uint16 opcode, const EQ::Net::Packet &p);
+	void        SendPacket(ServerPacket *pack) { m_connection->SendPacket(pack); }
+	void        SetIsZoneConnected(bool in) { m_is_zone_connected = in; }
+	bool        GetIsZoneConnected() { return m_is_zone_connected; }
+	void        HandleMessage(uint16 opcode, const EQ::Net::Packet &p);
 	std::string GetUUID() const { return m_connection->GetUUID(); }
+	void        SendPlayerEventLogSettings();
 
 private:
 	std::shared_ptr<EQ::Net::ServertalkServerConnection> m_connection{};
 	bool                                                 m_is_zone_connected = false;
 	EQ::Net::ConsoleServer                               *m_console;
 };
-
-#endif
-

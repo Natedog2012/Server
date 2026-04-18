@@ -1,40 +1,39 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include <cereal/archives/json.hpp>
-#include "../common/global_define.h"
-#include "../common/strings.h"
-
-#include "client.h"
-#include "entity.h"
 #include "spawn2.h"
-#include "spawngroup.h"
-#include "worldserver.h"
-#include "zone.h"
-#include "zonedb.h"
-#include "../common/repositories/criteria/content_filter_criteria.h"
-#include "../common/repositories/spawn_conditions_repository.h"
-#include "../common/repositories/spawn_condition_values_repository.h"
-#include "../common/repositories/spawn_events_repository.h"
-#include "../common/repositories/spawn2_repository.h"
-#include "../common/repositories/spawn2_disabled_repository.h"
-#include "../common/repositories/respawn_times_repository.h"
-#include "../common/repositories/zone_state_spawns_repository.h"
+
+#include "common/repositories/criteria/content_filter_criteria.h"
+#include "common/repositories/respawn_times_repository.h"
+#include "common/repositories/spawn_condition_values_repository.h"
+#include "common/repositories/spawn_conditions_repository.h"
+#include "common/repositories/spawn_events_repository.h"
+#include "common/repositories/spawn2_disabled_repository.h"
+#include "common/repositories/spawn2_repository.h"
+#include "common/repositories/zone_state_spawns_repository.h"
+#include "common/strings.h"
+#include "zone/client.h"
+#include "zone/entity.h"
+#include "zone/spawngroup.h"
+#include "zone/worldserver.h"
+#include "zone/zone.h"
+#include "zone/zonedb.h"
+
+#include "cereal/archives/json.hpp"
 
 extern EntityList entity_list;
 extern Zone* zone;

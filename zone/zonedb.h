@@ -1,20 +1,36 @@
-#ifndef ZONEDB_H_
-#define ZONEDB_H_
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#pragma once
+
+#include "common/eq_packet_structs.h"
+#include "common/eqemu_logsys.h"
+#include "common/faction.h"
+#include "common/races.h"
+#include "common/repositories/doors_repository.h"
+#include "common/repositories/npc_faction_entries_repository.h"
+#include "common/shareddb.h"
+#include "zone/aa_ability.h"
+#include "zone/bot_database.h"
+#include "zone/event_codes.h"
+#include "zone/position.h"
 
 #include <unordered_set>
-
-#include "../common/shareddb.h"
-#include "../common/eq_packet_structs.h"
-#include "position.h"
-#include "../common/faction.h"
-#include "../common/eqemu_logsys.h"
-#include "aa_ability.h"
-#include "event_codes.h"
-#include "../common/repositories/doors_repository.h"
-#include "../common/races.h"
-#include "../common/repositories/npc_faction_entries_repository.h"
-
-#include "bot_database.h"
 
 class Client;
 class Corpse;
@@ -336,6 +352,7 @@ struct CharacterCorpseEntry
 	uint32 drakkin_tattoo;
 	uint32 drakkin_details;
 	std::vector<CharacterCorpseItemEntry> items;
+	std::string entity_variables;
 };
 
 namespace BeastlordPetData {
@@ -463,6 +480,9 @@ public:
 	/* EXP Modifiers */
 	void LoadCharacterEXPModifier(Client* c);
 	void SaveCharacterEXPModifier(Client *c);
+
+	/* Player Title Sets */
+	void LoadCharacterTitleSets(Client* c);
 
 	float GetAAEXPModifierByCharID(uint32 character_id, uint32 zone_id, int16 instance_version = -1);
 	float GetEXPModifierByCharID(uint32 character_id, uint32 zone_id, int16 instance_version = -1);
@@ -670,6 +690,3 @@ protected:
 
 extern ZoneDatabase database;
 extern ZoneDatabase content_db;
-
-#endif /*ZONEDB_H_*/
-

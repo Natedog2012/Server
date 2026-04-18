@@ -1,12 +1,32 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "sidecar_api.h"
-#include "../../common/http/httplib.h"
-#include "../../common/eqemu_logsys.h"
-#include "../zonedb.h"
-#include "../../common/process.h"
-#include "../common.h"
-#include "../zone.h"
-#include "../client.h"
-#include "../../common/json/json.hpp"
+
+#include "common/eqemu_logsys.h"
+#include "common/file.h"
+#include "common/http/httplib.h"
+#include "common/json/json.hpp"
+#include "common/process.h"
+#include "zone/client.h"
+#include "zone/common.h"
+#include "zone/zone.h"
+#include "zone/zonedb.h"
+
 #include <csignal>
 
 void CatchSidecarSignal(int sig_num)
@@ -16,10 +36,38 @@ void CatchSidecarSignal(int sig_num)
 	std::exit(0);
 }
 
-#include "log_handler.cpp"
-#include "test_controller.cpp"
-#include "map_best_z_controller.cpp"
-#include "../../common/file.h"
+void SidecarApi::RequestLogHandler(const httplib::Request& req, const httplib::Response& res)
+{
+	if (!req.path.empty()) {
+		std::vector<std::string> params;
+		for (auto& p : req.params) {
+			params.emplace_back(fmt::format("{}={}", p.first, p.second));
+		}
+
+		LogInfo(
+			"[API] Request [{}] [{}{}] via [{}:{}]",
+			res.status,
+			req.path,
+			(!params.empty() ? "?" + Strings::Join(params, "&") : ""),
+			req.remote_addr,
+			req.remote_port
+		);
+	}
+}
+
+void SidecarApi::TestController(const httplib::Request& req, httplib::Response& res)
+{
+	nlohmann::json j;
+
+	j["data"]["test"] = "test";
+
+	res.set_content(j.dump(), "application/json");
+}
+
+void SidecarApi::MapBestZController(const httplib::Request& req, httplib::Response& res)
+{
+
+}
 
 constexpr static int HTTP_RESPONSE_OK           = 200;
 constexpr static int HTTP_RESPONSE_BAD_REQUEST  = 400;

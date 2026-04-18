@@ -1,7 +1,28 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "account_management.h"
-#include "login_server.h"
-#include "../common/event/task_scheduler.h"
-#include "../common/repositories/login_accounts_repository.h"
+
+#include "common/event/event_loop.h"
+#include "common/event/task_scheduler.h"
+#include "common/net/dns.h"
+#include "common/repositories/login_accounts_repository.h"
+#include "common/types.h"
+#include "loginserver/login_server.h"
 
 EQ::Event::TaskScheduler task_runner;
 
@@ -124,18 +145,18 @@ uint64 AccountManagement::CheckExternalLoginserverUserCredentials(LoginAccountCo
 			bool   running = true;
 			uint32 ret     = 0;
 
-			EQ::Net::DaybreakConnectionManager           mgr;
-			std::shared_ptr<EQ::Net::DaybreakConnection> conn;
+			EQ::Net::ReliableStreamConnectionManager           mgr;
+			std::shared_ptr<EQ::Net::ReliableStreamConnection> conn;
 
 			mgr.OnNewConnection(
-				[&](std::shared_ptr<EQ::Net::DaybreakConnection> connection) {
+				[&](std::shared_ptr<EQ::Net::ReliableStreamConnection> connection) {
 					conn = connection;
 				}
 			);
 
 			mgr.OnConnectionStateChange(
 				[&](
-					std::shared_ptr<EQ::Net::DaybreakConnection> conn,
+					std::shared_ptr<EQ::Net::ReliableStreamConnection> conn,
 					EQ::Net::DbProtocolStatus from,
 					EQ::Net::DbProtocolStatus to
 				) {
@@ -152,7 +173,7 @@ uint64 AccountManagement::CheckExternalLoginserverUserCredentials(LoginAccountCo
 			);
 
 			mgr.OnPacketRecv(
-				[&](std::shared_ptr<EQ::Net::DaybreakConnection> conn, const EQ::Net::Packet &p) {
+				[&](std::shared_ptr<EQ::Net::ReliableStreamConnection> conn, const EQ::Net::Packet &p) {
 					auto opcode = p.GetUInt16(0);
 					switch (opcode) {
 						case 0x0017: //OP_ChatMessage
@@ -250,18 +271,18 @@ uint64 AccountManagement::HealthCheckUserLogin()
 			bool   running = true;
 			uint64 ret     = 0;
 
-			EQ::Net::DaybreakConnectionManager           mgr;
-			std::shared_ptr<EQ::Net::DaybreakConnection> c;
+			EQ::Net::ReliableStreamConnectionManager           mgr;
+			std::shared_ptr<EQ::Net::ReliableStreamConnection> c;
 
 			mgr.OnNewConnection(
-				[&](std::shared_ptr<EQ::Net::DaybreakConnection> connection) {
+				[&](std::shared_ptr<EQ::Net::ReliableStreamConnection> connection) {
 					c = connection;
 				}
 			);
 
 			mgr.OnConnectionStateChange(
 				[&](
-					std::shared_ptr<EQ::Net::DaybreakConnection> conn,
+					std::shared_ptr<EQ::Net::ReliableStreamConnection> conn,
 					EQ::Net::DbProtocolStatus from,
 					EQ::Net::DbProtocolStatus to
 				) {
@@ -278,7 +299,7 @@ uint64 AccountManagement::HealthCheckUserLogin()
 			);
 
 			mgr.OnPacketRecv(
-				[&](std::shared_ptr<EQ::Net::DaybreakConnection> conn, const EQ::Net::Packet &p) {
+				[&](std::shared_ptr<EQ::Net::ReliableStreamConnection> conn, const EQ::Net::Packet &p) {
 					auto opcode = p.GetUInt16(0);
 					switch (opcode) {
 						case 0x0017: //OP_ChatMessage

@@ -1,55 +1,42 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2013 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#include "shared_memory/items.h"
+#include "shared_memory/spells.h"
+#include "common/content/world_content_service.h"
+#include "common/crash.h"
+#include "common/eqemu_config.h"
+#include "common/eqemu_exception.h"
+#include "common/eqemu_logsys.h"
+#include "common/events/player_event_logs.h"
+#include "common/evolving_items.h"
+#include "common/path_manager.h"
+#include "common/platform.h"
+#include "common/rulesys.h"
+#include "common/shareddb.h"
+#include "common/strings.h"
+#include "common/zone_store.h"
 
-#include <stdio.h>
-
-#include "../common/eqemu_logsys.h"
-#include "../common/global_define.h"
-#include "../common/shareddb.h"
-#include "../common/eqemu_config.h"
-#include "../common/platform.h"
-#include "../common/crash.h"
-#include "../common/rulesys.h"
-#include "../common/eqemu_exception.h"
-#include "../common/strings.h"
-#include "items.h"
-#include "spells.h"
-#include "../common/content/world_content_service.h"
-#include "../common/zone_store.h"
-#include "../common/path_manager.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/evolving_items.h"
-
-EQEmuLogSys          LogSys;
-WorldContentService  content_service;
-ZoneStore            zone_store;
-PathManager          path;
-PlayerEventLogs      player_event_logs;
-EvolvingItemsManager evolving_items_manager;
-
+#include <cstdio>
 #ifdef _WINDOWS
 #include <direct.h>
 #else
-
 #include <unistd.h>
-
 #endif
-
 #include <sys/stat.h>
 
 inline bool MakeDirectory(const std::string &directory_name)
@@ -81,10 +68,10 @@ inline bool MakeDirectory(const std::string &directory_name)
 int main(int argc, char **argv)
 {
 	RegisterExecutablePlatform(ExePlatformSharedMemory);
-	LogSys.LoadLogSettingsDefaults();
+	EQEmuLogSys::Instance()->LoadLogSettingsDefaults();
 	set_exception_handler();
 
-	path.LoadPaths();
+	PathManager::Instance()->Init();
 
 	LogInfo("Shared Memory Loader Program");
 	if (!EQEmuConfig::LoadConfig()) {
@@ -126,8 +113,8 @@ int main(int argc, char **argv)
 		content_db.SetMySQL(database);
 	}
 
-	LogSys.SetDatabase(&database)
-		->SetLogPath(path.GetLogPath())
+	EQEmuLogSys::Instance()->SetDatabase(&database)
+		->SetLogPath(PathManager::Instance()->GetLogPath())
 		->LoadLogDatabaseSettings()
 		->StartFileLogs();
 
@@ -169,16 +156,16 @@ int main(int argc, char **argv)
 	}
 
 
-	content_service.SetCurrentExpansion(RuleI(Expansion, CurrentExpansion));
-	content_service.SetDatabase(&database)
+	WorldContentService::Instance()->SetCurrentExpansion(RuleI(Expansion, CurrentExpansion));
+	WorldContentService::Instance()->SetDatabase(&database)
 		->SetContentDatabase(&content_db)
 		->SetExpansionContext()
 		->ReloadContentFlags();
 
 	LogInfo(
 		"Current expansion is [{}] ({})",
-		content_service.GetCurrentExpansion(),
-		content_service.GetCurrentExpansionName()
+		WorldContentService::Instance()->GetCurrentExpansion(),
+		WorldContentService::Instance()->GetCurrentExpansionName()
 	);
 
 	std::string hotfix_name = "";
@@ -244,6 +231,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	LogSys.CloseFileLogs();
+	EQEmuLogSys::Instance()->CloseFileLogs();
 	return 0;
 }

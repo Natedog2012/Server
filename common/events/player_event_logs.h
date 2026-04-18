@@ -1,28 +1,43 @@
-#ifndef EQEMU_PLAYER_EVENT_LOGS_H
-#define EQEMU_PLAYER_EVENT_LOGS_H
+/*	EQEmu: EQEmulator
 
-#include <cereal/archives/json.hpp>
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/eqemu_config.h"
+#include "common/json/json_archive_single_line.h"
+#include "common/repositories/player_event_aa_purchase_repository.h"
+#include "common/repositories/player_event_killed_named_npc_repository.h"
+#include "common/repositories/player_event_killed_npc_repository.h"
+#include "common/repositories/player_event_killed_raid_npc_repository.h"
+#include "common/repositories/player_event_log_settings_repository.h"
+#include "common/repositories/player_event_logs_repository.h"
+#include "common/repositories/player_event_loot_items_repository.h"
+#include "common/repositories/player_event_merchant_purchase_repository.h"
+#include "common/repositories/player_event_merchant_sell_repository.h"
+#include "common/repositories/player_event_npc_handin_entries_repository.h"
+#include "common/repositories/player_event_npc_handin_repository.h"
+#include "common/repositories/player_event_speech_repository.h"
+#include "common/repositories/player_event_trade_entries_repository.h"
+#include "common/repositories/player_event_trade_repository.h"
+#include "common/servertalk.h"
+#include "common/timer.h"
+
+#include "cereal/archives/json.hpp"
 #include <mutex>
-#include "../json/json_archive_single_line.h"
-#include "../servertalk.h"
-#include "../timer.h"
-#include "../eqemu_config.h"
-
-#include "../repositories/player_event_log_settings_repository.h"
-#include "../repositories/player_event_logs_repository.h"
-#include "../repositories/player_event_loot_items_repository.h"
-#include "../repositories/player_event_merchant_purchase_repository.h"
-#include "../repositories/player_event_merchant_sell_repository.h"
-#include "../repositories/player_event_npc_handin_repository.h"
-#include "../repositories/player_event_npc_handin_entries_repository.h"
-#include "../repositories/player_event_trade_repository.h"
-#include "../repositories/player_event_trade_entries_repository.h"
-#include "../repositories/player_event_speech_repository.h"
-#include "../repositories/player_event_killed_npc_repository.h"
-#include "../repositories/player_event_killed_named_npc_repository.h"
-#include "../repositories/player_event_killed_raid_npc_repository.h"
-#include "../repositories/player_event_aa_purchase_repository.h"
-
 
 
 class PlayerEventLogs {
@@ -73,9 +88,11 @@ public:
 		return BuildPlayerEventPacket(c);
 	}
 
-	[[nodiscard]] const PlayerEventLogSettingsRepository::PlayerEventLogSettings *GetSettings() const;
-	bool IsEventDiscordEnabled(int32_t event_type_id);
-	std::string GetDiscordWebhookUrlFromEventType(int32_t event_type_id);
+	[[nodiscard]] const PlayerEventLogSettingsRepository::PlayerEventLogSettings * GetSettings() const;
+	bool                                                                           IsEventDiscordEnabled(int32_t event_type_id);
+	std::string                                                                    GetDiscordWebhookUrlFromEventType(int32_t event_type_id);
+
+	void LoadPlayerEventSettingsFromQS(const std::vector<PlayerEventLogSettingsRepository::PlayerEventLogSettings>& settings);
 
 	static std::string GetDiscordPayloadFromEvent(const PlayerEvent::PlayerEventContainer &e);
 
@@ -93,6 +110,12 @@ public:
 		std::vector<PlayerEventKilledRaidNpcRepository::PlayerEventKilledRaidNpc>       killed_raid_npc;
 		std::vector<PlayerEventAaPurchaseRepository::PlayerEventAaPurchase>             aa_purchase;
 	};
+
+	static PlayerEventLogs* Instance()
+	{
+		static PlayerEventLogs instance;
+		return &instance;
+	}
 
 private:
 	struct EtlSettings {
@@ -113,6 +136,7 @@ private:
 	std::map<PlayerEvent::EventType, EtlSettings>  m_etl_settings{};
 
 	// timers
+	Timer m_database_ping_timer; // database ping timer
 	Timer m_process_batch_events_timer; // events processing timer
 	Timer m_process_retention_truncation_timer; // timer for truncating events based on retention settings
 
@@ -125,7 +149,3 @@ private:
 public:
 	std::map<PlayerEvent::EventType, EtlSettings> &GetEtlSettings() { return m_etl_settings;}
 };
-
-extern PlayerEventLogs player_event_logs;
-
-#endif //EQEMU_PLAYER_EVENT_LOGS_H

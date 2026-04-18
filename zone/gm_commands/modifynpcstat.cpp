@@ -1,62 +1,21 @@
-#include "../client.h"
+/*	EQEmu: EQEmulator
 
-void command_modifynpcstat(Client *c, const Seperator *sep)
-{
-	auto arguments = sep->argnum;
-	if (!arguments) {
-		c->Message(Chat::White, "Usage: #modifynpcstat [Stat] [Value]");
-		ListModifyNPCStatMap(c);
-		return;
-	}
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-	if (!c->GetTarget() || !c->GetTarget()->IsNPC()) {
-		c->Message(Chat::White, "You must target an NPC to use this command.");
-		return;
-	}
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-	auto target = c->GetTarget()->CastToNPC();
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
-	const std::string& stat  = sep->arg[1] ? sep->arg[1] : "";
-	const std::string& value = sep->arg[2] ? sep->arg[2] : "";
-
-	if (stat.empty() || value.empty()) {
-		c->Message(Chat::White, "Usage: #modifynpcstat [Stat] [Value]");
-		ListModifyNPCStatMap(c);
-		return;
-	}
-
-	auto stat_description = GetModifyNPCStatDescription(stat);
-	if (!stat_description.length()) {
-		c->Message(
-			Chat::White,
-			fmt::format(
-				"Stat '{}' does not exist.",
-				stat
-			).c_str()
-		);
-		return;
-	}
-
-	target->ModifyNPCStat(stat, value);
-
-	c->Message(
-		Chat::White,
-		fmt::format(
-			"Stat Modified | Target: {}",
-			c->GetTargetDescription(target)
-		).c_str()
-	);
-
-	c->Message(
-		Chat::White,
-		fmt::format(
-			"Stat Modified | Stat: {} ({}) Value: {}",
-			GetModifyNPCStatDescription(stat),
-			stat,
-			value
-		).c_str()
-	);
-}
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "zone/client.h"
 
 std::map<std::string, std::string> GetModifyNPCStatMap()
 {
@@ -133,4 +92,62 @@ void ListModifyNPCStatMap(Client *c)
 			).c_str()
 		);
 	}
+}
+
+void command_modifynpcstat(Client *c, const Seperator *sep)
+{
+	auto arguments = sep->argnum;
+	if (!arguments) {
+		c->Message(Chat::White, "Usage: #modifynpcstat [Stat] [Value]");
+		ListModifyNPCStatMap(c);
+		return;
+	}
+
+	if (!c->GetTarget() || !c->GetTarget()->IsNPC()) {
+		c->Message(Chat::White, "You must target an NPC to use this command.");
+		return;
+	}
+
+	auto target = c->GetTarget()->CastToNPC();
+
+	const std::string& stat  = sep->arg[1] ? sep->arg[1] : "";
+	const std::string& value = sep->arg[2] ? sep->arg[2] : "";
+
+	if (stat.empty() || value.empty()) {
+		c->Message(Chat::White, "Usage: #modifynpcstat [Stat] [Value]");
+		ListModifyNPCStatMap(c);
+		return;
+	}
+
+	auto stat_description = GetModifyNPCStatDescription(stat);
+	if (!stat_description.length()) {
+		c->Message(
+			Chat::White,
+			fmt::format(
+				"Stat '{}' does not exist.",
+				stat
+			).c_str()
+		);
+		return;
+	}
+
+	target->ModifyNPCStat(stat, value);
+
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Stat Modified | Target: {}",
+			c->GetTargetDescription(target)
+		).c_str()
+	);
+
+	c->Message(
+		Chat::White,
+		fmt::format(
+			"Stat Modified | Stat: {} ({}) Value: {}",
+			GetModifyNPCStatDescription(stat),
+			stat,
+			value
+		).c_str()
+	);
 }

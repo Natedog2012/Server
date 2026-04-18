@@ -1,19 +1,36 @@
-#include "../common/global_define.h"
-#include "../common/misc_functions.h"
-#include "../common/repositories/character_activities_repository.h"
-#include "../common/repositories/character_tasks_repository.h"
-#include "../common/repositories/completed_tasks_repository.h"
-#include "../common/repositories/task_activities_repository.h"
-#include "../common/repositories/tasks_repository.h"
-#include "../common/repositories/tasksets_repository.h"
-#include "client.h"
-#include "dynamic_zone.h"
-#include "string_ids.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "task_manager.h"
-#include "../common/repositories/shared_task_activity_state_repository.h"
-#include "../common/repositories/shared_task_members_repository.h"
-#include "../common/shared_tasks.h"
-#include "worldserver.h"
+
+#include "common/misc_functions.h"
+#include "common/repositories/character_activities_repository.h"
+#include "common/repositories/character_tasks_repository.h"
+#include "common/repositories/completed_tasks_repository.h"
+#include "common/repositories/shared_task_activity_state_repository.h"
+#include "common/repositories/shared_task_members_repository.h"
+#include "common/repositories/task_activities_repository.h"
+#include "common/repositories/tasks_repository.h"
+#include "common/repositories/tasksets_repository.h"
+#include "common/shared_tasks.h"
+#include "zone/client.h"
+#include "zone/dynamic_zone.h"
+#include "zone/string_ids.h"
+#include "zone/worldserver.h"
 
 extern WorldServer worldserver;
 
@@ -43,6 +60,8 @@ bool TaskManager::LoadTaskSets()
 
 bool TaskManager::LoadTasks(int single_task)
 {
+	m_task_data.clear();
+
 	std::string task_query_filter = fmt::format("id = {}", single_task);
 	if (single_task == 0) {
 		if (!LoadTaskSets()) {
@@ -839,7 +858,7 @@ void TaskManager::SendTaskSelector(Client* client, Mob* mob, const std::vector<i
 		client->GetTaskState()->AddOffer(task_list[i], mob->GetID());
 	}
 
-	auto outapp = std::make_unique<EQApplicationPacket>(OP_TaskSelectWindow, buf);
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_TaskSelectWindow, std::move(buf));
 	client->QueuePacket(outapp.get());
 }
 
@@ -864,7 +883,7 @@ void TaskManager::SendSharedTaskSelector(Client* client, Mob* mob, const std::ve
 		client->GetTaskState()->AddOffer(task_id, mob->GetID());
 	}
 
-	auto outapp = std::make_unique<EQApplicationPacket>(OP_SharedTaskSelectWindow, buf);
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_SharedTaskSelectWindow, std::move(buf));
 	client->QueuePacket(outapp.get());
 }
 
@@ -990,7 +1009,7 @@ void TaskManager::SendTaskActivityLong(
 
 	activity.SerializeObjective(buf, client->ClientVersion(), done_count);
 
-	auto outapp = std::make_unique<EQApplicationPacket>(OP_TaskActivity, buf);
+	auto outapp = std::make_unique<EQApplicationPacket>(OP_TaskActivity, std::move(buf));
 	client->QueuePacket(outapp.get());
 }
 

@@ -1,38 +1,51 @@
-#include "../common/content/world_content_service.h"
-#include "../common/emu_constants.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/http/httplib.h"
-#include "../common/http/uri.h"
-#include "../common/net/console_server.h"
-#include "../common/net/servertalk_server.h"
-#include "../common/repositories/character_expedition_lockouts_repository.h"
-#include "../common/repositories/character_task_timers_repository.h"
-#include "../common/rulesys.h"
-#include "../common/strings.h"
-#include "adventure_manager.h"
-#include "dynamic_zone_manager.h"
-#include "login_server_list.h"
-#include "shared_task_manager.h"
-#include "ucs.h"
-#include "wguild_mgr.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "world_boot.h"
-#include "world_config.h"
-#include "world_event_scheduler.h"
-#include "world_server_cli.h"
-#include "../common/zone_store.h"
-#include "worlddb.h"
-#include "zonelist.h"
-#include "zoneserver.h"
-#include "../common/ip_util.h"
-#include "../common/zone_store.h"
-#include "../common/path_manager.h"
-#include "../common/database/database_update.h"
-#include "../common/repositories/zone_state_spawns_repository.h"
 
-extern ZSList      zoneserver_list;
+#include "common/content/world_content_service.h"
+#include "common/database/database_update.h"
+#include "common/emu_constants.h"
+#include "common/eqemu_logsys.h"
+#include "common/http/httplib.h"
+#include "common/http/uri.h"
+#include "common/ip_util.h"
+#include "common/net/dns.h"
+#include "common/path_manager.h"
+#include "common/repositories/character_expedition_lockouts_repository.h"
+#include "common/repositories/character_task_timers_repository.h"
+#include "common/repositories/zone_state_spawns_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "common/zone_store.h"
+#include "world/adventure_manager.h"
+#include "world/dynamic_zone_manager.h"
+#include "world/login_server_list.h"
+#include "world/shared_task_manager.h"
+#include "world/ucs.h"
+#include "world/wguild_mgr.h"
+#include "world/world_config.h"
+#include "world/world_event_scheduler.h"
+#include "world/world_server_cli.h"
+#include "world/worlddb.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
+
 extern WorldConfig Config;
-
-auto mutex = new Mutex;
 
 void WorldBoot::GMSayHookCallBackProcessWorld(uint16 log_category, const char *func, std::string message)
 {
@@ -53,11 +66,11 @@ void WorldBoot::GMSayHookCallBackProcessWorld(uint16 log_category, const char *f
 		auto message_split = Strings::Split(message, '\n');
 
 		for (size_t iter = 0; iter < message_split.size(); ++iter) {
-			zoneserver_list.SendEmoteMessage(
+			ZSList::Instance()->SendEmoteMessage(
 				0,
 				0,
 				AccountStatus::QuestTroupe,
-				LogSys.GetGMSayColorFromCategory(log_category),
+				EQEmuLogSys::Instance()->GetGMSayColorFromCategory(log_category),
 				fmt::format(
 					" {}{}",
 					(iter == 0 ? " ---" : ""),
@@ -69,11 +82,11 @@ void WorldBoot::GMSayHookCallBackProcessWorld(uint16 log_category, const char *f
 		return;
 	}
 
-	zoneserver_list.SendEmoteMessage(
+	ZSList::Instance()->SendEmoteMessage(
 		0,
 		0,
 		AccountStatus::QuestTroupe,
-		LogSys.GetGMSayColorFromCategory(log_category),
+		EQEmuLogSys::Instance()->GetGMSayColorFromCategory(log_category),
 		"%s",
 		fmt::format("[{}] [{}] {}", Logs::LogCategoryName[log_category], func, message).c_str()
 	);
@@ -83,12 +96,12 @@ bool WorldBoot::HandleCommandInput(int argc, char **argv)
 {
 	// command handler
 	if (argc > 1) {
-		LogSys.SilenceConsoleLogging();
-		path.LoadPaths();
+		EQEmuLogSys::Instance()->SilenceConsoleLogging();
+		PathManager::Instance()->Init();
 		WorldConfig::LoadConfig();
 		LoadDatabaseConnections();
 		RuleManager::Instance()->LoadRules(&database, "default", false);
-		LogSys.EnableConsoleLogging();
+		EQEmuLogSys::Instance()->EnableConsoleLogging();
 		WorldserverCLI::CommandHandler(argc, argv);
 	}
 
@@ -163,11 +176,13 @@ bool WorldBoot::LoadDatabaseConnections()
 	}
 	else {
 		content_db.SetMySQL(database);
+
 		// when database and content_db share the same underlying mysql connection
 		// it needs to be protected by a shared mutex otherwise we produce concurrency issues
 		// when database actions are occurring in different threads
-		database.SetMutex(mutex);
-		content_db.SetMutex(mutex);
+		std::shared_ptr<DBcore::Mutex> sharedMutex = std::make_shared<DBcore::Mutex>();
+		database.SetMutex(sharedMutex);
+		content_db.SetMutex(sharedMutex);
 	}
 
 	return true;
@@ -183,15 +198,13 @@ int get_file_size(const std::string &filename) // path to file
 	return size;
 }
 
-extern LoginServerList loginserverlist;
-
 void WorldBoot::RegisterLoginservers()
 {
 	const auto c = EQEmuConfig::get();
 
 	if (c->LoginCount == 0) {
 		if (c->LoginHost.length()) {
-			loginserverlist.Add(
+			LoginServerList::Instance()->Add(
 				c->LoginHost.c_str(),
 				c->LoginPort,
 				c->LoginAccount.c_str(),
@@ -207,7 +220,7 @@ void WorldBoot::RegisterLoginservers()
 		iterator.Reset();
 		while (iterator.MoreElements()) {
 			if (iterator.GetData()->LoginHost.length()) {
-				loginserverlist.Add(
+				LoginServerList::Instance()->Add(
 					iterator.GetData()->LoginHost.c_str(),
 					iterator.GetData()->LoginPort,
 					iterator.GetData()->LoginAccount.c_str(),
@@ -226,18 +239,14 @@ void WorldBoot::RegisterLoginservers()
 	}
 }
 
-extern SharedTaskManager   shared_task_manager;
-extern AdventureManager    adventure_manager;
-extern WorldEventScheduler event_scheduler;
-
 bool WorldBoot::DatabaseLoadRoutines(int argc, char **argv)
 {
 	// logging system init
-	auto logging = LogSys.SetDatabase(&database)
-		->SetLogPath(path.GetLogPath())
+	auto logging = EQEmuLogSys::Instance()->SetDatabase(&database)
+		->SetLogPath(PathManager::Instance()->GetLogPath())
 		->LoadLogDatabaseSettings();
 
-	LogSys.SetDiscordHandler(&WorldBoot::DiscordWebhookMessageHandler);
+	EQEmuLogSys::Instance()->SetDiscordHandler(&WorldBoot::DiscordWebhookMessageHandler);
 
 	const auto c = EQEmuConfig::get();
 	if (c->auto_database_updates) {
@@ -279,9 +288,9 @@ bool WorldBoot::DatabaseLoadRoutines(int argc, char **argv)
 
 	LogInfo("Loading zones");
 
-	zone_store.LoadZones(content_db);
+	ZoneStore::Instance()->LoadZones(content_db);
 
-	if (zone_store.GetZones().empty()) {
+	if (ZoneStore::Instance()->GetZones().empty()) {
 		LogError("Failed to load zones data, check your schema for possible errors");
 		return 1;
 	}
@@ -357,20 +366,20 @@ bool WorldBoot::DatabaseLoadRoutines(int argc, char **argv)
 	TimeOfDay_Struct eqTime{};
 	time_t           realtime;
 	eqTime = database.LoadTime(realtime);
-	zoneserver_list.worldclock.SetCurrentEQTimeOfDay(eqTime, realtime);
+	ZSList::Instance()->worldclock.SetCurrentEQTimeOfDay(eqTime, realtime);
 
 	LogInfo("Deleted [{}] stale player corpses from database", database.DeleteStalePlayerCorpses());
 
 	LogInfo("Loading adventures");
-	if (!adventure_manager.LoadAdventureTemplates()) {
+	if (!AdventureManager::Instance()->LoadAdventureTemplates()) {
 		LogInfo("Unable to load adventure templates");
 	}
 
-	if (!adventure_manager.LoadAdventureEntries()) {
+	if (!AdventureManager::Instance()->LoadAdventureEntries()) {
 		LogInfo("Unable to load adventure templates");
 	}
 
-	adventure_manager.LoadLeaderboardInfo();
+	AdventureManager::Instance()->LoadLeaderboardInfo();
 
 	LogInfo("Purging expired dynamic zones and members");
 	dynamic_zone_manager.PurgeExpiredDynamicZones();
@@ -393,22 +402,22 @@ bool WorldBoot::DatabaseLoadRoutines(int argc, char **argv)
 	content_db.LoadCharacterCreateCombos();
 
 	LogInfo("Initializing [EventScheduler]");
-	event_scheduler.SetDatabase(&database)->LoadScheduledEvents();
+	WorldEventScheduler::Instance()->SetDatabase(&database)->LoadScheduledEvents();
 
 	LogInfo("Initializing [WorldContentService]");
-	content_service.SetDatabase(&database)
+	WorldContentService::Instance()->SetDatabase(&database)
 		->SetContentDatabase(&content_db)
 		->SetExpansionContext()
 		->ReloadContentFlags();
 
 	LogInfo("Initializing [SharedTaskManager]");
-	shared_task_manager.SetDatabase(&database)
+	SharedTaskManager::Instance()->SetDatabase(&database)
 		->SetContentDatabase(&content_db)
 		->LoadTaskData()
 		->LoadSharedTaskState();
 
 	LogInfo("Purging expired shared tasks");
-	shared_task_manager.PurgeExpiredSharedTasks();
+	SharedTaskManager::Instance()->PurgeExpiredSharedTasks();
 
 	LogInfo("Cleaning up instance corpses");
 	database.CleanupInstanceCorpses();
@@ -445,7 +454,7 @@ void WorldBoot::CheckForPossibleConfigurationIssues()
 
 	std::string config_address = c->WorldAddress;
 	if (!IpUtil::IsIPAddress(config_address)) {
-		config_address = IpUtil::DNSLookupSync(c->WorldAddress, 9000);
+		config_address = EQ::Net::DNSLookupSync(c->WorldAddress, 9000);
 		LogInfo(
 			"World config address using DNS [{}] resolves to [{}]",
 			c->WorldAddress,
@@ -623,19 +632,18 @@ void WorldBoot::CheckForPossibleConfigurationIssues()
 
 void WorldBoot::Shutdown()
 {
-	safe_delete(mutex);
 }
 
 void WorldBoot::SendDiscordMessage(int webhook_id, const std::string &message)
 {
-	if (UCSLink.IsConnected()) {
+	if (UCSConnection::Instance()->IsConnected()) {
 		auto pack = new ServerPacket(ServerOP_DiscordWebhookMessage, sizeof(DiscordWebhookMessage_Struct) + 1);
 		auto *q   = (DiscordWebhookMessage_Struct *) pack->pBuffer;
 
 		strn0cpy(q->message, message.c_str(), 2000);
 		q->webhook_id = webhook_id;
 
-		UCSLink.SendPacket(pack);
+		UCSConnection::Instance()->SendPacket(pack);
 
 		safe_delete(pack);
 	}

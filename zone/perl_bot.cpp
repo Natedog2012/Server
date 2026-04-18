@@ -1,8 +1,26 @@
-#include "../common/features.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/features.h"
+
 #ifdef EMBPERL_XS_CLASSES
-#include "../common/global_define.h"
-#include "embperl.h"
-#include "bot.h"
+
+#include "zone/bot.h"
+#include "zone/embperl.h"
 
 Mob* Perl_Bot_GetOwner(Bot* self) // @categories Script Utility, Bot
 {
@@ -492,12 +510,12 @@ void Perl_Bot_SetSpellDurationRaid(Bot* self, int spell_id, int duration, int le
 
 bool Perl_Bot_ReloadBotDataBuckets(Bot* self)
 {
-	return DataBucket::GetDataBuckets(self);
+	return self->LoadDataBucketsCache();
 }
 
 bool Perl_Bot_ReloadBotOwnerDataBuckets(Bot* self)
 {
-	return self->HasOwner() && DataBucket::GetDataBuckets(self->GetBotOwner());
+	return self->HasOwner() && self->LoadDataBucketsCache();
 }
 
 bool Perl_Bot_ReloadBotSpells(Bot* self)
@@ -741,4 +759,4 @@ void perl_register_bot()
 	package.add("Stand", &Perl_Bot_Stand);
 }
 
-#endif //EMBPERL_XS_CLASSES
+#endif // EMBPERL_XS_CLASSES

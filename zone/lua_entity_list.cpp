@@ -1,22 +1,39 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #ifdef LUA_EQEMU
 
-#include <luabind/luabind.hpp>
-#include <luabind/iterator_policy.hpp>
-
-#include "masterentity.h"
 #include "lua_entity_list.h"
-#include "lua_mob.h"
-#include "lua_client.h"
-#include "lua_npc.h"
-#include "lua_object.h"
-#include "lua_door.h"
-#include "lua_corpse.h"
-#include "lua_group.h"
-#include "lua_raid.h"
-#include "lua_spawn.h"
 
-#include "lua_bot.h"
-#include "lua_merc.h"
+#include "zone/lua_bot.h"
+#include "zone/lua_client.h"
+#include "zone/lua_corpse.h"
+#include "zone/lua_door.h"
+#include "zone/lua_group.h"
+#include "zone/lua_merc.h"
+#include "zone/lua_mob.h"
+#include "zone/lua_npc.h"
+#include "zone/lua_object.h"
+#include "zone/lua_raid.h"
+#include "zone/lua_spawn.h"
+#include "zone/masterentity.h"
+
+#include "luabind/luabind.hpp"
+#include "luabind/iterator_policy.hpp"
 
 struct Lua_Mob_List {
 	std::vector<Lua_Mob> entries;

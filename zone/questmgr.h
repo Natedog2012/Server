@@ -1,25 +1,24 @@
-/*  EQEMu:  Everquest Server Emulator
-    Copyright (C) 2001-2004  EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; version 2 of the License.
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef __QUEST_MANAGER_H__
-#define __QUEST_MANAGER_H__
+#pragma once
 
-#include "../common/timer.h"
-#include "tasks.h"
+#include "common/timer.h"
+#include "zone/tasks.h"
 
 #include <list>
 #include <stack>
@@ -33,15 +32,17 @@ namespace EQ
 	class ItemInstance;
 }
 
+struct RunningQuest {
+	Mob* owner = nullptr;
+	Client* initiator = nullptr;
+	EQ::ItemInstance* questitem = nullptr;
+	const SPDat_Spell_Struct* questspell = nullptr;
+	bool depop_npc = false;
+	std::string encounter = "";
+	Zone* zone = nullptr;
+};
+
 class QuestManager {
-	struct running_quest {
-		Mob *owner;
-		Client *initiator;
-		EQ::ItemInstance* questitem;
-		const SPDat_Spell_Struct* questspell;
-		bool depop_npc;
-		std::string encounter;
-	};
 
 	struct PausedTimer {
 		Mob*        owner;
@@ -49,12 +50,13 @@ class QuestManager {
 		uint32      time;
 	};
 public:
+
 	QuestManager();
 	virtual ~QuestManager();
 
-	void StartQuest(Mob *_owner, Client *_initiator = nullptr, EQ::ItemInstance* _questitem = nullptr, const SPDat_Spell_Struct* _questspell = nullptr, std::string encounter = "");
+	void StartQuest(const RunningQuest& q);
 	void EndQuest();
-	bool QuestsRunning() { return !quests_running_.empty(); }
+	bool QuestsRunning() { return !m_running_quests.empty(); }
 
 	void Process();
 
@@ -226,6 +228,8 @@ public:
 	void resettaskactivity(int task, int activity);
 	void assigntask(int taskid, bool enforce_level_requirement = false);
 	void failtask(int taskid);
+	bool completetask(int task_id);
+	bool uncompletetask(int task_id);
 	int tasktimeleft(int taskid);
 	bool istaskcompleted(int task_id);
 	bool aretaskscompleted(const std::vector<int>& task_ids);
@@ -361,6 +365,8 @@ public:
 	bool SetAutoLoginCharacterNameByAccountID(uint32 account_id, const std::string& character_name);
 	void SpawnCircle(uint32 npc_id, glm::vec4 position, float radius, uint32 points);
 	void SpawnGrid(uint32 npc_id, glm::vec4 position, float spacing, uint32 spawn_count);
+	std::vector<std::string> GetPausedTimers(Mob* m);
+	std::vector<std::string> GetTimers(Mob* m);
 
 	Bot *GetBot() const;
 	Client *GetInitiator() const;
@@ -381,7 +387,7 @@ public:
 	bool handin(std::map<std::string, uint32> required);
 
 private:
-	std::stack<running_quest> quests_running_;
+	std::stack<RunningQuest> m_running_quests;
 
 	bool HaveProximitySays;
 
@@ -409,6 +415,3 @@ private:
 };
 
 extern QuestManager quest_manager;
-
-#endif
-

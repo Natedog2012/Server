@@ -1,41 +1,36 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#pragma once
 
-#ifndef BOT_H
-#define BOT_H
-
-#include "bot_structs.h"
-#include "mob.h"
-#include "client.h"
-#include "pets.h"
-#include "heal_rotation.h"
-#include "groups.h"
-#include "corpse.h"
-#include "zonedb.h"
-#include "../common/zone_store.h"
-#include "string_ids.h"
-#include "../common/misc_functions.h"
-#include "../common/global_define.h"
-#include "guild_mgr.h"
-#include "worldserver.h"
-#include "raids.h"
-
-#include <sstream>
+#include "common/misc_functions.h"
+#include "common/zone_store.h"
+#include "zone/bot_structs.h"
+#include "zone/client.h"
+#include "zone/corpse.h"
+#include "zone/groups.h"
+#include "zone/guild_mgr.h"
+#include "zone/heal_rotation.h"
+#include "zone/mob.h"
+#include "zone/pets.h"
+#include "zone/raids.h"
+#include "zone/string_ids.h"
+#include "zone/worldserver.h"
+#include "zone/zonedb.h"
 
 constexpr uint32 BOT_KEEP_ALIVE_INTERVAL = 5000; // 5 seconds
 
@@ -163,7 +158,6 @@ namespace BotPriorityCategories {
 };
 
 namespace BotBaseSettings {
-	constexpr uint16 ExpansionBitmask                 = 0;
 	constexpr uint16 ShowHelm                         = 1;
 	constexpr uint16 FollowDistance                   = 2;
 	constexpr uint16 StopMeleeLevel                   = 3;	
@@ -178,13 +172,11 @@ namespace BotBaseSettings {
 	constexpr uint16 SitHPPct                         = 12;
 	constexpr uint16 SitManaPct                       = 13;
 
-	constexpr uint16 START_ALL                        = ExpansionBitmask;
-	constexpr uint16 START                            = BotBaseSettings::ShowHelm; // Everything above this cannot be copied, changed or viewed by players
+	constexpr uint16 START                            = BotBaseSettings::ShowHelm;
 	constexpr uint16 END                              = BotBaseSettings::SitManaPct; // Increment as needed
 };
 
 static std::map<uint16, std::string> botBaseSettings_names = {
-	{ BotBaseSettings::ExpansionBitmask,             "ExpansionBitmask" },
 	{ BotBaseSettings::ShowHelm,                     "ShowHelm" },
 	{ BotBaseSettings::FollowDistance,               "FollowDistance" },
 	{ BotBaseSettings::StopMeleeLevel,               "StopMeleeLevel" },
@@ -227,6 +219,12 @@ static std::map<uint16, std::string> botSubType_names = {
 	{ CommandedSubTypes::Shrink,                    "Shrink" },
 	{ CommandedSubTypes::Grow,                      "Grow" },
 	{ CommandedSubTypes::Selo,                      "Selo" }
+};
+
+namespace BotAnimEmpathy {
+	constexpr uint8 Guard       		= 1;
+	constexpr uint8 Attack           	= 2;
+	constexpr uint8 BackOff             = 3;
 };
 
 class Bot : public NPC {
@@ -747,7 +745,7 @@ public:
 	static BotSpell GetBestBotSpellForGroupCompleteHeal(Bot* caster, Mob* tar, uint16 spell_type = BotSpellTypes::RegularHeal);
 	static BotSpell GetBestBotSpellForGroupHeal(Bot* caster, Mob* tar, uint16 spell_type = BotSpellTypes::RegularHeal);
 
-	static Mob* GetFirstIncomingMobToMez(Bot* caster, int16 spell_id, uint16 spell_type, bool AE);
+	static Mob* GetFirstIncomingMobToMez(Bot* caster, uint16 spell_id, uint16 spell_type, bool AE);
 	static BotSpell GetBestBotSpellForMez(Bot* caster, uint16 spell_type = BotSpellTypes::Mez);
 	static BotSpell GetBestBotMagicianPetSpell(Bot* caster, uint16 spell_type = BotSpellTypes::Pet);
 	static std::string GetBotMagicianPetType(Bot* caster);
@@ -786,6 +784,7 @@ public:
 	EQ::ItemInstance* GetBotItem(uint16 slot_id);
 	bool GetSpawnStatus() { return _spawnStatus; }
 	uint8 GetPetChooserID() { return _petChooserID; }
+	bool HasControllablePet(uint8 ranks_required = 0);
 	bool IsBotRanged() { return _botRangedSetting; }
 	bool IsBotCharmer() { return _botCharmer; }
 	bool IsBot() const override { return true; }
@@ -1105,6 +1104,9 @@ public:
 
 	// Public "Refactor" Methods
 	static bool CheckCampSpawnConditions(Client* c);
+	static bool CheckHighEnoughLevelForBots(Client* c, uint8 bot_class = Class::None);
+	static bool CheckCreateLimit(Client* c, uint32 bot_count, uint8 bot_class = Class::None);
+	static bool CheckSpawnLimit(Client* c, uint8 bot_class = Class::None);
 
 protected:
 	void BotMeditate(bool is_sitting);
@@ -1256,5 +1258,3 @@ private:
 };
 
 bool IsSpellInBotList(DBbotspells_Struct* spell_list, uint16 spell_id);
-
-#endif // BOT_H

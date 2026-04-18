@@ -1,27 +1,26 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2005 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef RAIDS_H
-#define RAIDS_H
+#pragma once
 
-#include "../common/types.h"
-#include "groups.h"
-#include "xtargetautohaters.h"
-#include "client.h"
+#include "common/types.h"
+#include "zone/groups.h"
+#include "zone/xtargetautohaters.h"
+#include "zone/client.h"
 
 class Client;
 class EQApplicationPacket;
@@ -171,9 +170,9 @@ public:
 	void	CastGroupSpell(Mob* caster,uint16 spellid, uint32 gid);
 	void	SplitExp(ExpSource exp_source, const uint64 exp, Mob* other);
 	uint32	GetTotalRaidDamage(Mob* other);
-	void	BalanceHP(int32 penalty, uint32 gid, float range = 0, Mob* caster = nullptr, int32 limit = 0);
-	void	BalanceMana(int32 penalty, uint32 gid,  float range = 0, Mob* caster = nullptr, int32 limit = 0);
-	void	HealGroup(uint32 heal_amt, Mob* caster, uint32 gid, float range = 0);
+	void	BalanceHP(int32 penalty, uint32 group_id, float range = 0, Mob* caster = nullptr, int32 limit = 0);
+	void	BalanceMana(int32 penalty, uint32 group_id, float range = 0, Mob* caster = nullptr, int32 limit = 0);
+	void	HealGroup(uint32 heal_amount, Mob* caster, uint32 group_id, float range = 0);
 	void	SplitMoney(uint32 gid, uint32 copper, uint32 silver, uint32 gold, uint32 platinum, Client *splitter = nullptr);
 
 	void	TeleportGroup(Mob* sender, uint32 zoneID, uint16 instance_id, float x, float y, float z, float heading, uint32 gid);
@@ -303,7 +302,3 @@ protected:
 
 	XTargetAutoHaters m_autohatermgr;
 };
-
-
-#endif
-

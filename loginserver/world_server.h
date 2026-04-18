@@ -1,16 +1,31 @@
-#ifndef EQEMU_WORLDSERVER_H
-#define EQEMU_WORLDSERVER_H
+/*	EQEmu: EQEmulator
 
-#include "../common/global_define.h"
-#include "../common/net/servertalk_server_connection.h"
-#include "../common/servertalk.h"
-#include "../common/packet_dump.h"
-#include "../common/event/timer.h"
-#include "login_types.h"
-#include "client.h"
-#include "../common/repositories/login_server_admins_repository.h"
-#include <string>
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/net/servertalk_server_connection.h"
+#include "common/packet_dump.h"
+#include "common/repositories/login_server_admins_repository.h"
+#include "common/servertalk.h"
+#include "loginserver/client.h"
+#include "loginserver/login_types.h"
+
 #include <memory>
+#include <string>
 
 /**
  * World server class, controls the connected server processing.
@@ -84,6 +99,3 @@ private:
 
 	static void FormatWorldServerName(char *name, int8 server_list_type);
 };
-
-#endif
-

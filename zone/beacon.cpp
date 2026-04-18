@@ -1,46 +1,34 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2003 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
 /*
-
 Beacon class, extends Mob. Used for AE rain spells to have a mob
 target to center around.
-
 */
 
-class Zone;
-
-#ifdef _WINDOWS
-	#if (!defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER < 1900))
-		#define snprintf	_snprintf
-		#define vsnprintf	_vsnprintf
-	#endif
-    #define strncasecmp	_strnicmp
-    #define strcasecmp	_stricmp
-#endif
-
-#include "../common/races.h"
-#include "beacon.h"
-#include "entity.h"
-#include "mob.h"
+#include "common/races.h"
+#include "zone/beacon.h"
+#include "zone/entity.h"
+#include "zone/mob.h"
 
 extern EntityList entity_list;
 extern Zone* zone;
+
+class Zone;
 
 // if lifetime is 0 this is a permanent beacon.. not sure if that'll be
 // useful for anything
@@ -179,5 +167,3 @@ void Beacon::AELocationSpell(Mob *caster, uint16 cast_spell_id, int16 in_resist_
 	spell_timer.Start(2500);
 	spell_timer.Trigger();
 }
-
-

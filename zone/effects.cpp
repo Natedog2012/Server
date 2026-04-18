@@ -1,34 +1,31 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2003 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/spdat.h"
-#include "../common/misc_functions.h"
-
-#include "client.h"
-#include "entity.h"
 #include "mob.h"
 
-#include "string_ids.h"
-#include "worldserver.h"
-#include "zonedb.h"
-#include "position.h"
+#include "common/eqemu_logsys.h"
+#include "common/misc_functions.h"
+#include "common/spdat.h"
+#include "zone/client.h"
+#include "zone/entity.h"
+#include "zone/position.h"
+#include "zone/string_ids.h"
+#include "zone/worldserver.h"
+#include "zone/zonedb.h"
 
 float Mob::GetActSpellRange(uint16 spell_id, float range)
 {
@@ -269,7 +266,7 @@ int64 Mob::GetActDoTDamage(uint16 spell_id, int64 value, Mob* target, bool from_
 	chance += itembonuses.CriticalDoTChance + spellbonuses.CriticalDoTChance + aabonuses.CriticalDoTChance;
 
 	if (spellbonuses.CriticalDotDecay)
-		chance += GetDecayEffectValue(spell_id, SE_CriticalDotDecay);
+		chance += GetDecayEffectValue(spell_id, SpellEffect::CriticalDotDecay);
 
 	if (spells[spell_id].override_crit_chance > 0 && chance > spells[spell_id].override_crit_chance)
 		chance = spells[spell_id].override_crit_chance;
@@ -439,14 +436,14 @@ int64 Mob::GetActSpellHealing(uint16 spell_id, int64 value, Mob* target, bool fr
 		critical_chance += itembonuses.CriticalHealChance + spellbonuses.CriticalHealChance + aabonuses.CriticalHealChance;
 
 		if (spellbonuses.CriticalHealDecay) {
-			critical_chance += GetDecayEffectValue(spell_id, SE_CriticalHealDecay);
+			critical_chance += GetDecayEffectValue(spell_id, SpellEffect::CriticalHealDecay);
 		}
 	}
 	else {
 		critical_chance = itembonuses.CriticalHealOverTime + spellbonuses.CriticalHealOverTime + aabonuses.CriticalHealOverTime;
 
 		if (spellbonuses.CriticalRegenDecay) {
-			critical_chance += GetDecayEffectValue(spell_id, SE_CriticalRegenDecay);
+			critical_chance += GetDecayEffectValue(spell_id, SpellEffect::CriticalRegenDecay);
 		}
 	}
 
@@ -610,7 +607,7 @@ int32 Mob::GetActSpellCost(uint16 spell_id, int32 cost)
 			if (buffs[buffSlot].spellid == 0 || buffs[buffSlot].spellid >= SPDAT_RECORDS)
 				continue;
 
-			if(IsEffectInSpell(buffs[buffSlot].spellid, SE_ReduceManaCost)) {
+			if(IsEffectInSpell(buffs[buffSlot].spellid, SpellEffect::ReduceManaCost)) {
 				if(CalcFocusEffect(focusManaCost, buffs[buffSlot].spellid, spell_id) == 100)
 					cost = 1;
 			}
@@ -1122,13 +1119,13 @@ void EntityList::AESpell(
 		IsTargetableAESpell(spell_id) &&
 		is_detrimental_spell &&
 		!is_npc &&
-		!IsEffectInSpell(spell_id, SE_Lull) &&
-		!IsEffectInSpell(spell_id, SE_Mez)
+		!IsEffectInSpell(spell_id, SpellEffect::Lull) &&
+		!IsEffectInSpell(spell_id, SpellEffect::Mez)
 	) {
 		max_targets_allowed = RuleI(Spells, TargetedAOEMaxTargets);
 	} else if (
 		IsPBAESpell(spell_id) &&
-		IsDetrimentalSpell &&
+		is_detrimental_spell &&
 		!is_npc
 	) {
 		max_targets_allowed = RuleI(Spells, PointBlankAOEMaxTargets);
@@ -1142,8 +1139,8 @@ void EntityList::AESpell(
 		RuleI(Range, MobCloseScanDistance),
 		distance
 	);
-
-	for (auto& it: caster_mob->GetCloseMobList(distance)) {
+	auto list = caster_mob->GetCloseMobList(distance);
+	for (auto& it: list) {
 		current_mob = it.second;
 		if (!current_mob) {
 			continue;

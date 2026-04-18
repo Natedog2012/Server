@@ -1,17 +1,33 @@
-#ifndef EQEMU_SHARED_TASKS_H
-#define EQEMU_SHARED_TASKS_H
+/*	EQEmu: EQEmulator
 
-#include "database.h"
-#include "timer.h"
-#include "tasks.h"
-#include "types.h"
-#include "repositories/character_data_repository.h"
-#include "repositories/tasks_repository.h"
-#include "repositories/task_activities_repository.h"
-#include "repositories/shared_tasks_repository.h"
-#include <vector>
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/database.h"
+#include "common/repositories/character_data_repository.h"
+#include "common/repositories/shared_tasks_repository.h"
+#include "common/repositories/task_activities_repository.h"
+#include "common/repositories/tasks_repository.h"
+#include "common/tasks.h"
+#include "common/timer.h"
+#include "common/types.h"
+
 #include <string>
-#include <iostream>
+#include <vector>
 
 // ops
 #define ServerOP_SharedTaskRequest                  0x0300 // zone -> world. Player trying to get task. Relayed world -> zone on confirmation
@@ -48,7 +64,7 @@ enum class SharedTaskRequestGroupType {
 struct ServerSharedTaskRequest_Struct {
 	uint32 requested_character_id;
 	uint32 requested_task_id;
-	uint32 requested_npc_type_id; // original task logic passthrough
+	uint32 requested_npc_entity_id; // original task logic passthrough
 	uint32 accept_time;
 };
 
@@ -232,5 +248,3 @@ protected:
 	TasksRepository::Tasks                                m_task_data;
 	std::vector<TaskActivitiesRepository::TaskActivities> m_task_activity_data;
 };
-
-#endif //EQEMU_SHARED_TASKS_H

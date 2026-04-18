@@ -1,31 +1,30 @@
-/*	 EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2006 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/global_define.h"
 #include "eqemu_config.h"
-#include "misc_functions.h"
-#include "strings.h"
-#include "eqemu_logsys.h"
-#include "json/json.hpp"
 
+#include "common/eqemu_logsys.h"
+#include "common/json/json.hpp"
+#include "common/misc_functions.h"
+#include "common/strings.h"
+
+#include <filesystem>
 #include <iostream>
 #include <sstream>
-#include <filesystem>
 
 std::string EQEmuConfig::ConfigFile = "eqemu_config.json";
 EQEmuConfig *EQEmuConfig::_config = nullptr;
@@ -176,6 +175,21 @@ void EQEmuConfig::parse_config()
 	OpcodeDir    = _root["server"]["directories"].get("opcodes", "./").asString();
 	SharedMemDir = _root["server"]["directories"].get("shared_memory", "shared/").asString();
 	LogDir       = _root["server"]["directories"].get("logs", "logs/").asString();
+
+	auto load_paths = [&](const std::string& key, std::vector<std::string>& target) {
+		const auto& paths = _root["server"]["directories"][key];
+		if (paths.isArray()) {
+			for (const auto& dir : paths) {
+				if (dir.isString()) {
+					target.push_back(dir.asString());
+				}
+			}
+		}
+	};
+
+	load_paths("quest_paths", m_quest_directories);
+	load_paths("plugin_paths", m_plugin_directories);
+	load_paths("lua_module_paths", m_lua_module_directories);
 
 	/**
 	 * Logs
@@ -421,11 +435,11 @@ void EQEmuConfig::CheckUcsConfigConversion()
 		LogInfo("Migrating old [eqemu_config] UCS configuration to new configuration");
 
 		std::string config_file_path = std::filesystem::path{
-			path.GetServerPath() + "/eqemu_config.json"
+			PathManager::Instance()->GetServerPath() + "/eqemu_config.json"
 		}.string();
 
 		std::string config_file_bak_path = std::filesystem::path{
-			path.GetServerPath() + "/eqemu_config.ucs-migrate-json.bak"
+			PathManager::Instance()->GetServerPath() + "/eqemu_config.ucs-migrate-json.bak"
 		}.string();
 
 		// copy eqemu_config.json to eqemu_config.json.bak

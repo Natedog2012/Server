@@ -1,13 +1,29 @@
-#include "../common/eq_packet_structs.h"
-#include "../common/strings.h"
-#include "../common/misc_functions.h"
-#include "../common/repositories/player_titlesets_repository.h"
+/*	EQEmu: EQEmulator
 
-#include "client.h"
-#include "mob.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
 
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "titles.h"
-#include "worldserver.h"
+
+#include "common/eq_packet_structs.h"
+#include "common/misc_functions.h"
+#include "common/repositories/player_titlesets_repository.h"
+#include "common/strings.h"
+#include "zone/client.h"
+#include "zone/mob.h"
+#include "zone/worldserver.h"
 
 extern WorldServer worldserver;
 
@@ -308,7 +324,7 @@ void Client::SetTitleSuffix(std::string suffix)
 	safe_delete(outapp);
 }
 
-void Client::EnableTitle(int title_set)
+void Client::EnableTitle(int title_set, bool insert)
 {
 	if (CheckTitle(title_set)) {
 		return;
@@ -319,22 +335,26 @@ void Client::EnableTitle(int title_set)
 	e.char_id   = CharacterID();
 	e.title_set = title_set;
 
-	if (!PlayerTitlesetsRepository::InsertOne(database, e).id) {
-		LogError("Error in EnableTitle query for titleset [{}] and charid [{}]", title_set, CharacterID());
+	if (insert) {
+		e = PlayerTitlesetsRepository::InsertOne(database, e);
+		if (!e.id) {
+			LogError("Error in EnableTitle query for titleset [{}] and charid [{}]", title_set, CharacterID());
+			return;
+		}
 	}
 
+	m_player_title_sets.emplace_back(e);
 }
 
 bool Client::CheckTitle(int title_set)
 {
-	return !PlayerTitlesetsRepository::GetWhere(
-		database,
-		fmt::format(
-			"`char_id` = {} AND `title_set` = {}",
-			CharacterID(),
-			title_set
-		)
-	).empty();
+	for (const auto& e : m_player_title_sets) {
+		if (e.title_set == title_set) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void Client::RemoveTitle(int title_set)
@@ -353,6 +373,14 @@ void Client::RemoveTitle(int title_set)
 				SetTitleSuffix("");
 			}
 
+			break;
+		}
+	}
+
+	auto& titles = m_player_title_sets;
+	for (auto e = titles.begin(); e != titles.end(); e++) {
+		if (e->title_set == title_set) {
+			titles.erase(e);
 			break;
 		}
 	}

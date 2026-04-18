@@ -1,54 +1,43 @@
-/*	EQEMu: Everquest Server Emulator
-Copyright (C) 2001-2015 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; version 2 of the License.
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY except by those people which sell it, which
-are required to give you total support for your newly bought product;
-without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/global_define.h"
-#include "../common/rulesys.h"
-#include "../common/strings.h"
-#include "../common/timer.h"
-#include "../common/repositories/character_corpses_repository.h"
-#include "../common/repositories/dynamic_zone_members_repository.h"
-#include "../common/repositories/dynamic_zones_repository.h"
-#include "../common/repositories/group_id_repository.h"
-#include "../common/repositories/instance_list_repository.h"
-#include "../common/repositories/instance_list_player_repository.h"
-#include "../common/repositories/raid_members_repository.h"
-#include "../common/repositories/respawn_times_repository.h"
-#include "../common/repositories/spawn_condition_values_repository.h"
-#include "repositories/spawn2_disabled_repository.h"
-#include "repositories/data_buckets_repository.h"
-#include "repositories/zone_state_spawns_repository.h"
 #include "database.h"
 
-#include <iomanip>
-#include <iostream>
+#include "common/platform/inet.h"
+#include "common/platform/platform.h"
+#include "common/platform/win/include_windows.h"
+#include "common/repositories/character_corpses_repository.h"
+#include "common/repositories/data_buckets_repository.h"
+#include "common/repositories/dynamic_zone_members_repository.h"
+#include "common/repositories/dynamic_zones_repository.h"
+#include "common/repositories/group_id_repository.h"
+#include "common/repositories/instance_list_player_repository.h"
+#include "common/repositories/instance_list_repository.h"
+#include "common/repositories/raid_members_repository.h"
+#include "common/repositories/respawn_times_repository.h"
+#include "common/repositories/spawn_condition_values_repository.h"
+#include "common/repositories/spawn2_disabled_repository.h"
+#include "common/repositories/zone_state_spawns_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "common/timer.h"
+#include "common/unix.h"
+#include "zone/zonedb.h"
 
-// Disgrace: for windows compile
-#ifdef _WINDOWS
-#include <windows.h>
-#define snprintf	_snprintf
-#define strncasecmp	_strnicmp
-#define strcasecmp	_stricmp
-#else
-#include "unix.h"
-#include "../zone/zonedb.h"
-#include <netinet/in.h>
-#include <sys/time.h>
-#endif
 
 
 bool Database::AddClientToInstance(uint16 instance_id, uint32 character_id)

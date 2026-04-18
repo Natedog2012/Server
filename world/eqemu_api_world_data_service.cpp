@@ -1,28 +1,47 @@
-#include <fmt/format.h>
-#include "clientlist.h"
-#include "cliententry.h"
-#include "eqemu_api_world_data_service.h"
-#include "zoneserver.h"
-#include "zonelist.h"
-#include "../common/database_schema.h"
-#include "../common/server_reload_types.h"
-#include "../common/zone_store.h"
-#include "worlddb.h"
-#include "wguild_mgr.h"
-#include "world_config.h"
-#include "ucs.h"
-#include "queryserv.h"
+/*	EQEmu: EQEmulator
 
-extern ZSList            zoneserver_list;
-extern ClientList        client_list;
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "eqemu_api_world_data_service.h"
+
+#include "common/database_schema.h"
+#include "common/server_reload_types.h"
+#include "common/zone_store.h"
+#include "world/cliententry.h"
+#include "world/clientlist.h"
+#include "world/queryserv.h"
+#include "world/ucs.h"
+#include "world/wguild_mgr.h"
+#include "world/world_config.h"
+#include "world/worlddb.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
+
+#include "fmt/format.h"
+
 extern WorldGuildManager guild_mgr;
-extern UCSConnection UCSLink;
-extern QueryServConnection QSLink;
 
 void callGetZoneList(Json::Value &response)
 {
-	for (auto &zone: zoneserver_list.getZoneServerList()) {
+	for (auto &zone: ZSList::Instance()->getZoneServerList()) {
 		Json::Value row;
+
+		if (!zone) {
+			continue;
+		}
 
 		if (!zone->IsConnected()) {
 			continue;
@@ -121,7 +140,7 @@ void callGetClientList(Json::Value &response, const std::vector<std::string> &ar
 		}
 	}
 
-	client_list.GetClientList(response, full_list);
+	ClientList::Instance()->GetClientList(response, full_list);
 }
 
 void getReloadTypes(Json::Value &response)
@@ -137,8 +156,8 @@ void getReloadTypes(Json::Value &response)
 
 void getServerCounts(Json::Value &response, const std::vector<std::string> &args)
 {
-	response["zone_count"]   = zoneserver_list.GetServerListCount();
-	response["client_count"] = client_list.GetClientCount();
+	response["zone_count"]   = ZSList::Instance()->GetServerListCount();
+	response["client_count"] = ClientList::Instance()->GetClientCount();
 }
 
 void EQEmuApiWorldDataService::reload(Json::Value &r, const std::vector<std::string> &args)
@@ -162,7 +181,8 @@ void EQEmuApiWorldDataService::reload(Json::Value &r, const std::vector<std::str
 	for (auto &t: ServerReload::GetTypes()) {
 		if (std::to_string(t) == command || Strings::ToLower(ServerReload::GetName(t)) == command) {
 			message(r, fmt::format("Reloading [{}] globally", ServerReload::GetName(t)));
-			zoneserver_list.SendServerReload(t, nullptr);
+			LogInfo("Queueing reload of type [{}] to zones", ServerReload::GetName(t));
+			ZSList::Instance()->QueueServerReload(t);
 		}
 		found_command = true;
 	}
@@ -254,7 +274,7 @@ void EQEmuApiWorldDataService::callGetGuildDetails(Json::Value &response, const 
 	row["tribute"]["time_remaining"] = guild->tribute.time_remaining;
 	row["tribute"]["enabled"]        = guild->tribute.enabled;
 
-	client_list.GetGuildClientList(response, guild_id);
+	ClientList::Instance()->GetGuildClientList(response, guild_id);
 
 	response.append(row);
 }

@@ -1,21 +1,37 @@
-#ifndef CLIENTENTRY_H_
-#define CLIENTENTRY_H_
+/*	EQEmu: EQEmulator
 
-#include "../common/types.h"
-#include "../common/md5.h"
-//#include "../common/eq_packet_structs.h"
-#include "../common/servertalk.h"
-#include "../common/rulesys.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/md5.h"
+#include "common/rulesys.h"
+#include "common/servertalk.h"
+#include "common/types.h"
+
 #include <vector>
 
-typedef enum {
+enum CLE_Status {
 	Never,
 	Offline,
 	Online,
 	CharSelect,
 	Zoning,
 	InZone
-} CLE_Status;
+};
 
 static const char *CLEStatusString[] = {
 	"Never",
@@ -160,6 +176,3 @@ private:
 
 	std::unique_ptr<ServerPacket> m_dz_invite;
 };
-
-#endif /*CLIENTENTRY_H_*/
-

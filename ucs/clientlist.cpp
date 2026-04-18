@@ -1,38 +1,34 @@
-/*	EQEMu: Everquest Server Emulator
-Copyright (C) 2001-2008 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; version 2 of the License.
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY except by those people which sell it, which
-are required to give you total support for your newly bought product;
-without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#include "common/eqemu_logsys.h"
+#include "common/misc_functions.h"
+#include "common/path_manager.h"
+#include "common/strings.h"
+#include "ucs/chatchannel.h"
+#include "ucs/clientlist.h"
+#include "ucs/database.h"
+#include "ucs/ucsconfig.h"
 
-#include "../common/global_define.h"
-#include "../common/strings.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/misc_functions.h"
-
-#include "ucsconfig.h"
-#include "clientlist.h"
-#include "database.h"
-#include "chatchannel.h"
-#include "../common/path_manager.h"
-
-#include <list>
-#include <vector>
-#include <string>
-#include <cstdlib>
 #include <algorithm>
+#include <cstdlib>
+#include <list>
+#include <string>
+#include <vector>
 
 extern UCSDatabase database;
 extern std::string WorldShortName;
@@ -469,11 +465,11 @@ static void ProcessCommandIgnore(Client *c, std::string Ignoree) {
 Clientlist::Clientlist(int ChatPort) {
 	EQStreamManagerInterfaceOptions chat_opts(ChatPort, false, false);
 	chat_opts.opcode_size = 1;
-	chat_opts.daybreak_options.stale_connection_ms = 600000;
-	chat_opts.daybreak_options.resend_delay_ms = RuleI(Network, ResendDelayBaseMS);
-	chat_opts.daybreak_options.resend_delay_factor = RuleR(Network, ResendDelayFactor);
-	chat_opts.daybreak_options.resend_delay_min = RuleI(Network, ResendDelayMinMS);
-	chat_opts.daybreak_options.resend_delay_max = RuleI(Network, ResendDelayMaxMS);
+	chat_opts.reliable_stream_options.stale_connection_ms = 600000;
+	chat_opts.reliable_stream_options.resend_delay_ms = RuleI(Network, ResendDelayBaseMS);
+	chat_opts.reliable_stream_options.resend_delay_factor = RuleR(Network, ResendDelayFactor);
+	chat_opts.reliable_stream_options.resend_delay_min = RuleI(Network, ResendDelayMinMS);
+	chat_opts.reliable_stream_options.resend_delay_max = RuleI(Network, ResendDelayMaxMS);
 
 	chatsf = new EQ::Net::EQStreamManager(chat_opts);
 
@@ -482,7 +478,7 @@ Clientlist::Clientlist(int ChatPort) {
 	const ucsconfig *Config = ucsconfig::get();
 
 
-	std::string opcodes_file = fmt::format("{}/{}", path.GetServerPath(), Config->MailOpCodesFile);
+	std::string opcodes_file = fmt::format("{}/{}", PathManager::Instance()->GetServerPath(), Config->MailOpCodesFile);
 
 	LogInfo("Loading [{}]", opcodes_file);
 	if (!ChatOpMgr->LoadOpcodes(opcodes_file.c_str()))
@@ -651,7 +647,7 @@ void Clientlist::Process()
 				OpcodeManager::EmuToName(app->GetOpcode()),
 				o->EmuToEQ(app->GetOpcode()) == 0 ? app->GetProtocolOpcode() : o->EmuToEQ(app->GetOpcode()),
 				app->Size(),
-				(LogSys.IsLogEnabled(Logs::Detail, Logs::PacketClientServer) ? DumpPacketToString(app) : "")
+				(EQEmuLogSys::Instance()->IsLogEnabled(Logs::Detail, Logs::PacketClientServer) ? DumpPacketToString(app) : "")
 			);
 
 			switch (opcode) {

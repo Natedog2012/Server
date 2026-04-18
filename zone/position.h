@@ -1,29 +1,29 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef POSITION_H
-#define POSITION_H
+#pragma once
 
+#include "common/types.h"
+
+#include "glm/geometric.hpp"
+#include "glm/vec2.hpp"
+#include "glm/vec3.hpp"
+#include "glm/vec4.hpp"
 #include <string>
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <glm/geometric.hpp>
-#include "../common/types.h"
 
 std::string to_string(const glm::vec4 &position);
 std::string to_string(const glm::vec3 &position);
@@ -65,5 +65,3 @@ float CalculateHeadingAngleBetweenPositions(float x1, float y1, float x2, float 
 
 bool IsWithinCircularArc(glm::vec4 arc_center, glm::vec4 point, uint32 arc_offset, uint32 arc_radius, uint32 arc_radius_limit);
 bool IsWithinSquare(glm::vec4 center, uint32 area, glm::vec4 position);
-
-#endif

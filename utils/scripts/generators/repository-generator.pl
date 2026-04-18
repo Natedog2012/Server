@@ -114,7 +114,8 @@ if ($requested_table_to_generate ne "all") {
 
 my @cereal_enabled_tables = (
     "data_buckets",
-    "player_event_logs"
+    "player_event_logs",
+    "player_event_log_settings"
 );
 
 my $generated_base_repository_files = "";
@@ -441,7 +442,7 @@ foreach my $table_to_generate (@tables) {
 		{
 			ar(\n" . $cereal_columns . "\n\t\t\t);\n\t\t}";
 
-        $additional_includes .= "#include <cereal/cereal.hpp>";
+        $additional_includes .= "#include \"cereal/cereal.hpp\"";
     }
 
     chomp($column_names_quoted);

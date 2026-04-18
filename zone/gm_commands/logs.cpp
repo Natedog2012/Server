@@ -1,5 +1,22 @@
-#include "../client.h"
-#include "../worldserver.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "zone/client.h"
+#include "zone/worldserver.h"
 
 extern WorldServer worldserver;
 
@@ -76,7 +93,7 @@ void command_logs(Client *c, const Seperator *sep)
 
 			std::vector<std::string> gmsay;
 			for (int                 i = 0; i <= 2; i++) {
-				if (LogSys.log_settings[index].log_to_gmsay == i) {
+				if (EQEmuLogSys::Instance()->log_settings[index].log_to_gmsay == i) {
 					gmsay.emplace_back(std::to_string(i));
 					continue;
 				}
@@ -90,7 +107,7 @@ void command_logs(Client *c, const Seperator *sep)
 
 			std::vector<std::string> file;
 			for (int                 i = 0; i <= 2; i++) {
-				if (LogSys.log_settings[index].log_to_file == i) {
+				if (EQEmuLogSys::Instance()->log_settings[index].log_to_file == i) {
 					file.emplace_back(std::to_string(i));
 					continue;
 				}
@@ -104,7 +121,7 @@ void command_logs(Client *c, const Seperator *sep)
 
 			std::vector<std::string> console;
 			for (int                 i = 0; i <= 2; i++) {
-				if (LogSys.log_settings[index].log_to_console == i) {
+				if (EQEmuLogSys::Instance()->log_settings[index].log_to_console == i) {
 					console.emplace_back(std::to_string(i));
 					continue;
 				}
@@ -118,7 +135,7 @@ void command_logs(Client *c, const Seperator *sep)
 
 			std::vector<std::string> discord;
 			for (int                 i = 0; i <= 2; i++) {
-				if (LogSys.log_settings[index].log_to_discord == i) {
+				if (EQEmuLogSys::Instance()->log_settings[index].log_to_discord == i) {
 					discord.emplace_back(std::to_string(i));
 					continue;
 				}
@@ -206,16 +223,16 @@ void command_logs(Client *c, const Seperator *sep)
 		auto setting     = Strings::ToUnsignedInt(sep->arg[4]);
 
 		if (is_console) {
-			LogSys.log_settings[category_id].log_to_console = setting;
+			EQEmuLogSys::Instance()->log_settings[category_id].log_to_console = setting;
 		}
 		else if (is_file) {
-			LogSys.log_settings[category_id].log_to_file = setting;
+			EQEmuLogSys::Instance()->log_settings[category_id].log_to_file = setting;
 		}
 		else if (is_gmsay) {
-			LogSys.log_settings[category_id].log_to_gmsay = setting;
+			EQEmuLogSys::Instance()->log_settings[category_id].log_to_gmsay = setting;
 		}
 		else if (is_discord) {
-			LogSys.log_settings[category_id].log_to_discord = setting;
+			EQEmuLogSys::Instance()->log_settings[category_id].log_to_discord = setting;
 		}
 
 		if (logs_set) {
@@ -231,7 +248,7 @@ void command_logs(Client *c, const Seperator *sep)
 			);
 		}
 
-		LogSys.log_settings[category_id].is_category_enabled = setting ? 1 : 0;
+		EQEmuLogSys::Instance()->log_settings[category_id].is_category_enabled = setting ? 1 : 0;
 	}
 }
 

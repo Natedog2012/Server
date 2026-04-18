@@ -1,24 +1,33 @@
-#ifdef _WINDOWS
-	// VS6 doesn't like the length of STL generated names: disabling
-	#pragma warning(disable:4786)
-#endif
-#include "global_define.h"
-#include <string>
-#include <stdio.h>
-#include <stdlib.h>
-#include <map>
-#include <iostream>
-#include <zlib.h>
+/*	EQEmu: EQEmulator
 
-#ifndef WIN32
-#include <sys/time.h>
-#endif
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-#include <time.h>
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "misc.h"
-#include "types.h"
+
+#include "common/strings.h"
+#include "common/types.h"
+
+#include "zlib.h"
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include "strings.h"
+#include <ctime>
+#include <iostream>
+#include <map>
+#include <string>
 
 std::map<int,std::string> DBFieldNames;
 
@@ -343,23 +352,6 @@ char *bptr;
 
 	*bptr=0;
 	return (bptr-buffer);
-}
-
-std::string generate_key(int length)
-{
-std::string key;
-//TODO: write this for win32...
-#ifndef WIN32
-int i;
-timeval now;
-	static const char *chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-	for(i=0;i<length;i++) {
-		gettimeofday(&now,nullptr);
-		srand(now.tv_sec^now.tv_usec);
-		key+=(char)chars[(int) (36.0*rand()/(RAND_MAX+1.0))];
-	}
-#endif
-	return key;
 }
 
 void print_hex(const char *data, unsigned long length) {

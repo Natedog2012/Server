@@ -1,14 +1,31 @@
-#ifndef EQEMU_TASK_MANAGER_H
-#define EQEMU_TASK_MANAGER_H
+/*	EQEmu: EQEmulator
 
-#include "tasks.h"
-#include "task_client_state.h"
-#include "../common/types.h"
-#include "../common/repositories/character_tasks_repository.h"
-#include <list>
-#include <vector>
-#include <string>
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/repositories/character_tasks_repository.h"
+#include "common/types.h"
+#include "zone/task_client_state.h"
+#include "zone/tasks.h"
+
 #include <algorithm>
+#include <list>
+#include <string>
+#include <vector>
 
 class Client;
 class Mob;
@@ -70,6 +87,12 @@ public:
 		return it != m_task_data.end() ? &it->second : nullptr;
 	}
 
+	static TaskManager* Instance()
+	{
+		static TaskManager instance;
+		return &instance;
+	}
+
 private:
 	std::vector<int>                              m_task_sets[MAXTASKSETS];
 	std::unordered_map<uint32_t, TaskInformation> m_task_data;
@@ -91,6 +114,3 @@ private:
 	void SendSharedTaskSelector(Client* client, Mob* mob, const std::vector<int>& tasks);
 	void SyncClientSharedTaskStateToLocal(Client *c);
 };
-
-
-#endif //EQEMU_TASK_MANAGER_H

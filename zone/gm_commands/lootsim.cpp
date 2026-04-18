@@ -1,4 +1,21 @@
-#include "../client.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "zone/client.h"
 
 void command_lootsim(Client *c, const Seperator *sep)
 {
@@ -14,9 +31,9 @@ void command_lootsim(Client *c, const Seperator *sep)
 	auto log_enabled  = arguments > 3 ? Strings::ToUnsignedInt(sep->arg[4]) : false;
 
 	// temporarily disable loot logging unless set explicitly
-	LogSys.log_settings[Logs::Loot].log_to_console = log_enabled ? LogSys.log_settings[Logs::Loot].log_to_console : 0;
-	LogSys.log_settings[Logs::Loot].log_to_file    = log_enabled ? LogSys.log_settings[Logs::Loot].log_to_file : 0;
-	LogSys.log_settings[Logs::Loot].log_to_gmsay   = log_enabled ? LogSys.log_settings[Logs::Loot].log_to_gmsay : 0;
+	EQEmuLogSys::Instance()->log_settings[Logs::Loot].log_to_console = log_enabled ? EQEmuLogSys::Instance()->log_settings[Logs::Loot].log_to_console : 0;
+	EQEmuLogSys::Instance()->log_settings[Logs::Loot].log_to_file    = log_enabled ? EQEmuLogSys::Instance()->log_settings[Logs::Loot].log_to_file : 0;
+	EQEmuLogSys::Instance()->log_settings[Logs::Loot].log_to_gmsay   = log_enabled ? EQEmuLogSys::Instance()->log_settings[Logs::Loot].log_to_gmsay : 0;
 
 	auto npc_type = content_db.LoadNPCTypesData(npc_id);
 	if (npc_type) {
@@ -182,7 +199,7 @@ void command_lootsim(Client *c, const Seperator *sep)
 			);
 			c->SendChatLineBreak();
 
-			LogSys.LoadLogDatabaseSettings();
+			EQEmuLogSys::Instance()->LoadLogDatabaseSettings();
 		}
 	}
 	else {

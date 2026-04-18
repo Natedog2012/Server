@@ -1,53 +1,34 @@
-// for folly stuff
-/*
- * Copyright 2013 Facebook, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// for our stuff
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2022 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "strings.h"
-#include <fmt/format.h>
+
+#include "cereal/external/rapidjson/document.h"
+#include "fmt/format.h"
 #include <algorithm>
 #include <cctype>
-
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
+#include <functional>
 #include <iostream>
-
 #include <random>
+#include <sstream>
 #include <string>
-
-//Const char based
-#include "strings_legacy.cpp" // legacy c functions
-#include "strings_misc.cpp" // anything non "Strings" scoped
 
 std::string Strings::Random(size_t length)
 {
@@ -304,6 +285,12 @@ std::string Strings::Commify(const std::string &number)
 	std::string temp_string;
 
 	auto string_length = static_cast<int>(number.length());
+
+	if (string_length == 3) {
+		return number;
+	} else if (string_length == 4 && number.starts_with("-")) {
+		return number;
+	}
 
 	int i = 0;
 	for (i = string_length - 3; i >= 0; i -= 3) {
@@ -700,6 +687,18 @@ std::string &Strings::Trim(std::string &str, const std::string &chars)
 {
 	return LTrim(RTrim(str, chars), chars);
 }
+
+const std::string NUM_TO_ENGLISH_X[] = {
+	"", "One ", "Two ", "Three ", "Four ",
+	"Five ", "Six ", "Seven ", "Eight ", "Nine ", "Ten ", "Eleven ",
+	"Twelve ", "Thirteen ", "Fourteen ", "Fifteen ",
+	"Sixteen ", "Seventeen ", "Eighteen ", "Nineteen "
+};
+
+const std::string NUM_TO_ENGLISH_Y[] = {
+	"", "", "Twenty ", "Thirty ", "Forty ",
+	"Fifty ", "Sixty ", "Seventy ", "Eighty ", "Ninety "
+};
 
 // Function to convert single digit or two digit number into words
 std::string Strings::ConvertToDigit(int n, const std::string& suffix)

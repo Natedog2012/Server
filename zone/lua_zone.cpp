@@ -1,11 +1,28 @@
-#include "../common/features.h"
-#include "zone.h"
+/*	EQEmu: EQEmulator
 
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-#include <luabind/luabind.hpp>
-#include "../common/global_define.h"
-#include "embperl.h"
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#ifdef LUA_EQEMU
+
 #include "lua_zone.h"
+
+#include "common/features.h"
+#include "zone/zone.h"
+
+#include "luabind/luabind.hpp"
 
 bool Lua_Zone::BuffTimersSuspended()
 {
@@ -16,7 +33,7 @@ bool Lua_Zone::BuffTimersSuspended()
 bool Lua_Zone::BypassesExpansionCheck()
 {
 	Lua_Safe_Call_Bool();
-	return zone_store.GetZoneBypassExpansionCheck(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneBypassExpansionCheck(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 bool Lua_Zone::CanBind()
@@ -88,25 +105,25 @@ float Lua_Zone::GetAAEXPModifierByCharacterID(uint32 character_id)
 std::string Lua_Zone::GetContentFlags()
 {
 	Lua_Safe_Call_String();
-	return zone_store.GetZoneContentFlags(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneContentFlags(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Lua_Zone::GetContentFlagsDisabled()
 {
 	Lua_Safe_Call_String();
-	return zone_store.GetZoneContentFlagsDisabled(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneContentFlagsDisabled(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetExperienceMultiplier()
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneExperienceMultiplier(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneExperienceMultiplier(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Lua_Zone::GetExpansion()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneExpansion(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneExpansion(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetEXPModifier(Lua_Client c)
@@ -124,19 +141,19 @@ float Lua_Zone::GetEXPModifierByCharacterID(uint32 character_id)
 int Lua_Zone::GetFastRegenEndurance()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFastRegenEndurance(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFastRegenEndurance(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetFastRegenHP()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFastRegenHP(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFastRegenHP(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetFastRegenMana()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFastRegenMana(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFastRegenMana(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Lua_Zone::GetFileName()
@@ -148,73 +165,73 @@ std::string Lua_Zone::GetFileName()
 std::string Lua_Zone::GetFlagNeeded()
 {
 	Lua_Safe_Call_String();
-	return zone_store.GetZoneFlagNeeded(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFlagNeeded(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetFogBlue()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFogBlue(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogBlue(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetFogBlue(uint8 slot)
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFogBlue(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogBlue(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetFogDensity()
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneFogDensity(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogDensity(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetFogGreen()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFogGreen(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogGreen(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetFogGreen(uint8 slot)
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFogGreen(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogGreen(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetFogMaximumClip()
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneFogMaximumClip(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogMaximumClip(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetFogMaximumClip(uint8 slot)
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneFogMaximumClip(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogMaximumClip(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetFogMinimumClip()
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneFogMinimumClip(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogMinimumClip(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetFogMinimumClip(uint8 slot)
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneFogMinimumClip(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogMinimumClip(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetFogRed()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFogRed(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogRed(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetFogRed(uint8 slot)
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneFogRed(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogRed(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetGraveyardHeading()
@@ -256,7 +273,7 @@ uint32 Lua_Zone::GetGraveyardZoneID()
 float Lua_Zone::GetGravity()
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneGravity(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneGravity(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint32 Lua_Zone::GetInstanceID()
@@ -268,7 +285,7 @@ uint32 Lua_Zone::GetInstanceID()
 uint8 Lua_Zone::GetInstanceType()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneInstanceType(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneInstanceType(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint16 Lua_Zone::GetInstanceVersion()
@@ -286,7 +303,7 @@ uint32 Lua_Zone::GetInstanceTimeRemaining()
 int Lua_Zone::GetLavaDamage()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneLavaDamage(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneLavaDamage(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Lua_Zone::GetLongName()
@@ -298,19 +315,19 @@ std::string Lua_Zone::GetLongName()
 float Lua_Zone::GetMaximumClip()
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneMaximumClip(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMaximumClip(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Lua_Zone::GetMaximumExpansion()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneMaximumExpansion(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMaximumExpansion(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetMaximumLevel()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneMaximumLevel(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMaximumLevel(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint32 Lua_Zone::GetMaxClients()
@@ -322,79 +339,79 @@ uint32 Lua_Zone::GetMaxClients()
 float Lua_Zone::GetMinimumClip()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneMinimumClip(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumClip(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Lua_Zone::GetMinimumExpansion()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneMinimumExpansion(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumExpansion(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetMinimumLevel()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneMinimumLevel(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumLevel(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetMinimumLavaDamage()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneMinimumLavaDamage(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumLavaDamage(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetMinimumStatus()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneMinimumStatus(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumStatus(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Lua_Zone::GetNote()
 {
 	Lua_Safe_Call_String();
-	return zone_store.GetZoneNote(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneNote(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetNPCMaximumAggroDistance()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneNPCMaximumAggroDistance(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneNPCMaximumAggroDistance(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Lua_Zone::GetPEQZone()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZonePEQZone(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZonePEQZone(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetRainChance()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneRainChance(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneRainChance(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetRainChance(uint8 slot)
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneRainChance(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneRainChance(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetRainDuration()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneRainDuration(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneRainDuration(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetRainDuration(uint8 slot)
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneRainDuration(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneRainDuration(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 uint32 Lua_Zone::GetRuleSet()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneRuleSet(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneRuleSet(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetSafeHeading()
@@ -436,55 +453,55 @@ uint32 Lua_Zone::GetSecondsBeforeIdle()
 uint64 Lua_Zone::GetShutdownDelay()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneShutdownDelay(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneShutdownDelay(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetSky()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneSky(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSky(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Lua_Zone::GetSkyLock()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneSkyLock(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSkyLock(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetSnowChance()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneSnowChance(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSnowChance(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetSnowChance(uint8 slot)
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneSnowChance(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSnowChance(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetSnowDuration()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneSnowDuration(self->GetZoneID(), 0, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSnowDuration(self->GetZoneID(), 0, self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetSnowDuration(uint8 slot)
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneSnowDuration(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSnowDuration(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetTimeType()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneTimeType(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneTimeType(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetTimeZone()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneTimeZone(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneTimeZone(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Lua_Zone::GetZoneDescription()
@@ -508,25 +525,25 @@ uint8 Lua_Zone::GetZoneType()
 float Lua_Zone::GetUnderworld()
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneUnderworld(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneUnderworld(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetUnderworldTeleportIndex()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneUnderworldTeleportIndex(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneUnderworldTeleportIndex(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 float Lua_Zone::GetWalkSpeed()
 {
 	Lua_Safe_Call_Real();
-	return zone_store.GetZoneWalkSpeed(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneWalkSpeed(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Lua_Zone::GetZoneZType()
 {
 	Lua_Safe_Call_Int();
-	return zone_store.GetZoneZType(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneZType(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Lua_Zone::GetZoneTotalBlockedSpells()
@@ -727,10 +744,10 @@ std::string Lua_Zone::GetBucketRemaining(const std::string& bucket_name)
 	return self->GetBucketRemaining(bucket_name);
 }
 
-void Lua_Zone::ClearVariables()
+bool Lua_Zone::ClearVariables()
 {
-	Lua_Safe_Call_Void();
-	self->ClearVariables();
+	Lua_Safe_Call_Bool();
+	return self->ClearVariables();
 }
 
 bool Lua_Zone::DeleteVariable(const std::string& variable_name)
@@ -771,6 +788,102 @@ bool Lua_Zone::VariableExists(const std::string& variable_name)
 {
 	Lua_Safe_Call_Bool();
 	return self->VariableExists(variable_name);
+}
+
+uint32 Lua_Zone::GetTimerDuration(std::string name)
+{
+	Lua_Safe_Call_Int();
+	return self->GetTimerDuration(name);
+}
+
+uint32 Lua_Zone::GetTimerRemainingTime(std::string name)
+{
+	Lua_Safe_Call_Int();
+	return self->GetTimerRemainingTime(name);
+}
+
+bool Lua_Zone::HasTimer(std::string name)
+{
+	Lua_Safe_Call_Bool();
+	return self->HasTimer(name);
+}
+
+bool Lua_Zone::IsPausedTimer(std::string name)
+{
+	Lua_Safe_Call_Bool();
+	return self->IsPausedTimer(name);
+}
+
+void Lua_Zone::PauseTimer(std::string name)
+{
+	Lua_Safe_Call_Void();
+	self->PauseTimer(name);
+}
+
+void Lua_Zone::ResumeTimer(std::string name)
+{
+	Lua_Safe_Call_Void();
+	self->ResumeTimer(name);
+}
+
+void Lua_Zone::SetTimer(std::string name, uint32 duration)
+{
+	Lua_Safe_Call_Void();
+	self->SetTimer(name, duration);
+}
+
+void Lua_Zone::StopTimer(std::string name)
+{
+	Lua_Safe_Call_Void();
+	self->StopTimer(name);
+}
+
+void Lua_Zone::StopAllTimers()
+{
+	Lua_Safe_Call_Void();
+	self->StopAllTimers();
+}
+
+void Lua_Zone::SendPayload(int payload_id, std::string payload_value)
+{
+	Lua_Safe_Call_Void();
+	self->SendPayload(payload_id, payload_value);
+}
+
+void Lua_Zone::Signal(int signal_id)
+{
+	Lua_Safe_Call_Void();
+	self->Signal(signal_id);
+}
+
+luabind::object Lua_Zone::GetPausedTimers(lua_State* L) {
+	auto t = luabind::newtable(L);
+	if (d_) {
+		auto self = reinterpret_cast<NativeType*>(d_);
+		auto l = self->GetPausedTimers();
+		int i = 1;
+		for (const auto& v : l) {
+			t[i] = v;
+			i++;
+		}
+	}
+
+	return t;
+}
+
+luabind::object Lua_Zone::GetTimers(lua_State* L) {
+	auto t = luabind::newtable(L);
+	if (d_) {
+		auto self = reinterpret_cast<NativeType*>(d_);
+		auto l = self->GetTimers();
+		int i = 1;
+		for (const auto& v : l) {
+			t[i] = v;
+			i++;
+		}
+	}
+
+	return t;
 }
 
 luabind::scope lua_register_zone() {
@@ -841,6 +954,7 @@ luabind::scope lua_register_zone() {
 	.def("GetMinimumStatus", &Lua_Zone::GetMinimumStatus)
 	.def("GetNote", &Lua_Zone::GetNote)
 	.def("GetNPCMaximumAggroDistance", &Lua_Zone::GetNPCMaximumAggroDistance)
+	.def("GetPausedTimers", &Lua_Zone::GetPausedTimers)
 	.def("GetPEQZone", &Lua_Zone::GetPEQZone)
 	.def("GetRainChance", (int(Lua_Zone::*)(void))&Lua_Zone::GetRainChance)
 	.def("GetRainChance", (int(Lua_Zone::*)(uint8))&Lua_Zone::GetRainChance)
@@ -862,6 +976,9 @@ luabind::scope lua_register_zone() {
 	.def("GetSnowDuration", (int(Lua_Zone::*)(uint8))&Lua_Zone::GetSnowDuration)
 	.def("GetTimeType", &Lua_Zone::GetTimeType)
 	.def("GetTimeZone", &Lua_Zone::GetTimeZone)
+	.def("GetTimerDuration", &Lua_Zone::GetTimerDuration)
+	.def("GetTimerRemainingTime", &Lua_Zone::GetTimerRemainingTime)
+	.def("GetTimers", &Lua_Zone::GetTimers)
 	.def("GetZoneDescription", &Lua_Zone::GetZoneDescription)
 	.def("GetZoneID", &Lua_Zone::GetZoneID)
 	.def("GetZoneType", &Lua_Zone::GetZoneType)
@@ -876,10 +993,12 @@ luabind::scope lua_register_zone() {
 	.def("HasMap", &Lua_Zone::HasMap)
 	.def("HasWaterMap", &Lua_Zone::HasWaterMap)
 	.def("HasWeather", &Lua_Zone::HasWeather)
+	.def("HasTimer", &Lua_Zone::HasTimer)
 	.def("IsCity", &Lua_Zone::IsCity)
 	.def("IsHotzone", &Lua_Zone::IsHotzone)
 	.def("IsInstancePersistent", &Lua_Zone::IsInstancePersistent)
 	.def("IsIdleWhenEmpty", &Lua_Zone::IsIdleWhenEmpty)
+	.def("IsPausedTimer", &Lua_Zone::IsPausedTimer)
 	.def("IsPVPZone", &Lua_Zone::IsPVPZone)
 	.def("IsRaining", &Lua_Zone::IsRaining)
 	.def("IsSnowing", &Lua_Zone::IsSnowing)
@@ -888,8 +1007,11 @@ luabind::scope lua_register_zone() {
 	.def("IsStaticZone", &Lua_Zone::IsStaticZone)
 	.def("IsUCSServerAvailable", &Lua_Zone::IsUCSServerAvailable)
 	.def("IsWaterZone", &Lua_Zone::IsWaterZone)
+	.def("PauseTimer", &Lua_Zone::PauseTimer)
 	.def("Repop", (void(Lua_Zone::*)(void))&Lua_Zone::Repop)
 	.def("Repop", (void(Lua_Zone::*)(bool))&Lua_Zone::Repop)
+	.def("ResumeTimer", &Lua_Zone::ResumeTimer)
+	.def("SendPayload", &Lua_Zone::SendPayload)
 	.def("SetAAEXPModifier", &Lua_Zone::SetAAEXPModifier)
 	.def("SetAAEXPModifierByCharacterID", &Lua_Zone::SetAAEXPModifierByCharacterID)
 	.def("SetBucket", (void(Lua_Zone::*)(const std::string&,const std::string&))&Lua_Zone::SetBucket)
@@ -899,8 +1021,13 @@ luabind::scope lua_register_zone() {
 	.def("SetInstanceTimer", &Lua_Zone::SetInstanceTimer)
 	.def("SetInstanceTimeRemaining", &Lua_Zone::SetInstanceTimeRemaining)
 	.def("SetIsHotzone", &Lua_Zone::SetIsHotzone)
+	.def("SetTimer", &Lua_Zone::SetTimer)
 	.def("SetVariable", &Lua_Zone::SetVariable)
 	.def("ShowZoneGlobalLoot", &Lua_Zone::ShowZoneGlobalLoot)
+	.def("Signal", &Lua_Zone::Signal)
+	.def("StopTimer", &Lua_Zone::StopTimer)
+	.def("StopAllTimers", &Lua_Zone::StopAllTimers)
 	.def("VariableExists", &Lua_Zone::VariableExists);
 }
 
+#endif // LUA_EQEMU

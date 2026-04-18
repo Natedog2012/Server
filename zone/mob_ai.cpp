@@ -1,43 +1,40 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2004 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/global_define.h"
-#include "../common/features.h"
-#include "../common/rulesys.h"
-#include "../common/strings.h"
-
-#include "client.h"
-#include "entity.h"
-#include "map.h"
 #include "mob.h"
-#include "npc.h"
-#include "quest_parser_collection.h"
-#include "string_ids.h"
-#include "water_map.h"
-#include "fastmath.h"
-#include "../common/data_verification.h"
 
-#include "bot.h"
-#include "../common/repositories/npc_spells_repository.h"
-#include "../common/repositories/npc_spells_entries_repository.h"
-#include "../common/repositories/criteria/content_filter_criteria.h"
+#include "common/data_verification.h"
+#include "common/features.h"
+#include "common/repositories/criteria/content_filter_criteria.h"
+#include "common/repositories/npc_spells_entries_repository.h"
+#include "common/repositories/npc_spells_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "zone/bot.h"
+#include "zone/client.h"
+#include "zone/entity.h"
+#include "zone/fastmath.h"
+#include "zone/map.h"
+#include "zone/npc.h"
+#include "zone/quest_parser_collection.h"
+#include "zone/string_ids.h"
+#include "zone/water_map.h"
 
-#include <glm/gtx/projection.hpp>
+#include "glm/gtx/projection.hpp"
 #include <algorithm>
 #include <iostream>
 #include <limits>
@@ -615,7 +612,7 @@ void Client::AI_SpellCast()
 			continue;
 		}
 
-		if(IsEffectInSpell(current_spell, SE_Charm))
+		if(IsEffectInSpell(current_spell, SpellEffect::Charm))
 		{
 			continue;
 		}
@@ -724,7 +721,7 @@ void Client::AI_Process()
 	{
 		if(!IsFeared() && !IsLD())
 		{
-			BuffFadeByEffect(SE_Charm);
+			BuffFadeByEffect(SpellEffect::Charm);
 			return;
 		}
 	}
@@ -1397,8 +1394,8 @@ void Mob::AI_Process() {
 		else if (AI_movement_timer->Check() && !IsRooted()) {
 			if (IsPet()) {
 				// we're a pet, do as we're told
-				switch (pStandingPetOrder) {
-					case SPO_Follow: {
+				switch (m_pet_order) {
+					case PetOrder::Follow: {
 
 						Mob *owner = GetOwner();
 						if (owner == nullptr) {
@@ -1447,18 +1444,18 @@ void Mob::AI_Process() {
 
 						break;
 					}
-					case SPO_Sit: {
+					case PetOrder::Sit: {
 						SetAppearance(eaSitting, false);
 						break;
 					}
-					case SPO_Guard: {
+					case PetOrder::Guard: {
 						//only NPCs can guard stuff. (forced by where the guard movement code is in the AI)
 						if (IsNPC()) {
 							CastToNPC()->NextGuardPosition();
 						}
 						break;
 					}
-					case SPO_FeignDeath: {
+					case PetOrder::Feign: {
 						SetAppearance(eaDead, false);
 						break;
 					}
@@ -2992,4 +2989,3 @@ uint32 ZoneDatabase::GetMaxNPCSpellsEffectsID() {
 
     return Strings::ToInt(row[0]);
 }
-

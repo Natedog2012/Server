@@ -1,5 +1,21 @@
-#ifndef STRING_IDS
-#define STRING_IDS
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
 
 //These strings are loaded from eqstr_us.txt, but may vary between client versions. Maybe we could make this an enum that's dependent on the client version?
 #define GENERIC_9_STRINGS			1		//%1 %2 %3 %4 %5 %6 %7 %8 %9
@@ -600,6 +616,3 @@
 #define GAIN_XP_BONUS				14541	//You gain experience (with a bonus)!
 #define GAIN_XP_PENALTY				14542	//You gain experience (with a penalty)!
 #define GENERIC_MISS				15041	//%1 missed %2
-
-#endif
-

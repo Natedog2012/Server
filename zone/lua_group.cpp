@@ -1,16 +1,33 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #ifdef LUA_EQEMU
 
-#include "../common/data_verification.h"
-
-#include <luabind/luabind.hpp>
-#include <luabind/object.hpp>
-
-#include "groups.h"
-#include "masterentity.h"
 #include "lua_group.h"
-#include "lua_mob.h"
-#include "lua_client.h"
-#include "lua_npc.h"
+
+#include "common/data_verification.h"
+#include "zone/groups.h"
+#include "zone/lua_client.h"
+#include "zone/lua_mob.h"
+#include "zone/lua_npc.h"
+#include "zone/masterentity.h"
+
+#include "luabind/luabind.hpp"
+#include "luabind/object.hpp"
 
 void Lua_Group::DisbandGroup() {
 	Lua_Safe_Call_Void();
@@ -122,6 +139,16 @@ Lua_Mob Lua_Group::GetMember(int member_index) {
 	return self->members[member_index];
 }
 
+uint8 Lua_Group::GetMemberRole(Lua_Mob member) {
+	Lua_Safe_Call_Int();
+	return self->GetMemberRole(member);
+}
+
+uint8 Lua_Group::GetMemberRole(const char* name) {
+	Lua_Safe_Call_Int();
+	return self->GetMemberRole(name);
+}
+
 bool Lua_Group::DoesAnyMemberHaveExpeditionLockout(std::string expedition_name, std::string event_name)
 {
 	Lua_Safe_Call_Bool();
@@ -155,6 +182,8 @@ luabind::scope lua_register_group() {
 	.def("GetLeaderName", (const char*(Lua_Group::*)(void))&Lua_Group::GetLeaderName)
 	.def("GetLowestLevel", (uint32(Lua_Group::*)(void))&Lua_Group::GetLowestLevel)
 	.def("GetMember", (Lua_Mob(Lua_Group::*)(int))&Lua_Group::GetMember)
+	.def("GetMemberRole", (uint8(Lua_Group::*)(Lua_Mob))&Lua_Group::GetMemberRole)
+	.def("GetMemberRole", (uint8(Lua_Group::*)(const char*))&Lua_Group::GetMemberRole)
 	.def("GetTotalGroupDamage", (uint32(Lua_Group::*)(Lua_Mob))&Lua_Group::GetTotalGroupDamage)
 	.def("GroupCount", (int(Lua_Group::*)(void))&Lua_Group::GroupCount)
 	.def("GroupMessage", (void(Lua_Group::*)(Lua_Mob,const char*))&Lua_Group::GroupMessage)
@@ -170,4 +199,4 @@ luabind::scope lua_register_group() {
 	.def("TeleportGroup", (void(Lua_Group::*)(Lua_Mob,uint32,uint32,float,float,float,float))&Lua_Group::TeleportGroup);
 }
 
-#endif
+#endif // LUA_EQEMU

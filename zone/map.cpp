@@ -1,13 +1,28 @@
-#include "../common/global_define.h"
-#include "../common/misc_functions.h"
-#include "../common/compression.h"
+/*	EQEmu: EQEmulator
 
-#include "client.h"
-#include "map.h"
-#include "raycast_mesh.h"
-#include "zone.h"
-#include "../common/file.h"
-#include "../common/memory/ksm.hpp"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/compression.h"
+#include "common/file.h"
+#include "common/memory/ksm.h"
+#include "common/misc_functions.h"
+#include "zone/client.h"
+#include "zone/map.h"
+#include "zone/raycast_mesh.h"
+#include "zone/zone.h"
 
 #include <algorithm>
 #include <map>
@@ -271,7 +286,7 @@ bool Map::DoCollisionCheck(glm::vec3 myloc, glm::vec3 oloc, glm::vec3 &outnorm, 
 
 Map *Map::LoadMapFile(std::string file) {
 	std::transform(file.begin(), file.end(), file.begin(), ::tolower);
-	std::string filename = fmt::format("{}/base/{}.map", path.GetMapsPath(), file);
+	std::string filename = fmt::format("{}/base/{}.map", PathManager::Instance()->GetMapsPath(), file);
 
 	LogInfo("Attempting to load Map File [{}]", filename.c_str());
 

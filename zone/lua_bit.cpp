@@ -30,7 +30,7 @@
 #define LUA_BITOP_VERSION	"1.0.2"
 
 #include "lua.hpp"
-#include <stdint.h>
+#include <cstdint>
 
 typedef int32_t SBits;
 typedef uint32_t UBits;
@@ -151,7 +151,7 @@ static const struct luaL_Reg bit_funcs[] = {
 */
 #define BAD_SAR		(bsar(-8, 2) != (SBits)-2)
 
-int luaopen_bit(lua_State *L)
+int luaopen_bit_embed(lua_State *L)
 {
   UBits b;
   lua_pushnumber(L, (lua_Number)1437217655L);

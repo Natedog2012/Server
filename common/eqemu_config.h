@@ -1,28 +1,28 @@
-/*	 EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2006 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef __EQEmuConfig_H
-#define __EQEmuConfig_H
+#pragma once
 
-#include "json/json.h"
-#include "linked_list.h"
-#include "path_manager.h"
+#include "common/json/json.h"
+#include "common/linked_list.h"
+#include "common/path_manager.h"
+
+#include "fmt/format.h"
 #include <fstream>
-#include <fmt/format.h>
 
 struct LoginConfig {
 	std::string LoginHost;
@@ -120,6 +120,22 @@ class EQEmuConfig
 		const std::string &GetUCSHost() const;
 		uint16 GetUCSPort() const;
 
+		std::vector<std::string> GetQuestDirectories() const
+		{
+			return m_quest_directories;
+		}
+
+		std::vector<std::string> GetPluginsDirectories() const
+		{
+			return m_plugin_directories;
+		}
+
+		std::vector<std::string> GetLuaModuleDirectories() const
+		{
+			return m_lua_module_directories;
+		}
+
+
 //	uint16 DynamicCount;
 
 //	map<string,uint16> StaticZones;
@@ -133,6 +149,11 @@ class EQEmuConfig
 		Json::Value _root;
 		static std::string ConfigFile;
 
+		std::vector<std::string> m_quest_directories = {};
+		std::vector<std::string> m_plugin_directories = {};
+		std::vector<std::string> m_lua_module_directories = {};
+
+	protected:
 		void parse_config();
 
 		EQEmuConfig()
@@ -170,7 +191,7 @@ class EQEmuConfig
 
 			std::string file = fmt::format(
 				"{}/{}",
-				(file_path.empty() ? path.GetServerPath() : file_path),
+				(file_path.empty() ? PathManager::Instance()->GetServerPath() : file_path),
 				EQEmuConfig::ConfigFile
 			);
 
@@ -189,5 +210,3 @@ class EQEmuConfig
 		void Dump() const;
 		void CheckUcsConfigConversion();
 };
-
-#endif

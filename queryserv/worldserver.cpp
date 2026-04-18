@@ -1,30 +1,45 @@
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/md5.h"
-#include "../common/packet_dump.h"
-#include "../common/packet_functions.h"
-#include "../common/servertalk.h"
-#include "../common/net/packet.h"
+/*	EQEmu: EQEmulator
 
-#include "database.h"
-#include "lfguild.h"
-#include "queryservconfig.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "worldserver.h"
-#include "../common/events/player_events.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/server_reload_types.h"
-#include <iomanip>
-#include <iostream>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+
+#include "common/eqemu_logsys.h"
+#include "common/events/player_event_logs.h"
+#include "common/events/player_events.h"
+#include "common/md5.h"
+#include "common/net/packet.h"
+#include "common/packet_dump.h"
+#include "common/packet_functions.h"
+#include "common/server_reload_types.h"
+#include "common/servertalk.h"
+#include "queryserv/database.h"
+#include "queryserv/lfguild.h"
+#include "queryserv/queryservconfig.h"
+#include "queryserv/zonelist.h"
+
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 
 extern WorldServer           worldserver;
 extern const queryservconfig *Config;
 extern QSDatabase            qs_database;
-extern LFGuildManager        lfguildmanager;
 
 WorldServer::WorldServer()
 {
@@ -76,8 +91,9 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 		case ServerOP_ServerReloadRequest: {
 			auto o = (ServerReload::Request*) p.Data();
 			if (o->type == ServerReload::Type::Logs) {
-				LogSys.LoadLogDatabaseSettings();
-				player_event_logs.ReloadSettings();
+				EQEmuLogSys::Instance()->LoadLogDatabaseSettings();
+				PlayerEventLogs::Instance()->ReloadSettings();
+				ZSList::Instance()->SendPlayerEventLogSettings();
 			}
 
 			break;
@@ -112,7 +128,7 @@ void WorldServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 					pack.pBuffer = (uchar *) p.Data();
 					pack.opcode  = opcode;
 					pack.size    = (uint32) p.Length();
-					lfguildmanager.HandlePacket(&pack);
+					LFGuildManager::Instance()->HandlePacket(&pack);
 					pack.pBuffer = nullptr;
 					break;
 				}

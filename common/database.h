@@ -1,39 +1,34 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef EQEMU_DATABASE_H
-#define EQEMU_DATABASE_H
+#pragma once
+
+#include "common/dbcore.h"
+#include "common/eq_packet_structs.h"
+#include "common/eqemu_logsys.h"
+#include "common/types.h"
+
+#include <map>
+#include <mutex>
+#include <string>
+#include <vector>
 
 #define AUTHENTICATION_TIMEOUT    60
 #define INVALID_ID                0xFFFFFFFF
-
-#include "global_define.h"
-#include "eqemu_logsys.h"
-
-#include "types.h"
-#include "dbcore.h"
-#include "linked_list.h"
-#include "eq_packet_structs.h"
-
-#include <cmath>
-#include <string>
-#include <vector>
-#include <map>
-
 
 class MySQLRequestResult;
 class Client;
@@ -62,17 +57,6 @@ struct VarCache_Struct {
 };
 
 class PTimerList;
-
-#ifdef _WINDOWS
-#if _MSC_VER > 1700 // greater than 2012 (2013+)
-#	define _ISNAN_(a) std::isnan(a)
-#else
-#	include <float.h>
-#	define _ISNAN_(a) _isnan(a)
-#endif
-#else
-#	define _ISNAN_(a) std::isnan(a)
-#endif
 
 #define SQL(...) #__VA_ARGS__
 
@@ -263,7 +247,7 @@ public:
 	bool SaveTime(int8 minute, int8 hour, int8 day, int8 month, int16 year);
 	void ClearMerchantTemp();
 	void ClearPTimers(uint32 character_id);
-	void SetFirstLogon(uint32 character_id, uint8 first_logon);
+	void SetIngame(uint32 character_id, uint8 ingame);
 	void SetLFG(uint32 character_id, bool is_lfg);
 	void SetLFP(uint32 character_id, bool is_lfp);
 	void SetLoginFlags(uint32 character_id, bool is_lfp, bool is_lfg, uint8 first_logon);
@@ -280,7 +264,7 @@ public:
 	uint64_t GetNextTableId(const std::string& table_name);
 
 private:
-	Mutex           Mvarcache;
+	std::mutex      Mvarcache;
 	VarCache_Struct varcache;
 
 	/* Groups, utility methods. */
@@ -292,5 +276,3 @@ private:
 	void ClearAllRaidDetails();
 	void ClearAllRaidLeaders();
 };
-
-#endif

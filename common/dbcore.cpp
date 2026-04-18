@@ -1,31 +1,30 @@
-#ifdef _WINDOWS
-#include <winsock2.h>
-#endif
+/*	EQEmu: EQEmulator
 
-#include "misc_functions.h"
-#include "eqemu_logsys.h"
-#include "timer.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
 
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "dbcore.h"
-#include "mysql_stmt.h"
 
-#include <fstream>
-#include <iostream>
-#include <mysqld_error.h>
-#include <string.h>
-#include "strings.h"
+#include "common/eqemu_logsys.h"
+#include "common/misc_functions.h"
+#include "common/mysql_stmt.h"
+#include "common/strings.h"
+#include "common/timer.h"
+#include "common/types.h"
 
-#ifdef _WINDOWS
-#define snprintf	_snprintf
-#define strncasecmp	_strnicmp
-#define strcasecmp	_stricmp
-#include <process.h>
-#else
-
-#include "unix.h"
-#include <pthread.h>
-
-#endif
+#include "mysqld_error.h"
 
 #ifdef _EQDEBUG
 #define DEBUG_MYSQL_QUERIES 0
@@ -34,17 +33,9 @@
 #endif
 
 DBcore::DBcore()
+	: mysql(mysql_init(nullptr))
+	, m_mutex(std::make_shared<Mutex>())
 {
-	mysql      = mysql_init(nullptr);
-	mysqlOwner = true;
-	pHost      = nullptr;
-	pUser      = nullptr;
-	pPassword  = nullptr;
-	pDatabase  = nullptr;
-	pCompress  = false;
-	pSSL       = false;
-	pStatus    = Closed;
-	m_mutex    = new Mutex;
 }
 
 DBcore::~DBcore()
@@ -57,20 +48,17 @@ DBcore::~DBcore()
 	if (mysqlOwner) {
 		mysql_close(mysql);
 	}
-
-	safe_delete_array(pHost);
-	safe_delete_array(pUser);
-	safe_delete_array(pPassword);
-	safe_delete_array(pDatabase);
 }
 
 // Sends the MySQL server a keepalive
 void DBcore::ping()
 {
-	if (!m_mutex->trylock()) {
+	if (!m_mutex->try_lock())
+	{
 		// well, if's it's locked, someone's using it. If someone's using it, it doesnt need a keepalive
 		return;
 	}
+
 	mysql_ping(mysql);
 	m_mutex->unlock();
 }
@@ -93,7 +81,7 @@ MySQLRequestResult DBcore::QueryDatabase(const char *query, uint32 querylen, boo
 	BenchTimer timer;
 	timer.reset();
 
-	LockMutex lock(m_mutex);
+	std::scoped_lock lock(*m_mutex);
 
 	// Reconnect if we are not connected before hand.
 	if (pStatus != Connected) {
@@ -160,7 +148,7 @@ MySQLRequestResult DBcore::QueryDatabase(const char *query, uint32 querylen, boo
 		(uint32) mysql_insert_id(mysql)
 	);
 
-	if (LogSys.log_settings[Logs::MySQLQuery].is_category_enabled == 1) {
+	if (EQEmuLogSys::Instance()->log_settings[Logs::MySQLQuery].is_category_enabled == 1) {
 		if ((strncasecmp(query, "select", 6) == 0)) {
 			LogMySQLQuery(
 				"{0} -- ({1} row{2} returned) ({3}s)",
@@ -189,9 +177,9 @@ void DBcore::TransactionBegin()
 	QueryDatabase("START TRANSACTION");
 }
 
-void DBcore::TransactionCommit()
+MySQLRequestResult DBcore::TransactionCommit()
 {
-	QueryDatabase("COMMIT");
+	return QueryDatabase("COMMIT");
 }
 
 void DBcore::TransactionRollback()
@@ -218,15 +206,12 @@ bool DBcore::Open(
 	bool iSSL
 )
 {
-	LockMutex lock(m_mutex);
-	safe_delete_array(pHost);
-	safe_delete_array(pUser);
-	safe_delete_array(pPassword);
-	safe_delete_array(pDatabase);
-	pHost     = strcpy(new char[strlen(iHost) + 1], iHost);
-	pUser     = strcpy(new char[strlen(iUser) + 1], iUser);
-	pPassword = strcpy(new char[strlen(iPassword) + 1], iPassword);
-	pDatabase = strcpy(new char[strlen(iDatabase) + 1], iDatabase);
+	std::scoped_lock lock(*m_mutex);
+
+	m_host = iHost;
+	m_user = iUser;
+	m_password = iPassword;
+	m_database = iDatabase;
 	pCompress = iCompress;
 	pPort     = iPort;
 	pSSL      = iSSL;
@@ -235,10 +220,12 @@ bool DBcore::Open(
 
 bool DBcore::Open(uint32 *errnum, char *errbuf)
 {
+	// Expects m_mutex to already be locked.
+
 	if (errbuf) {
 		errbuf[0] = 0;
 	}
-	LockMutex lock(m_mutex);
+
 	if (GetStatus() == Connected) {
 		return true;
 	}
@@ -246,7 +233,7 @@ bool DBcore::Open(uint32 *errnum, char *errbuf)
 		mysql_close(mysql);
 		mysql_init(mysql);        // Initialize structure again
 	}
-	if (!pHost) {
+	if (m_host.empty()) {
 		return false;
 	}
 	/*
@@ -258,14 +245,21 @@ bool DBcore::Open(uint32 *errnum, char *errbuf)
 	if (pCompress) {
 		flags |= CLIENT_COMPRESS;
 	}
+
+	//todo: we need to revisit this ssl handling later
+	//the whole connect code is ancient and tls is starting to come as a default requirement for many db setups
 	if (pSSL) {
 		flags |= CLIENT_SSL;
 	}
-	if (mysql_real_connect(mysql, pHost, pUser, pPassword, pDatabase, pPort, 0, flags)) {
+	else {
+		int off = 0;
+		mysql_options(mysql, MYSQL_OPT_SSL_ENFORCE, &off);
+		mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &off);
+	}
+	if (mysql_real_connect(mysql, m_host.c_str(), m_user.c_str(), m_password.c_str(), m_database.c_str(), pPort, nullptr, flags)) {
 		pStatus = Connected;
 
-		std::string connected_origin_host = pHost;
-		SetOriginHost(connected_origin_host);
+		SetOriginHost(m_host);
 
 		return true;
 	}
@@ -286,9 +280,9 @@ const std::string &DBcore::GetOriginHost() const
 	return origin_host;
 }
 
-void DBcore::SetOriginHost(const std::string &origin_host)
+void DBcore::SetOriginHost(const std::string& originHost)
 {
-	DBcore::origin_host = origin_host;
+	DBcore::origin_host = originHost;
 }
 
 std::string DBcore::Escape(const std::string& s)
@@ -300,12 +294,8 @@ std::string DBcore::Escape(const std::string& s)
 	return temp.data();
 }
 
-void DBcore::SetMutex(Mutex *mutex)
+void DBcore::SetMutex(const std::shared_ptr<Mutex>& mutex)
 {
-	if (m_mutex && m_mutex != mutex) {
-		safe_delete(m_mutex);
-	}
-
 	DBcore::m_mutex = mutex;
 }
 
@@ -319,7 +309,7 @@ MySQLRequestResult DBcore::QueryDatabaseMulti(const std::string &query)
 	BenchTimer timer;
 	timer.reset();
 
-	LockMutex lock(m_mutex);
+	std::scoped_lock lock(*m_mutex);
 
 	// Reconnect if we are not connected before hand.
 	if (pStatus != Connected) {
@@ -442,5 +432,5 @@ MySQLRequestResult DBcore::QueryDatabaseMulti(const std::string &query)
 
 mysql::PreparedStmt DBcore::Prepare(std::string query)
 {
-	return mysql::PreparedStmt(*mysql, std::move(query), m_mutex);
+	return mysql::PreparedStmt(*mysql, std::move(query), *m_mutex);
 }

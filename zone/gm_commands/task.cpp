@@ -1,10 +1,26 @@
-#include "../client.h"
-#include "../worldserver.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/repositories/completed_tasks_repository.h"
+#include "common/shared_tasks.h"
+#include "zone/client.h"
+#include "zone/worldserver.h"
 
 extern WorldServer worldserver;
-
-#include "../../common/shared_tasks.h"
-#include "../../common/repositories/completed_tasks_repository.h"
 
 void command_task(Client *c, const Seperator *sep)
 {
@@ -176,7 +192,7 @@ void command_task(Client *c, const Seperator *sep)
 				Chat::White,
 				fmt::format(
 					"Assigned {} (ID {}) to {}.",
-					task_manager->GetTaskName(task_id),
+					TaskManager::Instance()->GetTaskName(task_id),
 					task_id,
 					c->GetTargetDescription(t)
 				).c_str()
@@ -197,7 +213,7 @@ void command_task(Client *c, const Seperator *sep)
 						Chat::White,
 						fmt::format(
 							"Successfully completed {} (ID {}) for {}.",
-							task_manager->GetTaskName(task_id),
+							TaskManager::Instance()->GetTaskName(task_id),
 							task_id,
 							c->GetTargetDescription(t)
 						).c_str()
@@ -207,7 +223,7 @@ void command_task(Client *c, const Seperator *sep)
 						Chat::White,
 						fmt::format(
 							"Failed to complete {} (ID {}) for {}.",
-							task_manager->GetTaskName(task_id),
+							TaskManager::Instance()->GetTaskName(task_id),
 							task_id,
 							c->GetTargetDescription(t)
 						).c_str()
@@ -220,7 +236,7 @@ void command_task(Client *c, const Seperator *sep)
 						"{} {} not have not {} (ID {}) assigned to them.",
 						c->GetTargetDescription(t, TargetDescriptionType::UCYou),
 						c == t ? "do" : "does",
-						task_manager->GetTaskName(task_id),
+						TaskManager::Instance()->GetTaskName(task_id),
 						task_id
 					).c_str()
 				);
@@ -256,7 +272,7 @@ void command_task(Client *c, const Seperator *sep)
 						Chat::White,
 						fmt::format(
 							"Attempting to reload {} (ID {}).",
-							task_manager->GetTaskName(task_id),
+							TaskManager::Instance()->GetTaskName(task_id),
 							task_id
 						).c_str()
 					);
@@ -265,7 +281,7 @@ void command_task(Client *c, const Seperator *sep)
 						Chat::White,
 						fmt::format(
 							"Successfully reloaded {} (ID {}).",
-							task_manager->GetTaskName(task_id),
+							TaskManager::Instance()->GetTaskName(task_id),
 							task_id
 						).c_str()
 					);
@@ -304,21 +320,12 @@ void command_task(Client *c, const Seperator *sep)
 				return;
 			}
 
-			if (
-				CompletedTasksRepository::DeleteWhere(
-					database,
-					fmt::format(
-						"charid = {} AND taskid = {}",
-						t->CharacterID(),
-						task_id
-					)
-				)
-			) {
+			if (t->UncompleteTask(task_id)) {
 				c->Message(
 					Chat::White,
 					fmt::format(
 						"Successfully uncompleted {} (ID {}) for {}.",
-						task_manager->GetTaskName(task_id),
+						TaskManager::Instance()->GetTaskName(task_id),
 						task_id,
 						c->GetTargetDescription(t)
 					).c_str()
@@ -330,7 +337,7 @@ void command_task(Client *c, const Seperator *sep)
 						"{} {} not completed {} (ID {}).",
 						c->GetTargetDescription(t, TargetDescriptionType::UCYou),
 						c == t ? "have" : "has",
-						task_manager->GetTaskName(task_id),
+						TaskManager::Instance()->GetTaskName(task_id),
 						task_id
 					).c_str()
 				);
@@ -353,7 +360,7 @@ void command_task(Client *c, const Seperator *sep)
 				Chat::White,
 				fmt::format(
 					"Updating {} (ID {}), activity {} with a count of {} for {}.",
-					task_manager->GetTaskName(task_id),
+					TaskManager::Instance()->GetTaskName(task_id),
 					task_id,
 					activity_id,
 					count,

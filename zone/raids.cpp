@@ -1,40 +1,36 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2005 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/strings.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/repositories/character_expedition_lockouts_repository.h"
-#include "../common/repositories/raid_details_repository.h"
-#include "../common/repositories/raid_members_repository.h"
-#include "../common/raid.h"
-
-
-#include "client.h"
-#include "dynamic_zone.h"
-#include "entity.h"
-#include "groups.h"
-#include "mob.h"
-#include "raids.h"
-#include "string_ids.h"
-#include "bot.h"
-
-#include "worldserver.h"
-#include "queryserv.h"
+#include "common/events/player_event_logs.h"
+#include "common/raid.h"
+#include "common/repositories/character_expedition_lockouts_repository.h"
+#include "common/repositories/raid_details_repository.h"
+#include "common/repositories/raid_members_repository.h"
+#include "common/strings.h"
+#include "zone/bot.h"
+#include "zone/client.h"
+#include "zone/dynamic_zone.h"
+#include "zone/entity.h"
+#include "zone/groups.h"
+#include "zone/mob.h"
+#include "zone/queryserv.h"
+#include "zone/raids.h"
+#include "zone/string_ids.h"
+#include "zone/worldserver.h"
 
 extern EntityList  entity_list;
 extern WorldServer worldserver;
@@ -717,7 +713,7 @@ uint32 Raid::GetTotalRaidDamage(Mob* other)
 	return total;
 }
 
-void Raid::HealGroup(uint32 heal_amt, Mob* caster, uint32 gid, float range)
+void Raid::HealGroup(uint32 heal_amount, Mob* caster, uint32 group_id, float range)
 {
 	if (!caster) {
 		return;
@@ -728,26 +724,30 @@ void Raid::HealGroup(uint32 heal_amt, Mob* caster, uint32 gid, float range)
 	}
 
 	float distance;
-	float range2 = range*range;
+	float range_squared = range * range;
 
-	int numMem = 0;
+	int member_count = 0;
+
 	for (const auto& m : members) {
-		if (m.member && m.group_number == gid) {
+		if (m.member && m.group_number == group_id) {
 			distance = DistanceSquared(caster->GetPosition(), m.member->GetPosition());
 
-			if (distance <= range2) {
-				numMem += 1;
+			if (distance <= range_squared) {
+				member_count += 1;
 			}
 		}
 	}
 
-	heal_amt /= numMem;
+	if (member_count > 0) {
+		heal_amount /= member_count;
+	}
+
 	for (const auto& m : members) {
-		if (m.member && m.group_number == gid) {
+		if (m.member && m.group_number == group_id) {
 			distance = DistanceSquared(caster->GetPosition(), m.member->GetPosition());
 
-			if (distance <= range2) {
-				m.member->SetHP(m.member->GetHP() + heal_amt);
+			if (distance <= range_squared) {
+				m.member->SetHP(m.member->GetHP() + heal_amount);
 				m.member->SendHPUpdate();
 			}
 		}
@@ -755,7 +755,7 @@ void Raid::HealGroup(uint32 heal_amt, Mob* caster, uint32 gid, float range)
 }
 
 
-void Raid::BalanceHP(int32 penalty, uint32 gid, float range, Mob* caster, int32 limit)
+void Raid::BalanceHP(int32 penalty, uint32 group_id, float range, Mob* caster, int32 limit)
 {
 	if (!caster) {
 		return;
@@ -765,44 +765,48 @@ void Raid::BalanceHP(int32 penalty, uint32 gid, float range, Mob* caster, int32 
 		range = 200;
 	}
 
-	int dmgtaken = 0, numMem = 0, dmgtaken_tmp = 0;
+	int damage_taken           = 0;
+	int damage_taken_temporary = 0;
+	int member_count           = 0;
 
 	float distance;
-	float range2 = range*range;
+	float range_squared = range * range;
 
 	for (const auto& m : members) {
-		if (m.member && m.group_number == gid) {
+		if (m.member && m.group_number == group_id) {
 			distance = DistanceSquared(caster->GetPosition(), m.member->GetPosition());
 
-			if (distance <= range2) {
-				dmgtaken_tmp = m.member->GetMaxHP() - m.member->GetHP();
+			if (distance <= range_squared) {
+				damage_taken_temporary = m.member->GetMaxHP() - m.member->GetHP();
 
-				if (limit && (dmgtaken_tmp > limit)) {
-					dmgtaken_tmp = limit;
+				if (limit && (damage_taken_temporary > limit)) {
+					damage_taken_temporary = limit;
 				}
 
-				dmgtaken += dmgtaken_tmp;
-				numMem += 1;
+				damage_taken += damage_taken_temporary;
+				member_count += 1;
 			}
 		}
 	}
 
-	dmgtaken += dmgtaken * penalty / 100;
-	dmgtaken /= numMem;
+	damage_taken += damage_taken * penalty / 100;
+
+	if (member_count > 0) {
+		damage_taken /= member_count;
+	}
+
 	for (const auto& m : members) {
-		if (m.member && m.group_number == gid) {
+		if (m.member && m.group_number == group_id) {
 			distance = DistanceSquared(caster->GetPosition(), m.member->GetPosition());
 
 			//this way the ability will never kill someone
 			//but it will come darn close
-			if (distance <= range2) {
-				if ((m.member->GetMaxHP() - dmgtaken) < 1) {
+			if (distance <= range_squared) {
+				if ((m.member->GetMaxHP() - damage_taken) < 1) {
 					m.member->SetHP(1);
 					m.member->SendHPUpdate();
-				}
-
-				else {
-					m.member->SetHP(m.member->GetMaxHP() - dmgtaken);
+				} else {
+					m.member->SetHP(m.member->GetMaxHP() - damage_taken);
 					m.member->SendHPUpdate();
 				}
 			}
@@ -810,7 +814,7 @@ void Raid::BalanceHP(int32 penalty, uint32 gid, float range, Mob* caster, int32 
 	}
 }
 
-void Raid::BalanceMana(int32 penalty, uint32 gid, float range, Mob* caster, int32 limit)
+void Raid::BalanceMana(int32 penalty, uint32 group_id, float range, Mob* caster, int32 limit)
 {
 	if (!caster) {
 		return;
@@ -821,54 +825,56 @@ void Raid::BalanceMana(int32 penalty, uint32 gid, float range, Mob* caster, int3
 	}
 
 	float distance;
-	float range2 = range*range;
+	float range_squared = range * range;
 
-	int manataken = 0;
-	int numMem = 0;
-	int manataken_tmp = 0;
+	int mana_taken           = 0;
+	int mana_taken_temporary = 0;
+	int member_count         = 0;
 
 	for (const auto& m : members) {
 		if (m.is_bot) {
 			continue;
 		}
 
-		if (m.member && m.group_number == gid && m.member->GetMaxMana() > 0) {
+		if (m.member && m.group_number == group_id && m.member->GetMaxMana() > 0) {
 			distance = DistanceSquared(caster->GetPosition(), m.member->GetPosition());
 
-			if (distance <= range2) {
-				manataken_tmp = m.member->GetMaxMana() - m.member->GetMana();
+			if (distance <= range_squared) {
+				mana_taken_temporary = m.member->GetMaxMana() - m.member->GetMana();
 
-				if (limit && (manataken_tmp > limit)) {
-					manataken_tmp = limit;
+				if (limit && (mana_taken_temporary > limit)) {
+					mana_taken_temporary = limit;
 				}
 
-				manataken += manataken_tmp;
-				numMem += 1;
+				mana_taken += mana_taken_temporary;
+				member_count += 1;
 			}
 		}
 	}
 
-	manataken += manataken * penalty / 100;
-	manataken /= numMem;
+	mana_taken += mana_taken * penalty / 100;
+
+	if (member_count > 0) {
+		mana_taken /= member_count;
+	}
 
 	for (const auto& m : members) {
 		if (m.is_bot) {
 			continue;
 		}
 
-		if (m.member && m.group_number == gid) {
+		if (m.member && m.group_number == group_id) {
 			distance = DistanceSquared(caster->GetPosition(), m.member->GetPosition());
 
-			if (distance <= range2) {
-				if ((m.member->GetMaxMana() - manataken) < 1) {
+			if (distance <= range_squared) {
+				if ((m.member->GetMaxMana() - mana_taken) < 1) {
 					m.member->SetMana(1);
 
 					if (m.member->IsClient()) {
 						m.member->CastToClient()->SendManaUpdate();
 					}
-				}
-				else {
-					m.member->SetMana(m.member->GetMaxMana() - manataken);
+				} else {
+					m.member->SetMana(m.member->GetMaxMana() - mana_taken);
 
 					if (m.member->IsClient()) {
 						m.member->CastToClient()->SendManaUpdate();
@@ -955,7 +961,7 @@ void Raid::SplitMoney(uint32 gid, uint32 copper, uint32 silver, uint32 gold, uin
 				true
 			);
 
-			if (player_event_logs.IsEventEnabled(PlayerEvent::SPLIT_MONEY)) {
+			if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::SPLIT_MONEY)) {
 				auto e = PlayerEvent::SplitMoneyEvent{
 					.copper = copper_split,
 					.silver = silver_split,
@@ -2695,7 +2701,7 @@ void Raid::RaidClearNPCMarks(Client* c)
 		Strings::EqualFold(main_marker_pcs[MAIN_MARKER_3_SLOT], c->GetCleanName())) {
 		for (int i = 0; i < MAX_MARKED_NPCS; i++) {
 			if (marked_npcs[i].entity_id > 0 && marked_npcs[i].zone_id == c->GetZoneID()
-				&& marked_npcs[i].instance_id == c->GetInstanceID()) 
+				&& marked_npcs[i].instance_id == c->GetInstanceID())
 			{
 				auto npc_name = entity_list.GetNPCByID(marked_npcs[i].entity_id)->GetCleanName();
 				RaidMessageString(nullptr, Chat::Cyan, RAID_NO_LONGER_MARKED, npc_name);
@@ -3020,7 +3026,7 @@ void Raid::SendMarkTargets(Client* c)
 	}
 
 	for (int i = 0; i < MAX_MARKED_NPCS; i++) {
-		if (marked_npcs[i].entity_id > 0 && marked_npcs[i].zone_id == c->GetZoneID() 
+		if (marked_npcs[i].entity_id > 0 && marked_npcs[i].zone_id == c->GetZoneID()
 			&& marked_npcs[i].instance_id == c->GetInstanceID()) {
 			auto marked_mob = entity_list.GetMob(marked_npcs[i].entity_id);
 			if (marked_mob) {
@@ -3037,7 +3043,7 @@ void Raid::SendMarkTargets(Client* c)
 	UpdateXtargetMarkedNPC();
 }
 
-void Raid::EmptyRaidMembers() 
+void Raid::EmptyRaidMembers()
 {
 	for (int i = 0; i < MAX_RAID_MEMBERS; i++) {
 		members[i].group_number    = RAID_GROUPLESS;

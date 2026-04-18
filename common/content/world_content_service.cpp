@@ -1,13 +1,30 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "world_content_service.h"
 
-#include <utility>
-#include <glm/vec3.hpp>
-#include "../database.h"
-#include "../rulesys.h"
-#include "../eqemu_logsys.h"
-#include "../repositories/instance_list_repository.h"
-#include "../zone_store.h"
+#include "common/database.h"
+#include "common/eqemu_logsys.h"
+#include "common/repositories/instance_list_repository.h"
+#include "common/rulesys.h"
+#include "common/zone_store.h"
 
+#include "glm/vec3.hpp"
+#include <utility>
 
 WorldContentService::WorldContentService()
 {
@@ -27,7 +44,7 @@ WorldContentService *WorldContentService::SetExpansionContext()
 	// pull expansion from rules
 	int expansion = RuleI(Expansion, CurrentExpansion);
 	if (expansion >= Expansion::Classic && expansion <= Expansion::MaxId) {
-		content_service.SetCurrentExpansion(expansion);
+		WorldContentService::Instance()->SetCurrentExpansion(expansion);
 	}
 
 	LogInfo(
@@ -41,12 +58,12 @@ WorldContentService *WorldContentService::SetExpansionContext()
 
 std::string WorldContentService::GetCurrentExpansionName()
 {
-	if (content_service.GetCurrentExpansion() == Expansion::EXPANSION_ALL) {
+	if (WorldContentService::Instance()->GetCurrentExpansion() == Expansion::EXPANSION_ALL) {
 		return "All Expansions";
 	}
 
 	if (current_expansion >= Expansion::Classic && current_expansion <= Expansion::MaxId) {
-		return Expansion::ExpansionName[content_service.GetCurrentExpansion()];
+		return Expansion::ExpansionName[WorldContentService::Instance()->GetCurrentExpansion()];
 	}
 
 	return "Unknown Expansion";
@@ -115,7 +132,7 @@ void WorldContentService::SetContentFlags(const std::vector<ContentFlagsReposito
 bool WorldContentService::IsContentFlagEnabled(const std::string &content_flag)
 {
 	for (auto &f: GetContentFlags()) {
-		if (f.flag_name == content_flag && f.enabled == true) {
+		if (f.flag_name == content_flag && f.enabled == 1) {
 			return true;
 		}
 	}
@@ -130,7 +147,7 @@ bool WorldContentService::IsContentFlagEnabled(const std::string &content_flag)
 bool WorldContentService::IsContentFlagDisabled(const std::string &content_flag)
 {
 	for (auto &f: GetContentFlags()) {
-		if (f.flag_name == content_flag && f.enabled == false) {
+		if (f.flag_name == content_flag && f.enabled == 0) {
 			return true;
 		}
 	}
@@ -185,7 +202,7 @@ void WorldContentService::ReloadContentFlags()
 
 	SetContentFlags(set_content_flags);
 	LoadStaticGlobalZoneInstances();
-	zone_store.LoadZones(*m_content_database);
+	ZoneStore::Instance()->LoadZones(*m_content_database);
 }
 
 Database *WorldContentService::GetDatabase() const
@@ -291,7 +308,7 @@ WorldContentService *WorldContentService::LoadStaticGlobalZoneInstances()
 //   instance_list table entry for lavastorm has version = 1, is_global = 1, never_expires = 1
 WorldContentService::FindZoneResult WorldContentService::FindZone(uint32 zone_id, uint32 instance_id)
 {
-	for (const auto &z: zone_store.GetZones()) {
+	for (const auto &z: ZoneStore::Instance()->GetZones()) {
 		for (auto &i: m_zone_static_instances) {
 			if (
 				z.zoneidnumber == zone_id &&

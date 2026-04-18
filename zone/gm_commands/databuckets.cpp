@@ -1,7 +1,33 @@
-#include "../client.h"
-#include "../data_bucket.h"
-#include "../dialogue_window.h"
-#include "../../common/repositories/data_buckets_repository.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/data_bucket.h"
+#include "common/repositories/data_buckets_repository.h"
+#include "zone/client.h"
+#include "zone/dialogue_window.h"
+
+void SendDataBucketsSubCommands(Client *c)
+{
+	c->Message(Chat::White, "Usage: #databuckets delete [Key] [Character ID] [NPC ID] [Bot ID]");
+	c->Message(Chat::White, "Usage: #databuckets edit [Key] [Character ID] [NPC ID] [Bot ID] [Value] [Expires]");
+	c->Message(Chat::White, "Usage: #databuckets view [Partial Key] [Character ID] [NPC ID] [Bot ID]");
+	c->Message(Chat::White, "Note: Character ID, NPC ID, and Bot ID are optional if not needed, if needed they are required for specificity");
+	c->Message(Chat::White, "Note: Edit requires Character ID, NPC ID, Bot ID, and Value, Expires is optional and does not modify the existing expiration time if not provided");
+}
 
 void command_databuckets(Client *c, const Seperator *sep)
 {
@@ -41,7 +67,7 @@ void command_databuckets(Client *c, const Seperator *sep)
 			!npc_id &&
 			!bot_id
 		) {
-			if (!DataBucket::DeleteData(key_filter)) {
+			if (!DataBucket::DeleteData(&database, key_filter)) {
 				c->Message(
 					Chat::White,
 					fmt::format(
@@ -67,7 +93,7 @@ void command_databuckets(Client *c, const Seperator *sep)
 			k.npc_id       = npc_id;
 			k.bot_id       = bot_id;
 
-			if (!DataBucket::DeleteData(k)) {
+			if (!DataBucket::DeleteData(&database, k)) {
 				c->Message(
 					Chat::White,
 					fmt::format(
@@ -114,7 +140,7 @@ void command_databuckets(Client *c, const Seperator *sep)
 
 		const std::string& expires_string = expires == 0 ? "Never" : std::to_string(expires);
 
-		DataBucket::SetData(k);
+		DataBucket::SetData(&database, k);
 
 		c->Message(
 			Chat::White,
@@ -250,13 +276,4 @@ void command_databuckets(Client *c, const Seperator *sep)
 
 		c->Message(Chat::White, response.c_str());
 	}
-}
-
-void SendDataBucketsSubCommands(Client *c)
-{
-	c->Message(Chat::White, "Usage: #databuckets delete [Key] [Character ID] [NPC ID] [Bot ID]");
-	c->Message(Chat::White, "Usage: #databuckets edit [Key] [Character ID] [NPC ID] [Bot ID] [Value] [Expires]");
-	c->Message(Chat::White, "Usage: #databuckets view [Partial Key] [Character ID] [NPC ID] [Bot ID]");
-	c->Message(Chat::White, "Note: Character ID, NPC ID, and Bot ID are optional if not needed, if needed they are required for specificity");
-	c->Message(Chat::White, "Note: Edit requires Character ID, NPC ID, Bot ID, and Value, Expires is optional and does not modify the existing expiration time if not provided");
 }

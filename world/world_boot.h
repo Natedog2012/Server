@@ -1,12 +1,27 @@
-#ifndef EQEMU_WORLD_BOOT_H
-#define EQEMU_WORLD_BOOT_H
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/discord/discord.h"
+#include "common/types.h"
+#include "world/ucs.h"
 
 #include <string>
-#include "../common/types.h"
-#include "../common/discord/discord.h"
-#include "ucs.h"
-
-extern UCSConnection UCSLink;
 
 class WorldBoot {
 public:
@@ -29,6 +44,3 @@ public:
 		SendDiscordMessage(webhook_id, message_prefix + Discord::FormatDiscordMessage(log_category, message));
 	};
 };
-
-
-#endif //EQEMU_WORLD_BOOT_H

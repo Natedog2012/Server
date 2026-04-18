@@ -1,15 +1,31 @@
-#include "../common/strings.h"
-#include "../common/repositories/auras_repository.h"
+/*	EQEmu: EQEmulator
 
-#include "aura.h"
-#include "client.h"
-#include "string_ids.h"
-#include "raids.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/repositories/auras_repository.h"
+#include "common/strings.h"
+#include "zone/aura.h"
+#include "zone/client.h"
+#include "zone/raids.h"
+#include "zone/string_ids.h"
 
 Aura::Aura(NPCType *type_data, Mob *owner, AuraRecord &record)
 	: NPC(type_data, 0, owner->GetPosition(), GravityBehavior::Flying), spell_id(record.spell_id),
 	  distance(record.distance),
-	  remove_timer(record.duration), movement_timer(100), process_timer(1000), aura_id(-1)
+	  remove_timer(record.duration), movement_timer(1000), process_timer(1000), aura_id(-1)
 {
 	GiveNPCTypeData(type_data); // we will delete this later on
 	m_owner = owner->GetID();

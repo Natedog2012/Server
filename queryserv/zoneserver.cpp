@@ -1,11 +1,26 @@
-#include "zoneserver.h"
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/repositories/player_event_logs_repository.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/discord/discord_manager.h"
+/*	EQEmu: EQEmulator
 
-extern DiscordManager discord_manager;
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "zoneserver.h"
+
+#include "common/discord/discord_manager.h"
+#include "common/eqemu_logsys.h"
+#include "common/events/player_event_logs.h"
+#include "common/repositories/player_event_logs_repository.h"
 
 ZoneServer::ZoneServer(
 	std::shared_ptr<EQ::Net::ServertalkServerConnection> in_connection,
@@ -35,9 +50,9 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 			cereal::BinaryInputArchive archive(ss);
 			archive(n);
 
-			player_event_logs.AddToQueue(n.player_event_log);
+			PlayerEventLogs::Instance()->AddToQueue(n.player_event_log);
 
-			discord_manager.QueuePlayerEventMessage(n);
+			DiscordManager::Instance()->QueuePlayerEventMessage(n);
 			break;
 		}
 		default: {
@@ -45,4 +60,28 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p)
 			break;
 		}
 	}
+}
+
+void ZoneServer::SendPlayerEventLogSettings()
+{
+	EQ::Net::DynamicPacket                                                dyn_pack;
+	std::vector<PlayerEventLogSettingsRepository::PlayerEventLogSettings> settings(
+		PlayerEventLogs::Instance()->GetSettings(),
+		PlayerEventLogs::Instance()->GetSettings() + PlayerEvent::EventType::MAX
+	);
+
+	dyn_pack.PutSerialize(0, settings);
+
+	auto packet_size = sizeof(ServerSendPlayerEvent_Struct) + dyn_pack.Length();
+
+	auto pack = std::make_unique<ServerPacket>(
+		ServerOP_SendPlayerEventSettings,
+		static_cast<uint32_t>(packet_size)
+	);
+
+	auto* buf        = reinterpret_cast<ServerSendPlayerEvent_Struct*>(pack->pBuffer);
+	buf->cereal_size = static_cast<uint32_t>(dyn_pack.Length());
+	memcpy(buf->cereal_data, dyn_pack.Data(), dyn_pack.Length());
+
+	SendPacket(pack.release());
 }

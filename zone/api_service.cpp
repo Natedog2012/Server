@@ -1,35 +1,33 @@
-/**
- * EQEmulator: Everquest Server Emulator
- * Copyright (C) 2001-2019 EQEmulator Development Team (https://github.com/EQEmu/Server)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY except by those people which sell it, which
- * are required to give you total support for your newly bought product;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
- */
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "api_service.h"
+
+#include "common/eqemu_logsys.h"
+#include "common/net/websocket_server.h"
+#include "zone/client.h"
+#include "zone/corpse.h"
+#include "zone/doors.h"
+#include "zone/entity.h"
+#include "zone/object.h"
+#include "zone/zone.h"
+#include "zone/zonedb.h"
 
 #include <memory>
-#include "../common/net/websocket_server.h"
-#include "../common/eqemu_logsys.h"
-#include "zonedb.h"
-#include "client.h"
-#include "entity.h"
-#include "corpse.h"
-#include "api_service.h"
-#include "object.h"
-#include "zone.h"
-#include "doors.h"
-#include <iostream>
 
 extern Zone *zone;
 
@@ -82,7 +80,7 @@ Json::Value ApiGetPacketStatistics(EQ::Net::WebsocketServerConnection *connectio
 		auto connection            = client->Connection();
 		auto opts                  = connection->GetManager()->GetOptions();
 		auto eqs_stats             = connection->GetStats();
-		auto &stats                = eqs_stats.DaybreakStats;
+		auto &stats                = eqs_stats.ReliableStreamStats;
 		auto now                   = EQ::Net::Clock::now();
 		auto sec_since_stats_reset = std::chrono::duration_cast<std::chrono::duration<double>>(
 			now - stats.created
@@ -835,9 +833,9 @@ Json::Value ApiGetLogsysCategories(EQ::Net::WebsocketServerConnection *connectio
 
 		row["log_category_id"]          = i;
 		row["log_category_description"] = Logs::LogCategoryName[i];
-		row["log_to_console"]           = LogSys.log_settings[i].log_to_console;
-		row["log_to_file"]              = LogSys.log_settings[i].log_to_file;
-		row["log_to_gmsay"]             = LogSys.log_settings[i].log_to_gmsay;
+		row["log_to_console"]           = EQEmuLogSys::Instance()->log_settings[i].log_to_console;
+		row["log_to_file"]              = EQEmuLogSys::Instance()->log_settings[i].log_to_file;
+		row["log_to_gmsay"]             = EQEmuLogSys::Instance()->log_settings[i].log_to_gmsay;
 
 		response.append(row);
 	}
@@ -866,15 +864,15 @@ Json::Value ApiSetLoggingLevel(EQ::Net::WebsocketServerConnection *connection, J
 	if (logging_category < Logs::LogCategory::MaxCategoryID &&
 		logging_category > Logs::LogCategory::None
 		) {
-		LogSys.log_settings[logging_category].log_to_console = logging_level;
+		EQEmuLogSys::Instance()->log_settings[logging_category].log_to_console = logging_level;
 		response["status"] = "Category log level updated";
 	}
 
 	if (logging_level > 0) {
-		LogSys.log_settings[logging_category].is_category_enabled = 1;
+		EQEmuLogSys::Instance()->log_settings[logging_category].is_category_enabled = 1;
 	}
 	else {
-		LogSys.log_settings[logging_category].is_category_enabled = 0;
+		EQEmuLogSys::Instance()->log_settings[logging_category].is_category_enabled = 0;
 	}
 
 	return response;
@@ -882,7 +880,7 @@ Json::Value ApiSetLoggingLevel(EQ::Net::WebsocketServerConnection *connection, J
 
 void RegisterApiLogEvent(std::unique_ptr<EQ::Net::WebsocketServer> &server)
 {
-	LogSys.SetConsoleHandler(
+	EQEmuLogSys::Instance()->SetConsoleHandler(
 		[&](uint16 log_category, const std::string &msg) {
 			Json::Value data;
 			data["log_category"] = log_category;

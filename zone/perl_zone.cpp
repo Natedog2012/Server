@@ -1,10 +1,26 @@
-#include "../common/features.h"
-#include "zone.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/features.h"
 
 #ifdef EMBPERL_XS_CLASSES
 
-#include "../common/global_define.h"
-#include "embperl.h"
+#include "zone/embperl.h"
+#include "zone/zone.h"
 
 bool Perl_Zone_BuffTimersSuspended(Zone* self)
 {
@@ -13,7 +29,7 @@ bool Perl_Zone_BuffTimersSuspended(Zone* self)
 
 bool Perl_Zone_BypassesExpansionCheck(Zone* self)
 {
-	return zone_store.GetZoneBypassExpansionCheck(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneBypassExpansionCheck(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 bool Perl_Zone_CanBind(Zone* self)
@@ -73,22 +89,22 @@ float Perl_Zone_GetAAEXPModifierByCharacterID(Zone* self, uint32 character_id)
 
 std::string Perl_Zone_GetContentFlags(Zone* self)
 {
-	return zone_store.GetZoneContentFlags(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneContentFlags(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Perl_Zone_GetContentFlagsDisabled(Zone* self)
 {
-	return zone_store.GetZoneContentFlagsDisabled(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneContentFlagsDisabled(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 float Perl_Zone_GetExperienceMultiplier(Zone* self)
 {
-	return zone_store.GetZoneExperienceMultiplier(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneExperienceMultiplier(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Perl_Zone_GetExpansion(Zone* self)
 {
-	return zone_store.GetZoneExpansion(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneExpansion(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 float Perl_Zone_GetEXPModifier(Zone* self, Client* c)
@@ -103,17 +119,17 @@ float Perl_Zone_GetEXPModifierByCharacterID(Zone* self, uint32 character_id)
 
 int Perl_Zone_GetFastRegenEndurance(Zone* self)
 {
-	return zone_store.GetZoneFastRegenEndurance(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFastRegenEndurance(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetFastRegenHP(Zone* self)
 {
-	return zone_store.GetZoneFastRegenHP(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFastRegenHP(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetFastRegenMana(Zone* self)
 {
-	return zone_store.GetZoneFastRegenMana(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFastRegenMana(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Perl_Zone_GetFileName(Zone* self)
@@ -123,37 +139,37 @@ std::string Perl_Zone_GetFileName(Zone* self)
 
 std::string Perl_Zone_GetFlagNeeded(Zone* self)
 {
-	return zone_store.GetZoneFlagNeeded(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFlagNeeded(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetFogBlue(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneFogBlue(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogBlue(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 float Perl_Zone_GetFogDensity(Zone* self)
 {
-	return zone_store.GetZoneFogDensity(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogDensity(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetFogGreen(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneFogGreen(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogGreen(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 float Perl_Zone_GetFogMaximumClip(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneFogMaximumClip(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogMaximumClip(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 float Perl_Zone_GetFogMinimumClip(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneFogMinimumClip(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogMinimumClip(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetFogRed(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneFogRed(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneFogRed(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 float Perl_Zone_GetGraveyardHeading(Zone* self)
@@ -188,7 +204,7 @@ uint32 Perl_Zone_GetGraveyardZoneID(Zone* self)
 
 float Perl_Zone_GetGravity(Zone* self)
 {
-	return zone_store.GetZoneGravity(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneGravity(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint32 Perl_Zone_GetInstanceID(Zone* self)
@@ -198,7 +214,7 @@ uint32 Perl_Zone_GetInstanceID(Zone* self)
 
 uint8 Perl_Zone_GetInstanceType(Zone* self)
 {
-	return zone_store.GetZoneInstanceType(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneInstanceType(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint16 Perl_Zone_GetInstanceVersion(Zone* self)
@@ -213,7 +229,7 @@ uint32 Perl_Zone_GetInstanceTimeRemaining(Zone* self)
 
 int Perl_Zone_GetLavaDamage(Zone* self)
 {
-	return zone_store.GetZoneLavaDamage(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneLavaDamage(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Perl_Zone_GetLongName(Zone* self)
@@ -223,17 +239,17 @@ std::string Perl_Zone_GetLongName(Zone* self)
 
 float Perl_Zone_GetMaximumClip(Zone* self)
 {
-	return zone_store.GetZoneMaximumClip(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMaximumClip(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Perl_Zone_GetMaximumExpansion(Zone* self)
 {
-	return zone_store.GetZoneMaximumExpansion(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMaximumExpansion(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetMaximumLevel(Zone* self)
 {
-	return zone_store.GetZoneMaximumLevel(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMaximumLevel(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint32 Perl_Zone_GetMaxClients(Zone* self)
@@ -243,57 +259,57 @@ uint32 Perl_Zone_GetMaxClients(Zone* self)
 
 float Perl_Zone_GetMinimumClip(Zone* self)
 {
-	return zone_store.GetZoneMinimumClip(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumClip(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Perl_Zone_GetMinimumExpansion(Zone* self)
 {
-	return zone_store.GetZoneMinimumExpansion(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumExpansion(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetMinimumLevel(Zone* self)
 {
-	return zone_store.GetZoneMinimumLevel(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumLevel(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetMinimumLavaDamage(Zone* self)
 {
-	return zone_store.GetZoneMinimumLavaDamage(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumLavaDamage(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetMinimumStatus(Zone* self)
 {
-	return zone_store.GetZoneMinimumStatus(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneMinimumStatus(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Perl_Zone_GetNote(Zone* self)
 {
-	return zone_store.GetZoneNote(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneNote(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetNPCMaximumAggroDistance(Zone* self)
 {
-	return zone_store.GetZoneNPCMaximumAggroDistance(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneNPCMaximumAggroDistance(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Perl_Zone_GetPEQZone(Zone* self)
 {
-	return zone_store.GetZonePEQZone(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZonePEQZone(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetRainChance(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneRainChance(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneRainChance(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetRainDuration(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneRainDuration(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneRainDuration(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 uint32 Perl_Zone_GetRuleSet(Zone* self)
 {
-	return zone_store.GetZoneRuleSet(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneRuleSet(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 float Perl_Zone_GetSafeHeading(Zone* self)
@@ -328,37 +344,37 @@ uint32 Perl_Zone_GetSecondsBeforeIdle(Zone* self)
 
 uint64 Perl_Zone_GetShutdownDelay(Zone* self)
 {
-	return zone_store.GetZoneShutdownDelay(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneShutdownDelay(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetSky(Zone* self)
 {
-	return zone_store.GetZoneSky(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSky(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int8 Perl_Zone_GetSkyLock(Zone* self)
 {
-	return zone_store.GetZoneSkyLock(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSkyLock(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetSnowChance(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneSnowChance(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSnowChance(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetSnowDuration(Zone* self, uint8 slot = 0)
 {
-	return zone_store.GetZoneSnowDuration(self->GetZoneID(), slot, self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneSnowDuration(self->GetZoneID(), slot, self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetTimeType(Zone* self)
 {
-	return zone_store.GetZoneTimeType(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneTimeType(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetTimeZone(Zone* self)
 {
-	return zone_store.GetZoneTimeZone(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneTimeZone(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 std::string Perl_Zone_GetZoneDescription(Zone* self)
@@ -378,22 +394,22 @@ uint8 Perl_Zone_GetZoneType(Zone* self)
 
 float Perl_Zone_GetUnderworld(Zone* self)
 {
-	return zone_store.GetZoneUnderworld(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneUnderworld(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetUnderworldTeleportIndex(Zone* self)
 {
-	return zone_store.GetZoneUnderworldTeleportIndex(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneUnderworldTeleportIndex(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 float Perl_Zone_GetWalkSpeed(Zone* self)
 {
-	return zone_store.GetZoneWalkSpeed(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneWalkSpeed(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 uint8 Perl_Zone_GetZoneZType(Zone* self)
 {
-	return zone_store.GetZoneZType(self->GetZoneID(), self->GetInstanceVersion());
+	return ZoneStore::Instance()->GetZoneZType(self->GetZoneID(), self->GetInstanceVersion());
 }
 
 int Perl_Zone_GetZoneTotalBlockedSpells(Zone* self)
@@ -561,9 +577,9 @@ std::string Perl_Zone_GetBucketRemaining(Zone* self, const std::string bucket_na
 	return self->GetBucketRemaining(bucket_name);
 }
 
-void Perl_Zone_ClearVariables(Zone* self)
+bool Perl_Zone_ClearVariables(Zone* self)
 {
-	self->ClearVariables();
+	return self->ClearVariables();
 }
 
 bool Perl_Zone_DeleteVariable(Zone* self, const std::string variable_name)
@@ -596,6 +612,95 @@ void Perl_Zone_SetVariable(Zone* self, const std::string variable_name, const st
 bool Perl_Zone_VariableExists(Zone* self, const std::string variable_name)
 {
 	return self->VariableExists(variable_name);
+}
+
+uint32 Perl_Zone_GetTimerDuration(Zone* self, std::string name)
+{
+	return self->GetTimerDuration(name);
+}
+
+uint32 Perl_Zone_GetTimerRemainingTime(Zone* self, std::string name)
+{
+	return self->GetTimerRemainingTime(name);
+}
+
+bool Perl_Zone_HasTimer(Zone* self, std::string name)
+{
+	return self->HasTimer(name);
+}
+
+bool Perl_Zone_IsPausedTimer(Zone* self, std::string name)
+{
+	return self->IsPausedTimer(name);
+}
+
+void Perl_Zone_PauseTimer(Zone* self, std::string name)
+{
+	self->PauseTimer(name);
+}
+
+void Perl_Zone_ResumeTimer(Zone* self, std::string name)
+{
+	self->ResumeTimer(name);
+}
+
+void Perl_Zone_SetTimer(Zone* self, std::string name, uint32 duration)
+{
+	self->SetTimer(name, duration);
+}
+
+void Perl_Zone_StopTimer(Zone* self, std::string name)
+{
+	self->StopTimer(name);
+}
+
+void Perl_Zone_StopAllTimers(Zone* self)
+{
+	self->StopAllTimers();
+}
+
+void Perl_Zone_SendPayload(Zone* self, int payload_id, std::string payload_value)
+{
+	self->SendPayload(payload_id, payload_value);
+}
+
+void Perl_Zone_Signal(Zone* self, int signal_id)
+{
+	self->Signal(signal_id);
+}
+
+perl::array Perl_Zone_GetPausedTimers(Zone* self)
+{
+	perl::array a;
+
+	const auto& l = self->GetPausedTimers();
+
+	if (!l.empty()) {
+		a.reserve(l.size());
+
+		for (const auto& v : l) {
+			a.push_back(v);
+		}
+	}
+
+	return a;
+}
+
+perl::array Perl_Zone_GetTimers(Zone* self)
+{
+	perl::array a;
+
+	const auto& l = self->GetTimers();
+
+	if (!l.empty()) {
+		a.reserve(l.size());
+
+		for (const auto& v : l) {
+			a.push_back(v);
+		}
+	}
+
+	return a;
 }
 
 void perl_register_zone()
@@ -668,6 +773,7 @@ void perl_register_zone()
 	package.add("GetMinimumStatus", &Perl_Zone_GetMinimumStatus);
 	package.add("GetNote", &Perl_Zone_GetNote);
 	package.add("GetNPCMaximumAggroDistance", &Perl_Zone_GetNPCMaximumAggroDistance);
+	package.add("GetPausedTimers", &Perl_Zone_GetPausedTimers);
 	package.add("GetPEQZone", &Perl_Zone_GetPEQZone);
 	package.add("GetRainChance", (int(*)(Zone*))&Perl_Zone_GetRainChance);
 	package.add("GetRainChance", (int(*)(Zone*, uint8))&Perl_Zone_GetRainChance);
@@ -689,6 +795,9 @@ void perl_register_zone()
 	package.add("GetSnowDuration", (int(*)(Zone*, uint8))&Perl_Zone_GetSnowDuration);
 	package.add("GetTimeType", &Perl_Zone_GetTimeType);
 	package.add("GetTimeZone", &Perl_Zone_GetTimeZone);
+	package.add("GetTimerDuration", &Perl_Zone_GetTimerDuration);
+	package.add("GetTimerRemainingTime", &Perl_Zone_GetTimerRemainingTime);
+	package.add("GetTimers", &Perl_Zone_GetTimers);
 	package.add("GetZoneDescription", &Perl_Zone_GetZoneDescription);
 	package.add("GetZoneID", &Perl_Zone_GetZoneID);
 	package.add("GetZoneType", &Perl_Zone_GetZoneType);
@@ -701,12 +810,14 @@ void perl_register_zone()
 	package.add("GetZoneTotalBlockedSpells", &Perl_Zone_GetZoneTotalBlockedSpells);
 	package.add("HasGraveyard", &Perl_Zone_HasGraveyard);
 	package.add("HasMap", &Perl_Zone_HasMap);
+	package.add("HasTimer", &Perl_Zone_HasTimer);
 	package.add("HasWaterMap", &Perl_Zone_HasWaterMap);
 	package.add("HasWeather", &Perl_Zone_HasWeather);
 	package.add("IsCity", &Perl_Zone_IsCity);
 	package.add("IsHotzone", &Perl_Zone_IsHotzone);
 	package.add("IsInstancePersistent", &Perl_Zone_IsInstancePersistent);
 	package.add("IsIdleWhenEmpty", &Perl_Zone_IsIdleWhenEmpty);
+	package.add("IsPausedTimer", &Perl_Zone_IsPausedTimer);
 	package.add("IsPVPZone", &Perl_Zone_IsPVPZone);
 	package.add("IsRaining", &Perl_Zone_IsRaining);
 	package.add("IsSnowing", &Perl_Zone_IsSnowing);
@@ -715,8 +826,11 @@ void perl_register_zone()
 	package.add("IsStaticZone", &Perl_Zone_IsStaticZone);
 	package.add("IsUCSServerAvailable", &Perl_Zone_IsUCSServerAvailable);
 	package.add("IsWaterZone", &Perl_Zone_IsWaterZone);
+	package.add("PauseTimer", &Perl_Zone_PauseTimer);
 	package.add("Repop", (void(*)(Zone*))&Perl_Zone_Repop);
 	package.add("Repop", (void(*)(Zone*, bool))&Perl_Zone_Repop);
+	package.add("ResumeTimer", &Perl_Zone_ResumeTimer);
+	package.add("SendPayload", &Perl_Zone_SendPayload);
 	package.add("SetAAEXPModifier", &Perl_Zone_SetAAEXPModifier);
 	package.add("SetAAEXPModifierByCharacterID", &Perl_Zone_SetAAEXPModifierByCharacterID);
 	package.add("SetBucket", (void(*)(Zone*, const std::string, const std::string))&Perl_Zone_SetBucket);
@@ -726,7 +840,11 @@ void perl_register_zone()
 	package.add("SetInstanceTimer", &Perl_Zone_SetInstanceTimer);
 	package.add("SetInstanceTimeRemaining", &Perl_Zone_SetInstanceTimeRemaining);
 	package.add("SetIsHotzone", &Perl_Zone_SetIsHotzone);
+	package.add("SetTimer", &Perl_Zone_SetTimer);
 	package.add("SetVariable", &Perl_Zone_SetVariable);
+	package.add("Signal", &Perl_Zone_Signal);
+	package.add("StopTimer", &Perl_Zone_StopTimer);
+	package.add("StopAllTimers", &Perl_Zone_StopAllTimers);
 	package.add("ShowZoneGlobalLoot", &Perl_Zone_ShowZoneGlobalLoot);
 	package.add("VariableExists", &Perl_Zone_VariableExists);
 }

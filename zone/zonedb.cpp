@@ -1,62 +1,77 @@
+/*	EQEmu: EQEmulator
 
-#include "../common/eqemu_logsys.h"
-#include "../common/extprofile.h"
-#include "../common/rulesys.h"
-#include "../common/strings.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-#include "client.h"
-#include "corpse.h"
-#include "groups.h"
-#include "merc.h"
-#include "zone.h"
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "zonedb.h"
-#include "aura.h"
-#include "../common/repositories/blocked_spells_repository.h"
-#include "../common/repositories/character_tribute_repository.h"
-#include "../common/repositories/character_data_repository.h"
-#include "../common/repositories/character_disciplines_repository.h"
-#include "../common/repositories/npc_types_repository.h"
-#include "../common/repositories/character_bind_repository.h"
-#include "../common/repositories/character_pet_buffs_repository.h"
-#include "../common/repositories/character_pet_inventory_repository.h"
-#include "../common/repositories/character_pet_info_repository.h"
-#include "../common/repositories/character_buffs_repository.h"
-#include "../common/repositories/character_languages_repository.h"
-#include "../common/repositories/criteria/content_filter_criteria.h"
-#include "../common/repositories/spawn2_disabled_repository.h"
-#include "../common/repositories/character_leadership_abilities_repository.h"
-#include "../common/repositories/character_material_repository.h"
-#include "../common/repositories/character_memmed_spells_repository.h"
-#include "../common/repositories/character_spells_repository.h"
-#include "../common/repositories/character_skills_repository.h"
-#include "../common/repositories/character_potionbelt_repository.h"
-#include "../common/repositories/character_bandolier_repository.h"
-#include "../common/repositories/character_currency_repository.h"
-#include "../common/repositories/character_alternate_abilities_repository.h"
-#include "../common/repositories/character_auras_repository.h"
-#include "../common/repositories/character_alt_currency_repository.h"
-#include "../common/repositories/character_item_recast_repository.h"
-#include "../common/repositories/account_repository.h"
-#include "../common/repositories/respawn_times_repository.h"
-#include "../common/repositories/object_contents_repository.h"
-#include "../common/repositories/mercs_repository.h"
-#include "../common/repositories/merc_buffs_repository.h"
-#include "../common/repositories/merc_inventory_repository.h"
-#include "../common/repositories/merc_subtypes_repository.h"
-#include "../common/repositories/npc_types_tint_repository.h"
-#include "../common/repositories/merchantlist_temp_repository.h"
-#include "../common/repositories/character_exp_modifiers_repository.h"
-#include "../common/repositories/character_data_repository.h"
-#include "../common/repositories/character_corpses_repository.h"
-#include "../common/repositories/character_corpse_items_repository.h"
-#include "../common/repositories/zone_repository.h"
 
-#include "../common/repositories/trader_repository.h"
-#include "../common/repositories/character_evolving_items_repository.h"
+#include "common/eqemu_logsys.h"
+#include "common/extprofile.h"
+#include "common/repositories/account_repository.h"
+#include "common/repositories/blocked_spells_repository.h"
+#include "common/repositories/character_alt_currency_repository.h"
+#include "common/repositories/character_alternate_abilities_repository.h"
+#include "common/repositories/character_auras_repository.h"
+#include "common/repositories/character_bandolier_repository.h"
+#include "common/repositories/character_bind_repository.h"
+#include "common/repositories/character_buffs_repository.h"
+#include "common/repositories/character_corpse_items_repository.h"
+#include "common/repositories/character_corpses_repository.h"
+#include "common/repositories/character_currency_repository.h"
+#include "common/repositories/character_data_repository.h"
+#include "common/repositories/character_data_repository.h"
+#include "common/repositories/character_disciplines_repository.h"
+#include "common/repositories/character_evolving_items_repository.h"
+#include "common/repositories/character_exp_modifiers_repository.h"
+#include "common/repositories/character_item_recast_repository.h"
+#include "common/repositories/character_languages_repository.h"
+#include "common/repositories/character_leadership_abilities_repository.h"
+#include "common/repositories/character_material_repository.h"
+#include "common/repositories/character_memmed_spells_repository.h"
+#include "common/repositories/character_pet_buffs_repository.h"
+#include "common/repositories/character_pet_info_repository.h"
+#include "common/repositories/character_pet_inventory_repository.h"
+#include "common/repositories/character_potionbelt_repository.h"
+#include "common/repositories/character_skills_repository.h"
+#include "common/repositories/character_spells_repository.h"
+#include "common/repositories/character_tribute_repository.h"
+#include "common/repositories/criteria/content_filter_criteria.h"
+#include "common/repositories/merc_buffs_repository.h"
+#include "common/repositories/merc_inventory_repository.h"
+#include "common/repositories/merc_subtypes_repository.h"
+#include "common/repositories/merchantlist_temp_repository.h"
+#include "common/repositories/mercs_repository.h"
+#include "common/repositories/npc_types_repository.h"
+#include "common/repositories/npc_types_tint_repository.h"
+#include "common/repositories/object_contents_repository.h"
+#include "common/repositories/respawn_times_repository.h"
+#include "common/repositories/spawn2_disabled_repository.h"
+#include "common/repositories/trader_repository.h"
+#include "common/repositories/zone_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "zone/aura.h"
+#include "zone/client.h"
+#include "zone/corpse.h"
+#include "zone/groups.h"
+#include "zone/merc.h"
+#include "zone/zone.h"
 
+#include "fmt/format.h"
 #include <ctime>
 #include <iostream>
-#include <fmt/format.h>
 
 extern Zone* zone;
 
@@ -1732,6 +1747,7 @@ const NPCType *ZoneDatabase::LoadNPCTypesData(uint32 npc_type_id, bool bulk_load
 		t->attack_count       = n.attack_count;
 		t->is_parcel_merchant = n.is_parcel_merchant ? true : false;
 		t->greed              = n.greed;
+		t->m_npc_tint_id      = n.npc_tint_id;
 
 		if (!n.special_abilities.empty()) {
 			strn0cpy(t->special_abilities, n.special_abilities.c_str(), 512);
@@ -2638,7 +2654,7 @@ int64 ZoneDatabase::GetBlockedSpellsCount(uint32 zone_id)
 
 bool ZoneDatabase::LoadBlockedSpells(int64 blocked_spells_count, ZoneSpellsBlocked* into, uint32 zone_id)
 {
-	LogInfo("Loading Blocked Spells from database for {} ({}).", zone_store.GetZoneName(zone_id, true), zone_id);
+	LogInfo("Loading Blocked Spells from database for {} ({}).", ZoneStore::Instance()->GetZoneName(zone_id, true), zone_id);
 
 	const auto& l = BlockedSpellsRepository::GetWhere(
 		*this,
@@ -2660,7 +2676,7 @@ bool ZoneDatabase::LoadBlockedSpells(int64 blocked_spells_count, ZoneSpellsBlock
 			LogError(
 				"Blocked spells count of {} exceeded for {} ({}).",
 				blocked_spells_count,
-				zone_store.GetZoneName(zone_id, true),
+				ZoneStore::Instance()->GetZoneName(zone_id, true),
 				zone_id
 			);
 			break;
@@ -3008,12 +3024,12 @@ void ZoneDatabase::LoadBuffs(Client *client)
 			continue;
 		}
 
-		if (IsEffectInSpell(buffs[slot_id].spellid, SE_Charm)) {
+		if (IsEffectInSpell(buffs[slot_id].spellid, SpellEffect::Charm)) {
 			buffs[slot_id].spellid = SPELL_UNKNOWN;
 			break;
 		}
 
-		if (IsEffectInSpell(buffs[slot_id].spellid, SE_Illusion)) {
+		if (IsEffectInSpell(buffs[slot_id].spellid, SpellEffect::Illusion)) {
 			if (buffs[slot_id].persistant_buff) {
 				break;
 			}
@@ -4270,4 +4286,29 @@ void ZoneDatabase::SaveCharacterEXPModifier(Client* c)
 			.exp_modifier = m.exp_modifier
 		}
 	);
+}
+
+void ZoneDatabase::LoadCharacterTitleSets(Client* c)
+{
+	if (!zone || !c) {
+		return;
+	}
+
+	const auto& l = PlayerTitlesetsRepository::GetWhere(
+		*this,
+		fmt::format(
+			"`char_id` = {}",
+			c->CharacterID()
+		)
+	);
+
+	if (l.empty()) {
+		return;
+	}
+
+	const uint32 character_id = c->CharacterID();
+
+	for (const auto& e : l) {
+		c->EnableTitle(e.title_set, false);
+	}
 }

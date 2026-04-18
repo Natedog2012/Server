@@ -1,14 +1,30 @@
+/*	EQEmu: EQEmulator
 
+	Copyright (C) 2001-2026 EQEmu Development Team
 
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "water_map.h"
-#include "water_map_v1.h"
-#include "water_map_v2.h"
-#include "../common/eqemu_logsys.h"
+
+#include "common/eqemu_logsys.h"
+#include "zone/water_map_v1.h"
+#include "zone/water_map_v2.h"
 
 #include <algorithm>
 #include <cctype>
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 /**
  * @param zone_name
@@ -17,7 +33,7 @@
 WaterMap* WaterMap::LoadWaterMapfile(std::string zone_name) {
 	std::transform(zone_name.begin(), zone_name.end(), zone_name.begin(), ::tolower);
 
-	std::string file_path = fmt::format("{}/water/{}.wtr", path.GetMapsPath(), zone_name);
+	std::string file_path = fmt::format("{}/water/{}.wtr", PathManager::Instance()->GetMapsPath(), zone_name);
 	LogDebug("Attempting to load water map with path [{}]", file_path.c_str());
 	FILE *f = fopen(file_path.c_str(), "rb");
 	if(f) {

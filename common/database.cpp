@@ -1,86 +1,62 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2015 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#include "common/data_verification.h"
+#include "common/database_schema.h"
+#include "common/database.h"
+#include "common/eq_packet_structs.h"
+#include "common/events/player_event_logs.h"
+#include "common/extprofile.h"
+#include "common/http/httplib.h"
+#include "common/http/uri.h"
+#include "common/platform/win/include_windows.h"
+#include "common/repositories/account_repository.h"
+#include "common/repositories/adventure_stats_repository.h"
+#include "common/repositories/bot_data_repository.h"
+#include "common/repositories/buyer_repository.h"
+#include "common/repositories/character_bind_repository.h"
+#include "common/repositories/character_data_repository.h"
+#include "common/repositories/character_languages_repository.h"
+#include "common/repositories/character_leadership_abilities_repository.h"
+#include "common/repositories/character_parcels_repository.h"
+#include "common/repositories/character_pet_name_repository.h"
+#include "common/repositories/character_skills_repository.h"
+#include "common/repositories/data_buckets_repository.h"
+#include "common/repositories/group_id_repository.h"
+#include "common/repositories/group_leaders_repository.h"
+#include "common/repositories/guild_members_repository.h"
+#include "common/repositories/instance_list_repository.h"
+#include "common/repositories/inventory_snapshots_repository.h"
+#include "common/repositories/ip_exemptions_repository.h"
+#include "common/repositories/merchantlist_temp_repository.h"
+#include "common/repositories/name_filter_repository.h"
+#include "common/repositories/npc_types_repository.h"
+#include "common/repositories/raid_details_repository.h"
+#include "common/repositories/raid_members_repository.h"
+#include "common/repositories/reports_repository.h"
+#include "common/repositories/trader_repository.h"
+#include "common/repositories/variables_repository.h"
+#include "common/repositories/zone_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "common/zone_store.h"
 
-#include "../common/global_define.h"
-#include "../common/rulesys.h"
-
-#include <ctype.h>
-#include <iomanip>
-#include <iostream>
 #include <map>
 #include <algorithm>
-#include <mysqld_error.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "../common/repositories/account_repository.h"
-#include "../common/repositories/adventure_stats_repository.h"
-#include "../common/repositories/character_bind_repository.h"
-#include "../common/repositories/character_data_repository.h"
-#include "../common/repositories/character_languages_repository.h"
-#include "../common/repositories/character_leadership_abilities_repository.h"
-#include "../common/repositories/character_parcels_repository.h"
-#include "../common/repositories/character_skills_repository.h"
-#include "../common/repositories/data_buckets_repository.h"
-#include "../common/repositories/group_id_repository.h"
-#include "../common/repositories/group_leaders_repository.h"
-#include "../common/repositories/guild_members_repository.h"
-#include "../common/repositories/instance_list_repository.h"
-#include "../common/repositories/inventory_snapshots_repository.h"
-#include "../common/repositories/ip_exemptions_repository.h"
-#include "../common/repositories/name_filter_repository.h"
-#include "../common/repositories/npc_types_repository.h"
-#include "../common/repositories/raid_details_repository.h"
-#include "../common/repositories/raid_members_repository.h"
-#include "../common/repositories/reports_repository.h"
-#include "../common/repositories/variables_repository.h"
-#include "../common/repositories/character_pet_name_repository.h"
-#include "../common/events/player_event_logs.h"
-
-// Disgrace: for windows compile
-#ifdef _WINDOWS
-#include <windows.h>
-#define snprintf	_snprintf
-#define strncasecmp	_strnicmp
-#define strcasecmp	_stricmp
-#else
-#include "unix.h"
-#include <netinet/in.h>
-#include <sys/time.h>
-
-#endif
-
-#include "database.h"
-#include "data_verification.h"
-#include "eq_packet_structs.h"
-#include "extprofile.h"
-#include "strings.h"
-#include "database_schema.h"
-#include "http/httplib.h"
-#include "http/uri.h"
-
-#include "repositories/zone_repository.h"
-#include "zone_store.h"
-#include "repositories/merchantlist_temp_repository.h"
-#include "repositories/bot_data_repository.h"
-#include "repositories/trader_repository.h"
-#include "repositories/buyer_repository.h"
 
 extern Client client;
 
@@ -708,6 +684,20 @@ const std::string Database::GetNPCNameByID(uint32 npc_id)
 	return e.id ? e.name : std::string();
 }
 
+template<typename InputIterator, typename OutputIterator>
+inline auto CleanMobName(InputIterator first, InputIterator last, OutputIterator result)
+{
+	for (; first != last; ++first) {
+		if (*first == '_') {
+			*result = ' ';
+		}
+		else if (isalpha(*first) || *first == '`') {
+			*result = *first;
+		}
+	}
+	return result;
+}
+
 const std::string Database::GetCleanNPCNameByID(uint32 npc_id)
 {
 	const auto& e = NpcTypesRepository::FindOne(*this, npc_id);
@@ -738,7 +728,7 @@ bool Database::LoadVariables()
 		return true;
 	}
 
-	LockMutex lock(&Mvarcache);
+	std::scoped_lock lock(Mvarcache);
 
 	for (const auto& e : l) {
 		varcache.last_update = std::time(nullptr);
@@ -757,7 +747,7 @@ bool Database::LoadVariables()
 
 bool Database::GetVariable(const std::string& name, std::string& value)
 {
-	LockMutex lock(&Mvarcache);
+	std::scoped_lock lock(Mvarcache);
 
 	if (name.empty()) {
 		return false;
@@ -1095,13 +1085,13 @@ void Database::SetLFP(uint32 character_id, bool is_lfp)
 	CharacterDataRepository::UpdateOne(*this, e);
 }
 
-void Database::SetLoginFlags(uint32 character_id, bool is_lfp, bool is_lfg, uint8 first_logon)
+void Database::SetLoginFlags(uint32 character_id, bool is_lfp, bool is_lfg, uint8 ingame)
 {
 	auto e = CharacterDataRepository::FindOne(*this, character_id);
 
-	e.firstlogon = first_logon;
-	e.lfg        = is_lfg ? 1 : 0;
-	e.lfp        = is_lfp ? 1 : 0;
+	e.ingame = ingame;
+	e.lfg    = is_lfg ? 1 : 0;
+	e.lfp    = is_lfp ? 1 : 0;
 
 	CharacterDataRepository::UpdateOne(*this, e);
 }
@@ -1115,11 +1105,11 @@ void Database::SetLFG(uint32 character_id, bool is_lfg)
 	CharacterDataRepository::UpdateOne(*this, e);
 }
 
-void Database::SetFirstLogon(uint32 character_id, uint8 first_logon)
+void Database::SetIngame(uint32 character_id, uint8 ingame)
 {
 	auto e = CharacterDataRepository::FindOne(*this, character_id);
 
-	e.firstlogon = first_logon;
+	e.ingame = ingame;
 
 	CharacterDataRepository::UpdateOne(*this, e);
 }
@@ -1920,6 +1910,7 @@ bool Database::CopyCharacter(
 	std::vector<std::string> tables_to_zero_id = {
 		"keyring",
 		"data_buckets",
+		"character_evolving_items",
 		"character_instance_safereturns",
 		"character_expedition_lockouts",
 		"character_instance_lockouts",
@@ -1951,6 +1942,12 @@ bool Database::CopyCharacter(
 			)
 		);
 
+		if (!results.Success()) {
+			LogError("Transaction failed [{}] rolling back", results.ErrorMessage());
+			TransactionRollback();
+			return false;
+		}
+
 		std::vector<std::string> columns      = {};
 		int                      column_count = 0;
 
@@ -1968,6 +1965,12 @@ bool Database::CopyCharacter(
 				source_character_id
 			)
 		);
+
+		if (!results.Success()) {
+			LogError("Transaction failed [{}] rolling back", results.ErrorMessage());
+			TransactionRollback();
+			return false;
+		}
 
 		std::vector<std::vector<std::string>> new_rows;
 
@@ -2036,13 +2039,18 @@ bool Database::CopyCharacter(
 			LogInfo("Copying table [{}] rows [{}]", table_name, Strings::Commify(rows_copied));
 
 			if (!insert.ErrorMessage().empty()) {
+				LogError("Error copying table [{}] [{}]", table_name, insert.ErrorMessage());
 				TransactionRollback();
 				return false;
 			}
 		}
 	}
 
-	TransactionCommit();
+	auto r = TransactionCommit();
+	if (!r.Success()) {
+		LogError("Transaction failed [{}] rolling back", r.ErrorMessage());
+		return false;
+	}
 
 	LogInfo(
 		"Character [{}] copied to [{}] total rows [{}]",
@@ -2212,7 +2220,7 @@ void Database::PurgeCharacterParcels()
 		pel.event_data = ss.str();
 		pel.created_at = std::time(nullptr);
 
-		player_event_logs.AddToQueue(pel);
+		PlayerEventLogs::Instance()->AddToQueue(pel);
 
 		ss.str("");
 		ss.clear();

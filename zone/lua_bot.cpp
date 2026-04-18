@@ -1,14 +1,32 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #ifdef LUA_EQEMU
 
-#include "lua.hpp"
-#include <luabind/luabind.hpp>
-
-#include "bot.h"
 #include "lua_bot.h"
-#include "lua_iteminst.h"
-#include "lua_mob.h"
-#include "lua_group.h"
-#include "lua_item.h"
+
+#include "zone/bot.h"
+#include "zone/lua_iteminst.h"
+#include "zone/lua_mob.h"
+#include "zone/lua_group.h"
+#include "zone/lua_item.h"
+
+#include "lua.hpp"
+#include "luabind/luabind.hpp"
 
 void Lua_Bot::AddBotItem(uint16 slot_id, uint32 item_id) {
 	Lua_Safe_Call_Void();
@@ -107,12 +125,12 @@ void Lua_Bot::SetExpansionBitmask(int expansion_bitmask) {
 
 bool Lua_Bot::ReloadBotDataBuckets() {
 	Lua_Safe_Call_Bool();
-	return DataBucket::GetDataBuckets(self);
+	return self->LoadDataBucketsCache();;
 }
 
 bool Lua_Bot::ReloadBotOwnerDataBuckets() {
 	Lua_Safe_Call_Bool();
-	return self->HasOwner() && DataBucket::GetDataBuckets(self->GetBotOwner());
+	return self->HasOwner() && self->LoadDataBucketsCache();
 }
 
 bool Lua_Bot::ReloadBotSpells() {
@@ -790,4 +808,4 @@ luabind::scope lua_register_bot() {
 	.def("Stand", (void(Lua_Bot::*)(void))&Lua_Bot::Stand);
 }
 
-#endif
+#endif // LUA_EQEMU

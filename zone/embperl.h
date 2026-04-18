@@ -1,3 +1,20 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 /*
 Embperl.h
 ---------------
@@ -5,20 +22,19 @@ eqemu perl wrapper
 Eglin
 */
 
-#ifndef EMBPERL_H
-#define EMBPERL_H
+#pragma once
 
 #ifdef EMBPERL
 
 #include "zone_config.h"
 
+#include "perlbind/perlbind.h"
+#include <cstdio>
+#include <cstring>
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
-#include <stdio.h>
-#include <string.h>
 
-#include <perlbind/perlbind.h>
 namespace perl = perlbind;
 
 #undef connect
@@ -149,6 +165,5 @@ public:
 	//check to see if a sub exists in package
 	bool SubExists(const char* package, const char* sub);
 };
-#endif //EMBPERL
 
-#endif //EMBPERL_H
+#endif // EMBPERL

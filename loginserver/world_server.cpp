@@ -1,10 +1,28 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "world_server.h"
-#include "login_server.h"
-#include "login_types.h"
-#include "../common/ip_util.h"
-#include "../common/strings.h"
-#include "../common/repositories/login_world_servers_repository.h"
-#include "../common/repositories/login_server_admins_repository.h"
+
+#include "common/ip_util.h"
+#include "common/repositories/login_server_admins_repository.h"
+#include "common/repositories/login_world_servers_repository.h"
+#include "common/strings.h"
+#include "loginserver/login_server.h"
+#include "loginserver/login_types.h"
 
 extern LoginServer server;
 extern Database    database;
@@ -155,7 +173,11 @@ void WorldServer::ProcessUserToWorldResponseLegacy(uint16_t opcode, const EQ::Ne
 	auto *res = (UsertoWorldResponseLegacy *) packet.Data();
 
 	LogDebug("Trying to find client with user id of [{}]", res->lsaccountid);
-	Client *c = server.client_manager->GetClient(res->lsaccountid, "eqemu");
+	std::string db_loginserver = "local";
+	if (std::getenv("LSPX")) {
+		db_loginserver = "eqemu";
+	}
+	Client *c = server.client_manager->GetClient(res->lsaccountid, db_loginserver);
 	if (c) {
 		LogDebug(
 			"Found client with user id of [{}] and account name of [{}]",

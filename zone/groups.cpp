@@ -1,32 +1,32 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#include "groups.h"
 
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-#include "dynamic_zone.h"
-#include "masterentity.h"
-#include "worldserver.h"
-#include "string_ids.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/repositories/character_expedition_lockouts_repository.h"
-#include "../common/repositories/group_id_repository.h"
-#include "../common/repositories/group_leaders_repository.h"
-#include "queryserv.h"
+#include "common/eqemu_logsys.h"
+#include "common/events/player_event_logs.h"
+#include "common/repositories/character_expedition_lockouts_repository.h"
+#include "common/repositories/group_id_repository.h"
+#include "common/repositories/group_leaders_repository.h"
+#include "zone/dynamic_zone.h"
+#include "zone/masterentity.h"
+#include "zone/queryserv.h"
+#include "zone/string_ids.h"
+#include "zone/worldserver.h"
 
 
 extern EntityList  entity_list;
@@ -206,7 +206,7 @@ void Group::SplitMoney(uint32 copper, uint32 silver, uint32 gold, uint32 platinu
 			}
 
 			// If logging of player money transactions is enabled, record the transaction.
-			if (player_event_logs.IsEventEnabled(PlayerEvent::SPLIT_MONEY)) {
+			if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::SPLIT_MONEY)) {
 				auto e = PlayerEvent::SplitMoneyEvent{
 					.copper = receive_copper,
 					.silver = receive_silver,
@@ -1280,7 +1280,7 @@ void Client::LeaveGroup() {
 					if (database.botdb.GetOwnerID(botID) == CharacterID()) {
 						MemberCount -= 1;
 					}
-				}			
+				}
 			}
 		}
 
@@ -2472,17 +2472,61 @@ bool Group::AmIPuller(const char *mob_name)
 	return !((bool)PullerName.compare(mob_name));
 }
 
-bool Group::HasRole(Mob *m, uint8 Role)
+bool Group::HasRole(Mob* m, uint8 Role)
 {
-	if(!m)
+	if (!m) {
 		return false;
-
-	for(uint32 i = 0; i < MAX_GROUP_MEMBERS; ++i)
-	{
-		if((m == members[i]) && (MemberRoles[i] & Role))
-			return true;
 	}
+
+	for (uint32 i = 0; i < MAX_GROUP_MEMBERS; ++i) {
+		if (m == members[i] && MemberRoles[i] & Role) {
+			return true;
+		}
+	}
+
 	return false;
+}
+
+uint8 Group::GetMemberRole(Mob* m)
+{
+	if (!m) {
+		return 0;
+	}
+
+	for (uint32 i = 0; i < MAX_GROUP_MEMBERS; ++i) {
+		if (m == members[i]) {
+			uint8 role = MemberRoles[i];
+
+			if (m == leader) {
+				role |= RoleLeader;
+			}
+
+			return role;
+		}
+	}
+
+	return 0;
+}
+
+uint8 Group::GetMemberRole(const char* name)
+{
+	if (!name) {
+		return 0;
+	}
+
+	for (uint32 i = 0; i < MAX_GROUP_MEMBERS; ++i) {
+		if (!strcasecmp(membername[i], name)) {
+			uint8 role = MemberRoles[i];
+
+			if (leader && !strcasecmp(leader->GetName(), name)) {
+				role |= RoleLeader;
+			}
+
+			return role;
+		}
+	}
+
+	return 0;
 }
 
 void Group::QueueClients(Mob *sender, const EQApplicationPacket *app, bool ack_required /*= true*/, bool ignore_sender /*= true*/, float distance /*= 0*/) {

@@ -1,10 +1,26 @@
-#ifndef EQEMU_SHARED_TASK_MANAGER_H
-#define EQEMU_SHARED_TASK_MANAGER_H
+/*	EQEmu: EQEmulator
 
-#include "../common/database.h"
-#include "../common/shared_tasks.h"
-#include "../common/timer.h"
-#include "../common/repositories/character_task_timers_repository.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/database.h"
+#include "common/repositories/character_task_timers_repository.h"
+#include "common/shared_tasks.h"
+#include "common/timer.h"
 
 class DynamicZone;
 
@@ -102,6 +118,12 @@ public:
 	void SetSharedTasks(const std::vector<SharedTask> &shared_tasks);
 
 	SharedTaskManager * PurgeExpiredSharedTasks();
+
+	static SharedTaskManager* Instance()
+	{
+		static SharedTaskManager instance;
+		return &instance;
+	}
 protected:
 	// reference to database
 	Database *m_database;
@@ -141,5 +163,3 @@ protected:
 	// memory search
 	std::vector<SharedTaskMember> FindCharactersInSharedTasks(const std::vector<uint32_t> &find_characters);
 };
-
-#endif //EQEMU_SHARED_TASK_MANAGER_H

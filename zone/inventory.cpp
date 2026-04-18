@@ -1,33 +1,32 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#include "client.h"
 
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-
-#include "../common/strings.h"
-#include "quest_parser_collection.h"
-#include "worldserver.h"
-#include "zonedb.h"
-#include "../common/events/player_event_logs.h"
-#include "bot.h"
-#include "../common/evolving_items.h"
-#include "../common/repositories/character_corpse_items_repository.h"
-#include "queryserv.h"
+#include "common/eqemu_logsys.h"
+#include "common/events/player_event_logs.h"
+#include "common/evolving_items.h"
+#include "common/repositories/character_corpse_items_repository.h"
+#include "common/strings.h"
+#include "zone/bot.h"
+#include "zone/queryserv.h"
+#include "zone/quest_parser_collection.h"
+#include "zone/worldserver.h"
+#include "zone/zonedb.h"
 
 extern WorldServer worldserver;
 extern QueryServ  *QServ;
@@ -647,7 +646,7 @@ bool Client::SummonItem(uint32 item_id, int16 charges, uint32 aug1, uint32 aug2,
 		}
 	}
 
-	if (player_event_logs.IsEventEnabled(PlayerEvent::ITEM_CREATION)) {
+	if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::ITEM_CREATION)) {
 		auto e = PlayerEvent::ItemCreationEvent{};
 		e.item_id      = item->ID;
 		e.item_name    = item->Name;
@@ -704,7 +703,7 @@ void Client::DropItem(int16 slot_id, bool recurse)
 			LogInventory("Error in InventoryProfile::CheckNoDrop() - returned 'true' for empty slot");
 		}
 		else {
-			if (LogSys.log_settings[Logs::Inventory].is_category_enabled) {
+			if (EQEmuLogSys::Instance()->log_settings[Logs::Inventory].is_category_enabled) {
 				LogInventory("DropItem() Hack detected - full item parse:");
 				LogInventory("depth: 0, Item: [{}] (id: [{}]), IsDroppable: [{}]",
 					(invalid_drop->GetItem() ? invalid_drop->GetItem()->Name : "null data"), invalid_drop->GetID(), (invalid_drop->IsDroppable(false) ? "true" : "false"));
@@ -736,7 +735,7 @@ void Client::DropItem(int16 slot_id, bool recurse)
 	// Take control of item in client inventory
 	auto* inst = m_inv.PopItem(slot_id);
 	if (inst) {
-		if (LogSys.log_settings[Logs::Inventory].is_category_enabled) {
+		if (EQEmuLogSys::Instance()->log_settings[Logs::Inventory].is_category_enabled) {
 			LogInventory("DropItem() Processing - full item parse:");
 			LogInventory(
 				"depth: 0, Item: [{}] (id: [{}]), IsDroppable: [{}]",
@@ -779,7 +778,7 @@ void Client::DropItem(int16 slot_id, bool recurse)
 
 		int i = 0;
 
-		if (inst && player_event_logs.IsEventEnabled(PlayerEvent::DROPPED_ITEM)) {
+		if (inst && PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::DROPPED_ITEM)) {
 			auto e = PlayerEvent::DroppedItemEvent{
 				.item_id      = inst->GetID(),
 				.augment_1_id = inst->GetAugmentItemID(0),
@@ -1053,7 +1052,7 @@ bool Client::PushItemOnCursor(const EQ::ItemInstance& inst, bool client_update)
 {
 	LogInventory("Putting item [{}] ([{}]) on the cursor", inst.GetItem()->Name, inst.GetItem()->ID);
 
-	evolving_items_manager.DoLootChecks(CharacterID(), EQ::invslot::slotCursor, inst);
+	EvolvingItemsManager::Instance()->DoLootChecks(CharacterID(), EQ::invslot::slotCursor, inst);
 	m_inv.PushCursor(inst);
 
 	if (client_update) {
@@ -1075,7 +1074,7 @@ bool Client::PutItemInInventory(int16 slot_id, const EQ::ItemInstance& inst, boo
 		return PushItemOnCursor(inst, client_update);
 	}
 
-	evolving_items_manager.DoLootChecks(CharacterID(), slot_id, inst);
+	EvolvingItemsManager::Instance()->DoLootChecks(CharacterID(), slot_id, inst);
 	m_inv.PutItem(slot_id, inst);
 
 	if (client_update)
@@ -1103,7 +1102,7 @@ void Client::PutLootInInventory(int16 slot_id, const EQ::ItemInstance &inst, Loo
 
 	bool cursor_empty = m_inv.CursorEmpty();
 
-	evolving_items_manager.DoLootChecks(CharacterID(), slot_id, inst);
+	EvolvingItemsManager::Instance()->DoLootChecks(CharacterID(), slot_id, inst);
 
 	if (slot_id == EQ::invslot::slotCursor) {
 		m_inv.PushCursor(inst);
@@ -1671,7 +1670,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 
 				DeleteItemInInventory(EQ::invslot::slotCursor, 0, true);
 
-				if (test_inst && player_event_logs.IsEventEnabled(PlayerEvent::ITEM_DESTROY)) {
+				if (test_inst && PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::ITEM_DESTROY)) {
 					auto e = PlayerEvent::DestroyItemEvent{
 						.item_id      = test_inst->GetItem()->ID,
 						.item_name    = test_inst->GetItem()->Name,
@@ -1701,7 +1700,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 			EQ::ItemInstance *inst = m_inv.GetItem(EQ::invslot::slotCursor);
 
 			if (inst) {
-				if (player_event_logs.IsEventEnabled(PlayerEvent::ITEM_DESTROY)) {
+				if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::ITEM_DESTROY)) {
 					auto e = PlayerEvent::DestroyItemEvent{
 						.item_id      = inst->GetItem()->ID,
 						.item_name    = inst->GetItem()->Name,
@@ -4623,26 +4622,32 @@ void Client::SummonItemIntoInventory(
 		return;
 	}
 
-	const bool  is_arrow = inst->GetItem()->ItemType == EQ::item::ItemTypeArrow;
-	const int16 slot_id  = m_inv.FindFreeSlot(
-		inst->IsClassBag(),
-		true,
-		inst->GetItem()->Size,
-		is_arrow
-	);
+	// Try stacking first if the item is stackable, then fall back to finding a free slot
+	if (!PutItemInInventoryWithStacking(inst)) {
+		// PutItemInInventoryWithStacking failed, fall back to original behavior
+		const bool  is_arrow = inst->GetItem()->ItemType == EQ::item::ItemTypeArrow;
+		const int16 slot_id  = m_inv.FindFreeSlot(
+			inst->IsClassBag(),
+			true,
+			inst->GetItem()->Size,
+			is_arrow
+		);
 
-	SummonItem(
-		item_id,
-		charges,
-		aug1,
-		aug2,
-		aug3,
-		aug4,
-		aug5,
-		aug6,
-		is_attuned,
-		slot_id
-	);
+		SummonItem(
+			item_id,
+			charges,
+			aug1,
+			aug2,
+			aug3,
+			aug4,
+			aug5,
+			aug6,
+			is_attuned,
+			slot_id
+		);
+	}
+
+	safe_delete(inst);
 }
 
 bool Client::HasItemOnCorpse(uint32 item_id)
@@ -4689,7 +4694,8 @@ bool Client::PutItemInInventoryWithStacking(EQ::ItemInstance *inst)
 			return true;
 		}
 	}
-	if (free_id != INVALID_INDEX) {
+	// Protect equipment slots (0-22) from being overwritten
+	if (free_id != INVALID_INDEX && !EQ::ValueWithin(free_id, EQ::invslot::EQUIPMENT_BEGIN, EQ::invslot::EQUIPMENT_END)) {
 		if (PutItemInInventory(free_id, *inst, true)) {
 			return true;
 		}

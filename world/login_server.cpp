@@ -1,27 +1,41 @@
-#include "../common/global_define.h"
-#include <iostream>
-#include <string.h>
-#include <stdio.h>
-#include <iomanip>
-#include <stdlib.h>
-#include "../common/version.h"
-#include "../common/servertalk.h"
-#include "../common/misc_functions.h"
-#include "../common/eq_packet_structs.h"
-#include "../common/packet_dump.h"
-#include "../common/strings.h"
-#include "../common/eqemu_logsys.h"
-#include "login_server.h"
-#include "login_server_list.h"
-#include "zoneserver.h"
-#include "worlddb.h"
-#include "zonelist.h"
-#include "clientlist.h"
-#include "cliententry.h"
-#include "world_config.h"
+/*	EQEmu: EQEmulator
 
-extern ZSList        zoneserver_list;
-extern ClientList    client_list;
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "login_server.h"
+
+#include "common/eq_packet_structs.h"
+#include "common/eqemu_logsys.h"
+#include "common/misc_functions.h"
+#include "common/packet_dump.h"
+#include "common/servertalk.h"
+#include "common/strings.h"
+#include "common/version.h"
+#include "world/cliententry.h"
+#include "world/clientlist.h"
+#include "world/login_server_list.h"
+#include "world/world_config.h"
+#include "world/worlddb.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
+
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+
 extern uint32        numzones;
 extern uint32        numplayers;
 extern volatile bool RunLoops;
@@ -108,7 +122,7 @@ void LoginServer::ProcessUsertoWorldReqLeg(uint16_t opcode, EQ::Net::Packet &p)
 	}
 
 	if (RuleB(World, EnforceCharacterLimitAtLogin)) {
-		if (client_list.IsAccountInGame(utwr->lsaccountid)) {
+		if (ClientList::Instance()->IsAccountInGame(utwr->lsaccountid)) {
 			LogDebug("User already online account_id [{0}]", utwr->lsaccountid);
 			utwrs->response = UserToWorldStatusAlreadyOnline;
 			SendPacket(&outpack);
@@ -189,7 +203,7 @@ void LoginServer::ProcessUsertoWorldReq(uint16_t opcode, EQ::Net::Packet &p)
 	}
 
 	if (RuleB(World, EnforceCharacterLimitAtLogin)) {
-		if (client_list.IsAccountInGame(utwr->lsaccountid)) {
+		if (ClientList::Instance()->IsAccountInGame(utwr->lsaccountid)) {
 			LogDebug("User already online account_id [{0}]", utwr->lsaccountid);
 			utwrs->response = UserToWorldStatusAlreadyOnline;
 			SendPacket(&outpack);
@@ -221,7 +235,7 @@ void LoginServer::ProcessLSClientAuthLegacy(uint16_t opcode, EQ::Net::Packet &p)
 			r.is_client_from_local_network
 		);
 
-		client_list.CLEAdd(
+		ClientList::Instance()->CLEAdd(
 			r.loginserver_account_id,
 			"eqemu",
 			r.loginserver_account_name,
@@ -256,7 +270,7 @@ void LoginServer::ProcessLSClientAuth(uint16_t opcode, EQ::Net::Packet &p)
 			r.is_client_from_local_network
 		);
 
-		client_list.CLEAdd(
+		ClientList::Instance()->CLEAdd(
 			r.loginserver_account_id,
 			r.loginserver_name,
 			r.account_name,
@@ -312,7 +326,7 @@ void LoginServer::ProcessSystemwideMessage(uint16_t opcode, EQ::Net::Packet &p)
 	LogNetcode("Received ServerPacket from LS OpCode {:#04x}", opcode);
 
 	ServerSystemwideMessage *swm = (ServerSystemwideMessage *) p.Data();
-	zoneserver_list.SendEmoteMessageRaw(
+	ZSList::Instance()->SendEmoteMessageRaw(
 		0,
 		0,
 		AccountStatus::Player,
@@ -376,7 +390,7 @@ bool LoginServer::Connect()
 
 					SendInfo();
 					SendStatus();
-					zoneserver_list.SendLSZones();
+					ZSList::Instance()->SendLSZones();
 
 					m_statusupdate_timer = std::make_unique<EQ::Timer>(
 						LoginServer_StatusUpdateInterval, true, [this](EQ::Timer *t) {
@@ -485,7 +499,7 @@ bool LoginServer::Connect()
 					);
 					SendInfo();
 					SendStatus();
-					zoneserver_list.SendLSZones();
+					ZSList::Instance()->SendLSZones();
 
 					m_statusupdate_timer = std::make_unique<EQ::Timer>(
 						LoginServer_StatusUpdateInterval, true, [this](EQ::Timer *t) {

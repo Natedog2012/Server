@@ -1,41 +1,37 @@
-/*  EQEMu:  Everquest Server Emulator
-	Copyright (C) 2001-2006  EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/features.h"
-#include "../common/content/world_content_service.h"
-#include "../common/zone_store.h"
-
 #ifdef EMBPERL
 #ifdef EMBPERL_XS
 
-#include "../common/global_define.h"
-#include "../common/misc_functions.h"
-
-#include "dialogue_window.h"
-#include "dynamic_zone.h"
-#include "embperl.h"
-#include "entity.h"
-#include "queryserv.h"
-#include "questmgr.h"
-#include "zone.h"
-#include "data_bucket.h"
-#include "../common/events/player_event_logs.h"
-#include "worldserver.h"
+#include "common/content/world_content_service.h"
+#include "common/data_bucket.h"
+#include "common/events/player_event_logs.h"
+#include "common/features.h"
+#include "common/misc_functions.h"
+#include "common/zone_store.h"
+#include "zone/dialogue_window.h"
+#include "zone/dynamic_zone.h"
+#include "zone/embperl.h"
+#include "zone/entity.h"
+#include "zone/queryserv.h"
+#include "zone/questmgr.h"
+#include "zone/worldserver.h"
+#include "zone/zone.h"
 
 #include <cctype>
 
@@ -1271,6 +1267,16 @@ void Perl__failtask(int task_id)
 	quest_manager.failtask(task_id);
 }
 
+bool Perl__completetask(int task_id)
+{
+	return quest_manager.completetask(task_id);
+}
+
+bool Perl__uncompletetask(int task_id)
+{
+	return quest_manager.uncompletetask(task_id);
+}
+
 int Perl__tasktimeleft(int task_id)
 {
 	return quest_manager.tasktimeleft(task_id);
@@ -2475,307 +2481,307 @@ std::string Perl__get_rule(const char* rule_name)
 
 std::string Perl__get_data(std::string bucket_key)
 {
-	return DataBucket::GetData(bucket_key);
+	return DataBucket::GetData(&database, bucket_key);
 }
 
 std::string Perl__get_data_expires(std::string bucket_key)
 {
-	return DataBucket::GetDataExpires(bucket_key);
+	return DataBucket::GetDataExpires(&database, bucket_key);
 }
 
 void Perl__set_data(std::string key, std::string value)
 {
-	DataBucket::SetData(key, value);
+	DataBucket::SetData(&database, key, value);
 }
 
 void Perl__set_data(std::string key, std::string value, std::string expires_at)
 {
-	DataBucket::SetData(key, value, expires_at);
+	DataBucket::SetData(&database, key, value, expires_at);
 }
 
 bool Perl__delete_data(std::string bucket_key)
 {
-	return DataBucket::DeleteData(bucket_key);
+	return DataBucket::DeleteData(&database, bucket_key);
 }
 
 bool Perl__IsClassicEnabled()
 {
-	return content_service.IsClassicEnabled();
+	return WorldContentService::Instance()->IsClassicEnabled();
 }
 
 bool Perl__IsTheRuinsOfKunarkEnabled()
 {
-	return content_service.IsTheRuinsOfKunarkEnabled();
+	return WorldContentService::Instance()->IsTheRuinsOfKunarkEnabled();
 }
 
 bool Perl__IsTheScarsOfVeliousEnabled()
 {
-	return content_service.IsTheScarsOfVeliousEnabled();
+	return WorldContentService::Instance()->IsTheScarsOfVeliousEnabled();
 }
 
 bool Perl__IsTheShadowsOfLuclinEnabled()
 {
-	return content_service.IsTheShadowsOfLuclinEnabled();
+	return WorldContentService::Instance()->IsTheShadowsOfLuclinEnabled();
 }
 
 bool Perl__IsThePlanesOfPowerEnabled()
 {
-	return content_service.IsThePlanesOfPowerEnabled();
+	return WorldContentService::Instance()->IsThePlanesOfPowerEnabled();
 }
 
 bool Perl__IsTheLegacyOfYkeshaEnabled()
 {
-	return content_service.IsTheLegacyOfYkeshaEnabled();
+	return WorldContentService::Instance()->IsTheLegacyOfYkeshaEnabled();
 }
 
 bool Perl__IsLostDungeonsOfNorrathEnabled()
 {
-	return content_service.IsLostDungeonsOfNorrathEnabled();
+	return WorldContentService::Instance()->IsLostDungeonsOfNorrathEnabled();
 }
 
 bool Perl__IsGatesOfDiscordEnabled()
 {
-	return content_service.IsGatesOfDiscordEnabled();
+	return WorldContentService::Instance()->IsGatesOfDiscordEnabled();
 }
 
 bool Perl__IsOmensOfWarEnabled()
 {
-	return content_service.IsOmensOfWarEnabled();
+	return WorldContentService::Instance()->IsOmensOfWarEnabled();
 }
 
 bool Perl__IsDragonsOfNorrathEnabled()
 {
-	return content_service.IsDragonsOfNorrathEnabled();
+	return WorldContentService::Instance()->IsDragonsOfNorrathEnabled();
 }
 
 bool Perl__IsDepthsOfDarkhollowEnabled()
 {
-	return content_service.IsDepthsOfDarkhollowEnabled();
+	return WorldContentService::Instance()->IsDepthsOfDarkhollowEnabled();
 }
 
 bool Perl__IsProphecyOfRoEnabled()
 {
-	return content_service.IsProphecyOfRoEnabled();
+	return WorldContentService::Instance()->IsProphecyOfRoEnabled();
 }
 
 bool Perl__IsTheSerpentsSpineEnabled()
 {
-	return content_service.IsTheSerpentsSpineEnabled();
+	return WorldContentService::Instance()->IsTheSerpentsSpineEnabled();
 }
 
 bool Perl__IsTheBuriedSeaEnabled()
 {
-	return content_service.IsTheBuriedSeaEnabled();
+	return WorldContentService::Instance()->IsTheBuriedSeaEnabled();
 }
 
 bool Perl__IsSecretsOfFaydwerEnabled()
 {
-	return content_service.IsSecretsOfFaydwerEnabled();
+	return WorldContentService::Instance()->IsSecretsOfFaydwerEnabled();
 }
 
 bool Perl__IsSeedsOfDestructionEnabled()
 {
-	return content_service.IsSeedsOfDestructionEnabled();
+	return WorldContentService::Instance()->IsSeedsOfDestructionEnabled();
 }
 
 bool Perl__IsUnderfootEnabled()
 {
-	return content_service.IsUnderfootEnabled();
+	return WorldContentService::Instance()->IsUnderfootEnabled();
 }
 
 bool Perl__IsHouseOfThuleEnabled()
 {
-	return content_service.IsHouseOfThuleEnabled();
+	return WorldContentService::Instance()->IsHouseOfThuleEnabled();
 }
 
 bool Perl__IsVeilOfAlarisEnabled()
 {
-	return content_service.IsVeilOfAlarisEnabled();
+	return WorldContentService::Instance()->IsVeilOfAlarisEnabled();
 }
 
 bool Perl__IsRainOfFearEnabled()
 {
-	return content_service.IsRainOfFearEnabled();
+	return WorldContentService::Instance()->IsRainOfFearEnabled();
 }
 
 bool Perl__IsCallOfTheForsakenEnabled()
 {
-	return content_service.IsCallOfTheForsakenEnabled();
+	return WorldContentService::Instance()->IsCallOfTheForsakenEnabled();
 }
 
 bool Perl__IsTheDarkenedSeaEnabled()
 {
-	return content_service.IsTheDarkenedSeaEnabled();
+	return WorldContentService::Instance()->IsTheDarkenedSeaEnabled();
 }
 
 bool Perl__IsTheBrokenMirrorEnabled()
 {
-	return content_service.IsTheBrokenMirrorEnabled();
+	return WorldContentService::Instance()->IsTheBrokenMirrorEnabled();
 }
 
 bool Perl__IsEmpiresOfKunarkEnabled()
 {
-	return content_service.IsEmpiresOfKunarkEnabled();
+	return WorldContentService::Instance()->IsEmpiresOfKunarkEnabled();
 }
 
 bool Perl__IsRingOfScaleEnabled()
 {
-	return content_service.IsRingOfScaleEnabled();
+	return WorldContentService::Instance()->IsRingOfScaleEnabled();
 }
 
 bool Perl__IsTheBurningLandsEnabled()
 {
-	return content_service.IsTheBurningLandsEnabled();
+	return WorldContentService::Instance()->IsTheBurningLandsEnabled();
 }
 
 bool Perl__IsTormentOfVeliousEnabled()
 {
-	return content_service.IsTormentOfVeliousEnabled();
+	return WorldContentService::Instance()->IsTormentOfVeliousEnabled();
 }
 
 bool Perl__IsCurrentExpansionClassic()
 {
-	return content_service.IsCurrentExpansionClassic();
+	return WorldContentService::Instance()->IsCurrentExpansionClassic();
 }
 
 bool Perl__IsCurrentExpansionTheRuinsOfKunark()
 {
-	return content_service.IsCurrentExpansionTheRuinsOfKunark();
+	return WorldContentService::Instance()->IsCurrentExpansionTheRuinsOfKunark();
 }
 
 bool Perl__IsCurrentExpansionTheScarsOfVelious()
 {
-	return content_service.IsCurrentExpansionTheScarsOfVelious();
+	return WorldContentService::Instance()->IsCurrentExpansionTheScarsOfVelious();
 }
 
 bool Perl__IsCurrentExpansionTheShadowsOfLuclin()
 {
-	return content_service.IsCurrentExpansionTheShadowsOfLuclin();
+	return WorldContentService::Instance()->IsCurrentExpansionTheShadowsOfLuclin();
 }
 
 bool Perl__IsCurrentExpansionThePlanesOfPower()
 {
-	return content_service.IsCurrentExpansionThePlanesOfPower();
+	return WorldContentService::Instance()->IsCurrentExpansionThePlanesOfPower();
 }
 
 bool Perl__IsCurrentExpansionTheLegacyOfYkesha()
 {
-	return content_service.IsCurrentExpansionTheLegacyOfYkesha();
+	return WorldContentService::Instance()->IsCurrentExpansionTheLegacyOfYkesha();
 }
 
 bool Perl__IsCurrentExpansionLostDungeonsOfNorrath()
 {
-	return content_service.IsCurrentExpansionLostDungeonsOfNorrath();
+	return WorldContentService::Instance()->IsCurrentExpansionLostDungeonsOfNorrath();
 }
 
 bool Perl__IsCurrentExpansionGatesOfDiscord()
 {
-	return content_service.IsCurrentExpansionGatesOfDiscord();
+	return WorldContentService::Instance()->IsCurrentExpansionGatesOfDiscord();
 }
 
 bool Perl__IsCurrentExpansionOmensOfWar()
 {
-	return content_service.IsCurrentExpansionOmensOfWar();
+	return WorldContentService::Instance()->IsCurrentExpansionOmensOfWar();
 }
 
 bool Perl__IsCurrentExpansionDragonsOfNorrath()
 {
-	return content_service.IsCurrentExpansionDragonsOfNorrath();
+	return WorldContentService::Instance()->IsCurrentExpansionDragonsOfNorrath();
 }
 
 bool Perl__IsCurrentExpansionDepthsOfDarkhollow()
 {
-	return content_service.IsCurrentExpansionDepthsOfDarkhollow();
+	return WorldContentService::Instance()->IsCurrentExpansionDepthsOfDarkhollow();
 }
 
 bool Perl__IsCurrentExpansionProphecyOfRo()
 {
-	return content_service.IsCurrentExpansionProphecyOfRo();
+	return WorldContentService::Instance()->IsCurrentExpansionProphecyOfRo();
 }
 
 bool Perl__IsCurrentExpansionTheSerpentsSpine()
 {
-	return content_service.IsCurrentExpansionTheSerpentsSpine();
+	return WorldContentService::Instance()->IsCurrentExpansionTheSerpentsSpine();
 }
 
 bool Perl__IsCurrentExpansionTheBuriedSea()
 {
-	return content_service.IsCurrentExpansionTheBuriedSea();
+	return WorldContentService::Instance()->IsCurrentExpansionTheBuriedSea();
 }
 
 bool Perl__IsCurrentExpansionSecretsOfFaydwer()
 {
-	return content_service.IsCurrentExpansionSecretsOfFaydwer();
+	return WorldContentService::Instance()->IsCurrentExpansionSecretsOfFaydwer();
 }
 
 bool Perl__IsCurrentExpansionSeedsOfDestruction()
 {
-	return content_service.IsCurrentExpansionSeedsOfDestruction();
+	return WorldContentService::Instance()->IsCurrentExpansionSeedsOfDestruction();
 }
 
 bool Perl__IsCurrentExpansionUnderfoot()
 {
-	return content_service.IsCurrentExpansionUnderfoot();
+	return WorldContentService::Instance()->IsCurrentExpansionUnderfoot();
 }
 
 bool Perl__IsCurrentExpansionHouseOfThule()
 {
-	return content_service.IsCurrentExpansionHouseOfThule();
+	return WorldContentService::Instance()->IsCurrentExpansionHouseOfThule();
 }
 
 bool Perl__IsCurrentExpansionVeilOfAlaris()
 {
-	return content_service.IsCurrentExpansionVeilOfAlaris();
+	return WorldContentService::Instance()->IsCurrentExpansionVeilOfAlaris();
 }
 
 bool Perl__IsCurrentExpansionRainOfFear()
 {
-	return content_service.IsCurrentExpansionRainOfFear();
+	return WorldContentService::Instance()->IsCurrentExpansionRainOfFear();
 }
 
 bool Perl__IsCurrentExpansionCallOfTheForsaken()
 {
-	return content_service.IsCurrentExpansionCallOfTheForsaken();
+	return WorldContentService::Instance()->IsCurrentExpansionCallOfTheForsaken();
 }
 
 bool Perl__IsCurrentExpansionTheDarkenedSea()
 {
-	return content_service.IsCurrentExpansionTheDarkenedSea();
+	return WorldContentService::Instance()->IsCurrentExpansionTheDarkenedSea();
 }
 
 bool Perl__IsCurrentExpansionTheBrokenMirror()
 {
-	return content_service.IsCurrentExpansionTheBrokenMirror();
+	return WorldContentService::Instance()->IsCurrentExpansionTheBrokenMirror();
 }
 
 bool Perl__IsCurrentExpansionEmpiresOfKunark()
 {
-	return content_service.IsCurrentExpansionEmpiresOfKunark();
+	return WorldContentService::Instance()->IsCurrentExpansionEmpiresOfKunark();
 }
 
 bool Perl__IsCurrentExpansionRingOfScale()
 {
-	return content_service.IsCurrentExpansionRingOfScale();
+	return WorldContentService::Instance()->IsCurrentExpansionRingOfScale();
 }
 
 bool Perl__IsCurrentExpansionTheBurningLands()
 {
-	return content_service.IsCurrentExpansionTheBurningLands();
+	return WorldContentService::Instance()->IsCurrentExpansionTheBurningLands();
 }
 
 bool Perl__IsCurrentExpansionTormentOfVelious()
 {
-	return content_service.IsCurrentExpansionTormentOfVelious();
+	return WorldContentService::Instance()->IsCurrentExpansionTormentOfVelious();
 }
 
 bool Perl__IsContentFlagEnabled(std::string flag_name)
 {
-	return content_service.IsContentFlagEnabled(flag_name);
+	return WorldContentService::Instance()->IsContentFlagEnabled(flag_name);
 }
 
 void Perl__SetContentFlag(std::string flag_name, bool enabled)
 {
-	content_service.SetContentFlag(flag_name, enabled);
+	WorldContentService::Instance()->SetContentFlag(flag_name, enabled);
 	zone->ReloadContentFlags();
 }
 
@@ -3035,7 +3041,7 @@ void Perl__rename(std::string name)
 
 std::string Perl__get_data_remaining(std::string bucket_name)
 {
-	return DataBucket::GetDataRemaining(bucket_name);
+	return DataBucket::GetDataRemaining(&database, bucket_name);
 }
 
 const int Perl__getitemstat(uint32 item_id, std::string identifier)
@@ -5115,627 +5121,627 @@ void Perl__send_player_handin_event()
 
 float Perl__GetZoneSafeX(uint32 zone_id)
 {
-	return zone_store.GetZoneSafeCoordinates(zone_id).x;
+	return ZoneStore::Instance()->GetZoneSafeCoordinates(zone_id).x;
 }
 
 float Perl__GetZoneSafeX(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneSafeCoordinates(zone_id, version).x;
+	return ZoneStore::Instance()->GetZoneSafeCoordinates(zone_id, version).x;
 }
 
 float Perl__GetZoneSafeY(uint32 zone_id)
 {
-	return zone_store.GetZoneSafeCoordinates(zone_id).y;
+	return ZoneStore::Instance()->GetZoneSafeCoordinates(zone_id).y;
 }
 
 float Perl__GetZoneSafeY(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneSafeCoordinates(zone_id, version).y;
+	return ZoneStore::Instance()->GetZoneSafeCoordinates(zone_id, version).y;
 }
 
 float Perl__GetZoneSafeZ(uint32 zone_id)
 {
-	return zone_store.GetZoneSafeCoordinates(zone_id).z;
+	return ZoneStore::Instance()->GetZoneSafeCoordinates(zone_id).z;
 }
 
 float Perl__GetZoneSafeZ(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneSafeCoordinates(zone_id, version).z;
+	return ZoneStore::Instance()->GetZoneSafeCoordinates(zone_id, version).z;
 }
 
 float Perl__GetZoneSafeHeading(uint32 zone_id)
 {
-	return zone_store.GetZoneSafeCoordinates(zone_id).w;
+	return ZoneStore::Instance()->GetZoneSafeCoordinates(zone_id).w;
 }
 
 float Perl__GetZoneSafeHeading(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneSafeCoordinates(zone_id, version).w;
+	return ZoneStore::Instance()->GetZoneSafeCoordinates(zone_id, version).w;
 }
 
 float Perl__GetZoneGraveyardID(uint32 zone_id)
 {
-	return zone_store.GetZoneGraveyardID(zone_id);
+	return ZoneStore::Instance()->GetZoneGraveyardID(zone_id);
 }
 
 float Perl__GetZoneGraveyardID(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneGraveyardID(zone_id, version);
+	return ZoneStore::Instance()->GetZoneGraveyardID(zone_id, version);
 }
 
 uint8 Perl__GetZoneMinimumLevel(uint32 zone_id)
 {
-	return zone_store.GetZoneMinimumLevel(zone_id);
+	return ZoneStore::Instance()->GetZoneMinimumLevel(zone_id);
 }
 
 uint8 Perl__GetZoneMinimumLevel(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMinimumLevel(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMinimumLevel(zone_id, version);
 }
 
 uint8 Perl__GetZoneMaximumLevel(uint32 zone_id)
 {
-	return zone_store.GetZoneMaximumLevel(zone_id);
+	return ZoneStore::Instance()->GetZoneMaximumLevel(zone_id);
 }
 
 uint8 Perl__GetZoneMaximumLevel(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMaximumLevel(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMaximumLevel(zone_id, version);
 }
 
 uint8 Perl__GetZoneMinimumStatus(uint32 zone_id)
 {
-	return zone_store.GetZoneMinimumStatus(zone_id);
+	return ZoneStore::Instance()->GetZoneMinimumStatus(zone_id);
 }
 
 uint8 Perl__GetZoneMinimumStatus(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMinimumStatus(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMinimumStatus(zone_id, version);
 }
 
 int Perl__GetZoneTimeZone(uint32 zone_id)
 {
-	return zone_store.GetZoneTimeZone(zone_id);
+	return ZoneStore::Instance()->GetZoneTimeZone(zone_id);
 }
 
 int Perl__GetZoneTimeZone(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneTimeZone(zone_id, version);
+	return ZoneStore::Instance()->GetZoneTimeZone(zone_id, version);
 }
 
 int Perl__GetZoneMaximumPlayers(uint32 zone_id)
 {
-	return zone_store.GetZoneMaximumPlayers(zone_id);
+	return ZoneStore::Instance()->GetZoneMaximumPlayers(zone_id);
 }
 
 int Perl__GetZoneMaximumPlayers(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMaximumPlayers(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMaximumPlayers(zone_id, version);
 }
 
 uint32 Perl__GetZoneRuleSet(uint32 zone_id)
 {
-	return zone_store.GetZoneRuleSet(zone_id);
+	return ZoneStore::Instance()->GetZoneRuleSet(zone_id);
 }
 
 uint32 Perl__GetZoneRuleSet(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneRuleSet(zone_id, version);
+	return ZoneStore::Instance()->GetZoneRuleSet(zone_id, version);
 }
 
 std::string Perl__GetZoneNote(uint32 zone_id)
 {
-	return zone_store.GetZoneNote(zone_id);
+	return ZoneStore::Instance()->GetZoneNote(zone_id);
 }
 
 std::string Perl__GetZoneNote(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneNote(zone_id, version);
+	return ZoneStore::Instance()->GetZoneNote(zone_id, version);
 }
 
 float Perl__GetZoneUnderworld(uint32 zone_id)
 {
-	return zone_store.GetZoneUnderworld(zone_id);
+	return ZoneStore::Instance()->GetZoneUnderworld(zone_id);
 }
 
 float Perl__GetZoneUnderworld(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneUnderworld(zone_id, version);
+	return ZoneStore::Instance()->GetZoneUnderworld(zone_id, version);
 }
 
 float Perl__GetZoneMinimumClip(uint32 zone_id)
 {
-	return zone_store.GetZoneMinimumClip(zone_id);
+	return ZoneStore::Instance()->GetZoneMinimumClip(zone_id);
 }
 
 float Perl__GetZoneMinimumClip(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMinimumClip(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMinimumClip(zone_id, version);
 }
 
 float Perl__GetZoneMaximumClip(uint32 zone_id)
 {
-	return zone_store.GetZoneMaximumClip(zone_id);
+	return ZoneStore::Instance()->GetZoneMaximumClip(zone_id);
 }
 
 float Perl__GetZoneMaximumClip(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMaximumClip(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMaximumClip(zone_id, version);
 }
 
 float Perl__GetZoneFogMinimumClip(uint32 zone_id)
 {
-	return zone_store.GetZoneFogMinimumClip(zone_id);
+	return ZoneStore::Instance()->GetZoneFogMinimumClip(zone_id);
 }
 
 float Perl__GetZoneFogMinimumClip(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneFogMinimumClip(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneFogMinimumClip(zone_id, slot);
 }
 
 float Perl__GetZoneFogMinimumClip(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneFogMinimumClip(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneFogMinimumClip(zone_id, slot, version);
 }
 
 float Perl__GetZoneFogMaximumClip(uint32 zone_id)
 {
-	return zone_store.GetZoneFogMaximumClip(zone_id);
+	return ZoneStore::Instance()->GetZoneFogMaximumClip(zone_id);
 }
 
 float Perl__GetZoneFogMaximumClip(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneFogMaximumClip(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneFogMaximumClip(zone_id, slot);
 }
 
 float Perl__GetZoneFogMaximumClip(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneFogMaximumClip(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneFogMaximumClip(zone_id, slot, version);
 }
 
 uint8 Perl__GetZoneFogRed(uint32 zone_id)
 {
-	return zone_store.GetZoneFogRed(zone_id);
+	return ZoneStore::Instance()->GetZoneFogRed(zone_id);
 }
 
 uint8 Perl__GetZoneFogRed(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneFogRed(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneFogRed(zone_id, slot);
 }
 
 uint8 Perl__GetZoneFogRed(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneFogRed(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneFogRed(zone_id, slot, version);
 }
 
 uint8 Perl__GetZoneFogGreen(uint32 zone_id)
 {
-	return zone_store.GetZoneFogGreen(zone_id);
+	return ZoneStore::Instance()->GetZoneFogGreen(zone_id);
 }
 
 uint8 Perl__GetZoneFogGreen(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneFogGreen(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneFogGreen(zone_id, slot);
 }
 
 uint8 Perl__GetZoneFogGreen(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneFogGreen(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneFogGreen(zone_id, slot, version);
 }
 
 uint8 Perl__GetZoneFogBlue(uint32 zone_id)
 {
-	return zone_store.GetZoneFogBlue(zone_id);
+	return ZoneStore::Instance()->GetZoneFogBlue(zone_id);
 }
 
 uint8 Perl__GetZoneFogBlue(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneFogBlue(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneFogBlue(zone_id, slot);
 }
 
 uint8 Perl__GetZoneFogBlue(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneFogBlue(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneFogBlue(zone_id, slot, version);
 }
 
 uint8 Perl__GetZoneSky(uint32 zone_id)
 {
-	return zone_store.GetZoneSky(zone_id);
+	return ZoneStore::Instance()->GetZoneSky(zone_id);
 }
 
 uint8 Perl__GetZoneSky(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneSky(zone_id, version);
+	return ZoneStore::Instance()->GetZoneSky(zone_id, version);
 }
 
 uint8 Perl__GetZoneZType(uint32 zone_id)
 {
-	return zone_store.GetZoneZType(zone_id);
+	return ZoneStore::Instance()->GetZoneZType(zone_id);
 }
 
 uint8 Perl__GetZoneZType(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneZType(zone_id, version);
+	return ZoneStore::Instance()->GetZoneZType(zone_id, version);
 }
 
 float Perl__GetZoneExperienceMultiplier(uint32 zone_id)
 {
-	return zone_store.GetZoneExperienceMultiplier(zone_id);
+	return ZoneStore::Instance()->GetZoneExperienceMultiplier(zone_id);
 }
 
 float Perl__GetZoneExperienceMultiplier(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneExperienceMultiplier(zone_id, version);
+	return ZoneStore::Instance()->GetZoneExperienceMultiplier(zone_id, version);
 }
 
 float Perl__GetZoneWalkSpeed(uint32 zone_id)
 {
-	return zone_store.GetZoneWalkSpeed(zone_id);
+	return ZoneStore::Instance()->GetZoneWalkSpeed(zone_id);
 }
 
 float Perl__GetZoneWalkSpeed(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneWalkSpeed(zone_id, version);
+	return ZoneStore::Instance()->GetZoneWalkSpeed(zone_id, version);
 }
 
 uint8 Perl__GetZoneTimeType(uint32 zone_id)
 {
-	return zone_store.GetZoneTimeType(zone_id);
+	return ZoneStore::Instance()->GetZoneTimeType(zone_id);
 }
 
 uint8 Perl__GetZoneTimeType(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneTimeType(zone_id, version);
+	return ZoneStore::Instance()->GetZoneTimeType(zone_id, version);
 }
 
 float Perl__GetZoneFogDensity(uint32 zone_id)
 {
-	return zone_store.GetZoneFogDensity(zone_id);
+	return ZoneStore::Instance()->GetZoneFogDensity(zone_id);
 }
 
 float Perl__GetZoneFogDensity(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneFogDensity(zone_id, version);
+	return ZoneStore::Instance()->GetZoneFogDensity(zone_id, version);
 }
 
 std::string Perl__GetZoneFlagNeeded(uint32 zone_id)
 {
-	return zone_store.GetZoneFlagNeeded(zone_id);
+	return ZoneStore::Instance()->GetZoneFlagNeeded(zone_id);
 }
 
 std::string Perl__GetZoneFlagNeeded(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneFlagNeeded(zone_id, version);
+	return ZoneStore::Instance()->GetZoneFlagNeeded(zone_id, version);
 }
 
 int8 Perl__GetZoneCanBind(uint32 zone_id)
 {
-	return zone_store.GetZoneCanBind(zone_id);
+	return ZoneStore::Instance()->GetZoneCanBind(zone_id);
 }
 
 int8 Perl__GetZoneCanBind(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneCanBind(zone_id, version);
+	return ZoneStore::Instance()->GetZoneCanBind(zone_id, version);
 }
 
 int8 Perl__GetZoneCanCombat(uint32 zone_id)
 {
-	return zone_store.GetZoneCanCombat(zone_id);
+	return ZoneStore::Instance()->GetZoneCanCombat(zone_id);
 }
 
 int8 Perl__GetZoneCanCombat(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneCanCombat(zone_id, version);
+	return ZoneStore::Instance()->GetZoneCanCombat(zone_id, version);
 }
 
 int8 Perl__GetZoneCanLevitate(uint32 zone_id)
 {
-	return zone_store.GetZoneCanLevitate(zone_id);
+	return ZoneStore::Instance()->GetZoneCanLevitate(zone_id);
 }
 
 int8 Perl__GetZoneCanLevitate(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneCanLevitate(zone_id, version);
+	return ZoneStore::Instance()->GetZoneCanLevitate(zone_id, version);
 }
 
 int8 Perl__GetZoneCastOutdoor(uint32 zone_id)
 {
-	return zone_store.GetZoneCastOutdoor(zone_id);
+	return ZoneStore::Instance()->GetZoneCastOutdoor(zone_id);
 }
 
 int8 Perl__GetZoneCastOutdoor(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneCastOutdoor(zone_id, version);
+	return ZoneStore::Instance()->GetZoneCastOutdoor(zone_id, version);
 }
 
 uint8 Perl__GetZoneHotzone(uint32 zone_id)
 {
-	return zone_store.GetZoneHotzone(zone_id);
+	return ZoneStore::Instance()->GetZoneHotzone(zone_id);
 }
 
 uint8 Perl__GetZoneHotzone(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneHotzone(zone_id, version);
+	return ZoneStore::Instance()->GetZoneHotzone(zone_id, version);
 }
 
 uint8 Perl__GetZoneInstanceType(uint32 zone_id)
 {
-	return zone_store.GetZoneInstanceType(zone_id);
+	return ZoneStore::Instance()->GetZoneInstanceType(zone_id);
 }
 
 uint8 Perl__GetZoneInstanceType(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneInstanceType(zone_id, version);
+	return ZoneStore::Instance()->GetZoneInstanceType(zone_id, version);
 }
 
 uint64 Perl__GetZoneShutdownDelay(uint32 zone_id)
 {
-	return zone_store.GetZoneShutdownDelay(zone_id);
+	return ZoneStore::Instance()->GetZoneShutdownDelay(zone_id);
 }
 
 uint64 Perl__GetZoneShutdownDelay(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneShutdownDelay(zone_id, version);
+	return ZoneStore::Instance()->GetZoneShutdownDelay(zone_id, version);
 }
 
 int8 Perl__GetZonePEQZone(uint32 zone_id)
 {
-	return zone_store.GetZonePEQZone(zone_id);
+	return ZoneStore::Instance()->GetZonePEQZone(zone_id);
 }
 
 int8 Perl__GetZonePEQZone(uint32 zone_id, int version)
 {
-	return zone_store.GetZonePEQZone(zone_id, version);
+	return ZoneStore::Instance()->GetZonePEQZone(zone_id, version);
 }
 
 int8 Perl__GetZoneExpansion(uint32 zone_id)
 {
-	return zone_store.GetZoneExpansion(zone_id);
+	return ZoneStore::Instance()->GetZoneExpansion(zone_id);
 }
 
 int8 Perl__GetZoneExpansion(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneExpansion(zone_id, version);
+	return ZoneStore::Instance()->GetZoneExpansion(zone_id, version);
 }
 
 int8 Perl__GetZoneBypassExpansionCheck(uint32 zone_id)
 {
-	return zone_store.GetZoneBypassExpansionCheck(zone_id);
+	return ZoneStore::Instance()->GetZoneBypassExpansionCheck(zone_id);
 }
 
 int8 Perl__GetZoneBypassExpansionCheck(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneBypassExpansionCheck(zone_id, version);
+	return ZoneStore::Instance()->GetZoneBypassExpansionCheck(zone_id, version);
 }
 
 uint8 Perl__GetZoneSuspendBuffs(uint32 zone_id)
 {
-	return zone_store.GetZoneSuspendBuffs(zone_id);
+	return ZoneStore::Instance()->GetZoneSuspendBuffs(zone_id);
 }
 
 uint8 Perl__GetZoneSuspendBuffs(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneSuspendBuffs(zone_id, version);
+	return ZoneStore::Instance()->GetZoneSuspendBuffs(zone_id, version);
 }
 
 int Perl__GetZoneRainChance(uint32 zone_id)
 {
-	return zone_store.GetZoneRainChance(zone_id);
+	return ZoneStore::Instance()->GetZoneRainChance(zone_id);
 }
 
 int Perl__GetZoneRainChance(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneRainChance(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneRainChance(zone_id, slot);
 }
 
 int Perl__GetZoneRainChance(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneRainChance(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneRainChance(zone_id, slot, version);
 }
 
 int Perl__GetZoneRainDuration(uint32 zone_id)
 {
-	return zone_store.GetZoneRainDuration(zone_id);
+	return ZoneStore::Instance()->GetZoneRainDuration(zone_id);
 }
 
 int Perl__GetZoneRainDuration(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneRainDuration(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneRainDuration(zone_id, slot);
 }
 
 int Perl__GetZoneRainDuration(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneRainDuration(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneRainDuration(zone_id, slot, version);
 }
 
 int Perl__GetZoneSnowChance(uint32 zone_id)
 {
-	return zone_store.GetZoneSnowChance(zone_id);
+	return ZoneStore::Instance()->GetZoneSnowChance(zone_id);
 }
 
 int Perl__GetZoneSnowChance(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneSnowChance(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneSnowChance(zone_id, slot);
 }
 
 int Perl__GetZoneSnowChance(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneSnowChance(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneSnowChance(zone_id, slot, version);
 }
 
 int Perl__GetZoneSnowDuration(uint32 zone_id)
 {
-	return zone_store.GetZoneSnowDuration(zone_id);
+	return ZoneStore::Instance()->GetZoneSnowDuration(zone_id);
 }
 
 int Perl__GetZoneSnowDuration(uint32 zone_id, uint8 slot)
 {
-	return zone_store.GetZoneSnowDuration(zone_id, slot);
+	return ZoneStore::Instance()->GetZoneSnowDuration(zone_id, slot);
 }
 
 int Perl__GetZoneSnowDuration(uint32 zone_id, uint8 slot, int version)
 {
-	return zone_store.GetZoneSnowDuration(zone_id, slot, version);
+	return ZoneStore::Instance()->GetZoneSnowDuration(zone_id, slot, version);
 }
 
 float Perl__GetZoneGravity(uint32 zone_id)
 {
-	return zone_store.GetZoneGravity(zone_id);
+	return ZoneStore::Instance()->GetZoneGravity(zone_id);
 }
 
 float Perl__GetZoneGravity(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneGravity(zone_id, version);
+	return ZoneStore::Instance()->GetZoneGravity(zone_id, version);
 }
 
 int Perl__GetZoneType(uint32 zone_id)
 {
-	return zone_store.GetZoneType(zone_id);
+	return ZoneStore::Instance()->GetZoneType(zone_id);
 }
 
 int Perl__GetZoneType(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneType(zone_id, version);
+	return ZoneStore::Instance()->GetZoneType(zone_id, version);
 }
 
 int8 Perl__GetZoneSkyLock(uint32 zone_id)
 {
-	return zone_store.GetZoneSkyLock(zone_id);
+	return ZoneStore::Instance()->GetZoneSkyLock(zone_id);
 }
 
 int8 Perl__GetZoneSkyLock(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneSkyLock(zone_id, version);
+	return ZoneStore::Instance()->GetZoneSkyLock(zone_id, version);
 }
 
 int Perl__GetZoneFastRegenHP(uint32 zone_id)
 {
-	return zone_store.GetZoneFastRegenHP(zone_id);
+	return ZoneStore::Instance()->GetZoneFastRegenHP(zone_id);
 }
 
 int Perl__GetZoneFastRegenHP(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneFastRegenHP(zone_id, version);
+	return ZoneStore::Instance()->GetZoneFastRegenHP(zone_id, version);
 }
 
 int Perl__GetZoneFastRegenMana(uint32 zone_id)
 {
-	return zone_store.GetZoneFastRegenMana(zone_id);
+	return ZoneStore::Instance()->GetZoneFastRegenMana(zone_id);
 }
 
 int Perl__GetZoneFastRegenMana(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneFastRegenMana(zone_id, version);
+	return ZoneStore::Instance()->GetZoneFastRegenMana(zone_id, version);
 }
 
 int Perl__GetZoneFastRegenEndurance(uint32 zone_id)
 {
-	return zone_store.GetZoneFastRegenEndurance(zone_id);
+	return ZoneStore::Instance()->GetZoneFastRegenEndurance(zone_id);
 }
 
 int Perl__GetZoneFastRegenEndurance(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneFastRegenEndurance(zone_id, version);
+	return ZoneStore::Instance()->GetZoneFastRegenEndurance(zone_id, version);
 }
 
 int Perl__GetZoneNPCMaximumAggroDistance(uint32 zone_id)
 {
-	return zone_store.GetZoneNPCMaximumAggroDistance(zone_id);
+	return ZoneStore::Instance()->GetZoneNPCMaximumAggroDistance(zone_id);
 }
 
 int Perl__GetZoneNPCMaximumAggroDistance(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneNPCMaximumAggroDistance(zone_id, version);
+	return ZoneStore::Instance()->GetZoneNPCMaximumAggroDistance(zone_id, version);
 }
 
 int8 Perl__GetZoneMinimumExpansion(uint32 zone_id)
 {
-	return zone_store.GetZoneMinimumExpansion(zone_id);
+	return ZoneStore::Instance()->GetZoneMinimumExpansion(zone_id);
 }
 
 int8 Perl__GetZoneMinimumExpansion(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMinimumExpansion(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMinimumExpansion(zone_id, version);
 }
 
 int8 Perl__GetZoneMaximumExpansion(uint32 zone_id)
 {
-	return zone_store.GetZoneMaximumExpansion(zone_id);
+	return ZoneStore::Instance()->GetZoneMaximumExpansion(zone_id);
 }
 
 int8 Perl__GetZoneMaximumExpansion(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMaximumExpansion(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMaximumExpansion(zone_id, version);
 }
 
 std::string Perl__GetZoneContentFlags(uint32 zone_id)
 {
-	return zone_store.GetZoneContentFlags(zone_id);
+	return ZoneStore::Instance()->GetZoneContentFlags(zone_id);
 }
 
 std::string Perl__GetZoneContentFlags(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneContentFlags(zone_id, version);
+	return ZoneStore::Instance()->GetZoneContentFlags(zone_id, version);
 }
 
 std::string Perl__GetZoneContentFlagsDisabled(uint32 zone_id)
 {
-	return zone_store.GetZoneContentFlagsDisabled(zone_id);
+	return ZoneStore::Instance()->GetZoneContentFlagsDisabled(zone_id);
 }
 
 std::string Perl__GetZoneContentFlagsDisabled(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneContentFlagsDisabled(zone_id, version);
+	return ZoneStore::Instance()->GetZoneContentFlagsDisabled(zone_id, version);
 }
 
 int Perl__GetZoneUnderworldTeleportIndex(uint32 zone_id)
 {
-	return zone_store.GetZoneUnderworldTeleportIndex(zone_id);
+	return ZoneStore::Instance()->GetZoneUnderworldTeleportIndex(zone_id);
 }
 
 int Perl__GetZoneUnderworldTeleportIndex(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneUnderworldTeleportIndex(zone_id, version);
+	return ZoneStore::Instance()->GetZoneUnderworldTeleportIndex(zone_id, version);
 }
 
 int Perl__GetZoneLavaDamage(uint32 zone_id)
 {
-	return zone_store.GetZoneLavaDamage(zone_id);
+	return ZoneStore::Instance()->GetZoneLavaDamage(zone_id);
 }
 
 int Perl__GetZoneLavaDamage(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneLavaDamage(zone_id, version);
+	return ZoneStore::Instance()->GetZoneLavaDamage(zone_id, version);
 }
 
 int Perl__GetZoneMinimumLavaDamage(uint32 zone_id)
 {
-	return zone_store.GetZoneMinimumLavaDamage(zone_id);
+	return ZoneStore::Instance()->GetZoneMinimumLavaDamage(zone_id);
 }
 
 int Perl__GetZoneMinimumLavaDamage(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneMinimumLavaDamage(zone_id, version);
+	return ZoneStore::Instance()->GetZoneMinimumLavaDamage(zone_id, version);
 }
 
 uint8 Perl__GetZoneIdleWhenEmpty(uint32 zone_id)
 {
-	return zone_store.GetZoneIdleWhenEmpty(zone_id);
+	return ZoneStore::Instance()->GetZoneIdleWhenEmpty(zone_id);
 }
 
 uint8 Perl__GetZoneIdleWhenEmpty(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneIdleWhenEmpty(zone_id, version);
+	return ZoneStore::Instance()->GetZoneIdleWhenEmpty(zone_id, version);
 }
 
 uint32 Perl__GetZoneSecondsBeforeIdle(uint32 zone_id)
 {
-	return zone_store.GetZoneSecondsBeforeIdle(zone_id);
+	return ZoneStore::Instance()->GetZoneSecondsBeforeIdle(zone_id);
 }
 
 uint32 Perl__GetZoneSecondsBeforeIdle(uint32 zone_id, int version)
 {
-	return zone_store.GetZoneSecondsBeforeIdle(zone_id, version);
+	return ZoneStore::Instance()->GetZoneSecondsBeforeIdle(zone_id, version);
 }
 
 void Perl__send_channel_message(uint8 channel_number, uint32 guild_id, uint8 language_id, uint8 language_skill, const char* message)
@@ -5860,12 +5866,12 @@ bool Perl__SetAutoLoginCharacterNameByAccountID(uint32 account_id, std::string c
 
 uint32 Perl__GetZoneIDByLongName(std::string zone_long_name)
 {
-	return zone_store.GetZoneIDByLongName(zone_long_name);
+	return ZoneStore::Instance()->GetZoneIDByLongName(zone_long_name);
 }
 
 std::string Perl__GetZoneShortNameByLongName(std::string zone_long_name)
 {
-	return zone_store.GetZoneShortNameByLongName(zone_long_name);
+	return ZoneStore::Instance()->GetZoneShortNameByLongName(zone_long_name);
 }
 
 bool Perl__send_parcel(perl::reference table_ref)
@@ -5993,6 +5999,50 @@ bool Perl__handin(perl::reference handin_ref)
 	}
 
 	return quest_manager.handin(handin_map);
+}
+
+perl::array Perl__get_paused_timers(Mob* m)
+{
+	perl::array a;
+
+	const auto& l = quest_manager.GetPausedTimers(m);
+
+	if (!l.empty()) {
+		a.reserve(l.size());
+
+		for (const auto& v : l) {
+			a.push_back(v);
+		}
+	}
+
+	return a;
+}
+
+perl::array Perl__get_timers(Mob* m)
+{
+	perl::array a;
+
+	const auto& l = quest_manager.GetTimers(m);
+
+	if (!l.empty()) {
+		a.reserve(l.size());
+
+		for (const auto& v: l) {
+			a.push_back(v);
+		}
+	}
+
+	return a;
+}
+
+std::string Perl__get_pet_command_name(uint8 pet_command)
+{
+	return PetCommand::GetName(pet_command);
+}
+
+std::string Perl__get_pet_type_name(uint8 pet_type)
+{
+	return PetType::GetName(pet_type);
 }
 
 void perl_register_quest()
@@ -6628,6 +6678,8 @@ void perl_register_quest()
 	package.add("faction", (void(*)(int, int, int))&Perl__faction);
 	package.add("factionvalue", &Perl__FactionValue);
 	package.add("failtask", &Perl__failtask);
+	package.add("completetask", &Perl__completetask);
+	package.add("uncompletetask", &Perl__uncompletetask);
 	package.add("firsttaskinset", &Perl__firsttaskinset);
 	package.add("follow", (void(*)(int))&Perl__follow);
 	package.add("follow", (void(*)(int, int))&Perl__follow);
@@ -6682,6 +6734,9 @@ void perl_register_quest()
 	package.add("getguildidbycharid", &Perl__getguildidbycharid);
 	package.add("getgroupidbycharid", &Perl__getgroupidbycharid);
 	package.add("getinventoryslotname", &Perl__getinventoryslotname);
+	package.add("get_paused_timers", &Perl__get_paused_timers);
+	package.add("get_pet_command_name", &Perl__get_pet_command_name);
+	package.add("get_pet_type_name", &Perl__get_pet_type_name);
 	package.add("getraididbycharid", &Perl__getraididbycharid);
 	package.add("get_race_bitmask", &Perl__get_race_bitmask);
 	package.add("get_recipe_component_item_ids", &Perl__GetRecipeComponentItemIDs);
@@ -6701,6 +6756,7 @@ void perl_register_quest()
 	package.add("getspellstat", (int(*)(uint32, std::string))&Perl__getspellstat);
 	package.add("getspellstat", (int(*)(uint32, std::string, uint8))&Perl__getspellstat);
 	package.add("getskillname", &Perl__getskillname);
+	package.add("get_timers", &Perl__get_timers);
 	package.add("getlevel", &Perl__getlevel);
 	package.add("getplayerburiedcorpsecount", &Perl__getplayerburiedcorpsecount);
 	package.add("getplayercorpsecount", &Perl__getplayercorpsecount);
@@ -6999,5 +7055,5 @@ void perl_register_quest()
 
 }
 
-#endif
-#endif
+#endif // EMBPERL_XS
+#endif // EMBPERL

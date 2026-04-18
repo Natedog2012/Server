@@ -1,44 +1,40 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#include "common/classes.h"
+#include "common/event_sub.h"
+#include "common/guilds.h"
+#include "common/json/json.h"
+#include "common/misc_functions.h"
+#include "common/misc.h"
+#include "common/packet_dump.h"
+#include "common/races.h"
+#include "common/strings.h"
+#include "common/zone_store.h"
+#include "world/client.h"
+#include "world/clientlist.h"
+#include "world/web_interface.h"
+#include "world/wguild_mgr.h"
+#include "world/worlddb.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
 
-#include "../common/global_define.h"
-#include "clientlist.h"
-#include "zoneserver.h"
-#include "zonelist.h"
-#include "client.h"
-#include "worlddb.h"
-#include "../common/strings.h"
-#include "../common/guilds.h"
-#include "../common/races.h"
-#include "../common/classes.h"
-#include "../common/packet_dump.h"
-#include "../common/misc.h"
-#include "../common/misc_functions.h"
-#include "../common/json/json.h"
-#include "../common/event_sub.h"
-#include "web_interface.h"
-#include "wguild_mgr.h"
-#include "../common/zone_store.h"
 #include <set>
 
-extern WebInterfaceList web_interface;
-
-extern ZSList			zoneserver_list;
 uint32 numplayers = 0;	//this really wants to be a member variable of ClientList...
 
 ClientList::ClientList()
@@ -234,7 +230,7 @@ void ClientList::DisconnectByIP(uint32 in_ip) {
 				strn0cpy(skp->adminname, "SessionLimit", sizeof(skp->adminname));
 				strn0cpy(skp->name, cle->name(), sizeof(skp->name));
 				skp->adminrank = 255;
-				zoneserver_list.SendPacket(pack);
+				ZSList::Instance()->SendPacket(pack);
 				safe_delete(pack);
 			}
 			cle->SetOnline(CLE_Status::Offline);
@@ -284,61 +280,106 @@ ClientListEntry* ClientList::FindCLEByCharacterID(uint32 iCharID) {
 	return nullptr;
 }
 
-void ClientList::SendCLEList(const int16& admin, const char* to, WorldTCPConnection* connection, const char* iName) {
+void ClientList::SendCLEList(const int16& admin, const char* to, WorldTCPConnection* connection, const char* search_criteria)
+{
 	LinkedListIterator<ClientListEntry*> iterator(clientlist);
-	int x = 0, y = 0;
-	int namestrlen = iName == 0 ? 0 : strlen(iName);
-	bool addnewline = false;
-	char newline[3];
-	if (connection->IsConsole())
-		strcpy(newline, "\r\n");
-	else
-		strcpy(newline, "^");
 
-	auto out = fmt::memory_buffer();
+	int found_count = 0;
+	int total_count = 0;
+	int name_length = search_criteria ? strlen(search_criteria) : 0;
+
+	const char* new_line = connection->IsConsole() ? "\r\n" : "^";
+	bool add_new_line = false;
+
+	std::string message;
+
 	iterator.Reset();
-	while(iterator.MoreElements()) {
+
+	while (iterator.MoreElements()) {
 		ClientListEntry* cle = iterator.GetData();
-		if (admin >= cle->Admin() && (iName == 0 || namestrlen == 0 || strncasecmp(cle->name(), iName, namestrlen) == 0 || strncasecmp(cle->AccountName(), iName, namestrlen) == 0 || strncasecmp(cle->LSName(), iName, namestrlen) == 0)) {
-			struct in_addr in;
-			in.s_addr = cle->GetIP();
-			if (addnewline) {
-				fmt::format_to(std::back_inserter(out), fmt::runtime(newline));
+
+		struct in_addr in;
+		in.s_addr = cle->GetIP();
+
+		if (
+			admin >= cle->Admin() &&
+			(
+				!search_criteria ||
+				Strings::Contains(std::string(inet_ntoa(in)), search_criteria) ||
+				Strings::Contains(cle->name(), search_criteria) == 0 ||
+				Strings::Contains(cle->AccountName(), search_criteria) == 0 ||
+				Strings::Contains(cle->LSName(), search_criteria) == 0
+			)
+		) {
+			if (add_new_line) {
+				message += new_line;
 			}
-			fmt::format_to(std::back_inserter(out), "ID: {}  Acc# {}  AccName: {}  IP: {}", cle->GetID(), cle->AccountID(), cle->AccountName(), inet_ntoa(in));
-			fmt::format_to(std::back_inserter(out), "{}  Stale: {}  Online: {}  Admin: {}", newline, cle->GetStaleCounter(), static_cast<int>(cle->Online()), cle->Admin());
-			if (cle->LSID())
-				fmt::format_to(std::back_inserter(out), "{}  LSID: {}  LSName: {}  WorldAdmin: {}", newline, cle->LSID(), cle->LSName(), cle->WorldAdmin());
-			if (cle->CharID())
-				fmt::format_to(std::back_inserter(out), "{}  CharID: {}  CharName: {}  Zone: {} ({})", newline, cle->CharID(), cle->name(), ZoneName(cle->zone()), cle->zone());
-			if (out.size() >= 3072) {
+
+			message += fmt::format(
+				"Account: {} ({}) | IP: {} | Admin: {}",
+				cle->AccountName(),
+				cle->AccountID(),
+				inet_ntoa(in),
+				cle->Admin()
+			);
+
+			if (cle->CharID()) {
+				message += fmt::format(
+					"{}Character: {} ({}) | Zone: {} ({})",
+					new_line,
+					cle->name(),
+					cle->CharID(),
+					ZoneLongName(cle->zone()),
+					cle->zone()
+				);
+			}
+
+			if (message.size() >= 3072) {
 				connection->SendEmoteMessageRaw(
 					to,
 					0,
 					AccountStatus::Player,
 					Chat::NPCQuestSay,
-					out.data()
+					message.c_str()
 				);
-				addnewline = false;
-				out.clear();
+				message.clear();
+				add_new_line = false;
 			} else {
-				addnewline = true;
+				add_new_line = true;
 			}
-			y++;
+
+			found_count++;
 		}
+
 		iterator.Advance();
-		x++;
+		total_count++;
 	}
-	fmt::format_to(std::back_inserter(out), "{}{} CLEs in memory. {} CLEs listed. numplayers = {}.", newline, x, y, numplayers);
+
+	message += fmt::format(
+		"{}{}Player Count: {}",
+		new_line,
+		(
+			found_count != total_count ?
+			fmt::format(
+				"Total: {} CLE{} | Found: {} CLE{} | ",
+				total_count,
+				(total_count != 1 ? "s" : ""),
+				found_count,
+				(found_count != 1 ? "s" : "")
+			) :
+			""
+		),
+		numplayers
+	);
+
 	connection->SendEmoteMessageRaw(
 		to,
 		0,
 		AccountStatus::Player,
 		Chat::NPCQuestSay,
-		out.data()
+		message.c_str()
 	);
 }
-
 
 void ClientList::CLEAdd(
 	uint32 login_server_id,
@@ -553,7 +594,7 @@ void ClientList::SendOnlineGuildMembers(uint32 FromID, uint32 GuildID)
 
 		Iterator.Advance();
 	}
-	zoneserver_list.SendPacket(from->zone(), from->instance(), pack);
+	ZSList::Instance()->SendPacket(from->zone(), from->instance(), pack);
 	safe_delete(pack);
 }
 
@@ -601,7 +642,7 @@ void ClientList::SendWhoAll(uint32 fromid,const char* to, int16 admin, Who_All_S
 			whomlen = strlen(whom->whom);
 
 			if (whom->wrace == 0x001A) { // 0x001A is the old Froglok race number and is sent by the client for /who all froglok
-				whom->wrace = FROGLOK; // This is what EQEmu uses for the Froglok Race number.
+				whom->wrace = Race::Froglok2; // This is what EQEmu uses for the Froglok Race number.
 			}
 		}
 
@@ -1318,7 +1359,7 @@ void ClientList::RemoveCLEReferances(ClientListEntry* cle) {
 
 bool ClientList::SendPacket(const char* to, ServerPacket* pack) {
 	if (to == 0 || to[0] == 0) {
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		return true;
 	}
 	else if (to[0] == '*') {
@@ -1334,7 +1375,7 @@ bool ClientList::SendPacket(const char* to, ServerPacket* pack) {
 			}
 			return false;
 		} else {
-			ZoneServer* zs = zoneserver_list.FindByName(to);
+			ZoneServer* zs = ZSList::Instance()->FindByName(to);
 			if (zs != nullptr) {
 				zs->SendPacket(pack);
 				return true;
@@ -1439,7 +1480,7 @@ void ClientList::SendClientVersionSummary(const char *Name)
 	);
 
 	if (client_count[EQ::versions::ClientVersion::Titanium]) {
-		zoneserver_list.SendEmoteMessage(
+		ZSList::Instance()->SendEmoteMessage(
 			Name,
 			0,
 			AccountStatus::Player,
@@ -1452,7 +1493,7 @@ void ClientList::SendClientVersionSummary(const char *Name)
 	}
 
 	if (client_count[EQ::versions::ClientVersion::SoF]) {
-		zoneserver_list.SendEmoteMessage(
+		ZSList::Instance()->SendEmoteMessage(
 			Name,
 			0,
 			AccountStatus::Player,
@@ -1465,7 +1506,7 @@ void ClientList::SendClientVersionSummary(const char *Name)
 	}
 
 	if (client_count[EQ::versions::ClientVersion::SoD]) {
-		zoneserver_list.SendEmoteMessage(
+		ZSList::Instance()->SendEmoteMessage(
 			Name,
 			0,
 			AccountStatus::Player,
@@ -1478,7 +1519,7 @@ void ClientList::SendClientVersionSummary(const char *Name)
 	}
 
 	if (client_count[EQ::versions::ClientVersion::UF]) {
-		zoneserver_list.SendEmoteMessage(
+		ZSList::Instance()->SendEmoteMessage(
 			Name,
 			0,
 			AccountStatus::Player,
@@ -1491,7 +1532,7 @@ void ClientList::SendClientVersionSummary(const char *Name)
 	}
 
 	if (client_count[EQ::versions::ClientVersion::RoF]) {
-		zoneserver_list.SendEmoteMessage(
+		ZSList::Instance()->SendEmoteMessage(
 			Name,
 			0,
 			AccountStatus::Player,
@@ -1504,7 +1545,7 @@ void ClientList::SendClientVersionSummary(const char *Name)
 	}
 
 	if (client_count[EQ::versions::ClientVersion::RoF2]) {
-		zoneserver_list.SendEmoteMessage(
+		ZSList::Instance()->SendEmoteMessage(
 			Name,
 			0,
 			AccountStatus::Player,
@@ -1517,7 +1558,7 @@ void ClientList::SendClientVersionSummary(const char *Name)
 	}
 
 
-	zoneserver_list.SendEmoteMessage(
+	ZSList::Instance()->SendEmoteMessage(
 		Name,
 		0,
 		AccountStatus::Player,
@@ -1613,7 +1654,7 @@ void ClientList::OnTick(EQ::Timer *t)
 		Iterator.Advance();
 	}
 
-	web_interface.SendEvent(out);
+	WebInterfaceList::Instance()->SendEvent(out);
 }
 
 /**

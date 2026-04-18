@@ -1,39 +1,36 @@
-/*	EQEMu: Everquest Server Emulator
-    Copyright (C) 2001-2006 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; version 2 of the License.
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY except by those people which sell it, which
-    are required to give you total support for your newly bought product;
-    without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-    A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
 #include "guild_base.h"
-#include "database.h"
-#include "../common/rulesys.h"
-#include "../common/repositories/guilds_repository.h"
-#include "../common/repositories/guild_ranks_repository.h"
-#include "../common/repositories/guild_permissions_repository.h"
-#include "../common/repositories/guild_members_repository.h"
-#include "../common/repositories/guild_bank_repository.h"
-#include "../common/repositories/guild_tributes_repository.h"
 
+#include "common/database.h"
+#include "common/eq_packet_structs.h"
+#include "common/repositories/guild_bank_repository.h"
+#include "common/repositories/guild_members_repository.h"
+#include "common/repositories/guild_permissions_repository.h"
+#include "common/repositories/guild_ranks_repository.h"
+#include "common/repositories/guild_tributes_repository.h"
+#include "common/repositories/guilds_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
 
-//#include "misc_functions.h"
-#include "strings.h"
 #include <cstdlib>
 #include <cstring>
 
-//until we move MAX_NUMBER_GUILDS
-#include "eq_packet_structs.h"
 
 std::vector<DefaultPermissionStruct> default_permissions = {
 	{GUILD_ACTION_BANK_CHANGE_ITEM_PERMISSIONS,         128},

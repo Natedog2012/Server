@@ -1,14 +1,29 @@
-#include "web_interface_eqw.h"
-#include "web_interface.h"
-#include "world_config.h"
-#include "login_server_list.h"
-#include "clientlist.h"
-#include "zonelist.h"
-#include "launcher_list.h"
+/*	EQEmu: EQEmulator
 
-extern LoginServerList loginserverlist;
-extern ClientList client_list;
-extern ZSList zoneserver_list;
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "web_interface_eqw.h"
+
+#include "world/clientlist.h"
+#include "world/launcher_list.h"
+#include "world/login_server_list.h"
+#include "world/web_interface.h"
+#include "world/world_config.h"
+#include "world/zonelist.h"
+
 extern LauncherList launcher_list;
 
 void EQW__GetConfig(WebInterface *i, const std::string& method, const std::string& id, const Json::Value& params) {
@@ -33,8 +48,8 @@ void EQW__IsLocked(WebInterface *i, const std::string& method, const std::string
 
 void EQW__Lock(WebInterface *i, const std::string& method, const std::string& id, const Json::Value& params) {
 	WorldConfig::LockWorld();
-	if (loginserverlist.Connected()) {
-		loginserverlist.SendStatus();
+	if (LoginServerList::Instance()->Connected()) {
+		LoginServerList::Instance()->SendStatus();
 	}
 
 	Json::Value ret;
@@ -44,8 +59,8 @@ void EQW__Lock(WebInterface *i, const std::string& method, const std::string& id
 
 void EQW__Unlock(WebInterface *i, const std::string& method, const std::string& id, const Json::Value& params) {
 	WorldConfig::UnlockWorld();
-	if (loginserverlist.Connected()) {
-		loginserverlist.SendStatus();
+	if (LoginServerList::Instance()->Connected()) {
+		LoginServerList::Instance()->SendStatus();
 	}
 
 	Json::Value ret;
@@ -54,12 +69,12 @@ void EQW__Unlock(WebInterface *i, const std::string& method, const std::string& 
 }
 
 void EQW__GetPlayerCount(WebInterface *i, const std::string& method, const std::string& id, const Json::Value& params) {
-	Json::Value ret = client_list.GetClientCount();
+	Json::Value ret = ClientList::Instance()->GetClientCount();
 	i->SendResponse(id, ret);
 }
 
 void EQW__GetZoneCount(WebInterface *i, const std::string& method, const std::string& id, const Json::Value& params) {
-	Json::Value ret = zoneserver_list.GetZoneCount();
+	Json::Value ret = ZSList::Instance()->GetZoneCount();
 	i->SendResponse(id, ret);
 }
 
@@ -69,7 +84,7 @@ void EQW__GetLauncherCount(WebInterface *i, const std::string& method, const std
 }
 
 void EQW__GetLoginServerCount(WebInterface *i, const std::string& method, const std::string& id, const Json::Value& params) {
-	Json::Value ret = loginserverlist.GetServerCount();
+	Json::Value ret = LoginServerList::Instance()->GetServerCount();
 	i->SendResponse(id, ret);
 }
 

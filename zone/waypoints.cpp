@@ -1,42 +1,37 @@
-/*	EQEMu: Everquest Server Emulator
-Copyright (C) 2001-2004 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; version 2 of the License.
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY except by those people which sell it, which
-are required to give you total support for your newly bought product;
-without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#include "../common/global_define.h"
-#ifdef _EQDEBUG
-#include <iostream>
-#endif
-
-#include "../common/rulesys.h"
-#include "../common/strings.h"
-#include "../common/misc_functions.h"
-#include "../common/eqemu_logsys.h"
-
-#include "map.h"
 #include "npc.h"
-#include "quest_parser_collection.h"
-#include "water_map.h"
-#include "fastmath.h"
-#include "mob_movement_manager.h"
 
-#include "../common/repositories/grid_repository.h"
-#include "../common/repositories/grid_entries_repository.h"
-#include "../common/repositories/spawn2_repository.h"
+#include "common/eqemu_logsys.h"
+#include "common/misc_functions.h"
+#include "common/repositories/grid_entries_repository.h"
+#include "common/repositories/grid_repository.h"
+#include "common/repositories/spawn2_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "zone/bot.h"
+#include "zone/fastmath.h"
+#include "zone/map.h"
+#include "zone/mob_movement_manager.h"
+#include "zone/quest_parser_collection.h"
+#include "zone/water_map.h"
 
-#include <math.h>
+#include <cmath>
 
 extern FastMath g_Math;
 
@@ -1266,7 +1261,6 @@ void NPC::RestoreGuardSpotCharm()
 /******************
 * Bot-specific overloads to make them play nice with the new movement system
 */
-#include "bot.h"
 
 void Bot::WalkTo(float x, float y, float z)
 {

@@ -1,21 +1,20 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
 #ifndef RULE_CATEGORY
 #define RULE_CATEGORY(name)
 #endif
@@ -293,6 +292,7 @@ RULE_REAL(Character, TradeskillUpPottery, 4.0, "Pottery skillup rate adjustment.
 RULE_REAL(Character, TradeskillUpResearch, 1.0, "Research skillup rate adjustment. Lower is faster")
 RULE_REAL(Character, TradeskillUpTinkering, 2.0, "Tinkering skillup rate adjustment. Lower is faster")
 RULE_REAL(Character, TradeskillUpTailoring, 2.0, "Tailoring skillup rate adjustment. Lower is faster")
+RULE_REAL(Character, TradeskillUpMinChance, 2.5, "Determines the minimum percentage chance to gain a skill increase from a tradeskill.  Cannot go below 2.5")
 RULE_BOOL(Character, MarqueeHPUpdates, false, "Will show health percentage in center of screen if health lesser than 100%")
 RULE_INT(Character, IksarCommonTongue, 95, "Starting value for Common Tongue for Iksars")
 RULE_INT(Character, OgreCommonTongue, 95, "Starting value for Common Tongue for Ogres")
@@ -369,6 +369,12 @@ RULE_BOOL(Character, SneakAlwaysSucceedOver100, false, "When sneak skill is over
 RULE_INT(Character, BandolierSwapDelay, 0, "Bandolier swap delay in milliseconds, default is 0")
 RULE_BOOL(Character, EnableHackedFastCampForGM, false, "Enables hacked fast camp for GM clients, if the GM doesn't have a hacked client they'll camp like normal")
 RULE_BOOL(Character, AlwaysAllowNameChange, false, "Enable this option to allow /changename to work without enabling a name change via scripts.")
+RULE_BOOL(Character, EnableAutoAFK, false, "Enable or disable the auto AFK feature, cuts down on packet spam")
+RULE_BOOL(Character, AutoIdleFilterPackets, true, "Enable or disable filtering packets when auto AFK is enabled, heavily cuts down on packet spam in zones with lots of players")
+RULE_INT(Character, SecondsBeforeIdleCombatZone, 600, "Seconds before a player is considered idle in combat zones (600 = 10 minutes)")
+RULE_INT(Character, SecondsBeforeIdleNonCombatZone, 60, "Seconds before a player is considered idle in non-combat zones (60 = 1 minute)")
+RULE_INT(Character, SecondsBeforeAFKCombatZone, 1800, "Seconds before a player is considered AFK in combat zones (1800 = 30 minutes)")
+RULE_INT(Character, SecondsBeforeAFKNonCombatZone, 600, "Seconds before a player is considered AFK in non-combat zones (600 = 10 minutes)")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Mercs)
@@ -752,7 +758,7 @@ RULE_INT(Combat, SneakPullAssistRange, 400, "Modified range of assist for sneak 
 RULE_BOOL(Combat, Classic2HBAnimation, false, "2HB will use the 2 hand piercing animation instead of the overhead slashing animation")
 RULE_BOOL(Combat, ArcheryConsumesAmmo, true, "Set to false to disable Archery Ammo Consumption")
 RULE_BOOL(Combat, ThrowingConsumesAmmo, true, "Set to false to disable Throwing Ammo Consumption")
-RULE_BOOL(Combat, UseLiveRiposteMechanics, false, "Set to true to disable SPA 173 SE_RiposteChance from making those with the effect on them immune to enrage, can longer riposte from a riposte.")
+RULE_BOOL(Combat, UseLiveRiposteMechanics, false, "Set to true to disable SPA 173 SpellEffect::RiposteChance from making those with the effect on them immune to enrage, can longer riposte from a riposte.")
 RULE_INT(Combat, FrontalStunImmunityClasses, 0, "Bitmask for Classes than have frontal stun immunity, No Races (0) by default.")
 RULE_BOOL(Combat, NPCsUseFrontalStunImmunityClasses, false, "Enable or disable NPCs using frontal stun immunity Classes from Combat:FrontalStunImmunityClasses, false by default.")
 RULE_INT(Combat, FrontalStunImmunityRaces, 512, "Bitmask for Races than have frontal stun immunity, Ogre (512) only by default.")
@@ -1018,6 +1024,7 @@ RULE_INT(Bots, MinStatusToBypassSpawnLimit, 100, "Minimum status to bypass spawn
 RULE_INT(Bots, MinStatusBypassSpawnLimit, 120, "Spawn limit with status bypass. Default 120.")
 RULE_INT(Bots, MinStatusToBypassCreateLimit, 100, "Minimum status to bypass create limit. Default 100.")
 RULE_INT(Bots, MinStatusBypassCreateLimit, 120, "Create limit with status bypass. Default 120.")
+RULE_INT(Bots, MinStatusToBypassBotLevelRequirement, 100, "Minimum status to bypass level requirement for bots. Default 100.")
 RULE_BOOL(Bots, EnableBotTGB, true, "If enabled bots will cast group buffs as TGB.")
 RULE_BOOL(Bots, DoResponseAnimations, true, "If enabled bots will do animations to certain responses or commands.")
 RULE_INT(Bots, DefaultFollowDistance, 20, "Default 20. Distance a bot will follow behind.")
@@ -1211,6 +1218,7 @@ RULE_CATEGORY(Logging)
 RULE_BOOL(Logging, PrintFileFunctionAndLine, false, "Ex: [World Server] [net.cpp::main:309] Loading variables...")
 RULE_BOOL(Logging, WorldGMSayLogging, true, "Relay worldserver logging to zone processes via GM say output")
 RULE_BOOL(Logging, PlayerEventsQSProcess, false, "Have query server process player events instead of world. Useful when wanting to use a dedicated server and database for processing player events on separate disk")
+RULE_STRING(Logging, PlayerEventsIgnoreGMCommands, "help,show", "This is a comma delimited list of commands to ignore when recording GM command player events.")
 RULE_INT(Logging, BatchPlayerEventProcessIntervalSeconds, 5, "This is the interval in which player events are processed in world or qs")
 RULE_INT(Logging, BatchPlayerEventProcessChunkSize, 10000, "This is the cap of events that can be inserted into the queue before a force flush. This is to keep from hitting MySQL max_allowed_packet and killing the connection")
 RULE_CATEGORY_END()

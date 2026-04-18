@@ -1,9 +1,22 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "world_server_cli.h"
 
-/**
- * @param argc
- * @param argv
- */
 void WorldserverCLI::CommandHandler(int argc, char **argv)
 {
 	if (argc == 1) { return; }
@@ -38,23 +51,3 @@ void WorldserverCLI::CommandHandler(int argc, char **argv)
 
 	EQEmuCommand::HandleMenu(function_map, cmd, argc, argv);
 }
-
-#include "cli/database_concurrency.cpp"
-#include "cli/bots_enable.cpp"
-#include "cli/bots_disable.cpp"
-#include "cli/mercs_enable.cpp"
-#include "cli/mercs_disable.cpp"
-#include "cli/copy_character.cpp"
-#include "cli/database_updates.cpp"
-#include "cli/database_dump.cpp"
-#include "cli/database_get_schema.cpp"
-#include "cli/database_set_account_status.cpp"
-#include "cli/database_version.cpp"
-#include "cli/test.cpp"
-#include "cli/test_colors.cpp"
-#include "cli/test_expansion.cpp"
-#include "cli/test_repository.cpp"
-#include "cli/test_repository_2.cpp"
-#include "cli/test_string_benchmark.cpp"
-#include "cli/version.cpp"
-#include "cli/etl_get_settings.cpp"

@@ -1,9 +1,25 @@
-#ifndef EVOLVING_H
-#define EVOLVING_H
+/*	EQEmu: EQEmulator
 
-#include "shareddb.h"
-#include "events/player_events.h"
-#include "repositories/items_evolving_details_repository.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/events/player_events.h"
+#include "common/repositories/items_evolving_details_repository.h"
+#include "common/shareddb.h"
 
 namespace EQ {
 	class ItemInstance;
@@ -56,12 +72,13 @@ public:
 	std::map<uint32, ItemsEvolvingDetailsRepository::ItemsEvolvingDetails>& GetEvolvingItemsCache() { return m_evolving_items_cache; }
 	std::vector<ItemsEvolvingDetailsRepository::ItemsEvolvingDetails> GetEvolveIDItems(uint32 evolve_id);
 
+	static EvolvingItemsManager* Instance()
+	{
+		static EvolvingItemsManager instance;
+		return &instance;
+	}
 private:
 	std::map<uint32, ItemsEvolvingDetailsRepository::ItemsEvolvingDetails> m_evolving_items_cache;
 	Database *                                                             m_db;
 	Database *                                                             m_content_db;
 };
-
-extern EvolvingItemsManager evolving_items_manager;
-
-#endif //EVOLVING_H

@@ -1,9 +1,26 @@
-#ifndef EQEMU_CONTENT_FILTER_CRITERIA_H
-#define EQEMU_CONTENT_FILTER_CRITERIA_H
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/content/world_content_service.h"
+#include "common/strings.h"
 
 #include <string>
-#include "../../content/world_content_service.h"
-#include "../../strings.h"
 
 namespace ContentFilterCriteria {
 	static std::string apply(std::string table_prefix = "")
@@ -14,7 +31,7 @@ namespace ContentFilterCriteria {
 			table_prefix = table_prefix + ".";
 		}
 
-		int current_expansion_filter_criteria = content_service.GetCurrentExpansion();
+		int current_expansion_filter_criteria = WorldContentService::Instance()->GetCurrentExpansion();
 		if (current_expansion_filter_criteria == Expansion::EXPANSION_ALL) {
 			current_expansion_filter_criteria = Expansion::EXPANSION_FILTER_MAX;
 		}
@@ -33,8 +50,8 @@ namespace ContentFilterCriteria {
 			table_prefix
 		);
 
-		std::vector<std::string> flags_disabled = content_service.GetContentFlagsDisabled();
-		std::vector<std::string> flags_enabled  = content_service.GetContentFlagsEnabled();
+		std::vector<std::string> flags_disabled = WorldContentService::Instance()->GetContentFlagsDisabled();
+		std::vector<std::string> flags_enabled  = WorldContentService::Instance()->GetContentFlagsEnabled();
 		std::string              flags_in_filter_enabled;
 		std::string              flags_in_filter_disabled;
 		if (!flags_enabled.empty()) {
@@ -69,5 +86,3 @@ namespace ContentFilterCriteria {
 		return std::string(criteria);
 	};
 }
-
-#endif //EQEMU_CONTENT_FILTER_CRITERIA_H

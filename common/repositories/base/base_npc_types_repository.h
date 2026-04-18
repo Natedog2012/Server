@@ -1,3 +1,20 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 /**
  * DO NOT MODIFY THIS FILE
  *
@@ -6,14 +23,14 @@
  * Any modifications to base repositories are to be made by the generator only
  *
  * @generator ./utils/scripts/generators/repository-generator.pl
- * @docs https://docs.eqemu.io/developer/repositories
+ * @docs https://docs.eqemu.dev/developer/repositories
  */
 
-#ifndef EQEMU_BASE_NPC_TYPES_REPOSITORY_H
-#define EQEMU_BASE_NPC_TYPES_REPOSITORY_H
+#pragma once
 
-#include "../../database.h"
-#include "../../strings.h"
+#include "common/database.h"
+#include "common/strings.h"
+
 #include <ctime>
 
 class BaseNpcTypesRepository {
@@ -149,6 +166,7 @@ public:
 		uint8_t     keeps_sold_items;
 		uint8_t     is_parcel_merchant;
 		uint8_t     multiquest_enabled;
+		uint16_t    npc_tint_id;
 	};
 
 	static std::string PrimaryKey()
@@ -289,6 +307,7 @@ public:
 			"keeps_sold_items",
 			"is_parcel_merchant",
 			"multiquest_enabled",
+			"npc_tint_id",
 		};
 	}
 
@@ -425,6 +444,7 @@ public:
 			"keeps_sold_items",
 			"is_parcel_merchant",
 			"multiquest_enabled",
+			"npc_tint_id",
 		};
 	}
 
@@ -595,6 +615,7 @@ public:
 		e.keeps_sold_items       = 1;
 		e.is_parcel_merchant     = 0;
 		e.multiquest_enabled     = 0;
+		e.npc_tint_id            = 0;
 
 		return e;
 	}
@@ -761,6 +782,7 @@ public:
 			e.keeps_sold_items       = row[127] ? static_cast<uint8_t>(strtoul(row[127], nullptr, 10)) : 1;
 			e.is_parcel_merchant     = row[128] ? static_cast<uint8_t>(strtoul(row[128], nullptr, 10)) : 0;
 			e.multiquest_enabled     = row[129] ? static_cast<uint8_t>(strtoul(row[129], nullptr, 10)) : 0;
+			e.npc_tint_id            = row[130] ? static_cast<uint16_t>(strtoul(row[130], nullptr, 10)) : 0;
 
 			return e;
 		}
@@ -923,6 +945,7 @@ public:
 		v.push_back(columns[127] + " = " + std::to_string(e.keeps_sold_items));
 		v.push_back(columns[128] + " = " + std::to_string(e.is_parcel_merchant));
 		v.push_back(columns[129] + " = " + std::to_string(e.multiquest_enabled));
+		v.push_back(columns[130] + " = " + std::to_string(e.npc_tint_id));
 
 		auto results = db.QueryDatabase(
 			fmt::format(
@@ -1074,6 +1097,7 @@ public:
 		v.push_back(std::to_string(e.keeps_sold_items));
 		v.push_back(std::to_string(e.is_parcel_merchant));
 		v.push_back(std::to_string(e.multiquest_enabled));
+		v.push_back(std::to_string(e.npc_tint_id));
 
 		auto results = db.QueryDatabase(
 			fmt::format(
@@ -1233,6 +1257,7 @@ public:
 			v.push_back(std::to_string(e.keeps_sold_items));
 			v.push_back(std::to_string(e.is_parcel_merchant));
 			v.push_back(std::to_string(e.multiquest_enabled));
+			v.push_back(std::to_string(e.npc_tint_id));
 
 			insert_chunks.push_back("(" + Strings::Implode(",", v) + ")");
 		}
@@ -1396,6 +1421,7 @@ public:
 			e.keeps_sold_items       = row[127] ? static_cast<uint8_t>(strtoul(row[127], nullptr, 10)) : 1;
 			e.is_parcel_merchant     = row[128] ? static_cast<uint8_t>(strtoul(row[128], nullptr, 10)) : 0;
 			e.multiquest_enabled     = row[129] ? static_cast<uint8_t>(strtoul(row[129], nullptr, 10)) : 0;
+			e.npc_tint_id            = row[130] ? static_cast<uint16_t>(strtoul(row[130], nullptr, 10)) : 0;
 
 			all_entries.push_back(e);
 		}
@@ -1550,6 +1576,7 @@ public:
 			e.keeps_sold_items       = row[127] ? static_cast<uint8_t>(strtoul(row[127], nullptr, 10)) : 1;
 			e.is_parcel_merchant     = row[128] ? static_cast<uint8_t>(strtoul(row[128], nullptr, 10)) : 0;
 			e.multiquest_enabled     = row[129] ? static_cast<uint8_t>(strtoul(row[129], nullptr, 10)) : 0;
+			e.npc_tint_id            = row[130] ? static_cast<uint16_t>(strtoul(row[130], nullptr, 10)) : 0;
 
 			all_entries.push_back(e);
 		}
@@ -1754,6 +1781,7 @@ public:
 		v.push_back(std::to_string(e.keeps_sold_items));
 		v.push_back(std::to_string(e.is_parcel_merchant));
 		v.push_back(std::to_string(e.multiquest_enabled));
+		v.push_back(std::to_string(e.npc_tint_id));
 
 		auto results = db.QueryDatabase(
 			fmt::format(
@@ -1906,6 +1934,7 @@ public:
 			v.push_back(std::to_string(e.keeps_sold_items));
 			v.push_back(std::to_string(e.is_parcel_merchant));
 			v.push_back(std::to_string(e.multiquest_enabled));
+			v.push_back(std::to_string(e.npc_tint_id));
 
 			insert_chunks.push_back("(" + Strings::Implode(",", v) + ")");
 		}
@@ -1923,5 +1952,3 @@ public:
 		return (results.Success() ? results.RowsAffected() : 0);
 	}
 };
-
-#endif //EQEMU_BASE_NPC_TYPES_REPOSITORY_H

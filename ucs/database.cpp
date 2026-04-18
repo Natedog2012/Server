@@ -1,56 +1,40 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2008 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <mysqld_error.h>
-#include <limits.h>
-#include <ctype.h>
-#include <assert.h>
-#include <map>
-
-// Disgrace: for windows compile
-#ifdef _WINDOWS
-#include <windows.h>
-#define snprintf	_snprintf
-#define strncasecmp	_strnicmp
-#define strcasecmp	_stricmp
-#else
-
-#include "../common/unix.h"
-#include <netinet/in.h>
-
-#endif
-
 #include "database.h"
-#include "../common/eq_packet_structs.h"
-#include "../common/misc_functions.h"
-#include "../common/strings.h"
-#include "chatchannel.h"
-#include "../common/repositories/chatchannel_reserved_names_repository.h"
-#include "../common/repositories/chatchannels_repository.h"
-#include "../common/repositories/name_filter_repository.h"
+
+#include "common/eq_packet_structs.h"
+#include "common/eqemu_logsys.h"
+#include "common/misc_functions.h"
+#include "common/platform/platform.h"
+#include "common/repositories/chatchannel_reserved_names_repository.h"
+#include "common/repositories/chatchannels_repository.h"
+#include "common/repositories/name_filter_repository.h"
+#include "common/strings.h"
+#include "ucs/chatchannel.h"
+
+#include "mysqld_error.h"
+#include <cassert>
+#include <cctype>
+#include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <map>
 
 extern Clientlist      *g_Clientlist;
 extern std::string GetMailPrefix();

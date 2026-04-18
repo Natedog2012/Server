@@ -1,25 +1,23 @@
-/*	EQEMu: Everquest Server Emulator
+/*	EQEmu: EQEmulator
 
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.net)
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  04111-1307  USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#pragma once
 
-#ifndef COMMON_ITEM_DATA_H
-#define COMMON_ITEM_DATA_H
-
+#include "common/emu_constants.h"
 
 /*
  * Note: (Doodman)
@@ -43,9 +41,6 @@
  * Note #4: (Doodman)
  *	Made ya look! Ha!
  */
-
-#include "emu_constants.h"
-
 
 namespace EQ
 {
@@ -438,7 +433,7 @@ namespace EQ
 		//uint32	Unk054 {};
 		int16	MaxCharges {};		// Maximum charges items can hold: -1 if not a chargeable item
 		uint8	ItemType {};		// Item Type/Skill (itemClass* from above)
-		int32	SubType {};		// Some items have sub types that can be used for other things (unbreakable fishing poles, SE_FFItemClass)
+		int32	SubType {};		// Some items have sub types that can be used for other things (unbreakable fishing poles, SpellEffect::FFItemClass)
 		uint8	Material {};		// Item material type
 		uint32	HerosForgeModel {};// Hero's Forge Armor Model Type (2-13?)
 		float	SellRate {};		// Sell rate
@@ -558,5 +553,3 @@ namespace EQ
 	};
 
 } /*EQEmu*/
-
-#endif /*COMMON_ITEM_DATA_H*/

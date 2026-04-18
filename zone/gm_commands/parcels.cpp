@@ -1,8 +1,39 @@
-#include "../client.h"
-#include "../worldserver.h"
-#include "../../common/events/player_events.h"
+/*	EQEmu: EQEmulator
 
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/events/player_event_logs.h"
+#include "zone/client.h"
+#include "zone/queryserv.h"
+#include "zone/string_ids.h"
+#include "zone/worldserver.h"
+
+extern QueryServ  *QServ;
 extern WorldServer worldserver;
+
+void SendParcelsSubCommands(Client *c)
+{
+	c->Message(Chat::White, "#parcels listdb [Character Name]");
+	c->Message(Chat::White, "#parcels listmemory [Character Name] (Must be in the same zone)");
+	c->Message(
+		Chat::White,
+		"#parcels add [Character Name] [item id] [quantity] [note].  To send money use item id of 99990. Quantity is valid for stackable items, charges on an item, or amount of copper."
+	);
+	c->Message(Chat::White, "#parcels details [Character Name]");
+}
 
 void command_parcels(Client *c, const Seperator *sep)
 {
@@ -197,7 +228,7 @@ void command_parcels(Client *c, const Seperator *sep)
 				send_to_client.at(0).character_name.c_str()
 			);
 
-			if (inst && player_event_logs.IsEventEnabled(PlayerEvent::PARCEL_SEND)) {
+			if (inst && PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::PARCEL_SEND)) {
 				PlayerEvent::ParcelSend e{};
 				e.from_player_name = parcel_out.from_name;
 				e.to_player_name   = send_to_client.at(0).character_name;
@@ -281,7 +312,7 @@ void command_parcels(Client *c, const Seperator *sep)
 				send_to_client.at(0).character_name.c_str()
 			);
 
-			if (inst && player_event_logs.IsEventEnabled(PlayerEvent::PARCEL_SEND)) {
+			if (inst && PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::PARCEL_SEND)) {
 				PlayerEvent::ParcelSend e{};
 				e.from_player_name = parcel_out.from_name;
 				e.to_player_name   = send_to_client.at(0).character_name;
@@ -305,15 +336,4 @@ void command_parcels(Client *c, const Seperator *sep)
 			c->SendParcelDeliveryToWorld(ps);
 		}
 	}
-}
-
-void SendParcelsSubCommands(Client *c)
-{
-	c->Message(Chat::White, "#parcels listdb [Character Name]");
-	c->Message(Chat::White, "#parcels listmemory [Character Name] (Must be in the same zone)");
-	c->Message(
-		Chat::White,
-		"#parcels add [Character Name] [item id] [quantity] [note].  To send money use item id of 99990. Quantity is valid for stackable items, charges on an item, or amount of copper."
-	);
-	c->Message(Chat::White, "#parcels details [Character Name]");
 }

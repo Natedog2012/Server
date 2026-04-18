@@ -1,53 +1,43 @@
-/*	EQEMu: Everquest Server Emulator
-Copyright (C) 2001-2002 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; version 2 of the License.
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY except by those people which sell it, which
-are required to give you total support for your newly bought product;
-without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/global_define.h"
-#include "../common/eq_constants.h"
-#include "../common/eq_packet_structs.h"
-#include "../common/rulesys.h"
-#include "../common/spdat.h"
-#include "../common/strings.h"
-#include "../common/data_verification.h"
-#include "../common/misc_functions.h"
-#include "../common/events/player_event_logs.h"
-#include "queryserv.h"
-#include "quest_parser_collection.h"
-#include "string_ids.h"
-#include "water_map.h"
-#include "worldserver.h"
-#include "zone.h"
-#include "lua_parser.h"
-#include "fastmath.h"
-#include "mob.h"
-#include "npc.h"
-
-#include "bot.h"
+#include "common/data_verification.h"
+#include "common/eq_constants.h"
+#include "common/eq_packet_structs.h"
+#include "common/events/player_event_logs.h"
+#include "common/misc_functions.h"
+#include "common/rulesys.h"
+#include "common/spdat.h"
+#include "common/strings.h"
+#include "zone/bot.h"
+#include "zone/fastmath.h"
+#include "zone/lua_parser.h"
+#include "zone/mob.h"
+#include "zone/npc.h"
+#include "zone/queryserv.h"
+#include "zone/quest_parser_collection.h"
+#include "zone/string_ids.h"
+#include "zone/water_map.h"
+#include "zone/worldserver.h"
+#include "zone/zone.h"
 
 extern QueryServ* QServ;
 extern WorldServer worldserver;
 extern FastMath g_Math;
-
-#ifdef _WINDOWS
-#define snprintf	_snprintf
-#define strncasecmp	_strnicmp
-#define strcasecmp	_stricmp
-#endif
-
 extern EntityList entity_list;
 extern Zone* zone;
 
@@ -179,7 +169,7 @@ int Mob::compute_tohit(EQ::skills::SkillType skillinuse)
 //SYNC WITH: tune.cpp, mob.h TuneGetTotalToHit
 int Mob::GetTotalToHit(EQ::skills::SkillType skill, int chance_mod)
 {
-	if (chance_mod >= 10000) // override for stuff like SE_SkillAttack
+	if (chance_mod >= 10000) // override for stuff like SpellEffect::SkillAttack
 		return -1;
 
 	// calculate attacker's accuracy
@@ -209,7 +199,7 @@ int Mob::GetTotalToHit(EQ::skills::SkillType skill, int chance_mod)
 	if (atkhit_bonus)
 		accuracy += round(static_cast<double>(accuracy) * static_cast<double>(atkhit_bonus) * 0.0001);
 
-	// 216 Melee Accuracy Amt aka SE_Accuracy -- flat bonus
+	// 216 Melee Accuracy Amt aka SpellEffect::Accuracy -- flat bonus
 	accuracy += itembonuses.Accuracy[EQ::skills::HIGHEST_SKILL + 1] +
 		aabonuses.Accuracy[EQ::skills::HIGHEST_SKILL + 1] +
 		spellbonuses.Accuracy[EQ::skills::HIGHEST_SKILL + 1] +
@@ -224,7 +214,7 @@ int Mob::GetTotalToHit(EQ::skills::SkillType skill, int chance_mod)
 	if (spellbonuses.HitChanceEffect[EQ::skills::HIGHEST_SKILL + 1] >= 10000)
 		return -1;
 
-	// 184 Accuracy % aka SE_HitChance -- percentage increase
+	// 184 Accuracy % aka SpellEffect::HitChance -- percentage increase
 	auto hit_bonus = itembonuses.HitChanceEffect[EQ::skills::HIGHEST_SKILL + 1] +
 		aabonuses.HitChanceEffect[EQ::skills::HIGHEST_SKILL + 1] +
 		spellbonuses.HitChanceEffect[EQ::skills::HIGHEST_SKILL + 1] +
@@ -285,7 +275,7 @@ int Mob::compute_defense()
 	}
 
 
-	//516 SE_AC_Mitigation_Max_Percent
+	//516 SpellEffect::AC_Mitigation_Max_Percent
 	auto ac_bonus = itembonuses.AC_Mitigation_Max_Percent + aabonuses.AC_Mitigation_Max_Percent + spellbonuses.AC_Mitigation_Max_Percent;
 	if (ac_bonus) {
 		defense += round(static_cast<double>(defense) * static_cast<double>(ac_bonus) * 0.0001);
@@ -315,15 +305,15 @@ int Mob::GetTotalDefense()
 	if (evasion_bonus >= 10000)
 		return -1;
 
-	// 515 SE_AC_Avoidance_Max_Percent
+	// 515 SpellEffect::AC_Avoidance_Max_Percent
 	auto ac_aviodance_bonus = itembonuses.AC_Avoidance_Max_Percent + aabonuses.AC_Avoidance_Max_Percent + spellbonuses.AC_Avoidance_Max_Percent;
 	if (ac_aviodance_bonus)
 		avoidance += round(static_cast<double>(avoidance) * static_cast<double>(ac_aviodance_bonus) * 0.0001);
 
-	// 172 Evasion aka SE_AvoidMeleeChance
+	// 172 Evasion aka SpellEffect::AvoidMeleeChance
 	evasion_bonus += itembonuses.AvoidMeleeChanceEffect + aabonuses.AvoidMeleeChanceEffect; // item bonus here isn't mod2 avoidance
 
-	// 215 Pet Avoidance % aka SE_PetAvoidance
+	// 215 Pet Avoidance % aka SpellEffect::PetAvoidance
 	evasion_bonus += GetPetAvoidanceBonusFromOwner();
 
 	// Evasion is a percentage bonus according to AA descriptions
@@ -401,8 +391,8 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 	*/
 
 	/* Order according to current (SoF+?) dev quotes:
-	* https://forums.daybreakgames.com/eq/index.php?threads/test-update-06-10-15.223510/page-2#post-3261772
-	* https://forums.daybreakgames.com/eq/index.php?threads/test-update-06-10-15.223510/page-2#post-3268227
+	* https://web.archive.org/web/20250816014133/https://forums.everquest.com/index.php?threads/test-update-06-10-15.223510/page-2#post-3261772
+	* https://web.archive.org/web/20250816014133/https://forums.everquest.com/index.php?threads/test-update-06-10-15.223510/page-2#post-3268227
 	* Riposte 50, hDEX, must have weapon/fists, doesn't work on archery/throwing
 	* Block 25, hDEX, works on archery/throwing, behind block done here if back to attacker base1 is chance
 	* Parry 45, hDEX, doesn't work on throwing/archery, must be facing target
@@ -461,7 +451,7 @@ bool Mob::AvoidDamage(Mob *other, DamageHitInfo &hit)
 	}
 
 	/* Heroic Strikethrough Implementation per Dev Quotes (2018):
-	* https://forums.daybreakgames.com/eq/index.php?threads/illusions-benefit-neza-10-dodge.246757/#post-3622670
+	* https://web.archive.org/web/20250816014810/https://forums.everquest.com/index.php?threads/illusions-benefit-neza-10-dodge.246757/#post-3622670
 	* Step1 = HeroicStrikethrough(NPC)
 	* Step2 = HeroicAgility / 25
 	* Step3 = MIN( Step1, Step2 )
@@ -896,7 +886,7 @@ int Mob::GetClassRaceACBonus()
 			ac_bonus = 16;
 	}
 
-	if (GetRace() == IKSAR)
+	if (GetRace() == Race::Iksar)
 		ac_bonus += EQ::Clamp(static_cast<int>(level), 10, 35);
 
 	return ac_bonus;
@@ -1917,7 +1907,7 @@ bool Client::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::Skil
 	dead = true;
 
 	if (m_pet && m_pet->IsCharmed()) {
-		m_pet->BuffFadeByEffect(SE_Charm);
+		m_pet->BuffFadeByEffect(SpellEffect::Charm);
 	}
 
 	if (GetMerc()) {
@@ -2163,7 +2153,7 @@ bool Client::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::Skil
 		GoToDeath();
 	}
 
-	if (player_event_logs.IsEventEnabled(PlayerEvent::DEATH)) {
+	if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::DEATH)) {
 		auto e = PlayerEvent::DeathEvent{
 			.killer_id = killer_mob ? static_cast<uint32>(killer_mob->GetID()) : static_cast<uint32>(0),
 			.killer_name = killer_mob ? killer_mob->GetCleanName() : "No Killer",
@@ -2683,7 +2673,7 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 				give_exp_client->GetCleanName(),
 				GetNPCTypeID()
 			);
-			task_manager->HandleUpdateTasksOnKill(give_exp_client, this);
+			TaskManager::Instance()->HandleUpdateTasksOnKill(give_exp_client, this);
 		}
 
 		if (killer_raid) {
@@ -3039,6 +3029,25 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 		DispatchZoneControllerEvent(EVENT_DEATH_ZONE, owner_or_self, export_string, 0, &args);
 	}
 
+	if (parse->ZoneHasQuestSub(EVENT_DEATH_ZONE)) {
+		const auto& export_string = fmt::format(
+			"{} {} {} {} {} {} {} {} {}",
+			killer_mob ? killer_mob->GetID() : 0,
+			damage,
+			spell,
+			static_cast<int>(attack_skill),
+			entity_id,
+			m_combat_record.GetStartTime(),
+			m_combat_record.GetEndTime(),
+			m_combat_record.GetDamageReceived(),
+			m_combat_record.GetHealingReceived()
+		);
+
+		std::vector<std::any> args = { corpse, this, owner_or_self };
+
+		parse->EventZone(EVENT_DEATH_ZONE, zone, export_string, 0, &args);
+	}
+
 	return true;
 }
 
@@ -3068,11 +3077,11 @@ void Mob::AddToHateList(Mob* other, int64 hate /*= 0*/, int64 damage /*= 0*/, bo
 	else
 		SetAssistAggro(true);
 
-	bool wasengaged = IsEngaged();
+	bool was_engaged = IsEngaged();
 	Mob* owner = other->GetOwner();
-	Mob* mypet = GetPet();
-	Mob* myowner = GetOwner();
-	Mob* targetmob = GetTarget();
+	Mob* my_pet = GetPet();
+	Mob* my_owner = GetOwner();
+	Mob* target_mob = GetTarget();
 	bool on_hatelist = CheckAggro(other);
 
 	AddRampage(other);
@@ -3101,7 +3110,7 @@ void Mob::AddToHateList(Mob* other, int64 hate /*= 0*/, int64 damage /*= 0*/, bo
 		if (IsPet()) {
 			if ((IsGHeld() || (IsHeld() && IsFocused())) && !on_hatelist) // we want them to be able to climb the hate list
 				return;
-			if ((IsHeld() || IsPetStop() || IsPetRegroup()) && !wasengaged) // not 100% sure on stop/regroup kind of hard to test, but regroup is like "classic hold"
+			if ((IsHeld() || IsPetStop() || IsPetRegroup()) && !was_engaged) // not 100% sure on stop/regroup kind of hard to test, but regroup is like "classic hold"
 				return;
 		}
 	}
@@ -3134,7 +3143,7 @@ void Mob::AddToHateList(Mob* other, int64 hate /*= 0*/, int64 damage /*= 0*/, bo
 		return;
 	}
 
-	if (other == myowner) {
+	if (other == my_owner) {
 		return;
 	}
 
@@ -3236,26 +3245,39 @@ void Mob::AddToHateList(Mob* other, int64 hate /*= 0*/, int64 damage /*= 0*/, bo
 		}
 	}
 
-	if (mypet && !mypet->IsHeld() && !mypet->IsPetStop()) { // I have a pet, add other to it
-		if (
-			!mypet->IsFamiliar() &&
-			!mypet->GetSpecialAbility(SpecialAbility::AggroImmunity) &&
-			!(IsBot() && mypet->GetSpecialAbility(SpecialAbility::BotAggroImmunity)) &&
-			!(IsClient() && mypet->GetSpecialAbility(SpecialAbility::ClientAggroImmunity)) &&
-			!(IsNPC() && mypet->GetSpecialAbility(SpecialAbility::NPCAggroImmunity))
-		) {
-			mypet->hate_list.AddEntToHateList(other, 0, 0, bFrenzy);
+	if (my_pet) {
+		bool aggro_immunity 		= my_pet->GetSpecialAbility(SpecialAbility::AggroImmunity);
+		bool bot_aggro_immunity 	= IsBot() && my_pet->GetSpecialAbility(SpecialAbility::BotAggroImmunity);
+		bool client_aggro_immunity 	= IsClient() && my_pet->GetSpecialAbility(SpecialAbility::ClientAggroImmunity);
+		bool npc_aggro_immunity 	= IsNPC() && my_pet->GetSpecialAbility(SpecialAbility::NPCAggroImmunity);
+		bool can_add_to_hatelist 	= !my_pet->IsFamiliar() &&
+			!aggro_immunity &&
+			!bot_aggro_immunity &&
+			!client_aggro_immunity &&
+			!npc_aggro_immunity;
+
+		if (can_add_to_hatelist) {
+			bool bot_with_controllable_pet = IsBot() && CastToBot()->HasControllablePet(BotAnimEmpathy::Attack);
+
+			if (!IsBot() || bot_with_controllable_pet) {
+				my_pet->hate_list.AddEntToHateList(other, 0, 0, bFrenzy);
+			}
 		}
 	}
-	else if (myowner) { // I am a pet, add other to owner if it's NPC/LD
-		if (
-			myowner->IsAIControlled() &&
-			!myowner->GetSpecialAbility(SpecialAbility::AggroImmunity) &&
-			!(myowner->IsBot() && GetSpecialAbility(SpecialAbility::BotAggroImmunity)) &&
-			!(myowner->IsClient() && GetSpecialAbility(SpecialAbility::ClientAggroImmunity)) &&
-			!(myowner->IsNPC() && GetSpecialAbility(SpecialAbility::NPCAggroImmunity))
-		) {
-			myowner->hate_list.AddEntToHateList(other, 0, 0, bFrenzy);
+	else if (my_owner) { // I am a pet, add other to owner if it's NPC/LD
+		if (my_owner->IsAIControlled()) {
+			bool aggro_immunity = my_owner->GetSpecialAbility(SpecialAbility::AggroImmunity);
+			bool bot_aggro_immunity = my_owner->IsBot() && GetSpecialAbility(SpecialAbility::BotAggroImmunity);
+			bool client_aggro_immunity = my_owner->IsClient() && GetSpecialAbility(SpecialAbility::ClientAggroImmunity);
+			bool npc_aggro_immunity = my_owner->IsNPC() && GetSpecialAbility(SpecialAbility::NPCAggroImmunity);
+			bool can_add_to_hatelist = !aggro_immunity &&
+				!bot_aggro_immunity &&
+				!client_aggro_immunity &&
+				!npc_aggro_immunity;
+
+			if (can_add_to_hatelist) {
+				my_owner->hate_list.AddEntToHateList(other, 0, 0, bFrenzy);
+			}
 		}
 	}
 
@@ -3264,7 +3286,7 @@ void Mob::AddToHateList(Mob* other, int64 hate /*= 0*/, int64 damage /*= 0*/, bo
 		entity_list.AddTempPetsToHateList(this, other, bFrenzy);
 	}
 
-	if (!wasengaged) {
+	if (!was_engaged) {
 		if (IsNPC() && other->IsClient() && other->CastToClient()) {
 			if (parse->HasQuestSub(GetNPCTypeID(), EVENT_AGGRO)) {
 				parse->EventNPC(EVENT_AGGRO, CastToNPC(), other, "", 0);
@@ -3382,7 +3404,7 @@ void Mob::DamageShield(Mob* attacker, bool spell_ds) {
 uint8 Mob::GetWeaponDamageBonus(const EQ::ItemData *weapon, bool offhand)
 {
 	// dev quote with old and new formulas
-	// https://forums.daybreakgames.com/eq/index.php?threads/test-update-09-17-15.226618/page-5#post-3326194
+	// https://web.archive.org/web/20250816013618/https://forums.everquest.com/index.php?threads/test-update-09-17-15.226618/page-5#post-3326194
 	//
 	// We assume that the level check is done before calling this function and sinister strikes is checked before
 	// calling for offhand DB
@@ -3513,7 +3535,7 @@ int Mob::GetHandToHandDelay(void)
 		int iksar = 0;
 		if (IsClient() && CastToClient()->GetItemIDAt(12) == 10652 && GetLevel() > 46)
 			epic = 280;
-		else if (GetRace() == IKSAR)
+		else if (GetRace() == Race::Iksar)
 			iksar = 1;
 		// the delay bonus from the monk epic scales up to a skill of 280
 		if (epic >= skill)
@@ -3554,8 +3576,8 @@ int Mob::GetHandToHandDelay(void)
 			return 16;
 		int level = GetLevel();
 		if (level > 62)
-			return GetRace() == IKSAR ? 21 : 20;
-		return GetRace() == IKSAR ? mnk_iks_delay[level] : mnk_hum_delay[level];
+			return GetRace() == Race::Iksar ? 21 : 20;
+		return GetRace() == Race::Iksar ? mnk_iks_delay[level] : mnk_hum_delay[level];
 	}
 	else if (GetClass() == Class::Beastlord) {
 		int level = GetLevel();
@@ -3646,7 +3668,7 @@ int64 Mob::ReduceDamage(int64 damage)
 		return DMG_RUNE;
 
 	if (spellbonuses.MeleeRune[SBIndex::RUNE_AMOUNT] && spellbonuses.MeleeRune[SBIndex::RUNE_BUFFSLOT] >= 0)
-		damage = RuneAbsorb(damage, SE_Rune);
+		damage = RuneAbsorb(damage, SpellEffect::Rune);
 
 	if (damage < 1)
 		return DMG_RUNE;
@@ -3773,10 +3795,10 @@ int64 Mob::AffectMagicalDamage(int64 damage, uint16 spell_id, const bool iBuffTi
 
 		//Regular runes absorb spell damage (except dots) - Confirmed on live.
 		if (spellbonuses.MeleeRune[SBIndex::RUNE_AMOUNT] && spellbonuses.MeleeRune[SBIndex::RUNE_BUFFSLOT] >= 0)
-			damage = RuneAbsorb(damage, SE_Rune);
+			damage = RuneAbsorb(damage, SpellEffect::Rune);
 
 		if (spellbonuses.AbsorbMagicAtt[SBIndex::RUNE_AMOUNT] && spellbonuses.AbsorbMagicAtt[SBIndex::RUNE_BUFFSLOT] >= 0)
-			damage = RuneAbsorb(damage, SE_AbsorbMagicAtt);
+			damage = RuneAbsorb(damage, SpellEffect::AbsorbMagicAtt);
 
 		if (damage < 1)
 			return 0;
@@ -4081,11 +4103,11 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 			if (IsPet()) {
 				Mob *owner = GetOwner();
 				if (owner && owner->IsClient()) {
-					if (GetPetOrder() == SPO_Sit) {
+					if (GetPetOrder() == PetOrder::Sit) {
 						SetPetOrder(GetPreviousPetOrder());
 					}
 					// fix GUI sit button to be unpressed and stop sitting regen
-					owner->CastToClient()->SetPetCommandState(PET_BUTTON_SIT, 0);
+					owner->CastToClient()->SetPetCommandState(PetButton::Sit, PetButtonState::Off);
 					SetAppearance(eaStanding);
 				}
 			}
@@ -4115,12 +4137,12 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 			if (IsClient() && !pet->IsPetStop()) {
 				// if pet was sitting his new mode is previous setting of
 				// follow or guard after the battle (live verified)
-				if (pet->GetPetOrder() == SPO_Sit) {
+				if (pet->GetPetOrder() == PetOrder::Sit) {
 					pet->SetPetOrder(pet->GetPreviousPetOrder());
 				}
 
 				// fix GUI sit button to be unpressed and stop sitting regen
-				CastToClient()->SetPetCommandState(PET_BUTTON_SIT, 0);
+				CastToClient()->SetPetCommandState(PetButton::Sit, PetButtonState::Off);
 				pet->SetAppearance(eaStanding);
 			}
 
@@ -4142,7 +4164,7 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 			damage = ReduceDamage(damage);
 			LogCombat("Melee Damage reduced to [{}]", damage);
 			damage = ReduceAllDamage(damage);
-			TryTriggerThreshHold(damage, SE_TriggerMeleeThreshold, attacker);
+			TryTriggerThreshHold(damage, SpellEffect::TriggerMeleeThreshold, attacker);
 
 			CheckNumHitsRemaining(NumHit::IncomingHitSuccess);
 		}
@@ -4167,7 +4189,7 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 				Message(263, "%s tries to cast on YOU, but YOUR magical skin absorbs the spell.", attacker->GetCleanName());
 			}
 			damage = ReduceAllDamage(damage);
-			TryTriggerThreshHold(damage, SE_TriggerSpellThreshold, attacker);
+			TryTriggerThreshHold(damage, SpellEffect::TriggerSpellThreshold, attacker);
 		}
 
 		if (IsClient() && CastToClient()->sneaking) {
@@ -4292,7 +4314,7 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 				GetCleanName(), /* Message1 */
 				attacker->GetCleanName() /* Message2 */
 			);
-			BuffFadeByEffect(SE_Mez);
+			BuffFadeByEffect(SpellEffect::Mez);
 		}
 
 		// broken up for readability
@@ -4377,12 +4399,12 @@ void Mob::CommonDamage(Mob* attacker, int64 &damage, const uint16 spell_id, cons
 			int bashsave_roll = zone->random.Int(0, 100);
 			if (bashsave_roll > 98 || bashsave_roll > (55 - stunbash_chance)) {
 				// did stun -- roll other resists
-				// SE_FrontalStunResist description says any angle now a days
+				// SpellEffect::FrontalStunResist description says any angle now a days
 				int stun_resist2 = spellbonuses.FrontalStunResist + itembonuses.FrontalStunResist +
 					aabonuses.FrontalStunResist;
 				if (zone->random.Int(1, 100) > stun_resist2) {
 					// stun resist 2 failed
-					// time to check SE_StunResist and mod2 stun resist
+					// time to check SpellEffect::StunResist and mod2 stun resist
 					int stun_resist =
 						spellbonuses.StunResist + itembonuses.StunResist + aabonuses.StunResist;
 					if (zone->random.Int(0, 100) >= stun_resist) {
@@ -5646,7 +5668,7 @@ void Mob::DoRiposte(Mob *defender)
 		defender->itembonuses.DoubleRiposte;
 
 	if (DoubleRipChance && zone->random.Roll(DoubleRipChance)) {
-		LogCombat("Preforming a double riposted from SE_DoubleRiposte ([{}] percent chance)", DoubleRipChance);
+		LogCombat("Preforming a double riposted from SpellEffect::DoubleRiposte ([{}] percent chance)", DoubleRipChance);
 		defender->Attack(this, EQ::invslot::slotPrimary, true);
 		if (HasDied())
 			return;
@@ -5657,7 +5679,7 @@ void Mob::DoRiposte(Mob *defender)
 
 	// Live AA - Double Riposte
 	if (DoubleRipChance && zone->random.Roll(DoubleRipChance)) {
-		LogCombat("Preforming a double riposted from SE_GiveDoubleRiposte base1 == 0 ([{}] percent chance)", DoubleRipChance);
+		LogCombat("Preforming a double riposted from SpellEffect::GiveDoubleRiposte base1 == 0 ([{}] percent chance)", DoubleRipChance);
 		defender->Attack(this, EQ::invslot::slotPrimary, true);
 		if (HasDied())
 			return;
@@ -6005,12 +6027,12 @@ void Mob::TrySkillProc(Mob *on, EQ::skills::SkillType skill, uint16 ReuseTime, b
 
 				for (int i = 0; i < EFFECT_COUNT; i++) {
 
-					if (spells[base_spell_id].effect_id[i] == SE_SkillProcAttempt || spells[base_spell_id].effect_id[i] == SE_SkillProcSuccess) {
+					if (spells[base_spell_id].effect_id[i] == SpellEffect::SkillProcAttempt || spells[base_spell_id].effect_id[i] == SpellEffect::SkillProcSuccess) {
 						proc_spell_id = spells[base_spell_id].base_value[i];
 						ProcMod = static_cast<float>(spells[base_spell_id].limit_value[i]);
 					}
 
-					else if (spells[base_spell_id].effect_id[i] == SE_LimitToSkill && spells[base_spell_id].base_value[i] <= EQ::skills::HIGHEST_SKILL) {
+					else if (spells[base_spell_id].effect_id[i] == SpellEffect::LimitToSkill && spells[base_spell_id].base_value[i] <= EQ::skills::HIGHEST_SKILL) {
 						if (CanProc && spells[base_spell_id].base_value[i] == skill && IsValidSpell(proc_spell_id)) {
 							float final_chance = chance * (ProcMod / 100.0f);
 							if (zone->random.Roll(final_chance)) {
@@ -6049,12 +6071,12 @@ void Mob::TrySkillProc(Mob *on, EQ::skills::SkillType skill, uint16 ReuseTime, b
 				ProcMod = 0;
 
 				for (int i = 0; i < EFFECT_COUNT; i++) {
-					if (spells[base_spell_id].effect_id[i] == SE_SkillProcAttempt || spells[base_spell_id].effect_id[i] == SE_SkillProcSuccess) {
+					if (spells[base_spell_id].effect_id[i] == SpellEffect::SkillProcAttempt || spells[base_spell_id].effect_id[i] == SpellEffect::SkillProcSuccess) {
 						proc_spell_id = spells[base_spell_id].base_value[i];
 						ProcMod = static_cast<float>(spells[base_spell_id].limit_value[i]);
 					}
 
-					else if (spells[base_spell_id].effect_id[i] == SE_LimitToSkill && spells[base_spell_id].base_value[i] <= EQ::skills::HIGHEST_SKILL) {
+					else if (spells[base_spell_id].effect_id[i] == SpellEffect::LimitToSkill && spells[base_spell_id].base_value[i] <= EQ::skills::HIGHEST_SKILL) {
 
 						if (CanProc && spells[base_spell_id].base_value[i] == skill && IsValidSpell(proc_spell_id)) {
 							float final_chance = chance * (ProcMod / 100.0f);
@@ -6111,11 +6133,11 @@ void Mob::TrySkillProc(Mob *on, EQ::skills::SkillType skill, uint16 ReuseTime, b
 						limit_value = effect.limit_value;
 						slot = effect.slot;
 
-						if (effect_id == SE_SkillProcAttempt || effect_id == SE_SkillProcSuccess) {
+						if (effect_id == SpellEffect::SkillProcAttempt || effect_id == SpellEffect::SkillProcSuccess) {
 							proc_spell_id = base_value;
 							ProcMod = static_cast<float>(limit_value);
 						}
-						else if (effect_id == SE_LimitToSkill && base_value <= EQ::skills::HIGHEST_SKILL) {
+						else if (effect_id == SpellEffect::LimitToSkill && base_value <= EQ::skills::HIGHEST_SKILL) {
 
 							if (CanProc && base_value == skill && IsValidSpell(proc_spell_id)) {
 								float final_chance = chance * (ProcMod / 100.0f);
@@ -6278,7 +6300,7 @@ bool Mob::TryRootFadeByDamage(int buffslot, Mob* attacker) {
 int32 Mob::RuneAbsorb(int64 damage, uint16 type)
 {
 	uint32 buff_max = GetMaxTotalSlots();
-	if (type == SE_Rune) {
+	if (type == SpellEffect::Rune) {
 		for (uint32 slot = 0; slot < buff_max; slot++) {
 			if (slot == spellbonuses.MeleeRune[SBIndex::RUNE_BUFFSLOT] && spellbonuses.MeleeRune[SBIndex::RUNE_AMOUNT] && buffs[slot].melee_rune && IsValidSpell(buffs[slot].spellid)) {
 				int melee_rune_left = buffs[slot].melee_rune;
@@ -6522,7 +6544,7 @@ void Mob::DoShieldDamageOnShielderSpellEffect(Mob* shield_target, int64 hit_dama
 		return;
 	}
 	/*
-		SPA 463 SE_SHIELD_TARGET
+		SPA 463 SpellEffect::SHIELD_TARGET
 
 		Live description: "Shields your target, taking a percentage of their damage".
 		Only example spell on live is an NPC who uses it during a raid event "Laurion's Song" expansion. SPA 54492 'Guardian Stance' Described as 100% Melee Shielding
@@ -6574,7 +6596,7 @@ void Mob::CommonBreakInvisibleFromCombat()
 	CancelSneakHide();
 
 	if (spellbonuses.NegateIfCombat) {
-		BuffFadeByEffect(SE_NegateIfCombat);
+		BuffFadeByEffect(SpellEffect::NegateIfCombat);
 	}
 
 	hidden = false;
@@ -6687,7 +6709,9 @@ void Client::SetAttackTimer()
 			else
 				speed = static_cast<int>(speed + ((hhe / 100.0f) * delay));
 		}
-		TimerToUse->SetAtTrigger(std::max(RuleI(Combat, MinHastedDelay), speed), true, true);
+
+		bool reinit = !TimerToUse->Enabled();
+		TimerToUse->SetAtTrigger(std::max(RuleI(Combat, MinHastedDelay), speed), reinit, reinit);
 
 		if (i == EQ::invslot::slotPrimary) {
 			primary_speed = speed;

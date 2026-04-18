@@ -1,40 +1,36 @@
-/*	EQEMu: Everquest Server Emulator
+/*	EQEmu: EQEmulator
 
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.net)
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../global_define.h"
-#include "../eqemu_config.h"
-#include "../eqemu_logsys.h"
 #include "sod.h"
-#include "../opcodemgr.h"
-
-#include "../eq_stream_ident.h"
-#include "../crc32.h"
-
-#include "../eq_packet_structs.h"
-#include "../misc_functions.h"
-#include "../strings.h"
-#include "../item_instance.h"
 #include "sod_structs.h"
-#include "../rulesys.h"
-#include "../path_manager.h"
-#include "../races.h"
-#include "../raid.h"
+
+#include "common/crc32.h"
+#include "common/eq_packet_structs.h"
+#include "common/eq_stream_ident.h"
+#include "common/eqemu_config.h"
+#include "common/eqemu_logsys.h"
+#include "common/item_instance.h"
+#include "common/misc_functions.h"
+#include "common/opcodemgr.h"
+#include "common/path_manager.h"
+#include "common/races.h"
+#include "common/raid.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
 
 #include <iostream>
 #include <sstream>
@@ -72,7 +68,7 @@ namespace SoD
 	{
 		//create our opcode manager if we havent already
 		if (opcodes == nullptr) {
-			std::string opfile = fmt::format("{}/patch_{}.conf", path.GetPatchPath(), name);
+			std::string opfile = fmt::format("{}/patch_{}.conf", PathManager::Instance()->GetPatchPath(), name);
 			//load up the opcode manager.
 			//TODO: figure out how to support shared memory with multiple patches...
 			opcodes = new RegularOpcodeManager();
@@ -113,7 +109,7 @@ namespace SoD
 		//we need to go to every stream and replace it's manager.
 
 		if (opcodes != nullptr) {
-			std::string opfile = fmt::format("{}/patch_{}.conf", path.GetPatchPath(), name);
+			std::string opfile = fmt::format("{}/patch_{}.conf", PathManager::Instance()->GetPatchPath(), name);
 			if (!opcodes->ReloadOpcodes(opfile.c_str())) {
 				LogNetcode("[OPCODES] Error reloading opcodes file [{}] for patch [{}]", opfile.c_str(), name);
 				return;
@@ -2132,7 +2128,7 @@ namespace SoD
 
 		buf.WriteString(new_message);
 
-		auto outapp = new EQApplicationPacket(OP_SpecialMesg, buf);
+		auto outapp = new EQApplicationPacket(OP_SpecialMesg, std::move(buf));
 
 		dest->FastQueuePacket(&outapp, ack_req);
 		delete in;
@@ -3966,12 +3962,12 @@ namespace SoD
 			SoDSlot = serverSlot - 2;
 		}
 
-		else if (serverSlot <= EQ::invbag::GENERAL_BAGS_8_END && serverSlot >= EQ::invbag::GENERAL_BAGS_BEGIN) {
-			SoDSlot = serverSlot + 11;
+		else if (serverSlot <= EQ::invbag::GENERAL_BAGS_END && serverSlot >= EQ::invbag::GENERAL_BAGS_BEGIN) {
+			SoDSlot = serverSlot - (EQ::invbag::GENERAL_BAGS_BEGIN - invbag::GENERAL_BAGS_BEGIN) - ((EQ::invbag::SLOT_COUNT - invbag::SLOT_COUNT) * ((serverSlot - EQ::invbag::GENERAL_BAGS_BEGIN) / EQ::invbag::SLOT_COUNT));;
 		}
 
 		else if (serverSlot <= EQ::invbag::CURSOR_BAG_END && serverSlot >= EQ::invbag::CURSOR_BAG_BEGIN) {
-			SoDSlot = serverSlot - 9;
+			SoDSlot = serverSlot - (EQ::invbag::CURSOR_BAG_BEGIN - invbag::CURSOR_BAG_BEGIN);
 		}
 
 		else if (serverSlot <= EQ::invslot::TRIBUTE_END && serverSlot >= EQ::invslot::TRIBUTE_BEGIN) {
@@ -3991,7 +3987,7 @@ namespace SoD
 		}
 
 		else if (serverSlot <= EQ::invbag::BANK_BAGS_END && serverSlot >= EQ::invbag::BANK_BAGS_BEGIN) {
-			SoDSlot = serverSlot + 1;
+			SoDSlot = serverSlot - (EQ::invbag::BANK_BAGS_BEGIN - invbag::BANK_BAGS_BEGIN) - ((EQ::invbag::SLOT_COUNT - invbag::SLOT_COUNT) * ((serverSlot - EQ::invbag::BANK_BAGS_BEGIN) / EQ::invbag::SLOT_COUNT));;
 		}
 
 		else if (serverSlot <= EQ::invslot::SHARED_BANK_END && serverSlot >= EQ::invslot::SHARED_BANK_BEGIN) {
@@ -3999,7 +3995,7 @@ namespace SoD
 		}
 
 		else if (serverSlot <= EQ::invbag::SHARED_BANK_BAGS_END && serverSlot >= EQ::invbag::SHARED_BANK_BAGS_BEGIN) {
-			SoDSlot = serverSlot + 1;
+			SoDSlot = serverSlot - (EQ::invbag::SHARED_BANK_BAGS_BEGIN - invbag::SHARED_BANK_BAGS_BEGIN) - ((EQ::invbag::SLOT_COUNT - invbag::SLOT_COUNT) * ((serverSlot - EQ::invbag::SHARED_BANK_BAGS_BEGIN) / EQ::invbag::SLOT_COUNT));
 		}
 
 		else if (serverSlot <= EQ::invslot::TRADE_END && serverSlot >= EQ::invslot::TRADE_BEGIN) {
@@ -4007,7 +4003,7 @@ namespace SoD
 		}
 
 		else if (serverSlot <= EQ::invbag::TRADE_BAGS_END && serverSlot >= EQ::invbag::TRADE_BAGS_BEGIN) {
-			SoDSlot = serverSlot;
+			SoDSlot = serverSlot - (EQ::invbag::TRADE_BAGS_BEGIN - invbag::TRADE_BAGS_BEGIN) - ((EQ::invbag::SLOT_COUNT - invbag::SLOT_COUNT) * ((serverSlot - EQ::invbag::TRADE_BAGS_BEGIN) / EQ::invbag::SLOT_COUNT));
 		}
 
 		else if (serverSlot <= EQ::invslot::WORLD_END && serverSlot >= EQ::invslot::WORLD_BEGIN) {
@@ -4049,11 +4045,11 @@ namespace SoD
 		}
 
 		else if (sod_slot <= invbag::GENERAL_BAGS_END && sod_slot >= invbag::GENERAL_BAGS_BEGIN) {
-			server_slot = sod_slot - 11;
+			server_slot = sod_slot + (EQ::invbag::GENERAL_BAGS_BEGIN - invbag::GENERAL_BAGS_BEGIN) + ((EQ::invbag::SLOT_COUNT - invbag::SLOT_COUNT) * ((sod_slot - invbag::GENERAL_BAGS_BEGIN) / invbag::SLOT_COUNT));
 		}
 
 		else if (sod_slot <= invbag::CURSOR_BAG_END && sod_slot >= invbag::CURSOR_BAG_BEGIN) {
-			server_slot = sod_slot + 9;
+			server_slot = sod_slot + (EQ::invbag::CURSOR_BAG_BEGIN - invbag::CURSOR_BAG_BEGIN);
 		}
 
 		else if (sod_slot <= invslot::TRIBUTE_END && sod_slot >= invslot::TRIBUTE_BEGIN) {
@@ -4073,7 +4069,7 @@ namespace SoD
 		}
 
 		else if (sod_slot <= invbag::BANK_BAGS_END && sod_slot >= invbag::BANK_BAGS_BEGIN) {
-			server_slot = sod_slot - 1;
+			server_slot = sod_slot + (EQ::invbag::BANK_BAGS_BEGIN - invbag::BANK_BAGS_BEGIN) + ((EQ::invbag::SLOT_COUNT - invbag::SLOT_COUNT) * ((sod_slot - invbag::BANK_BAGS_BEGIN) / invbag::SLOT_COUNT));
 		}
 
 		else if (sod_slot <= invslot::SHARED_BANK_END && sod_slot >= invslot::SHARED_BANK_BEGIN) {
@@ -4081,7 +4077,7 @@ namespace SoD
 		}
 
 		else if (sod_slot <= invbag::SHARED_BANK_BAGS_END && sod_slot >= invbag::SHARED_BANK_BAGS_BEGIN) {
-			server_slot = sod_slot - 1;
+			server_slot = sod_slot + (EQ::invbag::SHARED_BANK_BAGS_BEGIN - invbag::SHARED_BANK_BAGS_BEGIN) + ((EQ::invbag::SLOT_COUNT - invbag::SLOT_COUNT) * ((sod_slot - invbag::SHARED_BANK_BAGS_BEGIN) / invbag::SLOT_COUNT));
 		}
 
 		else if (sod_slot <= invslot::TRADE_END && sod_slot >= invslot::TRADE_BEGIN) {
@@ -4089,7 +4085,7 @@ namespace SoD
 		}
 
 		else if (sod_slot <= invbag::TRADE_BAGS_END && sod_slot >= invbag::TRADE_BAGS_BEGIN) {
-			server_slot = sod_slot;
+			server_slot = sod_slot + (EQ::invbag::TRADE_BAGS_BEGIN - invbag::TRADE_BAGS_BEGIN) + ((EQ::invbag::SLOT_COUNT - invbag::SLOT_COUNT) * ((sod_slot - invbag::TRADE_BAGS_BEGIN) / invbag::SLOT_COUNT));
 		}
 
 		else if (sod_slot <= invslot::WORLD_END && sod_slot >= invslot::WORLD_BEGIN) {

@@ -1,48 +1,44 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/misc_functions.h"
-#include "../common/rulesys.h"
-#include "../common/strings.h"
-
-#include "entity.h"
 #include "forage.h"
-#include "npc.h"
-#include "quest_parser_collection.h"
-#include "string_ids.h"
-#include "titles.h"
-#include "water_map.h"
-#include "zonedb.h"
-#include "../common/repositories/criteria/content_filter_criteria.h"
-#include "../common/repositories/forage_repository.h"
-#include "../common/repositories/fishing_repository.h"
-#include "../common/events/player_event_logs.h"
-#include "worldserver.h"
-#include "queryserv.h"
+
+#include "common/eqemu_logsys.h"
+#include "common/events/player_event_logs.h"
+#include "common/misc_functions.h"
+#include "common/repositories/criteria/content_filter_criteria.h"
+#include "common/repositories/fishing_repository.h"
+#include "common/repositories/forage_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "zone/entity.h"
+#include "zone/npc.h"
+#include "zone/queryserv.h"
+#include "zone/quest_parser_collection.h"
+#include "zone/string_ids.h"
+#include "zone/titles.h"
+#include "zone/water_map.h"
+#include "zone/worldserver.h"
+#include "zone/zonedb.h"
+
+#include <numbers>
 
 extern WorldServer worldserver;
 extern QueryServ  *QServ;
-
-#ifdef _WINDOWS
-#define snprintf	_snprintf
-#endif
 
 struct NPCType;
 
@@ -218,8 +214,8 @@ bool Client::CanFish() {
 		HeadingDegrees = (int) ((GetHeading()*360)/512);
 		HeadingDegrees = HeadingDegrees % 360;
 
-		rodPosition.x = m_Position.x + RodLength * sin(HeadingDegrees * M_PI/180.0f);
-		rodPosition.y = m_Position.y + RodLength * cos(HeadingDegrees * M_PI/180.0f);
+		rodPosition.x = m_Position.x + RodLength * sin(HeadingDegrees * std::numbers::pi / 180.0f);
+		rodPosition.y = m_Position.y + RodLength * cos(HeadingDegrees * std::numbers::pi / 180.0f);
 		rodPosition.z = m_Position.z;
 
 		float bestz = zone->zonemap->FindBestZ(rodPosition, nullptr);
@@ -379,7 +375,7 @@ void Client::GoFish(bool guarantee, bool use_bait)
 				}
 
 				if (inst) {
-					if (player_event_logs.IsEventEnabled(PlayerEvent::FISH_SUCCESS)) {
+					if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::FISH_SUCCESS)) {
 						auto e = PlayerEvent::FishSuccessEvent{
 							.item_id      = inst->GetItem()->ID,
 							.augment_1_id = inst->GetAugmentItemID(0),
@@ -519,7 +515,7 @@ void Client::ForageItem(bool guarantee) {
 			}
 
 			if (inst) {
-				if (player_event_logs.IsEventEnabled(PlayerEvent::FORAGE_SUCCESS)) {
+				if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::FORAGE_SUCCESS)) {
 					auto e = PlayerEvent::ForageSuccessEvent{
 						.item_id      = inst->GetItem()->ID,
 						.augment_1_id = inst->GetAugmentItemID(0),

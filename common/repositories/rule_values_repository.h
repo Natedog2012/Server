@@ -1,9 +1,26 @@
-#ifndef EQEMU_RULE_VALUES_REPOSITORY_H
-#define EQEMU_RULE_VALUES_REPOSITORY_H
+/*	EQEmu: EQEmulator
 
-#include "../database.h"
-#include "../strings.h"
-#include "base/base_rule_values_repository.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/repositories/base/base_rule_values_repository.h"
+
+#include "common/database.h"
+#include "common/strings.h"
 
 class RuleValuesRepository: public BaseRuleValuesRepository {
 public:
@@ -42,6 +59,47 @@ public:
      * method that can be re-used easily elsewhere especially if it can use a base repository
      * method and encapsulate filters there
      */
+
+	template<typename T1, typename T2, typename T3, typename T4>
+	static std::vector<std::string> join_tuple(
+		const std::string &glue,
+		const std::pair<char, char> &encapsulation,
+		const std::vector<std::tuple<T1, T2, T3, T4>> &src
+	)
+	{
+		if (src.empty()) {
+			return {};
+		}
+
+		std::vector<std::string> output;
+
+		for (const std::tuple<T1, T2, T3, T4> &src_iter: src) {
+
+			output.emplace_back(
+
+				fmt::format(
+					"{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+					encapsulation.first,
+					std::get<0>(src_iter),
+					encapsulation.second,
+					glue,
+					encapsulation.first,
+					std::get<1>(src_iter),
+					encapsulation.second,
+					glue,
+					encapsulation.first,
+					std::get<2>(src_iter),
+					encapsulation.second,
+					glue,
+					encapsulation.first,
+					std::get<3>(src_iter),
+					encapsulation.second
+				)
+			);
+		}
+
+		return output;
+	}
 
 	// Custom extended repository methods here
 	static std::vector<std::string> GetRuleNames(Database &db, int rule_set_id)
@@ -87,12 +145,28 @@ public:
 		return v;
 	}
 
+	template<typename T>
+	static std::string
+	ImplodePair(const std::string &glue, const std::pair<char, char> &encapsulation, const std::vector<T> &src)
+	{
+		if (src.empty()) {
+			return {};
+		}
+		std::ostringstream oss;
+		for (const T &src_iter: src) {
+			oss << encapsulation.first << src_iter << encapsulation.second << glue;
+		}
+		std::string output(oss.str());
+		output.resize(output.size() - glue.size());
+		return output;
+	}
+
 	static bool DeleteOrphanedRules(Database& db, std::vector<std::string>& v)
 	{
 		const auto query = fmt::format(
 			"DELETE FROM {} WHERE rule_name IN ({})",
 			TableName(),
-			Strings::ImplodePair(",", std::pair<char, char>('\'', '\''), v)
+			ImplodePair(",", std::pair<char, char>('\'', '\''), v)
 		);
 
 		return db.QueryDatabase(query).Success();
@@ -103,7 +177,7 @@ public:
 		const auto query = fmt::format(
 			"REPLACE INTO {} (`ruleset_id`, `rule_name`, `rule_value`, `notes`) VALUES {}",
 			TableName(),
-			Strings::ImplodePair(
+			ImplodePair(
 				",",
 				std::pair<char, char>('(', ')'),
 				join_tuple(",", std::pair<char, char>('\'', '\''), v)
@@ -127,5 +201,3 @@ public:
 	}
 
 };
-
-#endif //EQEMU_RULE_VALUES_REPOSITORY_H

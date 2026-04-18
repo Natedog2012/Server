@@ -1,31 +1,46 @@
-#include "global_define.h"
-#include "eqemu_logsys.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "crash.h"
-#include "strings.h"
-#include "process/process.h"
-#include "http/httplib.h"
-#include "http/uri.h"
-#include "json/json.h"
-#include "version.h"
-#include "eqemu_config.h"
-#include "serverinfo.h"
-#include "rulesys.h"
-#include "platform.h"
+
+#include "common/eqemu_config.h"
+#include "common/eqemu_logsys.h"
+#include "common/http/httplib.h"
+#include "common/http/uri.h"
+#include "common/json/json.h"
+#include "common/platform.h"
+#include "common/process/process.h"
+#include "common/rulesys.h"
+#include "common/serverinfo.h"
+#include "common/strings.h"
+#include "common/version.h"
 
 #include <cstdio>
 #include <vector>
-
-#ifdef _WINDOWS
-#define popen _popen
-#endif
 
 void SendCrashReport(const std::string &crash_report)
 {
 	// can configure multiple endpoints if need be
 	std::vector<std::string> endpoints = {
-		"https://spire.akkadius.com/api/v1/analytics/server-crash-report",
+		"https://spire.eqemu.dev/api/v1/analytics/server-crash-report",
 //		"http://localhost:3010/api/v1/analytics/server-crash-report", // development
 	};
+
+	EQEmuLogSys* log = EQEmuLogSys::Instance();
 
 	auto      config = EQEmuConfig::get();
 	for (auto &e: endpoints) {
@@ -68,12 +83,12 @@ void SendCrashReport(const std::string &crash_report)
 		p["cpus"]              = cpus.size();
 		p["origination_info"]  = "";
 
-		if (!LogSys.origination_info.zone_short_name.empty()) {
+		if (!log->origination_info.zone_short_name.empty()) {
 			p["origination_info"] = fmt::format(
 				"{} ({}) instance_id [{}]",
-				LogSys.origination_info.zone_short_name,
-				LogSys.origination_info.zone_long_name,
-				LogSys.origination_info.instance_id
+				log->origination_info.zone_short_name,
+				log->origination_info.zone_long_name,
+				log->origination_info.instance_id
 			);
 		}
 
@@ -222,8 +237,8 @@ void set_exception_handler() {
 }
 #else
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <sys/fcntl.h>
@@ -294,7 +309,7 @@ void print_trace()
 		SendCrashReport(crash_report);
 	}
 
-	LogSys.CloseFileLogs();
+	EQEmuLogSys::Instance()->CloseFileLogs();
 
 	exit(1);
 }

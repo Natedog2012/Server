@@ -1,42 +1,38 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2006 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/eqemu_logsys.h"
-#include "../common/global_define.h"
 #include "wguild_mgr.h"
-#include "../common/servertalk.h"
-#include "clientlist.h"
-#include "zonelist.h"
-#include "zoneserver.h"
-#include "cliententry.h"
-#include "client.h"
-#include "../common/repositories/guilds_repository.h"
-#include "../common/repositories/guild_ranks_repository.h"
-#include "../common/repositories/guild_permissions_repository.h"
-#include "../common/repositories/guild_members_repository.h"
-#include "../common/repositories/guild_bank_repository.h"
-#include "../common/repositories/guild_tributes_repository.h"
-#include "../common/repositories/tributes_repository.h"
-#include "../common/repositories/tribute_levels_repository.h"
 
+#include "common/eqemu_logsys.h"
+#include "common/repositories/guild_bank_repository.h"
+#include "common/repositories/guild_members_repository.h"
+#include "common/repositories/guild_permissions_repository.h"
+#include "common/repositories/guild_ranks_repository.h"
+#include "common/repositories/guild_tributes_repository.h"
+#include "common/repositories/guilds_repository.h"
+#include "common/repositories/tribute_levels_repository.h"
+#include "common/repositories/tributes_repository.h"
+#include "common/servertalk.h"
+#include "world/client.h"
+#include "world/cliententry.h"
+#include "world/clientlist.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
 
-extern ClientList client_list;
-extern ZSList zoneserver_list;
 std::map<uint32, TributeData> tribute_list;
 
 WorldGuildManager guild_mgr;
@@ -50,7 +46,7 @@ void WorldGuildManager::SendGuildRefresh(uint32 guild_id, bool name, bool motd, 
 	s->motd_change = motd;
 	s->rank_change = rank;
 	s->relation_change = relation;
-	zoneserver_list.SendPacketToZonesWithGuild(guild_id, pack);
+	ZSList::Instance()->SendPacketToZonesWithGuild(guild_id, pack);
 	safe_delete(pack);
 }
 
@@ -61,7 +57,7 @@ void WorldGuildManager::SendCharRefresh(uint32 old_guild_id, uint32 guild_id, ui
 	s->guild_id = guild_id;
 	s->old_guild_id = old_guild_id;
 	s->char_id = charid;
-	zoneserver_list.SendPacketToZonesWithGuild(guild_id, pack);
+	ZSList::Instance()->SendPacketToZonesWithGuild(guild_id, pack);
 	safe_delete(pack);
 }
 
@@ -70,7 +66,7 @@ void WorldGuildManager::SendGuildDelete(uint32 guild_id) {
 	auto pack = new ServerPacket(ServerOP_DeleteGuild, sizeof(ServerGuildID_Struct));
 	ServerGuildID_Struct *s = (ServerGuildID_Struct *) pack->pBuffer;
 	s->guild_id = guild_id;
-	zoneserver_list.SendPacketToZonesWithGuild(guild_id, pack);
+	ZSList::Instance()->SendPacketToZonesWithGuild(guild_id, pack);
 	safe_delete(pack);
 }
 
@@ -91,7 +87,7 @@ void WorldGuildManager::ProcessZonePacket(ServerPacket *pack) {
 		}
 
 		//broadcast this packet to all zones.
-		zoneserver_list.SendPacketToBootedZones(pack);
+		ZSList::Instance()->SendPacketToBootedZones(pack);
 
 		break;
 	}
@@ -103,11 +99,11 @@ void WorldGuildManager::ProcessZonePacket(ServerPacket *pack) {
 
 		RefreshGuild(s->guild_id);
 		//preform the local update
-		client_list.UpdateClientGuild(s->char_id, s->guild_id);
+		ClientList::Instance()->UpdateClientGuild(s->char_id, s->guild_id);
 
 		//broadcast this update to any zone with a member in this guild.
 		//because im sick of this not working, sending it to all zones, just spends a bit more bandwidth.
-		zoneserver_list.SendPacketToZonesWithGuild(s->guild_id, pack);
+		ZSList::Instance()->SendPacketToZonesWithGuild(s->guild_id, pack);
 
 		break;
 	}
@@ -130,7 +126,7 @@ void WorldGuildManager::ProcessZonePacket(ServerPacket *pack) {
 		LogGuilds("Received and broadcasting guild delete for guild [{}]", s->guild_id);
 
 		//broadcast this packet to all zones.
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 
 		break;
 	}
@@ -146,7 +142,7 @@ void WorldGuildManager::ProcessZonePacket(ServerPacket *pack) {
 		auto s = (ServerGuildID_Struct *)pack->pBuffer;
 		RefreshGuild(s->guild_id);
 
-		zoneserver_list.SendPacketToZonesWithGuild(s->guild_id, pack);
+		ZSList::Instance()->SendPacketToZonesWithGuild(s->guild_id, pack);
 		break;
 	}
 	case ServerOP_GuildPermissionUpdate:
@@ -178,7 +174,7 @@ void WorldGuildManager::ProcessZonePacket(ServerPacket *pack) {
 				sg->function_value
 			);
 
-			zoneserver_list.SendPacketToZonesWithGuild(sg->guild_id, pack);
+			ZSList::Instance()->SendPacketToZonesWithGuild(sg->guild_id, pack);
 		}
 		else {
 			LogError("World Received ServerOP_GuildPermissionUpdate for guild [{}] function id {} with value of {} but guild could not be found.",
@@ -212,7 +208,7 @@ void WorldGuildManager::ProcessZonePacket(ServerPacket *pack) {
 				rnc->rank,
 				rnc->rank_name
 			);
-			zoneserver_list.SendPacketToZonesWithGuild(rnc->guild_id, pack);
+			ZSList::Instance()->SendPacketToZonesWithGuild(rnc->guild_id, pack);
 		}
 		else {
 			LogError("World Received ServerOP_GuildRankNameChange from zone for guild [{}] rank id {} with new name of {} but could not find guild.",
@@ -232,7 +228,7 @@ void WorldGuildManager::ProcessZonePacket(ServerPacket *pack) {
 	case ServerOP_GuildMembersList:
 	{
 		auto in = (ServerOP_GuildMessage_Struct *) pack->pBuffer;
-		zoneserver_list.SendPacketToZonesWithGuild(in->guild_id, pack);
+		ZSList::Instance()->SendPacketToZonesWithGuild(in->guild_id, pack);
 		break;
 	}
     case ServerOP_GuildMemberAdd:
@@ -243,12 +239,12 @@ void WorldGuildManager::ProcessZonePacket(ServerPacket *pack) {
             BaseGuildManager::RefreshGuild(in->guild_id);
         }
 
-        zoneserver_list.SendPacketToZonesWithGuild(in->guild_id, pack);
+        ZSList::Instance()->SendPacketToZonesWithGuild(in->guild_id, pack);
         break;
     }
 	case ServerOP_GuildSendGuildList: {
 		auto in = (ServerOP_GuildMessage_Struct *) pack->pBuffer;
-		zoneserver_list.SendPacketToBootedZones(pack);
+		ZSList::Instance()->SendPacketToBootedZones(pack);
 		break;
 	}
 
@@ -307,7 +303,7 @@ void WorldGuildManager::Process()
 
 uint32 WorldGuildManager::GetGuildTributeCost(uint32 guild_id)
 {
-	auto guild_members = client_list.GetGuildClientsWithTributeOptIn(guild_id);
+	auto guild_members = ClientList::Instance()->GetGuildClientsWithTributeOptIn(guild_id);
 	auto total         = guild_members.size();
 	auto total_cost    = 0;
 
@@ -456,6 +452,6 @@ void WorldGuildManager::SendGuildTributeFavorAndTimer(uint32 guild_id, uint32 fa
 	data->tribute_timer = time;
 	data->trophy_timer  = 0;
 
-	zoneserver_list.SendPacketToZonesWithGuild(guild_id, sp);
+	ZSList::Instance()->SendPacketToZonesWithGuild(guild_id, sp);
 	safe_delete(sp)
 }

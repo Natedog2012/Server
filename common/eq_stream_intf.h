@@ -1,20 +1,38 @@
-#ifndef EQSTREAMINTF_H_
-#define EQSTREAMINTF_H_
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/emu_versions.h"
+#include "common/eq_packet.h"
+#include "common/net/reliable_stream_connection.h"
+
+#include <string>
 
 //this is the only part of an EQStream that is seen by the application.
 
-#include <string>
-#include "emu_versions.h"
-#include "eq_packet.h"
-#include "net/daybreak_connection.h"
 
-typedef enum {
+enum EQStreamState {
 	ESTABLISHED,
 	CLOSING,		//waiting for pending data to flush.
 	DISCONNECTING,	//have sent disconnect, waiting for their disconnect reply.
 	CLOSED,			//received a disconnect from remote side.
 	UNESTABLISHED
-} EQStreamState;
+};
 
 class EQApplicationPacket;
 class OpcodeManager;
@@ -33,18 +51,18 @@ struct EQStreamManagerInterfaceOptions
 		//Login I had trouble getting to recognize compression at all
 		//but that might be because it was still a bit buggy when i was testing that.
 		if (compressed) {
-			daybreak_options.encode_passes[0] = EQ::Net::EncodeCompression;
+			reliable_stream_options.encode_passes[0] = EQ::Net::EncodeCompression;
 		}
 		else if (encoded) {
-			daybreak_options.encode_passes[0] = EQ::Net::EncodeXOR;
+			reliable_stream_options.encode_passes[0] = EQ::Net::EncodeXOR;
 		}
 
-		daybreak_options.port = port;
+		reliable_stream_options.port = port;
 	}
 
 	int opcode_size;
 	bool track_opcode_stats;
-	EQ::Net::DaybreakConnectionManagerOptions daybreak_options;
+	EQ::Net::ReliableStreamConnectionManagerOptions reliable_stream_options;
 };
 
 class EQStreamManagerInterface
@@ -80,7 +98,7 @@ public:
 
 	struct Stats
 	{
-		EQ::Net::DaybreakConnectionStats DaybreakStats;
+		EQ::Net::ReliableStreamConnectionStats ReliableStreamStats;
 		int RecvCount[_maxEmuOpcode];
 		int SentCount[_maxEmuOpcode];
 	};
@@ -106,5 +124,3 @@ public:
 	virtual void ResetStats() = 0;
 	virtual EQStreamManagerInterface* GetManager() const = 0;
 };
-
-#endif /*EQSTREAMINTF_H_*/

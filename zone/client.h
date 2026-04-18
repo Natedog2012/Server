@@ -1,22 +1,21 @@
-/* EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2003 EQEMu Development Team (http://eqemulator.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef CLIENT_H
-#define CLIENT_H
+#pragma once
 
 class Client;
 class EQApplicationPacket;
@@ -38,58 +37,48 @@ namespace EQ
 	struct ItemData;
 }
 
-#include "../common/timer.h"
-#include "../common/ptimer.h"
-#include "../common/emu_opcodes.h"
-#include "../common/eq_packet_structs.h"
-#include "../common/emu_constants.h"
-#include "../common/eq_stream_intf.h"
-#include "../common/eq_packet.h"
-#include "../common/linked_list.h"
-#include "../common/extprofile.h"
-#include "../common/races.h"
-#include "../common/seperator.h"
-#include "../common/inventory_profile.h"
-#include "../common/guilds.h"
-//#include "../common/item_data.h"
-#include "xtargetautohaters.h"
-#include "aggromanager.h"
+#include "zone/aggromanager.h"
+#include "zone/bot_structs.h"
+#include "zone/cheat_manager.h"
+#include "zone/common.h"
+#include "zone/merc.h"
+#include "zone/mob.h"
+#include "zone/qglobals.h"
+#include "zone/questmgr.h"
+#include "zone/task_client_state.h"
+#include "zone/task_manager.h"
+#include "zone/xtargetautohaters.h"
+#include "zone/zone.h"
+#include "zone/zonedb.h"
 
-#include "common.h"
-#include "merc.h"
-#include "mob.h"
-#include "qglobals.h"
-#include "questmgr.h"
-#include "zone.h"
-#include "zonedb.h"
-#include "../common/zone_store.h"
-#include "task_manager.h"
-#include "task_client_state.h"
-#include "cheat_manager.h"
-#include "../common/events/player_events.h"
-#include "../common/data_verification.h"
-#include "../common/repositories/character_parcels_repository.h"
-#include "../common/repositories/trader_repository.h"
-#include "../common/guild_base.h"
-#include "../common/repositories/buyer_buy_lines_repository.h"
-#include "../common/repositories/character_evolving_items_repository.h"
+#include "common/data_verification.h"
+#include "common/emu_constants.h"
+#include "common/emu_opcodes.h"
+#include "common/eq_packet_structs.h"
+#include "common/eq_packet.h"
+#include "common/eq_stream_intf.h"
+#include "common/events/player_events.h"
+#include "common/extprofile.h"
+#include "common/guild_base.h"
+#include "common/guilds.h"
+#include "common/inventory_profile.h"
+#include "common/linked_list.h"
+#include "common/ptimer.h"
+#include "common/races.h"
+#include "common/repositories/buyer_buy_lines_repository.h"
+#include "common/repositories/character_evolving_items_repository.h"
+#include "common/repositories/character_parcels_repository.h"
+#include "common/repositories/player_titlesets_repository.h"
+#include "common/repositories/trader_repository.h"
+#include "common/seperator.h"
+#include "common/timer.h"
+#include "common/zone_store.h"
 
-#include "bot_structs.h"
-
-#ifdef _WINDOWS
-	// since windows defines these within windef.h (which windows.h include)
-	// we are required to undefine these to use min and max from <algorithm>
-	#undef min
-	#undef max
-#endif
-
-#include <float.h>
+#include <cfloat>
 #include <set>
 #include <algorithm>
 #include <memory>
 #include <deque>
-#include <ctime>
-
 
 #define CLIENT_LD_TIMEOUT 30000 // length of time client stays in zone after LDing
 #define TARGETING_RANGE 200 // range for /assist and /target
@@ -97,7 +86,6 @@ namespace EQ
 #define MAX_SPECIALIZED_SKILL 50
 
 extern Zone* zone;
-extern TaskManager *task_manager;
 
 class CLIENTPACKET
 {
@@ -118,7 +106,7 @@ enum { //scribing argument to MemorizeSpell
 };
 
 //Modes for the zoning state of the client.
-typedef enum {
+enum ZoneMode {
 	ZoneToSafeCoords,	// Always send ZonePlayerToBind_Struct to client: Succor/Evac
 	GMSummon,			// Always send ZonePlayerToBind_Struct to client: Only a GM Summon
 	GMHiddenSummon,		// Always send ZonePlayerToBind_Struct to client silently: Only a GM Summon
@@ -129,7 +117,7 @@ typedef enum {
 	SummonPC,			// In-zone GMMove() always: Call of the Hero spell or some other type of in zone only summons
 	Rewind,				// Summon to /rewind location.
 	EvacToSafeCoords
-} ZoneMode;
+};
 
 // translate above enum to a string
 std::string GetZoneModeString(ZoneMode mode);
@@ -142,13 +130,13 @@ enum {
 	HideCorpseNPC = 5
 };
 
-typedef enum
+enum ShowSpellType
 {
 	Disciplines,
 	Spells
-} ShowSpellType;
+};
 
-typedef enum
+enum XTargetType
 {
 	Empty = 0,
 	Auto = 1,
@@ -177,8 +165,7 @@ typedef enum
 	MyPetTarget = 24,
 	MyMercenary = 25,
 	MyMercenaryTarget = 26
-
-} XTargetType;
+};
 
 struct XTarget_Struct
 {
@@ -326,12 +313,13 @@ public:
 	void TraderStartTrader(const EQApplicationPacket *app);
 //	void TraderPriceUpdate(const EQApplicationPacket *app);
 	uint8 WithCustomer(uint16 NewCustomer);
+	std::vector<uint32> GetKeyRing() { return keyring; }
 	void KeyRingLoad();
 	bool KeyRingAdd(uint32 item_id);
 	bool KeyRingCheck(uint32 item_id);
 	bool KeyRingClear();
 	bool KeyRingRemove(uint32 item_id);
-	void KeyRingList();
+	void KeyRingList(Client* c = nullptr);
 	bool IsNameChangeAllowed();
 	void InvokeChangeNameWindow(bool immediate = true);
 	bool ClearNameChange();
@@ -500,9 +488,19 @@ public:
 	void Kick(const std::string &reason);
 	void WorldKick();
 	inline uint8 GetAnon() const { return m_pp.anon; }
-	inline uint8 GetAFK() const { return AFK; }
+	inline uint8 GetAFK() const { return m_is_afk; }
 	void SetAnon(uint8 anon_flag);
+	inline Client* ResetAFKTimer() {
+		if (!RuleB(Character, EnableAutoAFK)) {
+			return this;
+		}
+
+		m_afk_reset = true;
+		m_last_moved = std::chrono::steady_clock::now();
+		return this;
+	};
 	void SetAFK(uint8 afk_flag);
+	inline bool IsIdle() { return m_is_idle; }
 	inline PlayerProfile_Struct& GetPP() { return m_pp; }
 	inline ExtendedProfile_Struct& GetEPP() { return m_epp; }
 	inline EQ::InventoryProfile& GetInv() { return m_inv; }
@@ -513,7 +511,7 @@ public:
 	inline const InspectMessage_Struct& GetInspectMessage() const { return m_inspect_message; }
 	void ReloadExpansionProfileSetting();
 
-	void SetPetCommandState(int button, int state);
+	void SetPetCommandState(uint8 button, uint8 state);
 
 	bool AutoAttackEnabled() const { return auto_attack; }
 	bool AutoFireEnabled() const { return auto_fire; }
@@ -1279,9 +1277,10 @@ public:
 	void ResetAllCastbarCooldowns();
 	void ResetCastbarCooldownBySpellID(uint32 spell_id);
 
-	bool CheckTitle(int titleset);
-	void EnableTitle(int titleset);
-	void RemoveTitle(int titleset);
+	bool CheckTitle(int title_set);
+	void EnableTitle(int title_set, bool insert = true);
+	const std::vector<PlayerTitlesetsRepository::PlayerTitlesets>& GetTitles() { return m_player_title_sets; };
+	void RemoveTitle(int title_set);
 
 	void EnteringMessages(Client* client);
 	void SendRules();
@@ -1371,7 +1370,7 @@ public:
 	}
 	inline bool SaveTaskState()
 	{
-		return task_manager != nullptr && task_manager->SaveClientState(this, task_state);
+		return TaskManager::Instance()->SaveClientState(this, task_state);
 	}
 	inline bool IsTaskStateLoaded() { return task_state != nullptr; }
 	inline bool IsTaskActive(int task_id) { return task_state != nullptr && task_state->IsTaskActive(task_id); }
@@ -1445,14 +1444,14 @@ public:
 	}
 	inline void TaskSetSelector(Mob* mob, int task_set_id, bool ignore_cooldown)
 	{
-		if (task_manager && task_state) {
-			task_manager->TaskSetSelector(this, mob, task_set_id, ignore_cooldown);
+		if (task_state) {
+			TaskManager::Instance()->TaskSetSelector(this, mob, task_set_id, ignore_cooldown);
 		}
 	}
 	inline void TaskQuestSetSelector(Mob* mob, const std::vector<int>& tasks, bool ignore_cooldown)
 	{
-		if (task_manager && task_state) {
-			task_manager->TaskQuestSetSelector(this, mob, tasks, ignore_cooldown);
+		if (task_state) {
+			TaskManager::Instance()->TaskQuestSetSelector(this, mob, tasks, ignore_cooldown);
 		}
 	}
 	inline void EnableTask(int task_count, int *task_list)
@@ -1513,6 +1512,7 @@ public:
 	{
 		return task_state ? task_state->CompleteTask(this, task_id) : false;
 	}
+	bool UncompleteTask(int task_id);
 	inline void FailTask(int task_id) { if (task_state) { task_state->FailTask(this, task_id); }}
 	inline int TaskTimeLeft(int task_id) { return (task_state ? task_state->TaskTimeLeft(task_id) : 0); }
 	inline int EnabledTaskCount(int task_set_id)
@@ -1971,6 +1971,9 @@ public:
 	ExternalHandinMoneyReturned GetExternalHandinMoneyReturned() { return m_external_handin_money_returned; }
 	std::vector<uint32_t> GetExternalHandinItemsReturned() { return m_external_handin_items_returned; }
 
+	// used only for testing
+	inline void SetCharacterId(uint32_t id) { character_id = id; }
+
 protected:
 	friend class Mob;
 	void CalcEdibleBonuses(StatBonuses* newbon);
@@ -2084,7 +2087,8 @@ private:
 	uint8 LFGToLevel;
 	bool LFGMatchFilter;
 	char LFGComments[64];
-	bool AFK;
+	bool m_is_afk = false;
+	bool m_is_manual_afk = false;
 	bool auto_attack;
 	bool auto_fire;
 	bool runmode;
@@ -2104,7 +2108,8 @@ private:
 	uint16 trader_id;
 	uint16 customer_id;
 	uint32 account_creation;
-	uint8 firstlogon;
+	bool first_login;
+	bool ingame;
 	uint32 mercid; // current merc
 	uint8 mercSlot; // selected merc slot
 	time_t                                                         m_trader_transaction_date;
@@ -2237,7 +2242,12 @@ private:
 	glm::vec4 m_last_position_before_bulk_update;
 	Timer     m_client_bulk_npc_pos_update_timer;
 	Timer     m_position_update_timer;
-	void      CheckSendBulkNpcPositions();
+	void      CheckSendBulkNpcPositions(bool force = false);
+
+	// afk
+	bool                                  m_is_idle    = false;
+	bool                                  m_afk_reset  = false; // used to trigger next-tic afk reset
+	std::chrono::steady_clock::time_point m_last_moved = std::chrono::steady_clock::now();
 
 	void BulkSendInventoryItems();
 
@@ -2283,6 +2293,7 @@ private:
 	bool m_exp_enabled;
 
 	std::vector<EXPModifier> m_exp_modifiers;
+	std::vector<PlayerTitlesetsRepository::PlayerTitlesets> m_player_title_sets;
 
 	//Anti Spam Stuff
 	Timer *KarmaUpdateTimer;
@@ -2435,6 +2446,7 @@ public:
 	const std::string &GetMailKey() const;
 	void ShowZoneShardMenu();
 	void Handle_OP_ChangePetName(const EQApplicationPacket *app);
+	bool IsFilteredAFKPacket(const EQApplicationPacket *p);
+	void CheckAutoIdleAFK(PlayerPositionUpdateClient_Struct *p);
+	void SyncWorldPositionsToClient(bool ignore_idle = false);
 };
-
-#endif

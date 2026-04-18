@@ -1,49 +1,40 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2013 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#include "common/content/world_content_service.h"
+#include "common/crash.h"
+#include "common/eqemu_config.h"
+#include "common/eqemu_logsys.h"
+#include "common/events/player_event_logs.h"
+#include "common/evolving_items.h"
+#include "common/file.h"
+#include "common/path_manager.h"
+#include "common/platform.h"
+#include "common/repositories/base_data_repository.h"
+#include "common/repositories/db_str_repository.h"
+#include "common/repositories/skill_caps_repository.h"
+#include "common/repositories/spells_new_repository.h"
+#include "common/rulesys.h"
+#include "common/shareddb.h"
+#include "common/skill_caps.h"
+#include "common/strings.h"
+#include "common/zone_store.h"
 
-#include <stdio.h>
-
-#include "../../common/eqemu_logsys.h"
-#include "../../common/global_define.h"
-#include "../../common/shareddb.h"
-#include "../../common/eqemu_config.h"
-#include "../../common/platform.h"
-#include "../../common/crash.h"
-#include "../../common/rulesys.h"
-#include "../../common/strings.h"
-#include "../../common/content/world_content_service.h"
-#include "../../common/zone_store.h"
-#include "../../common/path_manager.h"
-#include "../../common/repositories/base_data_repository.h"
-#include "../../common/repositories/db_str_repository.h"
-#include "../../common/repositories/skill_caps_repository.h"
-#include "../../common/repositories/spells_new_repository.h"
-#include "../../common/file.h"
-#include "../../common/events/player_event_logs.h"
-#include "../../common/skill_caps.h"
-#include "../../common/evolving_items.h"
-
-EQEmuLogSys          LogSys;
-WorldContentService  content_service;
-ZoneStore            zone_store;
-PathManager          path;
-PlayerEventLogs      player_event_logs;
-EvolvingItemsManager evolving_items_manager;
+#include <cstdio>
 
 void ExportSpells(SharedDatabase *db);
 void ExportSkillCaps(SharedDatabase *db);
@@ -53,10 +44,10 @@ void ExportDBStrings(SharedDatabase *db);
 int main(int argc, char **argv)
 {
 	RegisterExecutablePlatform(ExePlatformClientExport);
-	LogSys.LoadLogSettingsDefaults();
+	EQEmuLogSys::Instance()->LoadLogSettingsDefaults();
 	set_exception_handler();
 
-	path.LoadPaths();
+	PathManager::Instance()->Init();
 
 	LogInfo("Client Files Export Utility");
 	if (!EQEmuConfig::LoadConfig()) {
@@ -99,8 +90,8 @@ int main(int argc, char **argv)
 		content_db.SetMySQL(database);
 	}
 
-	LogSys.SetDatabase(&database)
-		->SetLogPath(path.GetLogPath())
+	EQEmuLogSys::Instance()->SetDatabase(&database)
+		->SetLogPath(PathManager::Instance()->GetLogPath())
 		->LoadLogDatabaseSettings()
 		->StartFileLogs();
 
@@ -129,14 +120,14 @@ int main(int argc, char **argv)
 	ExportBaseData(&content_db);
 	ExportDBStrings(&database);
 
-	LogSys.CloseFileLogs();
+	EQEmuLogSys::Instance()->CloseFileLogs();
 
 	return 0;
 }
 
 void ExportSpells(SharedDatabase* db)
 {
-	std::ofstream file(fmt::format("{}/export/spells_us.txt", path.GetServerPath()));
+	std::ofstream file(fmt::format("{}/export/spells_us.txt", PathManager::Instance()->GetServerPath()));
 	if (!file || !file.is_open()) {
 		LogError("Unable to open export/spells_us.txt to write, skipping.");
 		return;
@@ -155,7 +146,7 @@ void ExportSpells(SharedDatabase* db)
 
 void ExportSkillCaps(SharedDatabase* db)
 {
-	std::ofstream file(fmt::format("{}/export/SkillCaps.txt", path.GetServerPath()));
+	std::ofstream file(fmt::format("{}/export/SkillCaps.txt", PathManager::Instance()->GetServerPath()));
 	if (!file || !file.is_open()) {
 		LogError("Unable to open export/SkillCaps.txt to write, skipping.");
 		return;
@@ -174,7 +165,7 @@ void ExportSkillCaps(SharedDatabase* db)
 
 void ExportBaseData(SharedDatabase *db)
 {
-	std::ofstream file(fmt::format("{}/export/BaseData.txt", path.GetServerPath()));
+	std::ofstream file(fmt::format("{}/export/BaseData.txt", PathManager::Instance()->GetServerPath()));
 	if (!file || !file.is_open()) {
 		LogError("Unable to open export/BaseData.txt to write, skipping.");
 		return;
@@ -193,7 +184,7 @@ void ExportBaseData(SharedDatabase *db)
 
 void ExportDBStrings(SharedDatabase *db)
 {
-	std::ofstream file(fmt::format("{}/export/dbstr_us.txt", path.GetServerPath()));
+	std::ofstream file(fmt::format("{}/export/dbstr_us.txt", PathManager::Instance()->GetServerPath()));
 	if (!file || !file.is_open()) {
 		LogError("Unable to open export/dbstr_us.txt to write, skipping.");
 		return;

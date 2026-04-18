@@ -1,10 +1,29 @@
-#include "console_server.h"
-#include "../util/uuid.h"
-#include "../net/packet.h"
-#include "../eqemu_logsys.h"
-#include "../servertalk.h"
-#include "../rulesys.h"
-#include <fmt/format.h>
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "console_server_connection.h"
+
+#include "common/util/uuid.h"
+#include "common/net/console_server.h"
+#include "common/net/packet.h"
+#include "common/servertalk.h"
+#include "common/rulesys.h"
+
+#include "fmt/format.h"
 
 EQ::Net::ConsoleServerConnection::ConsoleServerConnection(ConsoleServer *parent, std::shared_ptr<TCPConnection> connection)
 {

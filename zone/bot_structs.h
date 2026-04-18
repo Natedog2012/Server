@@ -1,29 +1,25 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#pragma once
 
-#ifndef BOT_STRUCTS
-#define BOT_STRUCTS
-
-#include "../common/types.h"
-#include "../common/timer.h"
-#include "mob.h"
-
-#include <sstream>
+#include "common/types.h"
+#include "common/timer.h"
+#include "zone/mob.h"
 
 struct BotsAvailableList {
 	uint32 bot_id;
@@ -68,7 +64,7 @@ struct BotSpellSetting {
 
 struct BotSpells {
 	uint32		type;			// 0 = never, must be one (and only one) of the defined values
-	int16		spellid;			// <= 0 = no spell
+	uint16		spellid;		// <= 0 = no spell
 	int16		manacost;		// -1 = use spdat, -2 = no cast time
 	uint32		time_cancast;	// when we can cast this spell next
 	int32		recast_delay;
@@ -86,7 +82,7 @@ struct BotSpells {
 struct BotSpells_wIndex {
 	uint32		index;			//index of AIBot_spells
 	uint32		type;			// 0 = never, must be one (and only one) of the defined values
-	int16		spellid;			// <= 0 = no spell
+	uint16		spellid;		// <= 0 = no spell
 	int16		manacost;		// -1 = use spdat, -2 = no cast time
 	uint32		time_cancast;	// when we can cast this spell next
 	int32		recast_delay;
@@ -186,5 +182,3 @@ struct FindPositionInput {
 	bool	front_only;
 	bool	bypass_los;
 };
-
-#endif // BOT_STRUCTS

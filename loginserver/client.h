@@ -1,14 +1,29 @@
-#ifndef EQEMU_CLIENT_H
-#define EQEMU_CLIENT_H
+/*	EQEmu: EQEmulator
 
-#include "../common/global_define.h"
-#include "../common/opcodemgr.h"
-#include "../common/random.h"
-#include "../common/eq_stream_intf.h"
-#include "../common/net/dns.h"
-#include "../common/net/daybreak_connection.h"
-#include "login_types.h"
-#include "../common/repositories/login_accounts_repository.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/eq_stream_intf.h"
+#include "common/net/reliable_stream_connection.h"
+#include "common/opcodemgr.h"
+#include "common/random.h"
+#include "common/repositories/login_accounts_repository.h"
+#include "loginserver/login_types.h"
+
 #include <memory>
 
 class Client {
@@ -54,8 +69,8 @@ private:
 	unsigned int                                        m_selected_play_server_id;
 	unsigned int                                        m_play_sequence_id;
 	std::string                                         m_key;
-	std::unique_ptr<EQ::Net::DaybreakConnectionManager> m_login_connection_manager;
-	std::shared_ptr<EQ::Net::DaybreakConnection>        m_login_connection;
+	std::unique_ptr<EQ::Net::ReliableStreamConnectionManager> m_login_connection_manager;
+	std::shared_ptr<EQ::Net::ReliableStreamConnection>        m_login_connection;
 	LoginBaseMessage                                    m_login_base_message;
 	std::string                                         m_stored_username;
 	std::string                                         m_stored_password;
@@ -63,6 +78,3 @@ private:
 		return username == "healthcheckuser";
 	}
 };
-
-#endif
-

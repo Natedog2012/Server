@@ -1,26 +1,25 @@
-/*  EQEMu:  Everquest Server Emulator
-	Copyright (C) 2001-2006  EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#pragma once
 
-#ifndef _EQE_QUESTINTERFACE_H
-#define _EQE_QUESTINTERFACE_H
+#include "common/types.h"
+#include "zone/event_codes.h"
 
-#include "../common/types.h"
-#include "event_codes.h"
 #include <any>
 
 class Client;
@@ -163,6 +162,28 @@ public:
 		return 0;
 	}
 
+	virtual int EventZone(
+		QuestEventID event_id,
+		Zone* zone,
+		std::string data,
+		uint32 extra_data,
+		std::vector<std::any>* extra_pointers
+	)
+	{
+		return 0;
+	}
+
+	virtual int EventGlobalZone(
+		QuestEventID event_id,
+		Zone* zone,
+		std::string data,
+		uint32 extra_data,
+		std::vector<std::any>* extra_pointers
+	)
+	{
+		return 0;
+	}
+
 	virtual bool HasQuestSub(uint32 npc_id, QuestEventID event_id)
 	{
 		return false;
@@ -223,6 +244,16 @@ public:
 		return false;
 	}
 
+	virtual bool ZoneHasQuestSub(QuestEventID event_id)
+	{
+		return false;
+	}
+
+	virtual bool GlobalZoneHasQuestSub(QuestEventID event_id)
+	{
+		return false;
+	}
+
 	virtual void LoadNPCScript(std::string filename, int npc_id) { }
 	virtual void LoadGlobalNPCScript(std::string filename) { }
 	virtual void LoadPlayerScript(std::string filename) { }
@@ -234,6 +265,8 @@ public:
 	virtual void LoadGlobalBotScript(std::string filename) { }
 	virtual void LoadMercScript(std::string filename) { }
 	virtual void LoadGlobalMercScript(std::string filename) { }
+	virtual void LoadZoneScript(std::string filename) { }
+	virtual void LoadGlobalZoneScript(std::string filename) { }
 
 	virtual int DispatchEventNPC(
 		QuestEventID event_id,
@@ -308,6 +341,17 @@ public:
 		return 0;
 	}
 
+	virtual int DispatchEventZone(
+		QuestEventID event_id,
+		Zone* zone,
+		std::string data,
+		uint32 extra_data,
+		std::vector<std::any>* extra_pointers
+	)
+	{
+		return 0;
+	}
+
 	virtual void AddVar(std::string name, std::string val) { }
 	virtual std::string GetVar(std::string name)
 	{
@@ -338,6 +382,3 @@ public:
 protected:
 	std::list<std::string> errors_;
 };
-
-#endif
-

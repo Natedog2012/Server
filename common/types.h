@@ -1,24 +1,24 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef TYPES_H
-#define TYPES_H
+#pragma once
 
-#include <stdint.h>
+#include <cstdint>
+
 typedef uint8_t byte;
 typedef uint8_t uint8;
 typedef uint16_t uint16;
@@ -44,7 +44,7 @@ typedef const char Const_char;	//for perl XS
 
 #ifdef _WINDOWS
 	#if (!defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER < 1900))
-		#define snprintf	_snprintf
+		#define snprintf    _snprintf
 	#endif
 	#define strncasecmp	_strnicmp
 	#define strcasecmp	_stricmp
@@ -96,6 +96,4 @@ typedef const char Const_char;	//for perl XS
 #	endif
 #	define htonll(x) htobe64(x)
 #	define ntohll(x) be64toh(x)
-#endif
-
 #endif

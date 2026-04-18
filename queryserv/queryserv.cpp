@@ -1,42 +1,49 @@
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/opcodemgr.h"
-#include "../common/rulesys.h"
-#include "../common/platform.h"
-#include "../common/crash.h"
-#include "../common/strings.h"
-#include "../common/event/event_loop.h"
-#include "../common/timer.h"
-#include "database.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#include "common/crash.h"
+#include "common/eqemu_logsys.h"
+#include "common/event/event_loop.h"
+#include "common/events/player_event_logs.h"
+#include "common/net/console_server.h"
+#include "common/net/servertalk_server.h"
+#include "common/opcodemgr.h"
+#include "common/platform.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "common/timer.h"
+#include "queryserv/database.h"
+#include "queryserv/lfguild.h"
+#include "queryserv/worldserver.h"
+#include "queryserv/zonelist.h"
+#include "queryserv/zoneserver.h"
 #include "queryservconfig.h"
-#include "lfguild.h"
-#include "worldserver.h"
-#include "../common/zone_store.h"
-#include "../common/events/player_event_logs.h"
-#include <list>
-#include <signal.h>
-#include <thread>
-#include "../common/net/servertalk_server.h"
-#include "../common/net/console_server.h"
-#include "../queryserv/zonelist.h"
-#include "../queryserv/zoneserver.h"
-#include "../common/discord/discord_manager.h"
+
+#include <csignal>
 
 volatile bool RunLoops = true;
 
 QSDatabase            qs_database;
 Database              database;
-LFGuildManager        lfguildmanager;
 std::string           WorldShortName;
 const queryservconfig *Config;
 WorldServer           *worldserver = 0;
-EQEmuLogSys           LogSys;
-PathManager           path;
-ZoneStore             zone_store;
-PlayerEventLogs       player_event_logs;
-ZSList                zs_list;
 uint32                numzones     = 0;
-DiscordManager        discord_manager;
 
 void CatchSignal(int sig_num)
 {
@@ -46,11 +53,11 @@ void CatchSignal(int sig_num)
 int main()
 {
 	RegisterExecutablePlatform(ExePlatformQueryServ);
-	LogSys.LoadLogSettingsDefaults();
+	EQEmuLogSys::Instance()->LoadLogSettingsDefaults();
 	set_exception_handler();
 	Timer LFGuildExpireTimer(60000);
 
-	path.LoadPaths();
+	PathManager::Instance()->Init();
 
 	LogInfo("Starting EQEmu QueryServ");
 	if (!queryservconfig::LoadConfig()) {
@@ -85,8 +92,8 @@ int main()
 		return 1;
 	}
 
-	LogSys.SetDatabase(&database)
-		->SetLogPath(path.GetLogPath())
+	EQEmuLogSys::Instance()->SetDatabase(&database)
+		->SetLogPath(PathManager::Instance()->GetLogPath())
 		->LoadLogDatabaseSettings()
 		->StartFileLogs();
 
@@ -129,7 +136,7 @@ int main()
 	server_connection->OnConnectionIdentified(
 		"Zone", [&console](std::shared_ptr<EQ::Net::ServertalkServerConnection> connection) {
 			numzones++;
-			zs_list.Add(new ZoneServer(connection, console.get()));
+			ZSList::Instance()->Add(new ZoneServer(connection, console.get()));
 
 			LogInfo(
 				"New Zone Server connection from [{}] at [{}:{}] zone_count [{}]",
@@ -144,7 +151,7 @@ int main()
 	server_connection->OnConnectionRemoved(
 		"Zone", [](std::shared_ptr<EQ::Net::ServertalkServerConnection> connection) {
 			numzones--;
-			zs_list.Remove(connection->GetUUID());
+			ZSList::Instance()->Remove(connection->GetUUID());
 
 			LogInfo(
 				"Removed Zone Server connection from [{}] total zone_count [{}]",
@@ -159,10 +166,10 @@ int main()
 	worldserver->Connect();
 
 	/* Load Looking For Guild Manager */
-	lfguildmanager.LoadDatabase();
+	LFGuildManager::Instance()->LoadDatabase();
 
 	Timer player_event_process_timer(1000);
-	player_event_logs.SetDatabase(&qs_database)->Init();
+	PlayerEventLogs::Instance()->SetDatabase(&qs_database)->Init();
 
 	auto loop_fn = [&](EQ::Timer *t) {
 		Timer::SetCurrentTime();
@@ -173,11 +180,11 @@ int main()
 		}
 
 		if (LFGuildExpireTimer.Check()) {
-			lfguildmanager.ExpireEntries();
+			LFGuildManager::Instance()->ExpireEntries();
 		}
 
 		if (player_event_process_timer.Check()) {
-			player_event_logs.Process();
+			PlayerEventLogs::Instance()->Process();
 		}
 	};
 
@@ -187,7 +194,7 @@ int main()
 	EQ::EventLoop::Get().Run();
 
 	safe_delete(worldserver);
-	LogSys.CloseFileLogs();
+	EQEmuLogSys::Instance()->CloseFileLogs();
 }
 
 void UpdateWindowTitle(char *iNewTitle)

@@ -1,12 +1,30 @@
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #ifdef LUA_EQEMU
 
-#include "lua.hpp"
-#include <luabind/luabind.hpp>
-#include <luabind/iterator_policy.hpp>
-
-#include "corpse.h"
 #include "lua_corpse.h"
-#include "lua_client.h"
+
+#include "zone/corpse.h"
+#include "zone/lua_client.h"
+
+#include "lua.hpp"
+#include "luabind/iterator_policy.hpp"
+#include "luabind/luabind.hpp"
 
 struct Lua_Corpse_Loot_List {
 	std::vector<uint32> entries;
@@ -266,4 +284,4 @@ luabind::scope lua_register_corpse_loot_list() {
 	.def_readwrite("entries", &Lua_Corpse_Loot_List::entries, luabind::return_stl_iterator);
 }
 
-#endif
+#endif // LUA_EQEMU

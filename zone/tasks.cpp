@@ -1,30 +1,47 @@
-#include "../common/global_define.h"
-#include "../common/misc_functions.h"
-#include "../common/rulesys.h"
-#include "../common/strings.h"
-#include "client.h"
-#include "queryserv.h"
-#include "quest_parser_collection.h"
-#include "string_ids.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "tasks.h"
-#include "zonedb.h"
-#include "../common/repositories/character_task_timers_repository.h"
+
+#include "common/misc_functions.h"
+#include "common/repositories/character_task_timers_repository.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+#include "zone/client.h"
+#include "zone/queryserv.h"
+#include "zone/quest_parser_collection.h"
+#include "zone/string_ids.h"
+#include "zone/zonedb.h"
 
 extern QueryServ *QServ;
 
 void Client::LoadClientTaskState()
 {
-	if (RuleB(TaskSystem, EnableTaskSystem) && task_manager) {
+	if (RuleB(TaskSystem, EnableTaskSystem)) {
 		LoadClientSharedCompletedTasks();
 
 		safe_delete(task_state);
 		task_state = new ClientTaskState();
-		if (!task_manager->LoadClientState(this, task_state)) {
+		if (!TaskManager::Instance()->LoadClientState(this, task_state)) {
 			safe_delete(task_state);
 		}
 		else {
-			task_manager->SendActiveTasksToClient(this);
-			task_manager->SendCompletedTasksToClient(this, task_state);
+			TaskManager::Instance()->SendActiveTasksToClient(this);
+			TaskManager::Instance()->SendCompletedTasksToClient(this, task_state);
 		}
 	}
 }

@@ -1,20 +1,40 @@
-#include <filesystem>
-#include "database_update.h"
-#include "../eqemu_logsys.h"
-#include "../database.h"
-#include "../strings.h"
-#include "../rulesys.h"
-#include "../http/httplib.h"
+/*	EQEmu: EQEmulator
 
-#include "database_update_manifest.cpp"
-#include "database_update_manifest_bots.cpp"
-#include "database_dump_service.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "database_update.h"
+
+#include "common/database.h"
+#include "common/database/database_dump_service.h"
+#include "common/database/database_update_manifest_bots.h"
+#include "common/database/database_update_manifest_custom.h"
+#include "common/database/database_update_manifest.h"
+#include "common/eqemu_logsys.h"
+#include "common/http/httplib.h"
+#include "common/rulesys.h"
+#include "common/strings.h"
+
+#include <filesystem>
+
 
 constexpr int BREAK_LENGTH = 70;
 
 DatabaseVersion DatabaseUpdate::GetDatabaseVersions()
 {
-	auto results = m_database->QueryDatabase("SELECT `version`, `bots_version` FROM `db_version` LIMIT 1");
+	auto results = m_database->QueryDatabase("SELECT `version`, `bots_version`, `custom_version` FROM `db_version` LIMIT 1");
 	if (!results.Success() || !results.RowCount()) {
 		LogError("Failed to read from [db_version] table!");
 		return DatabaseVersion{};
@@ -25,6 +45,7 @@ DatabaseVersion DatabaseUpdate::GetDatabaseVersions()
 	return DatabaseVersion{
 		.server_database_version = Strings::ToInt(r[0]),
 		.bots_database_version = Strings::ToInt(r[1]),
+		.custom_database_version = Strings::ToInt(r[2]),
 	};
 }
 
@@ -33,6 +54,7 @@ DatabaseVersion DatabaseUpdate::GetBinaryDatabaseVersions()
 	return DatabaseVersion{
 		.server_database_version = CURRENT_BINARY_DATABASE_VERSION,
 		.bots_database_version = (RuleB(Bots, Enabled) ? CURRENT_BINARY_BOTS_DATABASE_VERSION : 0),
+		.custom_database_version = CUSTOM_BINARY_DATABASE_VERSION,
 	};
 }
 
@@ -43,6 +65,7 @@ constexpr int LOOK_BACK_AMOUNT = 10;
 // this check will take action
 void DatabaseUpdate::CheckDbUpdates()
 {
+	InjectCustomVersionColumn();
 	InjectBotsVersionColumn();
 	auto v = GetDatabaseVersions();
 	auto b = GetBinaryDatabaseVersions();
@@ -57,6 +80,15 @@ void DatabaseUpdate::CheckDbUpdates()
 			v.server_database_version
 		);
 		m_database->QueryDatabase(fmt::format("UPDATE `db_version` SET `version` = {}", b.server_database_version));
+	}
+
+	if (UpdateManifest(manifest_entries_custom, v.custom_database_version, b.custom_database_version)) {
+		LogInfo(
+			"Updates ran successfully, setting database version to [{}] from [{}]",
+			b.custom_database_version,
+			v.custom_database_version
+		);
+		m_database->QueryDatabase(fmt::format("UPDATE `db_version` SET `custom_version` = {}", b.custom_database_version));
 	}
 
 	if (b.bots_database_version > 0) {
@@ -141,7 +173,7 @@ bool DatabaseUpdate::UpdateManifest(
 	std::vector<int> missing_migrations = {};
 	if (version_low != version_high) {
 
-		LogSys.DisableMySQLErrorLogs();
+		EQEmuLogSys::Instance()->DisableMySQLErrorLogs();
 		bool force_interactive = false;
 		for (int version = version_low + 1; version <= version_high; ++version) {
 			for (auto &e: entries) {
@@ -171,7 +203,7 @@ bool DatabaseUpdate::UpdateManifest(
 				}
 			}
 		}
-		LogSys.EnableMySQLErrorLogs();
+		EQEmuLogSys::Instance()->EnableMySQLErrorLogs();
 		LogInfo("{}", Strings::Repeat("-", BREAK_LENGTH));
 
 		if (!missing_migrations.empty() && m_skip_backup) {
@@ -344,6 +376,16 @@ bool DatabaseUpdate::CheckVersionsUpToDate(DatabaseVersion v, DatabaseVersion b)
 		);
 	}
 
+	if (b.custom_database_version > 0) {
+		LogInfo(
+			"{:>8} | database [{}] binary [{}] {}",
+			"Custom",
+			v.custom_database_version,
+			b.custom_database_version,
+			(v.custom_database_version == b.custom_database_version) ? "up to date" : "checking updates"
+		);
+	}
+
 	LogInfo("{:>8} | [server.auto_database_updates] [<green>true]", "Config");
 
 	LogInfo("{}", Strings::Repeat("-", BREAK_LENGTH));
@@ -353,7 +395,10 @@ bool DatabaseUpdate::CheckVersionsUpToDate(DatabaseVersion v, DatabaseVersion b)
 	// bots database version is optional, if not enabled then it is always up-to-date
 	bool bots_up_to_date   = RuleB(Bots, Enabled) ? v.bots_database_version >= b.bots_database_version : true;
 
-	return server_up_to_date && bots_up_to_date;
+	// custom database version is optional, if not enabled then it is always up-to-date
+	bool custom_up_to_date = v.custom_database_version >= b.custom_database_version;
+
+	return server_up_to_date && bots_up_to_date && custom_up_to_date;
 }
 
 // checks to see if there are pending updates
@@ -371,5 +416,14 @@ void DatabaseUpdate::InjectBotsVersionColumn()
 	auto r = m_database->QueryDatabase("show columns from db_version where Field like '%bots_version%'");
 	if (r.RowCount() == 0) {
 		m_database->QueryDatabase("ALTER TABLE db_version ADD bots_version int(11) DEFAULT '0' AFTER version");
+	}
+}
+
+void DatabaseUpdate::InjectCustomVersionColumn()
+{
+	auto results = m_database->QueryDatabase("SHOW COLUMNS FROM `db_version` LIKE 'custom_version'");
+	if (!results.Success() || results.RowCount() == 0) {
+		LogInfo("Adding custom_version column to db_version table");
+		m_database->QueryDatabase("ALTER TABLE `db_version` ADD COLUMN `custom_version` INT(11) UNSIGNED NOT NULL DEFAULT 0");
 	}
 }

@@ -1,43 +1,39 @@
-/*	EQEMu: Everquest Server Emulator
+/*	EQEmu: EQEmulator
 
-	Copyright (C) 2001-2016 EQEMu Development Team (http://eqemulator.net)
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  04111-1307  USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
 // @merth notes:
 // These classes could be optimized with database reads/writes by storing
 // a status flag indicating how object needs to interact with database
 
-#ifndef COMMON_ITEM_INSTANCE_H
-#define COMMON_ITEM_INSTANCE_H
-#include "evolving_items.h"
+#pragma once
 
+#include "common/bodytypes.h"
+#include "common/deity.h"
+#include "common/eq_constants.h"
+#include "common/evolving_items.h"
+#include "common/item_data.h"
+#include "common/memory_buffer.h"
+#include "common/repositories/character_evolving_items_repository.h"
+#include "common/timer.h"
+
+#include <map>
 
 class ItemParse;			// Parses item packets
 class EvolveInfo;			// Stores information about an evolving item family
-
-#include "../common/eq_constants.h"
-#include "../common/item_data.h"
-#include "../common/timer.h"
-#include "../common/bodytypes.h"
-#include "../common/deity.h"
-#include "../common/memory_buffer.h"
-#include "../common/repositories/character_evolving_items_repository.h"
-
-#include <map>
 
 
 // Specifies usage type for item inside EQ::ItemInstance
@@ -336,7 +332,7 @@ namespace EQ
 		void             SetEvolveAddToCurrentAmount(const uint64 in) const { m_evolving_details.current_amount += in; }
 		void             SetEvolveFinalItemID(const uint32 in) const { m_evolving_details.final_item_id = in; }
 		bool             TransferOwnership(Database& db, const uint32 to_char_id) const;
-		void             CalculateEvolveProgression() const { m_evolving_details.progression = evolving_items_manager.CalculateProgression(GetEvolveCurrentAmount(), GetID()); }
+		void             CalculateEvolveProgression() const { m_evolving_details.progression = EvolvingItemsManager::Instance()->CalculateProgression(GetEvolveCurrentAmount(), GetID()); }
 
 	protected:
 		//////////////////////////
@@ -377,4 +373,3 @@ namespace EQ
 		mutable std::map<std::string, ::Timer> m_timers {};
 	};
 }
-#endif /*COMMON_ITEM_INSTANCE_H*/

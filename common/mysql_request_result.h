@@ -1,21 +1,27 @@
-#ifndef MYSQL_REQUEST_RESULT_H
-#define MYSQL_REQUEST_RESULT_H
+/*	EQEmu: EQEmulator
 
-#ifdef _WINDOWS
-	#include <winsock2.h>
-	#include <windows.h>
-#endif
+	Copyright (C) 2001-2026 EQEmu Development Team
 
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "common/mysql_request_row.h"
+#include "common/types.h"
+
+#include "mysql.h"
 #include <string>
-#include <mysql.h>
-#include "types.h"
-#include "mysql_request_row.h"
-
-#ifdef __FreeBSD__
-	#include <string>
-	#include <sstream>
-	#include <iostream>
-#endif
 
 class MySQLRequestResult {
 private:
@@ -73,7 +79,3 @@ private:
 	void FreeInternals();
 	void ZeroOut();
 };
-
-
-#endif
-

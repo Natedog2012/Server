@@ -1,63 +1,46 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2003 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#include "../common/data_verification.h"
-#include "../common/global_define.h"
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <iostream>
-
-#ifdef _WINDOWS
-#else
-#include <pthread.h>
-#include "../common/unix.h"
-#endif
-
-#include "../common/features.h"
-#include "../common/guilds.h"
-
 #include "entity.h"
-#include "dynamic_zone.h"
-#include "guild_mgr.h"
-#include "petitions.h"
-#include "quest_parser_collection.h"
-#include "raids.h"
-#include "string_ids.h"
-#include "worldserver.h"
-#include "water_map.h"
-#include "npc_scale_manager.h"
-#include "dialogue_window.h"
 
-#ifdef _WINDOWS
-	#define snprintf	_snprintf
-	#define strncasecmp	_strnicmp
-	#define strcasecmp	_stricmp
-#endif
+#include "common/data_verification.h"
+#include "common/features.h"
+#include "common/guilds.h"
+#include "zone/bot.h"
+#include "zone/dialogue_window.h"
+#include "zone/dynamic_zone.h"
+#include "zone/guild_mgr.h"
+#include "zone/npc_scale_manager.h"
+#include "zone/petitions.h"
+#include "zone/quest_parser_collection.h"
+#include "zone/raids.h"
+#include "zone/string_ids.h"
+#include "zone/water_map.h"
+#include "zone/worldserver.h"
 
-#include "bot.h"
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
+#include <iostream>
 
 extern Zone *zone;
 extern volatile bool is_zone_loaded;
 extern WorldServer worldserver;
 extern uint32 numclients;
-extern PetitionList petition_list;
-
-extern char errorname[32];
 
 Entity::Entity()
 {
@@ -505,6 +488,9 @@ void EntityList::MobProcess()
 					zone->GetSecondsBeforeIdle(),
 					zone->GetSecondsBeforeIdle() != 1 ? "s" : ""
 				);
+
+				CheckToClearTraderAndBuyerTables();
+
 				mob_settle_timer->Disable();
 			}
 
@@ -739,6 +725,11 @@ void EntityList::AddNPC(NPC *npc, bool send_spawn_packet, bool dont_queue)
 
 	if (parse->HasQuestSub(ZONE_CONTROLLER_NPC_ID, EVENT_SPAWN_ZONE)) {
 		npc->DispatchZoneControllerEvent(EVENT_SPAWN_ZONE, npc, "", 0, nullptr);
+	}
+
+	if (parse->ZoneHasQuestSub(EVENT_SPAWN_ZONE)) {
+		std::vector<std::any> args = { npc };
+		parse->EventZone(EVENT_SPAWN_ZONE, zone, "", 0, &args);
 	}
 
 	if (zone->HasMap() && zone->HasWaterMap()) {
@@ -1384,7 +1375,7 @@ void EntityList::SendZoneSpawnsBulk(Client *client)
 
 			bool is_delayed_packet = (
 				DistanceSquared(client_position, spawn_position) > distance_max ||
-				(spawn->IsClient() && (spawn->GetRace() == MINOR_ILL_OBJ || spawn->GetRace() == TREE))
+				(spawn->IsClient() && (spawn->GetRace() == Race::MinorIllusion || spawn->GetRace() == Race::Tree))
 			);
 
 			if (is_delayed_packet) {
@@ -1408,7 +1399,7 @@ void EntityList::SendZoneSpawnsBulk(Client *client)
 			 *
 			 * Illusion races on PCs don't work as a mass spawn
 			 * But they will work as an add_spawn AFTER CLIENT_CONNECTED.
-			 * if (spawn->IsClient() && (race == MINOR_ILL_OBJ || race == TREE)) {
+			 * if (spawn->IsClient() && (race == Race::MinorIllusion || race == Race::Tree)) {
 			 * 	app = new EQApplicationPacket;
 			 * 	spawn->CreateSpawnPacket(app);
 			 * 	client->QueuePacket(app, true, Client::CLIENT_CONNECTED);
@@ -2335,7 +2326,7 @@ void EntityList::QueueClientsGuild(const EQApplicationPacket *app, uint32 guild_
 void EntityList::QueueClientsGuildBankItemUpdate(GuildBankItemUpdate_Struct *gbius, uint32 guild_id)
 {
 	auto outapp = std::make_unique<EQApplicationPacket>(OP_GuildBank, sizeof(GuildBankItemUpdate_Struct));
-	auto data   = reinterpret_cast<GuildBankItemUpdate_Struct *>(outapp->pBuffer);
+	auto data = reinterpret_cast<GuildBankItemUpdate_Struct *>(outapp->pBuffer);
 
 	memcpy(data, gbius, sizeof(GuildBankItemUpdate_Struct));
 
@@ -3444,7 +3435,7 @@ void EntityList::SendPetitionToAdmins(Petition *pet)
 		strcpy(pcus->accountid, pet->GetAccountName());
 		strcpy(pcus->charname, pet->GetCharName());
 	}
-	pcus->quetotal = petition_list.GetTotalPetitions();
+	pcus->quetotal = PetitionList::Instance()->GetTotalPetitions();
 	auto it = client_list.begin();
 	while (it != client_list.end()) {
 		if (it->second->CastToClient()->Admin() >= AccountStatus::QuestTroupe) {
@@ -3469,7 +3460,7 @@ void EntityList::ClearClientPetitionQueue()
 	strcpy(pet->accountid, "");
 	strcpy(pet->gmsenttoo, "");
 	strcpy(pet->charname, "");
-	pet->quetotal = petition_list.GetTotalPetitions();
+	pet->quetotal = PetitionList::Instance()->GetTotalPetitions();
 	auto it = client_list.begin();
 	while (it != client_list.end()) {
 		if (it->second->CastToClient()->Admin() >= AccountStatus::GMAdmin) {
@@ -4172,10 +4163,6 @@ void EntityList::ProcessProximitySay(const char *message, Client *c, uint8 langu
 
 void EntityList::SaveAllClientsTaskState()
 {
-	if (!task_manager) {
-		return;
-	}
-
 	auto it = client_list.begin();
 	while (it != client_list.end()) {
 		Client *client = it->second;
@@ -4189,9 +4176,6 @@ void EntityList::SaveAllClientsTaskState()
 
 void EntityList::ReloadAllClientsTaskState(int task_id)
 {
-	if (!task_manager)
-		return;
-
 	auto it = client_list.begin();
 	while (it != client_list.end()) {
 		Client *client = it->second;
@@ -4202,7 +4186,7 @@ void EntityList::ReloadAllClientsTaskState(int task_id)
 				Log(Logs::General, Logs::Tasks, "[CLIENTLOAD] Reloading Task State For Client %s", client->GetName());
 				client->RemoveClientTaskState();
 				client->LoadClientTaskState();
-				task_manager->SendActiveTasksToClient(client);
+				TaskManager::Instance()->SendActiveTasksToClient(client);
 			}
 		}
 		++it;
@@ -4453,7 +4437,7 @@ void EntityList::QuestJournalledSayClose(
 		buf.WriteString(message);
 	}
 
-	auto outapp = new EQApplicationPacket(OP_SpecialMesg, buf);
+	auto outapp = new EQApplicationPacket(OP_SpecialMesg, std::move(buf));
 
 	// client only bothers logging if target spawn ID matches, safe to send to everyone
 	QueueCloseClients(sender, outapp, false, dist);
@@ -6007,5 +5991,24 @@ void EntityList::RestoreCorpse(NPC *npc, uint32_t decay_time)
 	if (c) {
 		c->UnLock();
 		c->SetDecayTimer(decay_time);
+	}
+}
+
+void EntityList::CheckToClearTraderAndBuyerTables()
+{
+	if (zone->GetZoneID() == Zones::BAZAAR) {
+		TraderRepository::DeleteWhere(
+			database,
+			fmt::format(
+				"`char_zone_id` = {} AND `char_zone_instance_id` = {}", zone->GetZoneID(), zone->GetInstanceID()
+			)
+		);
+		BuyerRepository::DeleteBuyers(database, zone->GetZoneID(), zone->GetInstanceID());
+
+		LogTradingDetail(
+			"Removed trader and buyer entries for Zone ID [{}] and Instance ID [{}]",
+			zone->GetZoneID(),
+			zone->GetInstanceID()
+		);
 	}
 }

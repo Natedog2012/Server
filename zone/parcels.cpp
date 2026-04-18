@@ -1,30 +1,29 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "../common/global_define.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/repositories/trader_repository.h"
-#include "../common/repositories/character_parcels_repository.h"
-#include "../common/repositories/character_parcels_containers_repository.h"
-#include "worldserver.h"
-#include "string_ids.h"
 #include "client.h"
-#include "../common/ruletypes.h"
+
+#include "common/events/player_event_logs.h"
+#include "common/repositories/character_parcels_containers_repository.h"
+#include "common/repositories/character_parcels_repository.h"
+#include "common/repositories/trader_repository.h"
+#include "common/ruletypes.h"
+#include "zone/string_ids.h"
+#include "zone/worldserver.h"
 
 extern WorldServer worldserver;
 extern QueryServ  *QServ;
@@ -61,6 +60,7 @@ void Client::SendBulkParcels()
 				inst->SetCharges(p.second.quantity);
 				inst->SetMerchantCount(1);
 				inst->SetMerchantSlot(p.second.slot_id);
+				inst->SetEvolveCurrentAmount(p.second.evolve_amount);
 				if (inst->IsStackable()) {
 					inst->SetCharges(p.second.quantity);
 				}
@@ -164,6 +164,7 @@ void Client::SendParcel(Parcel_Struct &parcel_in)
 			inst->SetCharges(p.quantity);
 			inst->SetMerchantCount(1);
 			inst->SetMerchantSlot(p.slot_id);
+			inst->SetEvolveCurrentAmount(p.evolve_amount);
 			if (inst->IsStackable()) {
 				inst->SetCharges(p.quantity);
 			}
@@ -381,23 +382,23 @@ void Client::DoParcelSend(const Parcel_Struct *parcel_in)
 				return;
 			}
 
-			uint32 quantity{};
+			uint32 quantity = 1;
 			if (inst->IsStackable()) {
 				quantity = parcel_in->quantity;
-			}
-			else {
-				quantity = inst->GetCharges() >= 0 ? inst->GetCharges() : parcel_in->quantity;
+			} else if (inst->GetItem()->MaxCharges > 0) {
+				quantity = inst->GetCharges();
 			}
 
 			CharacterParcelsRepository::CharacterParcels parcel_out{};
-			parcel_out.from_name = GetName();
-			parcel_out.note      = parcel_in->note;
-			parcel_out.sent_date = time(nullptr);
-			parcel_out.quantity  = quantity;
-			parcel_out.item_id   = inst->GetID();
-			parcel_out.char_id   = send_to_client.at(0).char_id;
-			parcel_out.slot_id   = next_slot;
-			parcel_out.id        = 0;
+			parcel_out.from_name     = GetName();
+			parcel_out.note          = parcel_in->note;
+			parcel_out.sent_date     = time(nullptr);
+			parcel_out.quantity      = quantity;
+			parcel_out.item_id       = inst->GetID();
+			parcel_out.char_id       = send_to_client.at(0).char_id;
+			parcel_out.slot_id       = next_slot;
+			parcel_out.evolve_amount = inst->GetEvolveCurrentAmount();
+			parcel_out.id            = 0;
 
 			if (inst->IsAugmented()) {
 				auto augs			  = inst->GetAugmentIDs();
@@ -445,7 +446,9 @@ void Client::DoParcelSend(const Parcel_Struct *parcel_in)
 						cpc.aug_slot_5 = augs.at(4);
 						cpc.aug_slot_6 = augs.at(5);
 					}
-					cpc.quantity   = kv.second->GetCharges() >= 0 ? kv.second->GetCharges() : 1;
+
+					cpc.quantity      = kv.second->GetCharges() >= 0 ? kv.second->GetCharges() : 1;
+					cpc.evolve_amount = kv.second->GetEvolveCurrentAmount();
 					all_entries.push_back(cpc);
 				}
 				CharacterParcelsContainersRepository::InsertMany(database, all_entries);
@@ -468,7 +471,7 @@ void Client::DoParcelSend(const Parcel_Struct *parcel_in)
 				send_to_client.at(0).character_name.c_str()
 			);
 
-			if (player_event_logs.IsEventEnabled(PlayerEvent::PARCEL_SEND)) {
+			if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::PARCEL_SEND)) {
 				PlayerEvent::ParcelSend e{};
 				e.from_player_name = parcel_out.from_name;
 				e.to_player_name   = send_to_client.at(0).character_name;
@@ -572,7 +575,7 @@ void Client::DoParcelSend(const Parcel_Struct *parcel_in)
 				send_to_client.at(0).character_name.c_str()
 			);
 
-			if (player_event_logs.IsEventEnabled(PlayerEvent::PARCEL_SEND)) {
+			if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::PARCEL_SEND)) {
 				PlayerEvent::ParcelSend e{};
 				e.from_player_name = parcel_out.from_name;
 				e.to_player_name   = send_to_client.at(0).character_name;
@@ -679,6 +682,8 @@ void Client::DoParcelRetrieve(const ParcelRetrieve_Struct &parcel_in)
 			return;
 		}
 
+		inst->SetEvolveCurrentAmount(p->second.evolve_amount);
+
 		if (inst->IsStackable()) {
 			inst->SetCharges(item_quantity > 0 ? item_quantity : 1);
 		}
@@ -714,6 +719,8 @@ void Client::DoParcelRetrieve(const ParcelRetrieve_Struct &parcel_in)
 							SendParcelRetrieveAck();
 							return;
 						}
+
+						item->SetEvolveCurrentAmount(i.evolve_amount);
 
 						if (CheckLoreConflict(item->GetItem())) {
 							if (RuleB(Parcel, DeleteOnDuplicate)) {
@@ -759,7 +766,7 @@ void Client::DoParcelRetrieve(const ParcelRetrieve_Struct &parcel_in)
 					);
 				}
 
-				if (player_event_logs.IsEventEnabled(PlayerEvent::PARCEL_RETRIEVE)) {
+				if (PlayerEventLogs::Instance()->IsEventEnabled(PlayerEvent::PARCEL_RETRIEVE)) {
 					PlayerEvent::ParcelRetrieve e{};
 					e.from_player_name = p->second.from_name;
 					e.item_id          = p->second.item_id;

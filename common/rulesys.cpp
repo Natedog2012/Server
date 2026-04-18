@@ -1,31 +1,31 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2006 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
 #include "rulesys.h"
-#include "eqemu_logsys.h"
-#include "database.h"
-#include "strings.h"
+
+#include "common/database.h"
+#include "common/eqemu_logsys.h"
+#include "common/repositories/rule_sets_repository.h"
+#include "common/repositories/rule_values_repository.h"
+#include "common/strings.h"
+
+#include "fmt/format.h"
 #include <cstdlib>
 #include <cstring>
-#include <fmt/format.h>
-
-#include "../common/repositories/rule_sets_repository.h"
-#include "../common/repositories/rule_values_repository.h"
 
 const char *RuleManager::s_categoryNames[_CatCount + 1] = {
 	#define RULE_CATEGORY(category_name) \
@@ -498,6 +498,19 @@ bool RuleManager::UpdateInjectedRules(Database *db, const std::string &rule_set_
 					rule_set_id,
 					d.second.first
 				);
+			}
+		}
+	}
+
+	// update rules in the database where the description is different
+	for (auto &e : RuleValuesRepository::All(*db)) {
+		auto i = rule_data.find(e.rule_name);
+		if (i != rule_data.end()) {
+			// if notes are different, update them
+			if (i->second.second != nullptr && *i->second.second != e.notes) {
+				LogInfo("Updating rule [{}] notes to [{}]", i->first, *i->second.second);
+				e.notes = *i->second.second;
+				RuleValuesRepository::ReplaceOne(*db, e);
 			}
 		}
 	}

@@ -1,16 +1,32 @@
-#include "dynamic_zone_manager.h"
-#include "dynamic_zone.h"
-#include "cliententry.h"
-#include "clientlist.h"
-#include "worlddb.h"
-#include "zonelist.h"
-#include "zoneserver.h"
-#include "../common/rulesys.h"
-#include "../common/repositories/dynamic_zone_lockouts_repository.h"
-#include <cereal/types/utility.hpp>
+/*	EQEmu: EQEmulator
 
-extern ClientList client_list;
-extern ZSList zoneserver_list;
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "dynamic_zone_manager.h"
+
+#include "common/repositories/dynamic_zone_lockouts_repository.h"
+#include "common/rulesys.h"
+#include "world/cliententry.h"
+#include "world/clientlist.h"
+#include "world/dynamic_zone.h"
+#include "world/worlddb.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
+
+#include "cereal/types/utility.hpp"
 
 DynamicZoneManager dynamic_zone_manager;
 
@@ -56,7 +72,7 @@ DynamicZone* DynamicZoneManager::TryCreate(DynamicZone& dz_request, const std::v
 	LogDynamicZones("Created new dz [{}] for zone [{}]", dz_id, dz_request.GetZoneID());
 
 	auto pack = dz->CreateServerPacket(0, 0);
-	zoneserver_list.SendPacket(pack.get());
+	ZSList::Instance()->SendPacket(pack.get());
 
 	auto inserted = dynamic_zone_cache.emplace(dz_id, std::move(dz));
 	return inserted.first->second.get();
@@ -76,7 +92,7 @@ void DynamicZoneManager::CacheNewDynamicZone(ServerPacket* pack)
 	dynamic_zone_cache.emplace(buf->dz_id, std::move(new_dz));
 	LogDynamicZones("Cached new dynamic zone [{}]", buf->dz_id);
 
-	zoneserver_list.SendPacket(repack.get());
+	ZSList::Instance()->SendPacket(repack.get());
 }
 
 void DynamicZoneManager::CacheAllFromDatabase()
@@ -194,7 +210,7 @@ void DynamicZoneManager::SendBulkMemberStatuses(uint32_t zone_id, uint16_t inst_
 	buf->cereal_size = static_cast<uint32_t>(sv.size());
 	memcpy(buf->cereal_data, sv.data(), sv.size());
 
-	zoneserver_list.SendPacket(zone_id, inst_id, &pack);
+	ZSList::Instance()->SendPacket(zone_id, inst_id, &pack);
 }
 
 void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
@@ -210,7 +226,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 	{
 		auto buf = reinterpret_cast<ServerDzCommand_Struct*>(pack->pBuffer);
 
-		ClientListEntry* cle = client_list.FindCharacter(buf->target_name);
+		ClientListEntry* cle = ClientList::Instance()->FindCharacter(buf->target_name);
 		if (cle && cle->Server())
 		{
 			// continue in the add target's zone
@@ -220,7 +236,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 		else
 		{
 			// add target not online, return to inviter
-			ClientListEntry* inviter_cle = client_list.FindCharacter(buf->requester_name);
+			ClientListEntry* inviter_cle = ClientList::Instance()->FindCharacter(buf->requester_name);
 			if (inviter_cle && inviter_cle->Server())
 			{
 				inviter_cle->Server()->SendPacket(pack);
@@ -231,7 +247,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 	case ServerOP_DzSaveInvite:
 	{
 		auto buf = reinterpret_cast<ServerDzCommand_Struct*>(pack->pBuffer);
-		if (ClientListEntry* cle = client_list.FindCharacter(buf->target_name))
+		if (ClientListEntry* cle = ClientList::Instance()->FindCharacter(buf->target_name))
 		{
 			// store packet on cle and re-send it when client requests it
 			buf->is_char_online = true;
@@ -243,7 +259,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 	case ServerOP_DzRequestInvite:
 	{
 		auto buf = reinterpret_cast<ServerCharacterID_Struct*>(pack->pBuffer);
-		if (ClientListEntry* cle = client_list.FindCLEByCharacterID(buf->char_id))
+		if (ClientListEntry* cle = ClientList::Instance()->FindCLEByCharacterID(buf->char_id))
 		{
 			auto invite_pack = cle->GetPendingDzInvite();
 			if (invite_pack && cle->Server())
@@ -259,7 +275,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 
 		// notify requester (old leader) and new leader of the result
 		ZoneServer* new_leader_zs = nullptr;
-		ClientListEntry* leader_cle = client_list.FindCharacter(buf->new_leader_name);
+		ClientListEntry* leader_cle = ClientList::Instance()->FindCharacter(buf->new_leader_name);
 		if (leader_cle && leader_cle->Server())
 		{
 			auto dz = DynamicZone::FindDynamicZoneByID(buf->dz_id);
@@ -274,7 +290,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 		}
 
 		// if old and new leader are in the same zone only send one message
-		ClientListEntry* requester_cle = client_list.FindCLEByCharacterID(buf->requester_id);
+		ClientListEntry* requester_cle = ClientList::Instance()->FindCLEByCharacterID(buf->requester_id);
 		if (requester_cle && requester_cle->Server() && requester_cle->Server() != new_leader_zs)
 		{
 			requester_cle->Server()->SendPacket(pack);
@@ -301,7 +317,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 				dz->SetZoneInLocation(buf->x, buf->y, buf->z, buf->heading, false);
 			}
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzSetSwitchID:
@@ -311,7 +327,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 		{
 			dz->ProcessSetSwitchID(buf->dz_switch_id);
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzAddRemoveMember:
@@ -322,7 +338,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 			auto status = static_cast<DynamicZoneMemberStatus>(buf->character_status);
 			dz->ProcessMemberAddRemove({ buf->character_id, buf->character_name, status }, buf->removed);
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzSwapMembers:
@@ -335,7 +351,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 			dz->ProcessMemberAddRemove({ buf->add_character_id, buf->add_character_name, status }, false);
 			dz->ProcessMemberAddRemove({ buf->remove_character_id, buf->remove_character_name }, true);
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzRemoveAllMembers:
@@ -345,7 +361,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 		{
 			dz->ProcessRemoveAllMembers();
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzSetSecondsRemaining:
@@ -383,7 +399,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 			auto status = static_cast<DynamicZoneMemberStatus>(buf->status);
 			dz->ProcessMemberStatusChange(buf->character_id, status);
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzMovePC:
@@ -392,7 +408,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 		auto dz = DynamicZone::FindDynamicZoneByID(buf->dz_id);
 		if (dz && dz->HasMember(buf->character_id))
 		{
-			zoneserver_list.SendPacket(buf->sender_zone_id, buf->sender_instance_id, pack);
+			ZSList::Instance()->SendPacket(buf->sender_zone_id, buf->sender_instance_id, pack);
 		}
 		break;
 	}
@@ -403,7 +419,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 		{
 			dz->SetLocked(buf->lock);
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzReplayOnJoin:
@@ -413,7 +429,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 		{
 			dz->SetReplayOnJoin(buf->enabled);
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzLockout:
@@ -424,7 +440,7 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 			DzLockout lockout{ dz->GetUUID(), dz->GetName(), buf->event_name, buf->expire_time, buf->duration };
 			dz->HandleLockoutUpdate(lockout, buf->remove, buf->members_only);
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzLockoutDuration:
@@ -435,13 +451,13 @@ void DynamicZoneManager::HandleZoneMessage(ServerPacket* pack)
 			DzLockout lockout{ dz->GetUUID(), dz->GetName(), buf->event_name, buf->expire_time, buf->duration };
 			dz->HandleLockoutDuration(lockout, buf->seconds, buf->members_only, false);
 		}
-		zoneserver_list.SendPacket(pack);
+		ZSList::Instance()->SendPacket(pack);
 		break;
 	}
 	case ServerOP_DzCharacterLockout:
 	{
 		auto buf = reinterpret_cast<ServerDzCharacterLockout_Struct*>(pack->pBuffer);
-		auto cle = client_list.FindCLEByCharacterID(buf->char_id);
+		auto cle = ClientList::Instance()->FindCLEByCharacterID(buf->char_id);
 		if (cle && cle->Server())
 		{
 			cle->Server()->SendPacket(pack);

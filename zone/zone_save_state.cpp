@@ -1,11 +1,31 @@
-#include <string>
-#include <cereal/archives/json.hpp>
-#include <cereal/types/map.hpp>
-#include "npc.h"
-#include "corpse.h"
-#include "zone.h"
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "zone_save_state.h"
-#include "../common/repositories/spawn2_repository.h"
+
+#include "common/repositories/criteria/content_filter_criteria.h"
+#include "common/repositories/spawn2_repository.h"
+#include "zone/corpse.h"
+#include "zone/npc.h"
+#include "zone/zone.h"
+
+#include "cereal/archives/json.hpp"
+#include "cereal/types/map.hpp"
+#include <string>
 
 // IsZoneStateValid checks if the zone state is valid
 // if these fields are all empty or zero value for an entire zone state, it's considered invalid
@@ -528,6 +548,69 @@ bool Zone::LoadZoneState(
 		auto n = new_spawn->GetNPC();
 		if (n) {
 			LoadNPCState(zone, n, s);
+		}
+	}
+
+	// compare state spawns to spawn2 list, if there are any missing, we need to add them
+	// this is to cover the rare case where a spawn2 is created in the database but not in the zone state
+	auto zone_spawns = Spawn2Repository::GetWhere(
+		content_db, fmt::format(
+			"TRUE {} AND zone = '{}' AND (version = {} OR version = -1) ",
+			ContentFilterCriteria::apply(),
+			zone->GetShortName(),
+			zone->GetInstanceVersion()
+		)
+	);
+
+	for (auto &s: zone_spawns) {
+		bool found = false;
+		for (auto &ss: spawn_states) {
+			if (ss.spawn2_id == 0 || ss.spawngroup_id == 0 || ss.is_corpse || ss.is_zone) {
+				continue;
+			}
+			if (s.id == ss.spawn2_id) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			bool spawn_enabled = true;
+
+			for (auto &ds: disabled_spawns) {
+				if (ds.spawn2_id == s.id) {
+					spawn_enabled = !ds.disabled;
+				}
+			}
+
+			LogZoneState("Missing spawn2 [{}] in zone state, this NPC spawn was newly created", s.id);
+			uint32 spawn_time_left = 0;
+			if (spawn_times.count(s.id) != 0) {
+				spawn_time_left = spawn_times[s.id];
+				LogInfo("Spawn2 [{}] Respawn time left [{}]", s.id, spawn_time_left);
+			}
+
+			auto new_spawn = new Spawn2(
+				s.id,
+				s.spawngroupID,
+				s.x,
+				s.y,
+				s.z,
+				s.heading,
+				s.respawntime,
+				s.variance,
+				spawn_time_left,
+				s.pathgrid,
+				(bool) s.path_when_zone_idle,
+				s._condition,
+				(int16) s.cond_value,
+				spawn_enabled,
+				(EmuAppearance) s.animation
+			);
+
+			new_spawn->SetStoredLocation(glm::vec4(s.x, s.y, s.z, s.heading));
+			spawn2_list.Insert(new_spawn);
+			new_spawn->Process();
 		}
 	}
 

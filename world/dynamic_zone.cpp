@@ -1,15 +1,30 @@
-#include "dynamic_zone.h"
-#include "cliententry.h"
-#include "clientlist.h"
-#include "dynamic_zone_manager.h"
-#include "worlddb.h"
-#include "zonelist.h"
-#include "zoneserver.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/repositories/instance_list_repository.h"
+/*	EQEmu: EQEmulator
 
-extern ClientList client_list;
-extern ZSList zoneserver_list;
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "dynamic_zone.h"
+
+#include "common/eqemu_logsys.h"
+#include "common/repositories/instance_list_repository.h"
+#include "world/cliententry.h"
+#include "world/clientlist.h"
+#include "world/dynamic_zone_manager.h"
+#include "world/worlddb.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
 
 Database& DynamicZone::GetDatabase()
 {
@@ -18,7 +33,7 @@ Database& DynamicZone::GetDatabase()
 
 bool DynamicZone::SendServerPacket(ServerPacket* packet)
 {
-	return zoneserver_list.SendPacket(packet);
+	return ZSList::Instance()->SendPacket(packet);
 }
 
 DynamicZone* DynamicZone::FindDynamicZoneByID(uint32_t dz_id)
@@ -41,7 +56,7 @@ void DynamicZone::ChooseNewLeader()
 
 	auto it = std::find_if(m_members.begin(), m_members.end(), [&](const DynamicZoneMember& member) {
 		if (member.id != GetLeaderID() && member.IsOnline()) {
-			auto member_cle = client_list.FindCLEByCharacterID(member.id);
+			auto member_cle = ClientList::Instance()->FindCLEByCharacterID(member.id);
 			return (member_cle && member_cle->GetOnline() == CLE_Status::InZone);
 		}
 		return false;
@@ -91,7 +106,7 @@ DynamicZoneStatus DynamicZone::Process()
 	{
 		status = DynamicZoneStatus::Expired;
 
-		auto dz_zoneserver = zoneserver_list.FindByInstanceID(GetInstanceID());
+		auto dz_zoneserver = ZSList::Instance()->FindByInstanceID(GetInstanceID());
 		if (!dz_zoneserver || dz_zoneserver->NumPlayers() == 0) // no clients inside dz
 		{
 			status = DynamicZoneStatus::ExpiredEmpty;
@@ -119,7 +134,7 @@ void DynamicZone::SendZonesDynamicZoneDeleted()
 	auto pack = std::make_unique<ServerPacket>(ServerOP_DzDeleted, pack_size);
 	auto buf = reinterpret_cast<ServerDzID_Struct*>(pack->pBuffer);
 	buf->dz_id = GetID();
-	zoneserver_list.SendPacket(pack.get());
+	ZSList::Instance()->SendPacket(pack.get());
 }
 
 void DynamicZone::SetSecondsRemaining(uint32_t seconds_remaining)
@@ -154,7 +169,7 @@ void DynamicZone::SendZonesDurationUpdate()
 	auto packbuf = reinterpret_cast<ServerDzSetDuration_Struct*>(pack->pBuffer);
 	packbuf->dz_id = GetID();
 	packbuf->seconds = static_cast<uint32_t>(m_duration.count());
-	zoneserver_list.SendPacket(pack.get());
+	ZSList::Instance()->SendPacket(pack.get());
 }
 
 void DynamicZone::SendZonesLeaderChanged()
@@ -164,7 +179,7 @@ void DynamicZone::SendZonesLeaderChanged()
 	auto buf = reinterpret_cast<ServerDzLeaderID_Struct*>(pack->pBuffer);
 	buf->dz_id = GetID();
 	buf->leader_id = GetLeaderID();
-	zoneserver_list.SendPacket(pack.get());
+	ZSList::Instance()->SendPacket(pack.get());
 }
 
 void DynamicZone::ProcessMemberAddRemove(const DynamicZoneMember& member, bool removed)
@@ -198,7 +213,7 @@ void DynamicZone::SendZonesExpireWarning(uint32_t minutes_remaining)
 	auto buf = reinterpret_cast<ServerDzExpireWarning_Struct*>(pack->pBuffer);
 	buf->dz_id = GetID();
 	buf->minutes_remaining = minutes_remaining;
-	zoneserver_list.SendPacket(pack.get());
+	ZSList::Instance()->SendPacket(pack.get());
 }
 
 void DynamicZone::SendZoneMemberStatuses(uint16_t zone_id, uint16_t instance_id)
@@ -217,7 +232,7 @@ void DynamicZone::SendZoneMemberStatuses(uint16_t zone_id, uint16_t instance_id)
 		buf->entries[i].online_status = static_cast<uint8_t>(m_members[i].status);
 	}
 
-	zoneserver_list.SendPacket(zone_id, instance_id, pack.get());
+	ZSList::Instance()->SendPacket(zone_id, instance_id, pack.get());
 }
 
 void DynamicZone::CacheMemberStatuses()
@@ -230,8 +245,8 @@ void DynamicZone::CacheMemberStatuses()
 	// called when a new dz is cached to fill member statuses
 	std::string zone_name;
 	std::vector<ClientListEntry*> all_clients;
-	all_clients.reserve(client_list.GetClientCount());
-	client_list.GetClients(zone_name.c_str(), all_clients);
+	all_clients.reserve(ClientList::Instance()->GetClientCount());
+	ClientList::Instance()->GetClients(zone_name.c_str(), all_clients);
 
 	for (const auto& member : m_members)
 	{

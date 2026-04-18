@@ -1,119 +1,75 @@
-/**
- * EQEmulator: Everquest Server Emulator
- * Copyright (C) 2001-2019 EQEmulator Development Team (https://github.com/EQEmu/Server)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY except by those people which sell it, which
- * are required to give you total support for your newly bought product;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
- */
+/*	EQEmu: EQEmulator
 
-#include "../common/global_define.h"
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-#include <iostream>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-#include "../common/strings.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/queue.h"
-#include "../common/timer.h"
-#include "../common/eq_packet.h"
-#include "../common/seperator.h"
-#include "../common/version.h"
-#include "../common/eqtime.h"
-#include "../common/event/event_loop.h"
-#include "../common/net/eqstream.h"
-#include "../common/opcodemgr.h"
-#include "../common/guilds.h"
-#include "../common/eq_stream_ident.h"
-#include "../common/rulesys.h"
-#include "../common/platform.h"
-#include "../common/crash.h"
-#include "../common/misc.h"
-#include "client.h"
-#include "worlddb.h"
-#include "wguild_mgr.h"
-#include "../common/evolving_items.h"
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "common/content/world_content_service.h"
+#include "common/crash.h"
+#include "common/eq_packet.h"
+#include "common/eq_stream_ident.h"
+#include "common/eqemu_logsys.h"
+#include "common/eqtime.h"
+#include "common/event/event_loop.h"
+#include "common/events/player_event_logs.h"
+#include "common/guilds.h"
+#include "common/ip_util.h"
+#include "common/misc.h"
+#include "common/net/eqstream.h"
+#include "common/patches/patches.h"
+#include "common/path_manager.h"
+#include "common/platform.h"
+#include "common/repositories/character_expedition_lockouts_repository.h"
+#include "common/repositories/character_task_timers_repository.h"
+#include "common/rulesys.h"
+#include "common/skill_caps.h"
+#include "common/timer.h"
+#include "common/version.h"
+#include "world/adventure_manager.h"
+#include "world/client.h"
+#include "world/clientlist.h"
+#include "world/console.h"
+#include "world/dynamic_zone_manager.h"
+#include "world/launcher_list.h"
+#include "world/lfplist.h"
+#include "world/login_server.h"
+#include "world/queryserv.h"
+#include "world/shared_task_manager.h"
+#include "world/ucs.h"
+#include "world/web_interface.h"
+#include "world/wguild_mgr.h"
+#include "world/world_boot.h"
+#include "world/world_config.h"
+#include "world/world_event_scheduler.h"
+#include "world/world_server_cli.h"
+#include "world/worlddb.h"
+#include "world/zonelist.h"
+#include "world/zoneserver.h"
+
+#include "fmt/format.h"
+#include <csignal>
+#include <cstdlib>
 #ifdef _WINDOWS
-#include <process.h>
-#define snprintf	_snprintf
-#define strncasecmp	_strnicmp
-#define strcasecmp	_stricmp
 #include <conio.h>
-#else
-
-#include <sys/sem.h>
-#include <thread>
-
 #endif
 
-#include "../common/patches/patches.h"
-#include "zoneserver.h"
-#include "login_server.h"
-#include "login_server_list.h"
-#include "world_config.h"
-#include "zonelist.h"
-#include "clientlist.h"
-#include "launcher_list.h"
-#include "lfplist.h"
-#include "adventure_manager.h"
-#include "ucs.h"
-#include "queryserv.h"
-#include "web_interface.h"
-#include "console.h"
-#include "dynamic_zone_manager.h"
-
-#include "world_server_cli.h"
-#include "../common/content/world_content_service.h"
-#include "../common/repositories/character_expedition_lockouts_repository.h"
-#include "../common/repositories/character_task_timers_repository.h"
-#include "../common/zone_store.h"
-#include "world_event_scheduler.h"
-#include "shared_task_manager.h"
-#include "world_boot.h"
-#include "../common/path_manager.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/skill_caps.h"
-#include "../common/repositories/character_parcels_repository.h"
-#include "../common/ip_util.h"
-
-SkillCaps           skill_caps;
-ZoneStore           zone_store;
-ClientList          client_list;
 GroupLFPList        LFPGroupList;
-ZSList              zoneserver_list;
-LoginServerList     loginserverlist;
-UCSConnection       UCSLink;
-QueryServConnection QSLink;
 LauncherList        launcher_list;
-AdventureManager    adventure_manager;
-WorldEventScheduler event_scheduler;
-SharedTaskManager   shared_task_manager;
-EQ::Random          emu_random;
 volatile bool       RunLoops   = true;
 uint32              numclients = 0;
 uint32              numzones   = 0;
 const WorldConfig   *Config;
-EQEmuLogSys         LogSys;
-WorldContentService content_service;
-WebInterfaceList    web_interface;
-PathManager         path;
-PlayerEventLogs     player_event_logs;
-EvolvingItemsManager evolving_items_manager;
 
 void CatchSignal(int sig_num);
 
@@ -135,14 +91,14 @@ inline void UpdateWindowTitle(std::string new_title)
 int main(int argc, char **argv)
 {
 	RegisterExecutablePlatform(ExePlatformWorld);
-	LogSys.LoadLogSettingsDefaults();
+	EQEmuLogSys::Instance()->LoadLogSettingsDefaults();
 	set_exception_handler();
 
 	if (WorldBoot::HandleCommandInput(argc, argv)) {
 		return 0;
 	}
 
-	path.LoadPaths();
+	PathManager::Instance()->Init();
 
 	if (!WorldBoot::LoadServerConfig()) {
 		return 0;
@@ -182,12 +138,13 @@ int main(int argc, char **argv)
 	EQTimeTimer.Start(600000);
 	Timer parcel_prune_timer(86400000);
 	parcel_prune_timer.Start(86400000);
-
+	Timer player_event_log_process(1000);
+	player_event_log_process.Start(1000);
 
 	// global loads
 	LogInfo("Loading launcher list");
 	launcher_list.LoadList();
-	zoneserver_list.Init();
+	ZSList::Instance()->Init();
 
 	if (IpUtil::IsPortInUse(Config->WorldIP, Config->WorldTCPPort)) {
 		LogError("World port [{}] already in use", Config->WorldTCPPort);
@@ -201,12 +158,12 @@ int main(int argc, char **argv)
 		RegisterConsoleFunctions(console);
 	}
 
-	content_service.SetDatabase(&database)
+	WorldContentService::Instance()->SetDatabase(&database)
 		->SetContentDatabase(&content_db)
 		->SetExpansionContext()
 		->ReloadContentFlags();
 
-	skill_caps.SetContentDatabase(&content_db)->LoadSkillCaps();
+	SkillCaps::Instance()->SetContentDatabase(&content_db)->LoadSkillCaps();
 
 	std::unique_ptr<EQ::Net::ServertalkServer> server_connection;
 	server_connection = std::make_unique<EQ::Net::ServertalkServer>();
@@ -221,7 +178,7 @@ int main(int argc, char **argv)
 	server_connection->OnConnectionIdentified(
 		"Zone", [&console](std::shared_ptr<EQ::Net::ServertalkServerConnection> connection) {
 			numzones++;
-			zoneserver_list.Add(new ZoneServer(connection, console.get()));
+			ZSList::Instance()->Add(new ZoneServer(connection, console.get()));
 
 			LogInfo(
 				"New Zone Server connection from [{}] at [{}:{}] zone_count [{}]",
@@ -236,7 +193,7 @@ int main(int argc, char **argv)
 	server_connection->OnConnectionRemoved(
 		"Zone", [](std::shared_ptr<EQ::Net::ServertalkServerConnection> connection) {
 			numzones--;
-			zoneserver_list.Remove(connection->GetUUID());
+			ZSList::Instance()->Remove(connection->GetUUID());
 
 			LogInfo(
 				"Removed Zone Server connection from [{}] total zone_count [{}]",
@@ -278,7 +235,7 @@ int main(int argc, char **argv)
 				connection->Handle()->RemotePort(),
 				connection->GetUUID());
 
-			QSLink.AddConnection(connection);
+			QueryServConnection::Instance()->AddConnection(connection);
 		}
 	);
 
@@ -289,7 +246,7 @@ int main(int argc, char **argv)
 				connection->GetUUID()
 			);
 
-			QSLink.RemoveConnection(connection);
+			QueryServConnection::Instance()->RemoveConnection(connection);
 		}
 	);
 
@@ -302,9 +259,9 @@ int main(int argc, char **argv)
 				connection->GetUUID()
 			);
 
-			UCSLink.SetConnection(connection);
+			UCSConnection::Instance()->SetConnection(connection);
 
-			zoneserver_list.UpdateUCSServerAvailable();
+			ZSList::Instance()->UpdateUCSServerAvailable();
 		}
 	);
 
@@ -312,12 +269,12 @@ int main(int argc, char **argv)
 		"UCS", [](std::shared_ptr<EQ::Net::ServertalkServerConnection> connection) {
 			LogInfo("Connection lost from UCS Server [{}]", connection->GetUUID());
 
-			auto ucs_connection = UCSLink.GetConnection();
+			auto ucs_connection = UCSConnection::Instance()->GetConnection();
 
 			if (ucs_connection->GetUUID() == connection->GetUUID()) {
 				LogInfo("Removing currently active UCS connection");
-				UCSLink.SetConnection(nullptr);
-				zoneserver_list.UpdateUCSServerAvailable(false);
+				UCSConnection::Instance()->SetConnection(nullptr);
+				ZSList::Instance()->UpdateUCSServerAvailable(false);
 			}
 		}
 	);
@@ -331,7 +288,7 @@ int main(int argc, char **argv)
 				connection->GetUUID()
 			);
 
-			web_interface.AddConnection(connection);
+			WebInterfaceList::Instance()->AddConnection(connection);
 		}
 	);
 
@@ -342,28 +299,28 @@ int main(int argc, char **argv)
 				connection->GetUUID()
 			);
 
-			web_interface.RemoveConnection(connection);
+			WebInterfaceList::Instance()->RemoveConnection(connection);
 		}
 	);
 
 	WorldBoot::CheckForPossibleConfigurationIssues();
 
 	EQStreamManagerInterfaceOptions opts(9000, false, false);
-	opts.daybreak_options.resend_delay_ms     = RuleI(Network, ResendDelayBaseMS);
-	opts.daybreak_options.resend_delay_factor = RuleR(Network, ResendDelayFactor);
-	opts.daybreak_options.resend_delay_min    = RuleI(Network, ResendDelayMinMS);
-	opts.daybreak_options.resend_delay_max    = RuleI(Network, ResendDelayMaxMS);
-	opts.daybreak_options.outgoing_data_rate  = RuleR(Network, ClientDataRate);
+	opts.reliable_stream_options.resend_delay_ms     = RuleI(Network, ResendDelayBaseMS);
+	opts.reliable_stream_options.resend_delay_factor = RuleR(Network, ResendDelayFactor);
+	opts.reliable_stream_options.resend_delay_min    = RuleI(Network, ResendDelayMinMS);
+	opts.reliable_stream_options.resend_delay_max    = RuleI(Network, ResendDelayMaxMS);
+	opts.reliable_stream_options.outgoing_data_rate  = RuleR(Network, ClientDataRate);
 
 	EQ::Net::EQStreamManager eqsm(opts);
 
 	//register all the patches we have avaliable with the stream identifier.
 	EQStreamIdentifier stream_identifier;
 	RegisterAllPatches(stream_identifier);
-	zoneserver_list.shutdowntimer = new Timer(60000);
-	zoneserver_list.shutdowntimer->Disable();
-	zoneserver_list.reminder = new Timer(20000);
-	zoneserver_list.reminder->Disable();
+	ZSList::Instance()->shutdowntimer = new Timer(60000);
+	ZSList::Instance()->shutdowntimer->Disable();
+	ZSList::Instance()->reminder = new Timer(20000);
+	ZSList::Instance()->reminder->Disable();
 	Timer InterserverTimer(INTERSERVER_TIMER); // does MySQL pings and auto-reconnect
 	InterserverTimer.Trigger();
 	uint8                              ReconnectCounter = 100;
@@ -381,18 +338,9 @@ int main(int argc, char **argv)
 		}
 	);
 
-	if (player_event_logs.LoadDatabaseConnection()) {
-		player_event_logs.Init();
+	if (PlayerEventLogs::Instance()->LoadDatabaseConnection()) {
+		PlayerEventLogs::Instance()->Init();
 	}
-
-	auto event_log_processor = std::jthread([](const std::stop_token& stoken) {
-		while (!stoken.stop_requested()) {
-			if (!RuleB(Logging, PlayerEventsQSProcess)) {
-				player_event_logs.Process();
-			}
-			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-		}
-	});
 
 	auto loop_fn = [&](EQ::Timer* t) {
 		Timer::SetCurrentTime();
@@ -418,7 +366,7 @@ int main(int argc, char **argv)
 					LogInfo("Connection [{}] PASSED banned IPs check. Processing connection", inet_ntoa(in));
 					auto client = new Client(eqsi);
 					// @merth: client->zoneattempt=0;
-					client_list.Add(client);
+					ClientList::Instance()->Add(client);
 				}
 				else {
 					LogInfo("Connection from [{}] failed banned IPs check. Closing connection", inet_ntoa(in));
@@ -433,13 +381,13 @@ int main(int argc, char **argv)
 				);
 				auto client = new Client(eqsi);
 				// @merth: client->zoneattempt=0;
-				client_list.Add(client);
+				ClientList::Instance()->Add(client);
 			}
 		}
 
-		event_scheduler.Process(&zoneserver_list);
+		WorldEventScheduler::Instance()->Process(ZSList::Instance());
 
-		client_list.Process();
+		ClientList::Instance()->Process();
 		guild_mgr.Process();
 
 		if (parcel_prune_timer.Check()) {
@@ -450,7 +398,7 @@ int main(int argc, char **argv)
 				);
 
 				auto out = std::make_unique<ServerPacket>(ServerOP_ParcelPrune);
-				zoneserver_list.SendPacketToBootedZones(out.get());
+				ZSList::Instance()->SendPacketToBootedZones(out.get());
 
 				database.PurgeCharacterParcels();
 			}
@@ -465,7 +413,7 @@ int main(int argc, char **argv)
 
 		if (EQTimeTimer.Check()) {
 			TimeOfDay_Struct tod{};
-			zoneserver_list.worldclock.GetCurrentEQTimeOfDay(time(nullptr), &tod);
+			ZSList::Instance()->worldclock.GetCurrentEQTimeOfDay(time(nullptr), &tod);
 			if (!database.SaveTime(tod.minute, tod.hour, tod.day, tod.month, tod.year)) {
 				LogEqTime("Failed to save eqtime");
 			}
@@ -480,12 +428,18 @@ int main(int argc, char **argv)
 			}
 		}
 
-		zoneserver_list.Process();
+		ZSList::Instance()->Process();
 		launcher_list.Process();
 		LFPGroupList.Process();
-		adventure_manager.Process();
-		shared_task_manager.Process();
+		AdventureManager::Instance()->Process();
+		SharedTaskManager::Instance()->Process();
 		dynamic_zone_manager.Process();
+
+		if (!RuleB(Logging, PlayerEventsQSProcess)) {
+			if (player_event_log_process.Check()) {
+				PlayerEventLogs::Instance()->Process();
+			}
+		}
 
 		if (InterserverTimer.Check()) {
 			InterserverTimer.Start();
@@ -495,7 +449,7 @@ int main(int argc, char **argv)
 			std::string window_title = fmt::format(
 				"World [{}] Clients [{}]",
 				Config->LongName,
-				client_list.GetClientCount()
+				ClientList::Instance()->GetClientCount()
 			);
 			UpdateWindowTitle(window_title);
 		}
@@ -506,14 +460,12 @@ int main(int argc, char **argv)
 
 	EQ::EventLoop::Get().Run();
 
-	event_log_processor.request_stop();
-
 	LogInfo("World main loop completed");
 	LogInfo("Shutting down zone connections (if any)");
-	zoneserver_list.KillAll();
+	ZSList::Instance()->KillAll();
 	LogInfo("Zone (TCP) listener stopped");
 	LogInfo("Signaling HTTP service to stop");
-	LogSys.CloseFileLogs();
+	EQEmuLogSys::Instance()->CloseFileLogs();
 
 	WorldBoot::Shutdown();
 

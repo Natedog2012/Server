@@ -1,30 +1,30 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2006 EQEMu Development Team (http://eqemulator.net)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef LAUNCHERLINK_H_
-#define LAUNCHERLINK_H_
+#pragma once
 
-#include "../common/timer.h"
-#include "../common/net/servertalk_server_connection.h"
-#include "../common/event/timer.h"
+#include "common/event/timer.h"
+#include "common/net/servertalk_server_connection.h"
+#include "common/timer.h"
+
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
-#include <map>
 
 class ServerPacket;
 
@@ -69,13 +69,10 @@ protected:
 
 	uint8 m_dynamicCount;
 
-	typedef struct {
+	struct ZoneState{
 		bool up;
 		uint32 starts;	//number of times this zone has started
 		uint16 port;	//the port this zone wants to use (0=pick one)
-	} ZoneState;
+	};
 	std::map<std::string, ZoneState> m_states;
 };
-
-#endif /*LAUNCHERLINK_H_*/
-

@@ -1,92 +1,35 @@
-/*	EQEMu: Everquest Server Emulator
-	Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
+
+	Copyright (C) 2001-2026 EQEmu Development Team
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; version 2 of the License.
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY except by those people which sell it, which
-	are required to give you total support for your newly bought product;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-	A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
-
-#include "../common/global_define.h"
 #include "misc_functions.h"
-#include <string.h>
-#include <time.h>
-#include "strings.h"
 
-#ifndef WIN32
-#include <netinet/in.h>
-#include <sys/socket.h>
+#include "common/platform/inet.h"
+#include "common/platform/platform.h"
+#include "common/seperator.h"
+#include "common/strings.h"
+#include "common/timer.h"
+#include "common/types.h"
+
+#include <ctime>
+
+#ifndef _WINDOWS
+#include <sys/stat.h>
+#include <netdb.h>
 #endif
-#include <iostream>
-#include <iomanip>
-#ifdef _WINDOWS
-	#include <io.h>
-#endif
-#include "../common/timer.h"
-#include "../common/seperator.h"
-
-#ifdef _WINDOWS
-	#include <windows.h>
-
-	#define snprintf	_snprintf
-	#define strncasecmp	_strnicmp
-	#define strcasecmp	_stricmp
-#else
-	#include <stdlib.h>
-	#include <ctype.h>
-	#include <stdarg.h>
-	#include <sys/types.h>
-	#include <sys/time.h>
-#ifdef FREEBSD //Timothy Whitman - January 7, 2003
-	#include <sys/socket.h>
-	#include <netinet/in.h>
-#endif
-	#include <sys/stat.h>
-	#include <unistd.h>
-	#include <netdb.h>
-	#include <errno.h>
-#endif
-
-void CoutTimestamp(bool ms) {
-	time_t rawtime;
-	struct tm* gmt_t;
-	time(&rawtime);
-	gmt_t = gmtime(&rawtime);
-
-	struct timeval read_time;
-	gettimeofday(&read_time,0);
-
-	std::cout << (gmt_t->tm_year + 1900) << "/" << std::setw(2) << std::setfill('0') << (gmt_t->tm_mon + 1) << "/" << std::setw(2) << std::setfill('0') << gmt_t->tm_mday << " " << std::setw(2) << std::setfill('0') << gmt_t->tm_hour << ":" << std::setw(2) << std::setfill('0') << gmt_t->tm_min << ":" << std::setw(2) << std::setfill('0') << gmt_t->tm_sec;
-	if (ms)
-		std::cout << "." << std::setw(3) << std::setfill('0') << (read_time.tv_usec / 1000);
-	std::cout << " GMT";
-}
-
-
-int32 filesize(FILE* fp) {
-#ifdef _WINDOWS
-	return _filelength(_fileno(fp));
-#else
-	struct stat file_stat;
-	fstat(fileno(fp), &file_stat);
-	return (int32) file_stat.st_size;
-/*	uint32 tmp = 0;
-	while (!feof(fp)) {
-		fseek(fp, tmp++, SEEK_SET);
-	}
-	return tmp;*/
-#endif
-}
 
 uint32 ResolveIP(const char* hostname, char* errbuf) {
 #ifdef _WINDOWS
@@ -147,7 +90,6 @@ InitWinsock::InitWinsock() {
 InitWinsock::~InitWinsock() {
 	WSACleanup();
 }
-
 #endif
 
 

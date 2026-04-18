@@ -1,17 +1,35 @@
-#include "mob_movement_manager.h"
-#include "client.h"
-#include "mob.h"
-#include "zone.h"
-#include "position.h"
-#include "water_map.h"
-#include "../common/eq_packet_structs.h"
-#include "../common/misc_functions.h"
-#include "../common/data_verification.h"
+/*	EQEmu: EQEmulator
 
-#include <vector>
+	Copyright (C) 2001-2026 EQEmu Development Team
+
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+#include "mob_movement_manager.h"
+
+#include "common/data_verification.h"
+#include "common/eq_packet_structs.h"
+#include "common/misc_functions.h"
+#include "zone/client.h"
+#include "zone/mob.h"
+#include "zone/position.h"
+#include "zone/water_map.h"
+#include "zone/zone.h"
+
+#include <cstdlib>
 #include <deque>
 #include <map>
-#include <stdlib.h>
+#include <vector>
 
 extern double frame_time;
 extern Zone   *zone;
@@ -839,6 +857,10 @@ void MobMovementManager::SendCommandToClients(
 				continue;
 			}
 
+			if (c->IsIdle()) {
+				continue;
+			}
+
 			_impl->Stats.TotalSent++;
 
 			if (anim != 0) {
@@ -876,6 +898,10 @@ void MobMovementManager::SendCommandToClients(
 			}
 
 			if (ignore_client && c == ignore_client) {
+				continue;
+			}
+
+			if (c->IsIdle()) {
 				continue;
 			}
 

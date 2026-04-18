@@ -1,48 +1,45 @@
-/*	EQEMu: Everquest Server Emulator
-Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
+/*	EQEmu: EQEmulator
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; version 2 of the License.
+	Copyright (C) 2001-2026 EQEmu Development Team
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY except by those people which sell it, which
-are required to give you total support for your newly bought product;
-without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 3 of the License, or
+	(at your option) any later version.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#include "../common/global_define.h"
-#include "../common/eqemu_logsys.h"
-#include "../common/servertalk.h"
-#include "../common/misc_functions.h"
-#include "../common/packet_functions.h"
-#include "../common/md5.h"
-#include "../common/strings.h"
 #include "worldserver.h"
-#include "clientlist.h"
-#include "ucsconfig.h"
-#include "database.h"
-#include "../common/discord/discord_manager.h"
-#include "../common/events/player_event_logs.h"
-#include "../common/server_reload_types.h"
 
-#include <iostream>
-#include <string.h>
-#include <stdio.h>
-#include <iomanip>
-#include <time.h>
-#include <stdlib.h>
-#include <stdarg.h>
+#include "common/discord/discord_manager.h"
+#include "common/eqemu_logsys.h"
+#include "common/events/player_event_logs.h"
+#include "common/md5.h"
+#include "common/misc_functions.h"
+#include "common/packet_functions.h"
+#include "common/server_reload_types.h"
+#include "common/servertalk.h"
+#include "common/strings.h"
+#include "ucs/clientlist.h"
+#include "ucs/database.h"
+#include "ucs/ucsconfig.h"
+
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 
 extern WorldServer     worldserver;
 extern Clientlist      *g_Clientlist;
 extern const ucsconfig *Config;
 extern UCSDatabase       database;
-extern DiscordManager  discord_manager;
 
 void ProcessMailTo(Client *c, const std::string& from, const std::string& subject, const std::string& message);
 
@@ -79,8 +76,8 @@ void WorldServer::ProcessMessage(uint16 opcode, EQ::Net::Packet &p)
 	case ServerOP_ServerReloadRequest: {
 		auto o = (ServerReload::Request*) pack->pBuffer;
 		if (o->type == ServerReload::Type::Logs) {
-			LogSys.LoadLogDatabaseSettings();
-			player_event_logs.ReloadSettings();
+			EQEmuLogSys::Instance()->LoadLogDatabaseSettings();
+			PlayerEventLogs::Instance()->ReloadSettings();
 		}
 
 		break;
@@ -92,14 +89,14 @@ void WorldServer::ProcessMessage(uint16 opcode, EQ::Net::Packet &p)
 		cereal::BinaryInputArchive archive(ss);
 		archive(n);
 
-		discord_manager.QueuePlayerEventMessage(n);
+		DiscordManager::Instance()->QueuePlayerEventMessage(n);
 
 		break;
 	}
 	case ServerOP_DiscordWebhookMessage: {
 		auto *q = (DiscordWebhookMessage_Struct *) p.Data();
 
-		discord_manager.QueueWebhookMessage(
+		DiscordManager::Instance()->QueueWebhookMessage(
 			q->webhook_id,
 			q->message
 		);
